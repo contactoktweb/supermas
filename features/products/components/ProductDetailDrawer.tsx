@@ -69,27 +69,31 @@ export function ProductDetailDrawer({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="drawer-header">
-          <div className="dialog-title-group">
-            <div className="product-thumb large">
+        <div className="drawer-header product-detail-header-v2">
+          <div className="product-detail-hero-layout">
+            <div className="product-detail-avatar-container">
               {product.imageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={product.imageUrl}
-                  alt={product.name}
-                  className="product-drawer-hero-img"
-                />
+                <div className="product-detail-image-box">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="product-detail-img-element"
+                  />
+                </div>
               ) : (
-                <AppIcon name="products" size={24} />
+                <div className="product-detail-fallback-avatar">
+                  <AppIcon name="products" size={28} />
+                </div>
               )}
             </div>
-            <div>
-              <span className="eyebrow">{product.category}</span>
-              <h2>{product.name}</h2>
+            <div className="product-detail-header-info">
+              <span className="product-category-eyebrow">{product.category}</span>
+              <h2 className="product-title-heading">{product.name}</h2>
               <div className="detail-badges-row">
                 <span className="code-badge">{product.sku}</span>
                 {product.barcode && (
-                  <span className="mono">{product.barcode}</span>
+                  <span className="barcode-text">{product.barcode}</span>
                 )}
                 <span
                   className={`status-indicator-pill ${

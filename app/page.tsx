@@ -5,6 +5,7 @@ import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
 import { DashboardView } from '@/features/dashboard/components/DashboardView'
 import { ProductsPage } from '@/features/products/components/ProductsPage'
+import { KardexPage } from '@/features/kardex/components/KardexPage'
 import { Footer } from '@/components/Footer'
 
 const modules: [string, LightIconName][] = [
@@ -466,7 +467,7 @@ function App(){
   ) : view === 'Productos' ? (
     <Products onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Kardex' ? (
-    <Kardex />
+    <KardexPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Transferencias' ? (
     <Transfers />
   ) : view === 'POS' ? (

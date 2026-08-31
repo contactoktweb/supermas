@@ -2,7 +2,7 @@
 
 import React, { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { KardexPage } from '@/features/kardex/components/KardexPage'
+import { TransferPage } from '@/features/transfers/components/TransferPage'
 import { Footer } from '@/components/Footer'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import Link from 'next/link'
@@ -36,25 +36,28 @@ const modules: [string, LightIconName, string][] = [
   ['Configuración', 'settings', '/'],
 ]
 
-function KardexContent() {
+function TransferContent() {
   const searchParams = useSearchParams()
-  const productId = searchParams.get('productId') || undefined
   const locationId = searchParams.get('locationId') || undefined
+  const productId = searchParams.get('productId') || undefined
+  const direction = (searchParams.get('direction') as any) || 'ALL'
 
   return (
-    <KardexPage
-      initialProductId={productId}
+    <TransferPage
       initialLocationId={locationId}
+      initialProductId={productId}
+      initialDirection={direction}
     />
   )
 }
 
-export default function KardexRoutePage() {
+export default function TransferRoutePage() {
   const [menu, setMenu] = useState(false)
 
   return (
     <div className="app-shell">
       {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} />}
+      
       {/* Sidebar */}
       <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
         <div className="sidebar-top">
@@ -87,7 +90,7 @@ export default function KardexRoutePage() {
             <Link
               key={m}
               href={href}
-              className={`nav-item ${m === 'Kardex' ? 'active' : ''}`}
+              className={`nav-item ${m === 'Transferencias' ? 'active' : ''}`}
             >
               <AppIcon name={icon} size={16} />
               <span>{m}</span>
@@ -98,33 +101,57 @@ export default function KardexRoutePage() {
 
       {/* Main Area */}
       <div className="main-area">
-        <header className="header">
-          <div className="header-left">
-            <button
-              className="menu-button icon-button"
-              onClick={() => setMenu(true)}
-              aria-label="Abrir menú"
-            >
-              <AppIcon name="menu" size={20} />
-            </button>
-            <div className="header-title">
-              <h2>Kardex</h2>
-              <span>Trazabilidad de inventario y auditoría de movimientos</span>
-            </div>
+        {/* Topbar */}
+        <header className="topbar">
+          <button
+            className="menu-button icon-button"
+            onClick={() => setMenu(true)}
+            aria-label="Abrir menú"
+          >
+            <AppIcon name="menu" size={20} />
+          </button>
+
+          <div className="topbar-search">
+            <AppIcon name="search" size={16} />
+            <input
+              placeholder="Buscar en Super Más ERP..."
+              aria-label="Buscar en ERP"
+            />
           </div>
-          <div className="header-right">
-            <span className="live-pill">
-              <i /> Sistema en línea
-            </span>
+
+          <div className="topbar-actions">
+            <div className="active-tag">
+              <span className="live-dot" />
+              <span>Sistema en línea</span>
+            </div>
+
+            <button
+              className="icon-button notification-button"
+              aria-label="Alertas del sistema"
+            >
+              <AppIcon name="alerts" size={18} />
+              <span className="notif-badge">3</span>
+            </button>
+
+            <div className="avatar-chip">
+              <div className="user-avatar-initials">MA</div>
+              <div>
+                <strong>Mauricio Arango</strong>
+                <span>Logística</span>
+              </div>
+            </div>
           </div>
         </header>
 
-        <main className="dashboard-content">
-          <Suspense fallback={<div style={{ padding: 24 }}>Cargando Kardex...</div>}>
-            <KardexContent />
+        {/* Dynamic Content */}
+        <main className="content">
+          <Suspense fallback={<div style={{ padding: 32 }}>Cargando módulo de transferencias...</div>}>
+            <TransferContent />
           </Suspense>
-          <Footer isDark={false} />
         </main>
+
+        {/* Footer with Mandatory Attribution */}
+        <Footer />
       </div>
     </div>
   )

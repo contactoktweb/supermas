@@ -13,7 +13,7 @@ const modules: [string, LightIconName, string][] = [
   ['Productos', 'products', '/'],
   ['Inventario', 'inventory', '/inventario'],
   ['Kardex', 'kardex', '/kardex'],
-  ['Transferencias', 'transfers', '/'],
+  ['Transferencias', 'transfers', '/transferencias'],
   ['Compras', 'purchases', '/'],
   ['Proveedores', 'suppliers', '/'],
   ['Clientes', 'customers', '/'],

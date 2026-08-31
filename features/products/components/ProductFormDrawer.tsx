@@ -272,7 +272,7 @@ export function ProductFormDrawer({
             className={activeTab === 'info' ? 'active' : ''}
             onClick={() => setActiveTab('info')}
           >
-            <AppIcon name="products" size={13} />
+            <AppIcon name="products" size={14} />
             <span>Información</span>
           </button>
 
@@ -283,7 +283,7 @@ export function ProductFormDrawer({
             className={activeTab === 'prices' ? 'active' : ''}
             onClick={() => setActiveTab('prices')}
           >
-            <AppIcon name="sales" size={13} />
+            <AppIcon name="sales" size={14} />
             <span>Precios</span>
           </button>
 
@@ -294,7 +294,7 @@ export function ProductFormDrawer({
             className={activeTab === 'tax' ? 'active' : ''}
             onClick={() => setActiveTab('tax')}
           >
-            <AppIcon name="receipt" size={13} />
+            <AppIcon name="receipt" size={14} />
             <span>Tributación</span>
           </button>
 
@@ -305,7 +305,7 @@ export function ProductFormDrawer({
             className={activeTab === 'web' ? 'active' : ''}
             onClick={() => setActiveTab('web')}
           >
-            <AppIcon name="webOrders" size={13} />
+            <AppIcon name="webOrders" size={14} />
             <span>Canales Web</span>
           </button>
 
@@ -316,7 +316,7 @@ export function ProductFormDrawer({
             className={activeTab === 'governance' ? 'active' : ''}
             onClick={() => setActiveTab('governance')}
           >
-            <AppIcon name="audit" size={13} />
+            <AppIcon name="audit" size={14} />
             <span>Gobernanza</span>
           </button>
         </div>

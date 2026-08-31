@@ -125,7 +125,7 @@ export function ProductDetailDrawer({
             className={activeTab === 'summary' ? 'active' : ''}
             onClick={() => setActiveTab('summary')}
           >
-            <AppIcon name="products" size={13} />
+            <AppIcon name="products" size={14} />
             <span>Resumen</span>
           </button>
 
@@ -136,7 +136,7 @@ export function ProductDetailDrawer({
             className={activeTab === 'inventory' ? 'active' : ''}
             onClick={() => setActiveTab('inventory')}
           >
-            <AppIcon name="warehouse" size={13} />
+            <AppIcon name="warehouse" size={14} />
             <span>Inventario</span>
           </button>
 
@@ -147,7 +147,7 @@ export function ProductDetailDrawer({
             className={activeTab === 'prices' ? 'active' : ''}
             onClick={() => setActiveTab('prices')}
           >
-            <AppIcon name="sales" size={13} />
+            <AppIcon name="sales" size={14} />
             <span>Precios</span>
           </button>
 
@@ -158,7 +158,7 @@ export function ProductDetailDrawer({
             className={activeTab === 'movements' ? 'active' : ''}
             onClick={() => setActiveTab('movements')}
           >
-            <AppIcon name="kardex" size={13} />
+            <AppIcon name="kardex" size={14} />
             <span>Movimientos</span>
           </button>
 
@@ -169,7 +169,7 @@ export function ProductDetailDrawer({
             className={activeTab === 'web' ? 'active' : ''}
             onClick={() => setActiveTab('web')}
           >
-            <AppIcon name="webOrders" size={13} />
+            <AppIcon name="webOrders" size={14} />
             <span>Web</span>
           </button>
         </div>

@@ -75,26 +75,30 @@ export function ProductTable({
       case 'AVAILABLE':
         return (
           <span className="state disponible" title="Stock en niveles óptimos">
-            <AppIcon name="check" size={11} /> {product.totalStock} uds
+            <AppIcon name="check" size={13} />
+            <span>{product.totalStock} uds</span>
           </span>
         )
       case 'LOW_STOCK':
         return (
           <span className="state stock-bajo" title="Stock bajo el umbral mínimo">
-            <AppIcon name="warning" size={11} /> {product.totalStock} uds
+            <AppIcon name="warning" size={13} />
+            <span>{product.totalStock} uds</span>
           </span>
         )
       case 'CRITICAL':
         return (
           <span className="state crítico" title="Stock crítico urgente">
-            <AppIcon name="warning" size={11} /> {product.totalStock} uds
+            <AppIcon name="warning" size={13} />
+            <span>{product.totalStock} uds</span>
           </span>
         )
       case 'OUT_OF_STOCK':
       default:
         return (
           <span className="state agotado" title="Sin existencias disponibles">
-            <AppIcon name="close" size={11} /> Agotado
+            <AppIcon name="close" size={13} />
+            <span>Agotado</span>
           </span>
         )
     }
@@ -414,7 +418,8 @@ export function ProductTable({
                     <td style={{ textAlign: 'center' }}>
                       {product.webSuperMas ? (
                         <span className="web-channel-dot active" title="Publicado en Catálogo Super Más (Compra Web)">
-                          <AppIcon name="check" size={11} /> SM
+                          <AppIcon name="check" size={11} />
+                          <span>SM</span>
                         </span>
                       ) : (
                         <span className="web-channel-dot inactive" title="No disponible en Catálogo Super Más">
@@ -429,7 +434,8 @@ export function ProductTable({
                     <td style={{ textAlign: 'center' }}>
                       {product.webDistribuidora ? (
                         <span className="web-channel-dot active-dist" title="Publicado en Catálogo Distribuidora (WhatsApp)">
-                          <AppIcon name="check" size={11} /> Dist
+                          <AppIcon name="check" size={11} />
+                          <span>Dist</span>
                         </span>
                       ) : (
                         <span className="web-channel-dot inactive" title="No disponible en Catálogo Distribuidora">

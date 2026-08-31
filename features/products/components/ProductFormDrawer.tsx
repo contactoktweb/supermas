@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { FileUpload } from '@/components/ui/FileUpload'
 import {
   Product,
   CreateProductInput,
@@ -424,17 +425,17 @@ export function ProductFormDrawer({
                     onChange={(val) => setUnitOfMeasure(val as UnitOfMeasure)}
                   />
                 </div>
+              </div>
 
-                <div className="form-field">
-                  <label>URL de imagen ilustrativa</label>
-                  <div className="input-wrap">
-                    <input
-                      value={imageUrl}
-                      onChange={(e) => setImageUrl(e.target.value)}
-                      placeholder="https://..."
-                    />
-                  </div>
-                </div>
+              <div className="form-field">
+                <FileUpload
+                  label="Fotografía / Imagen del producto"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  value={imageUrl}
+                  onChange={(dataUrl) => setImageUrl(dataUrl)}
+                  onRemove={() => setImageUrl('')}
+                  helperText="Selecciona o arrastra una imagen (PNG, JPG, WEBP, SVG máx. 5MB)"
+                />
               </div>
 
               <div className="form-field">

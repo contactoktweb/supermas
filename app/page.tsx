@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
 import { DashboardView } from '@/features/dashboard/components/DashboardView'
+import { ProductsPage } from '@/features/products/components/ProductsPage'
 import { Footer } from '@/components/Footer'
 
 const modules: [string, LightIconName][] = [
@@ -136,87 +137,8 @@ function PageHead({eyebrow,title,sub,action}:{eyebrow:string;title:string;sub:st
   </div>
 }
 
-function ProductDrawer({p,close}:{p:typeof products[number];close:()=>void}){
-  const [tab,setTab]=useState('Resumen');
-  return <div className="drawer-backdrop" onClick={close}>
-    <aside className="product-drawer" onClick={e=>e.stopPropagation()}>
-      <div className="drawer-header">
-        <div>
-          <p className="eyebrow">Detalle de producto</p>
-          <h2>{p.name}</h2>
-        </div>
-        <button className="icon-button" onClick={close} aria-label="Cerrar">
-          <AppIcon name="close" size={18}/>
-        </button>
-      </div>
-      <div className="drawer-product">
-        <div className="product-thumb large">
-          <AppIcon name="products" size={24}/>
-        </div>
-        <div>
-          <span>{p.category} · {p.brand}</span>
-          <strong>{p.sku}</strong>
-          <small>{p.barcode}</small>
-        </div>
-      </div>
-      <div className="drawer-tabs">
-        {['Resumen','Bodegas','Movimientos','Precios','Web'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}</button>)}
-      </div>
-      {tab==='Resumen'?<>
-        <div className="drawer-value">
-          <span>Stock total</span>
-          <strong>{p.stock} unidades</strong>
-          <span className={`state ${p.state.toLowerCase().replace(' ','-')}`}>{p.state}</span>
-        </div>
-        <div className="drawer-section">
-          <h3>Inventario por bodega</h3>
-          {[['Bodega Principal','40%','192'],['Punto Centro','35%','169'],['Bodega Norte','25%','121']].map(([n,pct,u])=><div className="distribution" key={n}><div><span>{n}</span><b>{u} uds · {pct}</b></div><div className="distribution-bar"><i style={{width:pct}}/></div></div>)}
-        </div>
-        <div className="drawer-section price-grid">
-          <div><span>Costo promedio</span><strong>{p.cost}</strong></div>
-          <div><span>Precio normal</span><strong>{p.price}</strong></div>
-          <div><span>Mayorista</span><strong>{p.wholesale}</strong></div>
-          <div><span>Margen</span><strong className="positive-text">{p.margin}</strong></div>
-        </div>
-      </>:<div className="drawer-empty"><AppIcon name="products" size={32}/><p>{tab} del producto</p><span>Información lista para gestionar.</span></div>}
-      <button className="primary-button">
-        Ver kardex <AppIcon name="chevronRight" size={14}/>
-      </button>
-    </aside>
-  </div>
-}
-
-function Products(){
-  const [query,setQuery]=useState('');
-  const [selected,setSelected]=useState<typeof products[number]|null>(null);
-  const [grid,setGrid]=useState(false);
-  const filtered=useMemo(()=>products.filter(p=>(p.name+p.sku+p.barcode).toLowerCase().includes(query.toLowerCase())),[query]);
-  return <>
-    <PageHead eyebrow="Catálogo central" title="Productos" sub="Administra el catálogo general de productos de Super Más." action="Nuevo producto"/>
-    <section className="stats-grid products-stats">
-      {[
-        ['Total de productos','8,492','products','blue'],
-        ['Productos activos','8,376','check','teal'],
-        ['Productos agotados','14','close','red'],
-        ['Stock bajo','96','warning','amber'],
-        ['Valor total inventario','$912.6M','sales','blue'],
-        ['Publicados en web','6,840','pos','teal']
-      ].map(([t,v,icon,tone],i)=><Stat key={t as string} title={t as string} value={v as string} iconName={icon as LightIconName} tone={tone as string} note={i===2||i===3?'Revisar':'+8.4%'}/>)}
-    </section>
-    <div className="toolbar inventory-toolbar">
-      <div className="search-box wide">
-        <AppIcon name="search" size={16}/>
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por producto, SKU o código de barras..."/>
-      </div>
-      <button className="filter-button">Categoría <AppIcon name="chevronDown" size={13}/></button>
-      <button className="filter-button">Estado <AppIcon name="chevronDown" size={13}/></button>
-      <button className="filter-button">Columnas <AppIcon name="chevronDown" size={13}/></button>
-      <button className={`view-toggle ${!grid?'selected':''}`} onClick={()=>setGrid(false)}>Tabla</button>
-      <button className={`view-toggle ${grid?'selected':''}`} onClick={()=>setGrid(true)}>Cuadrícula</button>
-    </div>
-    {grid?<div className="product-grid">{filtered.map(p=><article className="product-card" key={p.sku} onClick={()=>setSelected(p)}><div className="product-thumb"><AppIcon name="products" size={18}/></div><p>{p.category}</p><h3>{p.name}</h3><span>{p.sku}</span><strong>{p.price}</strong><b className={`state ${p.state.toLowerCase().replace(' ','-')}`}>{p.state}</b></article>)}</div>:<div className="table-panel animated-table"><div className="table-scroll"><table><thead><tr><th>Producto</th><th>SKU</th><th>Código de barras</th><th>Categoría</th><th>Marca</th><th>Stock total</th><th>Estado</th><th>Costo promedio</th><th>Precio normal</th><th>Mayorista</th><th>Margen</th><th>Catálogos</th><th/></tr></thead><tbody>{filtered.map(p=><tr key={p.sku} onClick={()=>setSelected(p)}><td><div className="product-cell"><div className="product-thumb"><AppIcon name="products" size={16}/></div><strong>{p.name}</strong></div></td><td>{p.sku}</td><td>{p.barcode}</td><td>{p.category}</td><td>{p.brand}</td><td><b>{p.stock}</b></td><td><span className={`state ${p.state.toLowerCase().replace(' ','-')}`}>{p.state}</span></td><td>{p.cost}</td><td>{p.price}</td><td>{p.wholesale}</td><td>{p.margin}</td><td><span className="channel-dot"><AppIcon name="check" size={12}/> SM</span><span className="channel-dot muted">D</span></td><td><div className="row-actions"><button aria-label="Ver"><AppIcon name="eye" size={15}/></button><button aria-label="Editar"><AppIcon name="edit" size={15}/></button><button aria-label="Más"><AppIcon name="more" size={15}/></button></div></td></tr>)}</tbody></table></div></div>}
-    {selected&&<ProductDrawer p={selected} close={()=>setSelected(null)}/>}
-  </>
+function Products({ onNavigate }: { onNavigate?: (view: string) => void }) {
+  return <ProductsPage onNavigate={onNavigate} />
 }
 
 function Kardex(){
@@ -542,7 +464,7 @@ function App(){
   ) : view === 'Bodegas' ? (
     <WarehousePage />
   ) : view === 'Productos' ? (
-    <Products />
+    <Products onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Kardex' ? (
     <Kardex />
   ) : view === 'Transferencias' ? (

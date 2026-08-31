@@ -173,7 +173,7 @@ export class DashboardService {
   }
 
   /**
-   * Get inventory distribution with cost protection
+   * Get inventory distribution with dynamic percentages calculated over total inventory value at cost
    */
   async getInventoryDistribution(
     user: UserProfile
@@ -181,10 +181,25 @@ export class DashboardService {
     const list = await dashboardRepository.getInventoryDistribution()
     const canSeeCosts = this.hasFinancialAccess(user.role)
 
-    return list.map((item) => ({
-      ...item,
-      value: canSeeCosts ? item.value : undefined,
-    }))
+    // Calculate total inventory value at cost dynamically
+    const totalCostValue = list.reduce((sum, item) => sum + (item.value || 0), 0)
+    const totalUnits = list.reduce((sum, item) => sum + (item.units || 0), 0)
+
+    return list.map((item) => {
+      // Dynamic percentage strictly computed based on share of inventory value at cost
+      let percentage = 0
+      if (totalCostValue > 0 && typeof item.value === 'number') {
+        percentage = Number(((item.value / totalCostValue) * 100).toFixed(1))
+      } else if (totalUnits > 0 && item.units) {
+        percentage = Number(((item.units / totalUnits) * 100).toFixed(1))
+      }
+
+      return {
+        ...item,
+        percentage,
+        value: canSeeCosts ? item.value : undefined,
+      }
+    })
   }
 
   /**

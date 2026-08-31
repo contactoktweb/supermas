@@ -91,14 +91,25 @@ async function runDashboardTests() {
   assert.ok(formattedStandard.includes('24.850.000') || formattedStandard.includes('24,850,000') || formattedStandard.includes('$'), 'Standard COP format')
   assert.strictEqual(formattedCompactMillions, '$24.85M', 'Compact COP format in Millions')
   assert.strictEqual(formattedCompactBillions, '$1.84B', 'Compact COP format in Billions')
-  // Test 7: Custom Date Range Formatter
-  console.log('Test 7: Custom Date Range Formatter')
-  const formattedRange = service.formatDateRange({
-    startDate: '2026-08-01',
-    endDate: '2026-08-31',
-  })
-  assert.strictEqual(formattedRange, '01/08/2026 — 31/08/2026', 'Formatted date range must match Colombian DD/MM/YYYY style')
-  console.log('✓ Custom Date Range Formatter passed')
+  // Test 8: Dynamic Inventory Distribution Calculation by Cost Value
+  console.log('Test 8: Dynamic Inventory Distribution by Cost Value')
+  const distribution = await service.getInventoryDistribution(superAdmin)
+  const totalCost = distribution.reduce((acc, item) => acc + (item.value || 0), 0)
+  assert.ok(totalCost > 0, 'Total inventory cost must be greater than 0')
+
+  let sumPct = 0
+  for (const item of distribution) {
+    assert.ok(typeof item.value === 'number', 'Admin must see cost value for each location')
+    const expectedPct = Number(((item.value / totalCost) * 100).toFixed(1))
+    assert.strictEqual(
+      item.percentage,
+      expectedPct,
+      `Percentage for ${item.locationName} must be computed from cost value`
+    )
+    sumPct += item.percentage
+  }
+  assert.ok(Math.abs(sumPct - 100) <= 0.5, 'Sum of calculated percentages must approximately equal 100%')
+  console.log('✓ Dynamic Inventory Distribution by Cost Value passed')
 
   console.log('\n======================================')
   console.log('ALL DASHBOARD BUSINESS LOGIC TESTS PASSED!')

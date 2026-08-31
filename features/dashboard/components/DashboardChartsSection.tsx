@@ -338,19 +338,97 @@ export function DashboardChartsSection({
               <AppIcon name="pieChart" size={16} color="var(--navy)" />
               <h2>Distribución del inventario</h2>
             </div>
-            <p>Participación por bodega y sede de venta</p>
+            <p>Participación por valor del inventario a costo</p>
           </div>
         </div>
 
         <div className="donut-distribution-body">
           <div className="donut-wrap">
-            <div className="custom-donut-circle">
-              <div className="donut-inner-content">
-                <strong>{distribution.reduce((a, b) => a + b.percentage, 0).toFixed(0)}%</strong>
-                <span>Operativo</span>
-              </div>
+            {/* Dynamic SVG Donut Chart */}
+            <div className="donut-chart-container">
+              {(() => {
+                const donutRadius = 60
+                const donutCircumference = 2 * Math.PI * donutRadius
+                const totalCostValue = distribution.reduce(
+                  (sum, item) => sum + (item.value || 0),
+                  0
+                )
+                const totalUnits = distribution.reduce(
+                  (sum, item) => sum + (item.units || 0),
+                  0
+                )
+
+                let accumulatedPercent = 0
+
+                return (
+                  <>
+                    <svg
+                      viewBox="0 0 160 160"
+                      width="160"
+                      height="160"
+                      className="donut-svg-chart"
+                      aria-label="Distribución gráfica del inventario por bodega"
+                    >
+                      {/* Base Track */}
+                      <circle
+                        cx="80"
+                        cy="80"
+                        r={donutRadius}
+                        fill="transparent"
+                        stroke="#f1f5f9"
+                        strokeWidth="18"
+                      />
+
+                      {/* Dynamic Slices */}
+                      {distribution.map((dist) => {
+                        const strokeLength =
+                          (dist.percentage / 100) * donutCircumference
+                        const strokeOffset =
+                          -(accumulatedPercent / 100) * donutCircumference
+                        accumulatedPercent += dist.percentage
+
+                        return (
+                          <circle
+                            key={dist.locationId}
+                            cx="80"
+                            cy="80"
+                            r={donutRadius}
+                            fill="transparent"
+                            stroke={dist.color}
+                            strokeWidth="18"
+                            strokeDasharray={`${strokeLength} ${donutCircumference}`}
+                            strokeDashoffset={strokeOffset}
+                            transform="rotate(-90 80 80)"
+                            className="donut-slice-circle"
+                          >
+                            <title>
+                              {dist.locationName}: {dist.percentage}% (
+                              {dist.units.toLocaleString('es-CO')} uds
+                              {dist.value
+                                ? ` · ${dashboardService.formatCOP(dist.value, true)}`
+                                : ''}
+                              )
+                            </title>
+                          </circle>
+                        )
+                      })}
+                    </svg>
+
+                    {/* Donut Center Overlay */}
+                    <div className="donut-center-overlay">
+                      <span className="donut-center-label">Inventario total</span>
+                      <strong className="donut-center-value">
+                        {canSeeFinancials && totalCostValue > 0
+                          ? dashboardService.formatCOP(totalCostValue, true)
+                          : `${totalUnits.toLocaleString('es-CO')} uds`}
+                      </strong>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
 
+            {/* Warehouse Distribution Legend List */}
             <div className="distribution-legend-list">
               {distribution.map((dist) => (
                 <div className="dist-item-row" key={dist.locationId}>
@@ -360,7 +438,7 @@ export function DashboardChartsSection({
                       style={{ backgroundColor: dist.color }}
                     />
                     <span className="dist-name">{dist.locationName}</span>
-                    <b className="dist-pct">{dist.percentage}%</b>
+                    <b className="dist-pct">{dist.percentage.toFixed(1)}%</b>
                   </div>
 
                   <div className="dist-bar-track">
@@ -375,9 +453,13 @@ export function DashboardChartsSection({
 
                   <div className="dist-metrics-sub">
                     <small>{dist.units.toLocaleString('es-CO')} uds</small>
-                    {dist.value && (
+                    {canSeeFinancials && typeof dist.value === 'number' ? (
                       <small className="dist-val">
                         {dashboardService.formatCOP(dist.value, true)}
+                      </small>
+                    ) : (
+                      <small className="dist-val" style={{ color: 'var(--muted)' }}>
+                        ••••••••
                       </small>
                     )}
                   </div>

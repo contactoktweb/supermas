@@ -38,11 +38,9 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
             <AppIcon name="dashboard" size={16} color="var(--navy)" />
             <h2>Actividad reciente de la operación</h2>
           </div>
-          <p>Registro cronológico en vivo de transacciones y movimientos</p>
+          <p>Registro cronológico de transacciones y movimientos</p>
         </div>
-        <span className="live-pill">
-          <i /> En vivo
-        </span>
+        
       </div>
 
       <div className="activity-feed-list">

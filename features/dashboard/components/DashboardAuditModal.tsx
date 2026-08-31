@@ -38,22 +38,28 @@ export function DashboardAuditModal({
     return matchesSearch && matchesStatus
   })
 
+  const successCount = audits.filter((a) => a.status === 'SUCCESS').length
+  const failedCount = audits.filter((a) => a.status === 'FAILED').length
+
   return createPortal(
-    <div className="drawer-backdrop modal-center" onClick={onClose}>
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
       <div
-        className="dialog-box audit-modal-box"
+        className="deactivate-dialog-card modal-lg audit-dialog-card page-enter"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="dialog-header">
-          <div className="dialog-title-group">
-            <div className="dialog-icon-badge">
-              <AppIcon name="audit" size={20} color="var(--navy)" />
+        <div className="dialog-header-standard">
+          <div className="dialog-header-title">
+            <div className="stat-icon blue">
+              <AppIcon name="audit" size={20} />
             </div>
             <div>
-              <h2>Historial de inicios de sesión y accesos</h2>
-              <p>
-                Trazabilidad de sesiones, direcciones IP y dispositivos en tiempo real
-              </p>
+              <p className="eyebrow">Auditoría de seguridad</p>
+              <h3>Historial de inicios de sesión y accesos</h3>
             </div>
           </div>
           <button
@@ -77,30 +83,48 @@ export function DashboardAuditModal({
             />
           </div>
 
-          <div className="segmented">
+          <div className="period-segmented-tabs audit-filter-segmented" role="tablist">
             <button
-              className={statusFilter === 'ALL' ? 'selected' : ''}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === 'ALL'}
+              className={`period-tab-btn ${statusFilter === 'ALL' ? 'selected' : ''}`}
               onClick={() => setStatusFilter('ALL')}
             >
-              Todos ({audits.length})
+              <span>Todos</span>
+              <span className="count-pill">{audits.length}</span>
             </button>
+
             <button
-              className={statusFilter === 'SUCCESS' ? 'selected' : ''}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === 'SUCCESS'}
+              className={`period-tab-btn ${statusFilter === 'SUCCESS' ? 'selected' : ''}`}
               onClick={() => setStatusFilter('SUCCESS')}
             >
-              Exitosos
+              <AppIcon name="check" size={13} />
+              <span>Exitosos</span>
+              <span className="count-pill success">{successCount}</span>
             </button>
+
             <button
-              className={statusFilter === 'FAILED' ? 'selected' : ''}
+              type="button"
+              role="tab"
+              aria-selected={statusFilter === 'FAILED'}
+              className={`period-tab-btn ${statusFilter === 'FAILED' ? 'selected' : ''}`}
               onClick={() => setStatusFilter('FAILED')}
             >
-              Fallidos
+              <AppIcon name="warning" size={13} />
+              <span>Fallidos</span>
+              {failedCount > 0 && (
+                <span className="count-pill danger">{failedCount}</span>
+              )}
             </button>
           </div>
         </div>
 
         {/* Audit Table */}
-        <div className="table-panel animated-table" style={{ maxHeight: 420, overflow: 'auto' }}>
+        <div className="table-panel animated-table audit-table-container">
           <div className="table-scroll">
             <table>
               <thead>
@@ -116,7 +140,7 @@ export function DashboardAuditModal({
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: 24 }}>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>
                       No se encontraron registros de acceso con los filtros aplicados.
                     </td>
                   </tr>
@@ -168,7 +192,8 @@ export function DashboardAuditModal({
                               display: 'block',
                               color: 'var(--red)',
                               fontSize: 10,
-                              marginTop: 2,
+                              marginTop: 3,
+                              fontWeight: 600,
                             }}
                           >
                             {log.failureReason}
@@ -195,8 +220,13 @@ export function DashboardAuditModal({
         </div>
 
         <div className="dialog-footer">
-          <button type="button" className="primary-button" onClick={onClose}>
-            Entendido
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onClose}
+          >
+            <AppIcon name="check" size={16} />
+            <span>Entendido</span>
           </button>
         </div>
       </div>

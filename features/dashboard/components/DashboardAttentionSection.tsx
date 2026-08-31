@@ -1,17 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  AlertTriangle,
-  AlertCircle,
-  Clock,
-  ChevronRight,
-  ShieldAlert,
-  Boxes,
-  ShoppingCart,
-  Truck,
-  Zap,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { PendingAttentionItem } from '../types'
 
 interface DashboardAttentionSectionProps {
@@ -19,11 +9,11 @@ interface DashboardAttentionSectionProps {
   onSelectAction: (targetView: string) => void
 }
 
-const moduleIconMap: Record<string, React.ElementType> = {
-  Inventario: Boxes,
-  Compras: ShoppingCart,
-  Logística: Truck,
-  Ecommerce: Zap,
+const moduleIconMap: Record<string, LightIconName> = {
+  Inventario: 'inventory',
+  Compras: 'purchases',
+  Logística: 'transfers',
+  Ecommerce: 'webOrders',
 }
 
 export function DashboardAttentionSection({
@@ -37,7 +27,7 @@ export function DashboardAttentionSection({
       <div className="panel-heading">
         <div>
           <div className="panel-title-row">
-            <ShieldAlert size={16} color="var(--red)" />
+            <AppIcon name="warning" size={16} color="var(--red)" />
             <h2>Requiere atención y pendientes</h2>
           </div>
           <p>Eventos clasificados por prioridad que demandan acción inmediata</p>
@@ -47,7 +37,7 @@ export function DashboardAttentionSection({
 
       <div className="attention-list">
         {items.map((item) => {
-          const Icon = moduleIconMap[item.module] || AlertTriangle
+          const iconName = moduleIconMap[item.module] || 'warning'
           const isCritical = item.severity === 'CRITICAL'
           const isWarning = item.severity === 'WARNING'
 
@@ -62,7 +52,7 @@ export function DashboardAttentionSection({
                   isCritical ? 'critical' : isWarning ? 'warning' : 'info'
                 }`}
               >
-                <Icon size={16} />
+                <AppIcon name={iconName} size={16} />
               </div>
 
               <div className="attention-item-copy">
@@ -81,7 +71,7 @@ export function DashboardAttentionSection({
                 aria-label={`Gestionar ${item.title}`}
               >
                 <span>Resolver</span>
-                <ChevronRight size={14} />
+                <AppIcon name="chevronRight" size={14} />
               </button>
             </article>
           )

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Save, Building2, Store, Warehouse, ShieldAlert, Info, Check } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, LocationType, LocationStatus } from '../types'
 import { warehouseFormSchema, WarehouseFormData } from '../schemas/warehouse.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
@@ -207,11 +207,11 @@ export function WarehouseFormDrawer({
           </div>
           <button
             type="button"
-            className="icon-button"
+            className="icon-button close-drawer-btn"
             onClick={onClose}
             aria-label="Cerrar formulario"
           >
-            <X size={20} />
+            <AppIcon name="close" size={20} />
           </button>
         </div>
 
@@ -235,7 +235,7 @@ export function WarehouseFormDrawer({
 
         {errors.general && (
           <div className="form-error-banner" role="alert">
-            <ShieldAlert size={16} />
+            <AppIcon name="warning" size={16} />
             <span>{errors.general}</span>
           </div>
         )}
@@ -567,7 +567,7 @@ export function WarehouseFormDrawer({
               className="primary-button"
               disabled={isSubmitting}
             >
-              <Save size={16} />
+              <AppIcon name="save" size={16} />
               <span>
                 {isSubmitting
                   ? 'Guardando...'

@@ -1,15 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  TrendingUp,
-  CircleDollarSign,
-  PieChart,
-  ShoppingBag,
-  Info,
-  Calendar,
-  Layers,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import {
   SalesChartPoint,
   InventoryDistributionItem,
@@ -58,106 +50,116 @@ export function DashboardChartsSection({
   // Generate SVG Path for Sales
   const salesPoints = chartPoints.map((p, i) => getCoordinates(i, p.sales))
   const salesPath = salesPoints.reduce(
-    (acc, curr, i) => (i === 0 ? `M ${curr.x} ${curr.y}` : `${acc} L ${curr.x} ${curr.y}`),
+    (acc, pt, i, arr) => {
+      if (i === 0) return `M ${pt.x} ${pt.y}`
+      const prev = arr[i - 1]
+      const cpX = (prev.x + pt.x) / 2
+      return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+    },
     ''
   )
-  const salesAreaPath =
-    salesPoints.length > 0
-      ? `${salesPath} L ${salesPoints[salesPoints.length - 1].x} ${
-          chartHeight - paddingY
-        } L ${salesPoints[0].x} ${chartHeight - paddingY} Z`
-      : ''
+  const salesAreaPath = `${salesPath} L ${salesPoints[salesPoints.length - 1].x} ${chartHeight - paddingY} L ${salesPoints[0].x} ${chartHeight - paddingY} Z`
 
-  // Generate SVG Path for Purchases
-  const purchasesPoints = chartPoints.map((p, i) => getCoordinates(i, p.purchases || 0))
-  const purchasesPath = purchasesPoints.reduce(
-    (acc, curr, i) => (i === 0 ? `M ${curr.x} ${curr.y}` : `${acc} L ${curr.x} ${curr.y}`),
-    ''
+  // Generate SVG Path for Purchases (if allowed)
+  const purchasesPoints = chartPoints.map((p, i) =>
+    getCoordinates(i, p.purchases || 0)
   )
+  const purchasesPath = purchasesPoints.reduce((acc, pt, i, arr) => {
+    if (i === 0) return `M ${pt.x} ${pt.y}`
+    const prev = arr[i - 1]
+    const cpX = (prev.x + pt.x) / 2
+    return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+  }, '')
 
-  // Total sales & purchases for the chart period
-  const totalPeriodSales = chartPoints.reduce((acc, p) => acc + p.sales, 0)
-  const totalPeriodPurchases = chartPoints.reduce((acc, p) => acc + (p.purchases || 0), 0)
+  // Generate SVG Path for Profit
+  const profitPoints = chartPoints.map((p, i) =>
+    getCoordinates(i, p.profit || 0)
+  )
+  const profitPath = profitPoints.reduce((acc, pt, i, arr) => {
+    if (i === 0) return `M ${pt.x} ${pt.y}`
+    const prev = arr[i - 1]
+    const cpX = (prev.x + pt.x) / 2
+    return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+  }, '')
+
+  const totalSalesInView = chartPoints.reduce((a, b) => a + b.sales, 0)
+  const totalPurchasesInView = chartPoints.reduce((a, b) => a + (b.purchases || 0), 0)
 
   return (
     <div className="dashboard-grid analytics-grid page-enter">
-      {/* 1. Main Temporal Chart Panel */}
+      {/* 1. Main Interactive Sales & Purchases Chart */}
       <section className="panel chart-panel">
         <div className="panel-heading">
           <div>
             <div className="panel-title-row">
-              <TrendingUp size={16} color="var(--navy)" />
-              <h2>Evolución de ventas y abastecimiento</h2>
+              <AppIcon name="sales" size={16} color="var(--navy)" />
+              <h2>Evolución de ventas y transacciones</h2>
             </div>
-            <p>
-              Comportamiento financiero y volumen de transacciones del periodo seleccionado
-            </p>
+            <p>Comportamiento comercial y abastecimiento a lo largo del periodo</p>
           </div>
 
-          <div className="chart-mode-toggles">
-            {canSeeFinancials && (
-              <div className="segmented">
-                <button
-                  className={activeChartMode === 'SALES_PURCHASES' ? 'selected' : ''}
-                  onClick={() => setActiveChartMode('SALES_PURCHASES')}
-                >
-                  Ventas vs Compras
-                </button>
-                <button
-                  className={activeChartMode === 'PROFIT' ? 'selected' : ''}
-                  onClick={() => setActiveChartMode('PROFIT')}
-                >
-                  Utilidad bruta
-                </button>
-              </div>
-            )}
-          </div>
+          {canSeeFinancials && (
+            <div className="segmented">
+              <button
+                type="button"
+                className={activeChartMode === 'SALES_PURCHASES' ? 'selected' : ''}
+                onClick={() => setActiveChartMode('SALES_PURCHASES')}
+              >
+                Ventas vs Compras
+              </button>
+              <button
+                type="button"
+                className={activeChartMode === 'PROFIT' ? 'selected' : ''}
+                onClick={() => setActiveChartMode('PROFIT')}
+              >
+                Utilidad bruta
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Dynamic Metric Bar */}
+        {/* Quick summary chips above chart */}
         <div className="chart-quick-metrics">
           <div className="metric-chip">
-            <span className="metric-chip-label">Total vendido:</span>
+            <span className="metric-chip-label">Total ventas periodo:</span>
             <strong className="metric-chip-val sales-color">
-              {dashboardService.formatCOP(totalPeriodSales, true)}
+              {dashboardService.formatCOP(totalSalesInView, true)}
             </strong>
           </div>
           {canSeeFinancials && activeChartMode === 'SALES_PURCHASES' && (
             <div className="metric-chip">
-              <span className="metric-chip-label">Total comprado:</span>
+              <span className="metric-chip-label">Total compras:</span>
               <strong className="metric-chip-val purchases-color">
-                {dashboardService.formatCOP(totalPeriodPurchases, true)}
+                {dashboardService.formatCOP(totalPurchasesInView, true)}
               </strong>
             </div>
           )}
         </div>
 
-        {/* Interactive SVG Chart Container */}
-        <div
-          className="interactive-svg-chart-wrap"
-          onMouseLeave={() => {
-            setHoveredPoint(null)
-            setHoverPosition(null)
-          }}
-        >
+        {/* SVG Interactive Chart */}
+        <div className="interactive-svg-chart-wrap">
           <svg
-            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             className="main-svg-chart"
+            viewBox={`0 0 ${chartWidth} ${chartHeight}`}
             preserveAspectRatio="none"
+            onMouseLeave={() => {
+              setHoveredPoint(null)
+              setHoverPosition(null)
+            }}
           >
             <defs>
-              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#001b5c" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#001b5c" stopOpacity="0.0" />
+              <linearGradient id="salesGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#001b5c" stopOpacity="0.22" />
+                <stop offset="100%" stopColor="#001b5c" stopOpacity="0.00" />
               </linearGradient>
-              <linearGradient id="profitGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#159a67" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#159a67" stopOpacity="0.0" />
+              <linearGradient id="profitGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#0284c7" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#0284c7" stopOpacity="0.00" />
               </linearGradient>
             </defs>
 
-            {/* Grid lines */}
-            {[0.25, 0.5, 0.75].map((ratio) => {
+            {/* Grid horizontal lines */}
+            {[0.2, 0.5, 0.8].map((ratio) => {
               const y = chartHeight - paddingY - ratio * (chartHeight - paddingY * 2)
               return (
                 <line
@@ -166,7 +168,7 @@ export function DashboardChartsSection({
                   y1={y}
                   x2={chartWidth - paddingX}
                   y2={y}
-                  stroke="var(--line)"
+                  stroke="#e8edf5"
                   strokeDasharray="4 4"
                   strokeWidth="1"
                 />
@@ -174,28 +176,66 @@ export function DashboardChartsSection({
             })}
 
             {/* Sales Area Fill */}
-            <path d={salesAreaPath} fill="url(#salesGradient)" />
+            {activeChartMode === 'SALES_PURCHASES' && (
+              <path d={salesAreaPath} fill="url(#salesGrad)" />
+            )}
 
-            {/* Purchases Line (if permitted) */}
-            {canSeeFinancials && activeChartMode === 'SALES_PURCHASES' && (
+            {/* Purchases Curve (Red) */}
+            {canSeeFinancials &&
+              activeChartMode === 'SALES_PURCHASES' &&
+              totalPurchasesInView > 0 && (
+                <path
+                  d={purchasesPath}
+                  fill="none"
+                  stroke="#fe110c"
+                  strokeWidth="2"
+                  strokeDasharray="5 4"
+                  className="animated-chart-path"
+                />
+              )}
+
+            {/* Profit Curve (Teal/Sky) */}
+            {canSeeFinancials && activeChartMode === 'PROFIT' && (
               <path
-                d={purchasesPath}
-                fill="none"
-                stroke="#fe110c"
+                d={profitPath}
+                fill="url(#profitGrad)"
+                stroke="#0284c7"
                 strokeWidth="2.5"
-                strokeDasharray="6 4"
-                className="animated-chart-path purchases-line"
+                className="animated-chart-path"
               />
             )}
 
-            {/* Sales Line */}
-            <path
-              d={salesPath}
-              fill="none"
-              stroke="#001b5c"
-              strokeWidth="3"
-              className="animated-chart-path sales-line"
-            />
+            {/* Sales Curve (Navy) */}
+            {activeChartMode === 'SALES_PURCHASES' && (
+              <path
+                d={salesPath}
+                fill="none"
+                stroke="#001b5c"
+                strokeWidth="2.5"
+                className="animated-chart-path"
+              />
+            )}
+
+            {/* X-Axis Labels */}
+            {chartPoints.map((pt, idx) => {
+              const coords = getCoordinates(idx, 0)
+              const showLabel =
+                chartPoints.length <= 8 || idx % Math.ceil(chartPoints.length / 7) === 0
+              if (!showLabel) return null
+
+              return (
+                <text
+                  key={pt.label}
+                  x={coords.x}
+                  y={chartHeight - 8}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="#71829e"
+                >
+                  {pt.label}
+                </text>
+              )
+            })}
 
             {/* Points and Hover Areas */}
             {chartPoints.map((pt, idx) => {
@@ -222,9 +262,8 @@ export function DashboardChartsSection({
                     height={chartHeight}
                     fill="transparent"
                     style={{ cursor: 'pointer' }}
-                    onMouseEnter={(e) => {
+                    onMouseEnter={() => {
                       setHoveredPoint(pt)
-                      const rect = e.currentTarget.getBoundingClientRect()
                       setHoverPosition({ x: coords.x, y: coords.y })
                     }}
                   />
@@ -296,7 +335,7 @@ export function DashboardChartsSection({
         <div className="panel-heading">
           <div>
             <div className="panel-title-row">
-              <PieChart size={16} color="var(--navy)" />
+              <AppIcon name="pieChart" size={16} color="var(--navy)" />
               <h2>Distribución del inventario</h2>
             </div>
             <p>Participación por bodega y sede de venta</p>

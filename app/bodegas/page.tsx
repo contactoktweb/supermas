@@ -3,63 +3,37 @@
 import React, { useState } from 'react'
 import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
 import { Footer } from '@/components/Footer'
-import {
-  LayoutDashboard,
-  Warehouse,
-  Package,
-  Boxes,
-  ClipboardList,
-  Truck,
-  ShoppingCart,
-  Building2,
-  Users,
-  CircleDollarSign,
-  Store,
-  FileText,
-  FileBarChart,
-  CreditCard,
-  Zap,
-  Bell,
-  UserRound,
-  Settings,
-  X,
-  Building,
-  ChevronDown,
-  LogOut,
-  Menu,
-  ChevronRight,
-  Search,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import Link from 'next/link'
 
-const modules = [
-  ['Dashboard', LayoutDashboard, '/'],
-  ['Bodegas', Warehouse, '/bodegas'],
-  ['Productos', Package, '/'],
-  ['Inventario', Boxes, '/'],
-  ['Kardex', ClipboardList, '/'],
-  ['Transferencias', Truck, '/'],
-  ['Compras', ShoppingCart, '/'],
-  ['Proveedores', Building2, '/'],
-  ['Clientes', Users, '/'],
-  ['Ventas', CircleDollarSign, '/'],
-  ['POS', Store, '/'],
-  ['Facturación', FileText, '/'],
-  ['Remisiones', FileText, '/'],
-  ['Cajas', CreditCard, '/'],
-  ['Contabilidad', CircleDollarSign, '/'],
-  ['Impuestos', ClipboardList, '/'],
-  ['Exógena', FileBarChart, '/'],
-  ['Pedidos Web', Zap, '/'],
-  ['Catálogo Super Más', Store, '/'],
-  ['Catálogo Distribuidora', Store, '/'],
-  ['Reportes', FileBarChart, '/'],
-  ['Alertas', Bell, '/'],
-  ['Auditoría', ClipboardList, '/'],
-  ['Usuarios', UserRound, '/'],
-  ['Roles', Users, '/'],
-  ['Configuración', Settings, '/'],
-] as const
+const modules: [string, LightIconName, string][] = [
+  ['Dashboard', 'dashboard', '/'],
+  ['Bodegas', 'warehouse', '/bodegas'],
+  ['Productos', 'products', '/'],
+  ['Inventario', 'inventory', '/'],
+  ['Kardex', 'kardex', '/'],
+  ['Transferencias', 'transfers', '/'],
+  ['Compras', 'purchases', '/'],
+  ['Proveedores', 'suppliers', '/'],
+  ['Clientes', 'customers', '/'],
+  ['Ventas', 'sales', '/'],
+  ['POS', 'pos', '/'],
+  ['Facturación', 'invoices', '/'],
+  ['Remisiones', 'remisiones', '/'],
+  ['Cajas', 'cashRegisters', '/'],
+  ['Contabilidad', 'accounting', '/'],
+  ['Impuestos', 'taxes', '/'],
+  ['Exógena', 'exogena', '/'],
+  ['Pedidos Web', 'webOrders', '/'],
+  ['Catálogo Super Más', 'ecommerceSM', '/'],
+  ['Catálogo Distribuidora', 'ecommerceDist', '/'],
+  ['Reportes', 'reports', '/'],
+  ['Alertas', 'alerts', '/'],
+  ['Auditoría', 'audit', '/'],
+  ['Usuarios', 'users', '/'],
+  ['Roles', 'roles', '/'],
+  ['Configuración', 'settings', '/'],
+]
 
 export default function BodegasRoutePage() {
   const [menu, setMenu] = useState(false)
@@ -77,31 +51,31 @@ export default function BodegasRoutePage() {
             onClick={() => setMenu(false)}
             aria-label="Cerrar menú"
           >
-            <X />
+            <AppIcon name="close" size={18} />
           </button>
         </div>
 
         <div className="workspace">
           <div className="workspace-icon">
-            <Building />
+            <AppIcon name="suppliers" size={18} />
           </div>
           <div>
             <strong>Super Más S.A.S.</strong>
             <span>Principal</span>
           </div>
-          <ChevronDown size={14} />
+          <AppIcon name="chevronDown" size={14} />
         </div>
 
         <nav>
           <p className="nav-caption">Menú principal</p>
-          {modules.map(([label, Icon, path]) => (
+          {modules.map(([label, iconName, path]) => (
             <Link
               key={label}
               href={path}
               className={`nav-item ${label === 'Bodegas' ? 'active' : ''}`}
               onClick={() => setMenu(false)}
             >
-              <Icon size={16} />
+              <AppIcon name={iconName} size={18} />
               <span>{label}</span>
               {label === 'Alertas' && <b>3</b>}
             </Link>
@@ -114,7 +88,7 @@ export default function BodegasRoutePage() {
             <strong>Admin Mauricio</strong>
             <span>Administrador</span>
           </div>
-          <LogOut size={16} />
+          <AppIcon name="logout" size={18} />
         </div>
       </aside>
 
@@ -125,20 +99,20 @@ export default function BodegasRoutePage() {
             onClick={() => setMenu(true)}
             aria-label="Abrir menú"
           >
-            <Menu />
+            <AppIcon name="menu" size={20} />
           </button>
           <div className="breadcrumbs">
             <span>Inicio</span>
-            <ChevronRight size={14} />
+            <AppIcon name="chevronRight" size={14} />
             <strong>Bodegas</strong>
           </div>
           <div className="top-actions">
             <div className="search-box">
-              <Search size={15} />
+              <AppIcon name="search" size={16} />
               <input placeholder="Buscar en el sistema..." />
             </div>
             <button className="notification icon-button" aria-label="Notificaciones">
-              <Bell size={16} />
+              <AppIcon name="alerts" size={18} />
               <i>3</i>
             </button>
             <div className="top-avatar">AM</div>

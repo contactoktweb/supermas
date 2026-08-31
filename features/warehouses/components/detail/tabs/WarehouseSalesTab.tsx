@@ -1,15 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  Search,
-  CircleDollarSign,
-  Receipt,
-  TrendingUp,
-  User,
-  ArrowUpRight,
-  ChevronRight,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseSaleRecord } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 
@@ -40,18 +32,18 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
       <section className="stats-grid products-stats" aria-label="Métricas de ventas de esta ubicación">
         <article className="stat-card">
           <div className="stat-icon blue">
-            <CircleDollarSign size={18} />
+            <AppIcon name="sales" size={18} />
           </div>
           <div className="stat-text">
             <span>Total ventas registradas</span>
             <strong>${totalSales.toLocaleString('es-CO')}</strong>
-            <small className="positive"><ArrowUpRight size={12} /> {ticketsCount} comprobantes</small>
+            <small className="positive"><AppIcon name="arrowUpRight" size={12} /> {ticketsCount} comprobantes</small>
           </div>
         </article>
 
         <article className="stat-card">
           <div className="stat-icon teal">
-            <Receipt size={18} />
+            <AppIcon name="invoices" size={18} />
           </div>
           <div className="stat-text">
             <span>Ticket promedio</span>
@@ -62,7 +54,7 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
 
         <article className="stat-card">
           <div className="stat-icon teal">
-            <TrendingUp size={18} />
+            <AppIcon name="sales" size={18} />
           </div>
           <div className="stat-text">
             <span>Utilidad comercial</span>
@@ -73,7 +65,7 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
 
         <article className="stat-card">
           <div className="stat-icon blue">
-            <User size={18} />
+            <AppIcon name="users" size={18} />
           </div>
           <div className="stat-text">
             <span>Vendedor destacado</span>
@@ -86,7 +78,7 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
       {/* Toolbar */}
       <div className="toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}

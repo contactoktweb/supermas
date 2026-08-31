@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  Search,
-  Truck,
-  Plus,
-  ArrowLeftRight,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  XCircle,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseTransfer, LocationWithMetrics } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 
@@ -57,7 +48,7 @@ export function WarehouseTransfersTab({
     <div className="warehouse-transfers-tab page-enter">
       <div className="toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}
@@ -107,7 +98,7 @@ export function WarehouseTransfersTab({
             className="primary-button compact export"
             onClick={onOpenNewTransfer}
           >
-            <Plus size={15} />
+            <AppIcon name="plus" size={15} />
             <span>Nueva transferencia</span>
           </button>
         )}
@@ -156,7 +147,7 @@ export function WarehouseTransfersTab({
                   <strong className={isOrigin ? 'current-loc' : ''}>
                     {t.originLocationName}
                   </strong>
-                  <Truck size={16} />
+                  <AppIcon name="transfers" size={16} />
                   <strong className={isDest ? 'current-loc' : ''}>
                     {t.destinationLocationName}
                   </strong>
@@ -224,19 +215,19 @@ export function WarehouseTransfersTab({
                 onClick={() => setSelectedTransfer(null)}
                 aria-label="Cerrar detalle"
               >
-                <XCircle size={20} />
+                <AppIcon name="close" size={20} />
               </button>
             </div>
 
             <div className="transfer-route">
               <strong>{selectedTransfer.originLocationName}</strong>
-              <ArrowLeftRight size={16} />
+              <AppIcon name="transfers" size={16} />
               <strong>{selectedTransfer.destinationLocationName}</strong>
             </div>
 
             <div className="detail-stepper">
               <div className="step done">
-                <CheckCircle2 size={16} />
+                <AppIcon name="check" size={16} />
                 <span>Creada</span>
               </div>
               <i className="done" />

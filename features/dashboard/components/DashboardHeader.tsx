@@ -1,16 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  Calendar,
-  Clock,
-  RefreshCw,
-  Sparkles,
-  UserCheck,
-  Building2,
-  Shield,
-  Layers,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { UserProfile, PeriodType } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 import { CustomSelect } from '@/components/ui/CustomSelect'
@@ -51,7 +42,7 @@ export function DashboardHeader({
       <div className="hero-left-section">
         <div className="hero-salutation">
           <div className="hero-salutation-icon">
-            <Sparkles size={18} color="var(--red)" />
+            <AppIcon name="sparkles" size={20} color="var(--red)" />
           </div>
           <div>
             <h1 className="hero-title">
@@ -59,16 +50,13 @@ export function DashboardHeader({
             </h1>
             <div className="hero-meta-row">
               <span className="hero-badge role-badge">
-                <Shield size={12} />
-                <b>Rol:</b> {user.roleName}
+                <AppIcon name="shield" size={13} /> {user.roleName}
               </span>
               <span className="hero-badge location-badge">
-                <Building2 size={12} />
-                {user.locationName}
+                <AppIcon name="suppliers" size={13} /> {user.locationName}
               </span>
               <span className="hero-badge login-badge">
-                <Clock size={12} />
-                <b>Último acceso:</b> {lastLoginFormatted}
+                <AppIcon name="clock" size={13} /> Último ingreso: <b>{lastLoginFormatted}</b>
               </span>
             </div>
           </div>
@@ -76,29 +64,28 @@ export function DashboardHeader({
       </div>
 
       <div className="hero-right-section">
-        {/* Role Simulator Switcher for instant testing */}
+        {/* Role Simulator Dropdown */}
         <div className="role-simulator-wrap">
           <span className="simulator-label">
-            <UserCheck size={12} /> Probar vista como:
+            <AppIcon name="users" size={13} /> Vista de rol:
           </span>
-          <div style={{ width: 230 }}>
-            <CustomSelect
-              size="sm"
-              value={user.id}
-              onChange={onUserChange}
-              options={availableProfiles.map((p) => ({
-                value: p.id,
-                label: p.name,
-                description: `${p.roleName} · ${p.locationName}`,
-                badge: p.role,
-              }))}
-            />
-          </div>
+          <CustomSelect
+            value={user.id}
+            onChange={onUserChange}
+            size="sm"
+            className="role-switcher-select"
+            options={availableProfiles.map((p) => ({
+              value: p.id,
+              label: `${p.name} (${p.roleName})`,
+              description: p.locationName,
+              badge: p.role,
+            }))}
+          />
         </div>
 
         {/* Period Selector Tabs */}
         <div className="hero-period-controls">
-          <div className="segmented period-segmented-tabs" role="tablist">
+          <div className="period-segmented-tabs" role="tablist">
             {periodLabels.map((p) => (
               <button
                 key={p.id}
@@ -112,15 +99,17 @@ export function DashboardHeader({
             ))}
           </div>
 
+          {/* Refresh Action */}
           <button
             type="button"
-            className="icon-button refresh-btn"
+            className="refresh-btn icon-button"
             onClick={onRefresh}
-            title="Actualizar datos del centro de control"
-            aria-label="Actualizar datos"
             disabled={isRefreshing}
+            aria-label="Actualizar datos del Dashboard"
+            title="Actualizar datos"
           >
-            <RefreshCw
+            <AppIcon
+              name="refresh"
               size={15}
               className={isRefreshing ? 'spin-animation' : ''}
             />

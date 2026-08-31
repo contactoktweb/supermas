@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect, useId } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { AppIcon } from './Icon'
 
 export interface SelectOption {
   value: string
@@ -157,7 +157,8 @@ export function CustomSelect({
           )}
         </div>
 
-        <ChevronDown
+        <AppIcon
+          name="chevronDown"
           size={16}
           className={`select-chevron ${isOpen ? 'rotate-180' : ''}`}
         />
@@ -200,7 +201,7 @@ export function CustomSelect({
                   </div>
 
                   {isSelected && (
-                    <Check size={16} className="option-check-icon" />
+                    <AppIcon name="check" size={16} className="option-check-icon" />
                   )}
                 </li>
               )

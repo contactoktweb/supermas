@@ -1,18 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  TrendingUp,
-  Boxes,
-  Truck,
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  ChevronRight,
-  Package,
-  Clock,
-  CheckCircle2,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseInventoryItem, WarehouseTransfer, WarehouseMovement } from '../../../types'
 
 interface WarehouseOverviewTabProps {
@@ -176,7 +165,7 @@ export function WarehouseOverviewTab({
               className="text-button"
               onClick={() => onNavigateTab('VENTAS')}
             >
-              Ver todas las ventas <ChevronRight size={13} />
+              Ver todas las ventas <AppIcon name="chevronRight" size={13} />
             </button>
           </div>
 
@@ -185,7 +174,7 @@ export function WarehouseOverviewTab({
               <article className="rank-row" key={prod.sku}>
                 <span className="rank">0{idx + 1}</span>
                 <div className="admin-row-icon">
-                  <Package size={15} />
+                  <AppIcon name="products" size={15} />
                 </div>
                 <div>
                   <strong>{prod.name}</strong>
@@ -209,20 +198,20 @@ export function WarehouseOverviewTab({
               className="text-button"
               onClick={() => onNavigateTab('INVENTARIO')}
             >
-              Gestionar inventario <ChevronRight size={13} />
+              Gestionar inventario <AppIcon name="chevronRight" size={13} />
             </button>
           </div>
 
           <div className="admin-list" style={{ padding: '10px 0 0' }}>
             {lowStockItems.length === 0 ? (
               <div className="drawer-empty" style={{ minHeight: 140 }}>
-                <CheckCircle2 size={24} color="#159a67" />
+                <AppIcon name="check" size={24} color="#159a67" />
                 <p>Todos los productos están en niveles óptimos de inventario.</p>
               </div>
             ) : (
               lowStockItems.slice(0, 4).map((item) => (
                 <article className="alert-row" key={item.id}>
-                  <AlertTriangle size={16} />
+                  <AppIcon name="warning" size={16} />
                   <div>
                     <strong>{item.productName}</strong>
                     <span>
@@ -265,7 +254,7 @@ export function WarehouseOverviewTab({
               className="text-button"
               onClick={() => onNavigateTab('MOVIMIENTOS')}
             >
-              Ver Kardex completo <ChevronRight size={13} />
+              Ver Kardex completo <AppIcon name="chevronRight" size={13} />
             </button>
           </div>
 
@@ -274,9 +263,9 @@ export function WarehouseOverviewTab({
               <article className="activity-row" key={m.id}>
                 <div className="activity-icon">
                   {m.type.includes('SALIDA') || m.type === 'VENTA' ? (
-                    <ArrowUpRight size={15} color="#fe110c" />
+                    <AppIcon name="arrowUpRight" size={15} color="#fe110c" />
                   ) : (
-                    <ArrowDownRight size={15} color="#159a67" />
+                    <AppIcon name="arrowDownLeft" size={15} color="#159a67" />
                   )}
                 </div>
                 <div>
@@ -308,7 +297,7 @@ export function WarehouseOverviewTab({
               className="text-button"
               onClick={() => onNavigateTab('TRANSFERENCIAS')}
             >
-              Ver transferencias <ChevronRight size={13} />
+              Ver transferencias <AppIcon name="chevronRight" size={13} />
             </button>
           </div>
 
@@ -329,7 +318,7 @@ export function WarehouseOverviewTab({
                 </div>
                 <div className="flow-location" style={{ margin: '12px 0 8px' }}>
                   <strong>{t.originLocationName}</strong>
-                  <Truck size={14} />
+                  <AppIcon name="transfers" size={14} />
                   <strong>{t.destinationLocationName}</strong>
                 </div>
                 <small>{t.totalUnits} unidades · {t.createdAt}</small>

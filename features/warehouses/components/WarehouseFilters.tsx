@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Search, Filter, X, ArrowUpDown, SlidersHorizontal } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseFilters as FilterState, LocationType, LocationStatus, InventoryHealthStatus, WarehouseSortOption } from '../types'
 import { useDebounce } from '../hooks/useDebounce'
 import { CustomSelect } from '@/components/ui/CustomSelect'
@@ -68,7 +68,7 @@ export function WarehouseFilters({
     <div className="warehouse-filters-container">
       <div className="toolbar inventory-toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={localSearch}
@@ -83,7 +83,7 @@ export function WarehouseFilters({
               onClick={() => setLocalSearch('')}
               aria-label="Borrar búsqueda"
             >
-              <X size={14} />
+              <AppIcon name="close" size={14} />
             </button>
           )}
         </div>
@@ -91,7 +91,7 @@ export function WarehouseFilters({
         <div style={{ minWidth: 160 }}>
           <CustomSelect
             size="sm"
-            icon={<Filter size={13} />}
+            icon={<AppIcon name="filter" size={13} />}
             value={filters.type || 'ALL'}
             onChange={handleTypeChange}
             options={[
@@ -119,7 +119,7 @@ export function WarehouseFilters({
         <div style={{ minWidth: 160 }}>
           <CustomSelect
             size="sm"
-            icon={<SlidersHorizontal size={13} />}
+            icon={<AppIcon name="sliders" size={13} />}
             value={filters.inventoryHealth || 'ALL'}
             onChange={handleHealthChange}
             options={[
@@ -135,7 +135,7 @@ export function WarehouseFilters({
         <div style={{ minWidth: 175 }}>
           <CustomSelect
             size="sm"
-            icon={<ArrowUpDown size={13} />}
+            icon={<AppIcon name="sort" size={13} />}
             value={filters.sortBy || 'NAME_ASC'}
             onChange={handleSortChange}
             options={[
@@ -158,7 +158,7 @@ export function WarehouseFilters({
               onClearFilters()
             }}
           >
-            <X size={14} />
+            <AppIcon name="close" size={14} />
             <span>Limpiar filtros</span>
           </button>
         )}
@@ -173,7 +173,7 @@ export function WarehouseFilters({
             <span className="filter-chip">
               Búsqueda: &ldquo;{filters.query}&rdquo;
               <button onClick={() => setLocalSearch('')}>
-                <X size={12} />
+                <AppIcon name="close" size={12} />
               </button>
             </span>
           )}
@@ -187,7 +187,7 @@ export function WarehouseFilters({
                 ? 'Punto de venta'
                 : 'Centro de distribución'}
               <button onClick={() => onFilterChange({ ...filters, type: 'ALL' })}>
-                <X size={12} />
+                <AppIcon name="close" size={12} />
               </button>
             </span>
           )}
@@ -196,7 +196,7 @@ export function WarehouseFilters({
             <span className="filter-chip">
               Estado: {filters.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}
               <button onClick={() => onFilterChange({ ...filters, status: 'ALL' })}>
-                <X size={12} />
+                <AppIcon name="close" size={12} />
               </button>
             </span>
           )}
@@ -214,7 +214,7 @@ export function WarehouseFilters({
               <button
                 onClick={() => onFilterChange({ ...filters, inventoryHealth: 'ALL' })}
               >
-                <X size={12} />
+                <AppIcon name="close" size={12} />
               </button>
             </span>
           )}
@@ -232,7 +232,7 @@ export function WarehouseFilters({
               <button
                 onClick={() => onFilterChange({ ...filters, sortBy: 'NAME_ASC' })}
               >
-                <X size={12} />
+                <AppIcon name="close" size={12} />
               </button>
             </span>
           )}

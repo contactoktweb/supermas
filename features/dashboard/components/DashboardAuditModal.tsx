@@ -2,17 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  ShieldCheck,
-  ShieldAlert,
-  X,
-  Search,
-  UserRound,
-  Laptop,
-  Check,
-  AlertTriangle,
-  Globe,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LoginAuditItem } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 
@@ -57,7 +47,7 @@ export function DashboardAuditModal({
         <div className="dialog-header">
           <div className="dialog-title-group">
             <div className="dialog-icon-badge">
-              <ShieldCheck size={20} color="var(--navy)" />
+              <AppIcon name="audit" size={20} color="var(--navy)" />
             </div>
             <div>
               <h2>Historial de inicios de sesión y accesos</h2>
@@ -72,14 +62,14 @@ export function DashboardAuditModal({
             onClick={onClose}
             aria-label="Cerrar modal de auditoría"
           >
-            <X size={18} />
+            <AppIcon name="close" size={18} />
           </button>
         </div>
 
         {/* Filters bar inside modal */}
         <div className="audit-modal-filters">
           <div className="search-box wide" style={{ flex: 1 }}>
-            <Search size={14} />
+            <AppIcon name="search" size={14} />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -136,7 +126,7 @@ export function DashboardAuditModal({
                       <td>
                         <div className="product-cell">
                           <div className="product-thumb">
-                            <UserRound size={16} />
+                            <AppIcon name="users" size={16} />
                           </div>
                           <div>
                             <strong>{log.userName}</strong>
@@ -164,11 +154,11 @@ export function DashboardAuditModal({
                         >
                           {log.status === 'SUCCESS' ? (
                             <>
-                              <Check size={11} /> Exitoso
+                              <AppIcon name="check" size={11} /> Exitoso
                             </>
                           ) : (
                             <>
-                              <AlertTriangle size={11} /> Fallido
+                              <AppIcon name="warning" size={11} /> Fallido
                             </>
                           )}
                         </span>
@@ -188,7 +178,7 @@ export function DashboardAuditModal({
 
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <Laptop size={13} color="var(--muted)" />
+                          <AppIcon name="laptop" size={13} color="var(--muted)" />
                           <span>{log.userAgent}</span>
                         </div>
                       </td>

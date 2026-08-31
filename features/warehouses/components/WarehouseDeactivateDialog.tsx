@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, PowerOff, X, ShieldAlert, CheckCircle2 } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseDeactivationCheck } from '../types'
 import { warehouseService } from '../services/warehouse.service'
 
@@ -69,7 +69,7 @@ export function WarehouseDeactivateDialog({
       >
         <div className="dialog-header-warning">
           <div className="warning-icon-badge">
-            <AlertTriangle size={24} />
+            <AppIcon name="warning" size={24} />
           </div>
           <div>
             <h3 id="deactivate-dialog-title">Desactivar {warehouse.name}</h3>
@@ -81,7 +81,7 @@ export function WarehouseDeactivateDialog({
             onClick={onClose}
             aria-label="Cerrar modal"
           >
-            <X size={18} />
+            <AppIcon name="close" size={18} />
           </button>
         </div>
 
@@ -98,13 +98,13 @@ export function WarehouseDeactivateDialog({
             </div>
           ) : error ? (
             <div className="form-error-banner" role="alert">
-              <ShieldAlert size={16} />
+              <AppIcon name="warning" size={16} />
               <span>{error}</span>
             </div>
           ) : check && !check.canDeactivate ? (
             <div className="blocker-warning-box" role="alert">
               <div className="blocker-head">
-                <ShieldAlert size={18} />
+                <AppIcon name="warning" size={18} />
                 <strong>Operaciones críticas pendientes</strong>
               </div>
               <p>
@@ -122,7 +122,7 @@ export function WarehouseDeactivateDialog({
             </div>
           ) : (
             <div className="check-success-box">
-              <CheckCircle2 size={18} />
+              <AppIcon name="check" size={18} />
               <div>
                 <strong>Validación exitosa</strong>
                 <p>No existen transferencias activas ni cajas abiertas en esta sede.</p>
@@ -147,7 +147,7 @@ export function WarehouseDeactivateDialog({
             disabled={!check?.canDeactivate || isSubmitting || isLoading}
             onClick={handleDeactivate}
           >
-            <PowerOff size={16} />
+            <AppIcon name="powerOff" size={16} />
             <span>{isSubmitting ? 'Desactivando...' : 'Desactivar bodega'}</span>
           </button>
         </div>

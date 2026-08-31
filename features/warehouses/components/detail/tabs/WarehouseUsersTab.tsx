@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Users, UserPlus, UserCheck, Shield, Trash2, X } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseUserAssignment, LocationWithMetrics } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 import { CustomSelect } from '@/components/ui/CustomSelect'
@@ -58,7 +58,7 @@ export function WarehouseUsersTab({
             className="primary-button compact export"
             onClick={() => setIsModalOpen(true)}
           >
-            <UserPlus size={15} />
+            <AppIcon name="plus" size={15} />
             <span>Asignar usuario</span>
           </button>
         )}
@@ -100,7 +100,7 @@ export function WarehouseUsersTab({
                     <td>{u.userEmail}</td>
                     <td>
                       <span className="location-type-badge warehouse">
-                        <Shield size={11} style={{ marginRight: 4 }} />
+                        <AppIcon name="audit" size={11} style={{ marginRight: 4 }} />
                         {u.userRole === 'SUPERADMIN'
                           ? 'Superadministrador'
                           : u.userRole === 'STORE_ADMIN'
@@ -137,7 +137,7 @@ export function WarehouseUsersTab({
                           title="Retirar asignación de esta sede"
                           aria-label={`Desvincular a ${u.userName}`}
                         >
-                          <Trash2 size={14} />
+                          <AppIcon name="powerOff" size={14} />
                         </button>
                       </td>
                     )}
@@ -164,7 +164,7 @@ export function WarehouseUsersTab({
             <div className="dialog-header-standard">
               <div className="dialog-header-title">
                 <div className="stat-icon blue">
-                  <UserPlus size={20} />
+                  <AppIcon name="users" size={20} />
                 </div>
                 <div>
                   <p className="eyebrow">Seguridad y gobierno de accesos</p>
@@ -176,7 +176,7 @@ export function WarehouseUsersTab({
                 className="icon-button"
                 onClick={() => setIsModalOpen(false)}
               >
-                <X size={18} />
+                <AppIcon name="close" size={18} />
               </button>
             </div>
 
@@ -253,7 +253,7 @@ export function WarehouseUsersTab({
                   className="primary-button"
                   disabled={isSubmitting}
                 >
-                  <UserCheck size={16} />
+                  <AppIcon name="check" size={16} />
                   <span>{isSubmitting ? 'Asignando...' : 'Asignar a bodega'}</span>
                 </button>
               </div>

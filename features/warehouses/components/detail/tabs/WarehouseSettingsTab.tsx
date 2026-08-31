@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Settings, Save, Globe, Shield, AlertTriangle, CheckCircle2, Info } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, LocationSettings } from '../../../types'
 
 interface WarehouseSettingsTabProps {
@@ -135,7 +135,7 @@ export function WarehouseSettingsTab({
           </label>
 
           <div className="ecommerce-info-alert">
-            <Info size={16} />
+            <AppIcon name="info" size={16} />
             <div>
               <strong>Disponibilidad web agregada:</strong>
               <p>
@@ -201,7 +201,7 @@ export function WarehouseSettingsTab({
         <div className="settings-submit-row">
           {savedSuccess && (
             <div className="save-success-pill">
-              <CheckCircle2 size={16} />
+              <AppIcon name="check" size={16} />
               <span>Configuración guardada correctamente</span>
             </div>
           )}
@@ -212,7 +212,7 @@ export function WarehouseSettingsTab({
             disabled={isSaving}
             style={{ marginLeft: 'auto' }}
           >
-            <Save size={16} />
+            <AppIcon name="save" size={16} />
             <span>{isSaving ? 'Guardando...' : 'Guardar parámetros'}</span>
           </button>
         </div>

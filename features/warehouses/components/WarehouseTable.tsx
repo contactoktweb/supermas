@@ -1,18 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  ArrowUpDown,
-  MoreHorizontal,
-  Eye,
-  Pencil,
-  PowerOff,
-  ChevronLeft,
-  ChevronRight,
-  Boxes,
-  Truck,
-  Users,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseSortOption } from '../types'
 import { WarehousePermissions } from '../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from './WarehouseEmptyState'
@@ -48,7 +37,6 @@ export function WarehouseTable({
   onDeactivate,
   onClearFilters,
 }: WarehouseTableProps) {
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
   const totalPages = Math.ceil(total / pageSize) || 1
 
   if (warehouses.length === 0) {
@@ -81,7 +69,7 @@ export function WarehouseTable({
                   }
                 >
                   <span>Bodega</span>
-                  <ArrowUpDown size={11} />
+                  <AppIcon name="sort" size={11} />
                 </button>
               </th>
               <th scope="col">Tipo</th>
@@ -98,7 +86,7 @@ export function WarehouseTable({
                   }
                 >
                   <span>Inventario costo</span>
-                  <ArrowUpDown size={11} />
+                  <AppIcon name="sort" size={11} />
                 </button>
               </th>
               <th scope="col">
@@ -108,7 +96,7 @@ export function WarehouseTable({
                   onClick={() => handleSort('SALES_DESC')}
                 >
                   <span>Ventas hoy</span>
-                  <ArrowUpDown size={11} />
+                  <AppIcon name="sort" size={11} />
                 </button>
               </th>
               <th scope="col">Utilidad</th>
@@ -191,7 +179,7 @@ export function WarehouseTable({
                 </td>
                 <td>
                   <span className="user-count-chip">
-                    <Users size={11} />
+                    <AppIcon name="users" size={11} />
                     {wh.assignedUsersCount}
                   </span>
                 </td>
@@ -207,7 +195,7 @@ export function WarehouseTable({
                       title="Ver detalle"
                       aria-label={`Ver detalles de ${wh.name}`}
                     >
-                      <Eye size={14} />
+                      <AppIcon name="eye" size={14} />
                     </button>
                     {permissions.canEditWarehouse && (
                       <button
@@ -217,7 +205,7 @@ export function WarehouseTable({
                         title="Editar bodega"
                         aria-label={`Editar ${wh.name}`}
                       >
-                        <Pencil size={14} />
+                        <AppIcon name="edit" size={14} />
                       </button>
                     )}
                     {permissions.canDeactivateWarehouse && wh.status === 'ACTIVE' && (
@@ -228,7 +216,7 @@ export function WarehouseTable({
                         title="Desactivar bodega"
                         aria-label={`Desactivar ${wh.name}`}
                       >
-                        <PowerOff size={14} />
+                        <AppIcon name="powerOff" size={14} />
                       </button>
                     )}
                   </div>
@@ -267,7 +255,7 @@ export function WarehouseTable({
             onClick={() => onPageChange(page - 1)}
             aria-label="Página anterior"
           >
-            <ChevronLeft size={16} />
+            <AppIcon name="chevronLeft" size={16} />
           </button>
 
           <span className="pagination-page-indicator">
@@ -281,7 +269,7 @@ export function WarehouseTable({
             onClick={() => onPageChange(page + 1)}
             aria-label="Página siguiente"
           >
-            <ChevronRight size={16} />
+            <AppIcon name="chevronRight" size={16} />
           </button>
         </div>
       </div>

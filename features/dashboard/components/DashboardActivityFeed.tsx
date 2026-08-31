@@ -1,18 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  Activity,
-  ShoppingCart,
-  CircleDollarSign,
-  Truck,
-  Boxes,
-  FileText,
-  Zap,
-  UserCheck,
-  Clock,
-  ArrowRight,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ActivityFeedItem } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 
@@ -20,14 +9,14 @@ interface DashboardActivityFeedProps {
   items: ActivityFeedItem[]
 }
 
-const typeIconMap: Record<string, React.ElementType> = {
-  SALE: CircleDollarSign,
-  PURCHASE: ShoppingCart,
-  TRANSFER: Truck,
-  ADJUSTMENT: Boxes,
-  INVOICE: FileText,
-  WEB_ORDER: Zap,
-  AUTH: UserCheck,
+const typeIconMap: Record<string, LightIconName> = {
+  SALE: 'sales',
+  PURCHASE: 'purchases',
+  TRANSFER: 'transfers',
+  ADJUSTMENT: 'inventory',
+  INVOICE: 'invoices',
+  WEB_ORDER: 'webOrders',
+  AUTH: 'users',
 }
 
 const typeToneMap: Record<string, string> = {
@@ -46,7 +35,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
       <div className="panel-heading">
         <div>
           <div className="panel-title-row">
-            <Activity size={16} color="var(--navy)" />
+            <AppIcon name="dashboard" size={16} color="var(--navy)" />
             <h2>Actividad reciente de la operación</h2>
           </div>
           <p>Registro cronológico en vivo de transacciones y movimientos</p>
@@ -58,7 +47,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
 
       <div className="activity-feed-list">
         {items.map((item, index) => {
-          const Icon = typeIconMap[item.type] || Activity
+          const iconName = typeIconMap[item.type] || 'dashboard'
           const tone = typeToneMap[item.type] || 'blue'
           const timeFormatted = dashboardService.formatDateTime(item.timestamp)
 
@@ -69,7 +58,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
               style={{ animationDelay: `${index * 0.04}s` }}
             >
               <div className={`activity-feed-icon ${tone}`}>
-                <Icon size={15} />
+                <AppIcon name={iconName} size={16} />
               </div>
 
               <div className="activity-feed-content">

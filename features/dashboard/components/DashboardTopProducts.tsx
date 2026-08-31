@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Package, Award, ArrowUpRight, CheckCircle2, XCircle } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { TopProductItem } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 
@@ -19,7 +19,7 @@ export function DashboardTopProducts({
       <div className="panel-heading">
         <div>
           <div className="panel-title-row">
-            <Award size={16} color="var(--red)" />
+            <AppIcon name="award" size={18} color="var(--red)" />
             <h2>Productos más vendidos</h2>
           </div>
           <p>Top de rotación comercial y generación de ingresos</p>
@@ -30,7 +30,7 @@ export function DashboardTopProducts({
           className="text-button"
           onClick={onViewAllProducts}
         >
-          Ver catálogo <ArrowUpRight size={13} />
+          Ver catálogo <AppIcon name="arrowUpRight" size={13} />
         </button>
       </div>
 
@@ -40,7 +40,7 @@ export function DashboardTopProducts({
             <span className="rank-number">0{idx + 1}</span>
 
             <div className="top-product-thumb">
-              <Package size={16} />
+              <AppIcon name="products" size={16} />
             </div>
 
             <div className="top-product-info">

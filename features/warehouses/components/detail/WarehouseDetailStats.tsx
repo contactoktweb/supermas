@@ -1,17 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  CircleDollarSign,
-  Package,
-  Boxes,
-  TrendingUp,
-  ShoppingCart,
-  Percent,
-  AlertTriangle,
-  Truck,
-  ShieldAlert,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, PeriodFilter } from '../../types'
 import { useCountUp } from '../../hooks/useCountUp'
 
@@ -70,7 +60,7 @@ export function WarehouseDetailStats({
         {/* Inventario a costo */}
         <article className="stat-card" title="Inventario total valorizado al costo promedio">
           <div className="stat-icon teal">
-            <CircleDollarSign size={18} />
+            <AppIcon name="inventory" size={18} />
           </div>
           <div className="stat-text">
             <span>Inventario a costo</span>
@@ -82,7 +72,7 @@ export function WarehouseDetailStats({
         {/* Productos activos */}
         <article className="stat-card">
           <div className="stat-icon blue">
-            <Package size={18} />
+            <AppIcon name="products" size={18} />
           </div>
           <div className="stat-text">
             <span>Productos activos</span>
@@ -94,7 +84,7 @@ export function WarehouseDetailStats({
         {/* Ventas periodo */}
         <article className="stat-card">
           <div className="stat-icon blue">
-            <TrendingUp size={18} />
+            <AppIcon name="sales" size={18} />
           </div>
           <div className="stat-text">
             <span>{period === 'TODAY' ? 'Ventas de hoy' : 'Ventas del periodo'}</span>
@@ -106,7 +96,7 @@ export function WarehouseDetailStats({
         {/* Compras periodo */}
         <article className="stat-card">
           <div className="stat-icon amber">
-            <ShoppingCart size={18} />
+            <AppIcon name="purchases" size={18} />
           </div>
           <div className="stat-text">
             <span>Compras recibidas</span>
@@ -118,7 +108,7 @@ export function WarehouseDetailStats({
         {/* Utilidad y Margen */}
         <article className="stat-card">
           <div className="stat-icon teal">
-            <Percent size={18} />
+            <AppIcon name="sales" size={18} />
           </div>
           <div className="stat-text">
             <span>Utilidad estimada</span>
@@ -138,7 +128,7 @@ export function WarehouseDetailStats({
                 : 'teal'
             }`}
           >
-            <AlertTriangle size={18} />
+            <AppIcon name="warning" size={18} />
           </div>
           <div className="stat-text">
             <span>Stock bajo / Agotados</span>
@@ -154,7 +144,7 @@ export function WarehouseDetailStats({
                 warehouse.pendingTransfersCount > 0 ? 'warning-text' : 'positive'
               }
             >
-              <Truck size={10} />
+              <AppIcon name="transfers" size={12} />
               {warehouse.pendingTransfersCount} transferencias
             </small>
           </div>

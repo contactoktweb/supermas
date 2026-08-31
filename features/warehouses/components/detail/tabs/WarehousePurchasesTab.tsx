@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, Plus, ShoppingCart, ArrowDownRight, Building2 } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehousePurchaseRecord } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 
@@ -28,18 +28,18 @@ export function WarehousePurchasesTab({ purchases, canReadCost }: WarehousePurch
       <section className="stats-grid products-stats" aria-label="Métricas de compras">
         <article className="stat-card">
           <div className="stat-icon amber">
-            <ShoppingCart size={18} />
+            <AppIcon name="purchases" size={18} />
           </div>
           <div className="stat-text">
             <span>Total compras recibidas</span>
             <strong>{canReadCost ? `$${totalPurchases.toLocaleString('es-CO')}` : '••••••••'}</strong>
-            <small className="positive"><ArrowDownRight size={12} /> {purchases.length} facturas registradas</small>
+            <small className="positive"><AppIcon name="arrowDownLeft" size={12} /> {purchases.length} facturas registradas</small>
           </div>
         </article>
 
         <article className="stat-card">
           <div className="stat-icon blue">
-            <Building2 size={18} />
+            <AppIcon name="suppliers" size={18} />
           </div>
           <div className="stat-text">
             <span>Proveedores directos</span>
@@ -52,7 +52,7 @@ export function WarehousePurchasesTab({ purchases, canReadCost }: WarehousePurch
       {/* Toolbar */}
       <div className="toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}

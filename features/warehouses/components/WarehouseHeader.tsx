@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Plus, Download, LayoutGrid, TableProperties } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 
 interface WarehouseHeaderProps {
   viewMode: 'GRID' | 'TABLE'
@@ -36,7 +36,7 @@ export function WarehouseHeader({
             onClick={() => setViewMode('GRID')}
             aria-pressed={viewMode === 'GRID'}
           >
-            <LayoutGrid size={14} />
+            <AppIcon name="grid" size={14} />
             <span>Cards</span>
           </button>
           <button
@@ -45,7 +45,7 @@ export function WarehouseHeader({
             onClick={() => setViewMode('TABLE')}
             aria-pressed={viewMode === 'TABLE'}
           >
-            <TableProperties size={14} />
+            <AppIcon name="table" size={14} />
             <span>Tabla</span>
           </button>
         </div>
@@ -56,7 +56,7 @@ export function WarehouseHeader({
           onClick={onExport}
           title="Exportar consolidado de bodegas en formato Excel/CSV"
         >
-          <Download size={16} />
+          <AppIcon name="download" size={16} />
           <span>Exportar</span>
         </button>
 
@@ -67,7 +67,7 @@ export function WarehouseHeader({
             onClick={onOpenCreate}
             title="Crear nueva bodega o punto de venta"
           >
-            <Plus size={16} />
+            <AppIcon name="plus" size={16} />
             <span>Nueva bodega</span>
           </button>
         )}

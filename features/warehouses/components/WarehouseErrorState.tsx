@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 
 interface WarehouseErrorStateProps {
   message?: string
@@ -15,7 +15,7 @@ export function WarehouseErrorState({
   return (
     <div className="warehouse-error-card" role="alert">
       <div className="error-icon">
-        <AlertTriangle size={20} />
+        <AppIcon name="warning" size={20} color="var(--red)" />
       </div>
       <div className="error-content">
         <strong>Error de conexión u operación</strong>
@@ -23,7 +23,7 @@ export function WarehouseErrorState({
       </div>
       {onRetry && (
         <button className="outline-button compact" onClick={onRetry}>
-          <RefreshCw size={14} /> Reintentar
+          <AppIcon name="refresh" size={14} /> Reintentar
         </button>
       )}
     </div>

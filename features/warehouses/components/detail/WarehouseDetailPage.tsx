@@ -1,18 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import {
-  LayoutDashboard,
-  Boxes,
-  ClipboardList,
-  CircleDollarSign,
-  ShoppingCart,
-  Users,
-  Building2,
-  Truck,
-  UserCheck,
-  Settings,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import {
   LocationWithMetrics,
   WarehouseInventoryItem,
@@ -272,18 +261,30 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
     )
   }
 
-  const tabsList = [
-    { key: 'RESUMEN', label: 'Resumen', icon: LayoutDashboard },
-    { key: 'INVENTARIO', label: 'Inventario', icon: Boxes },
-    { key: 'MOVIMIENTOS', label: 'Movimientos', icon: ClipboardList },
-    { key: 'VENTAS', label: 'Ventas', icon: CircleDollarSign },
-    { key: 'COMPRAS', label: 'Compras', icon: ShoppingCart },
-    { key: 'CLIENTES', label: 'Clientes', icon: Users },
-    { key: 'PROVEEDORES', label: 'Proveedores', icon: Building2 },
-    { key: 'TRANSFERENCIAS', label: 'Transferencias', icon: Truck },
-    { key: 'USUARIOS', label: 'Usuarios', icon: UserCheck },
-    { key: 'CONFIGURACION', label: 'Configuración', icon: Settings },
-  ] as const
+  type TabKey =
+    | 'RESUMEN'
+    | 'INVENTARIO'
+    | 'MOVIMIENTOS'
+    | 'VENTAS'
+    | 'COMPRAS'
+    | 'CLIENTES'
+    | 'PROVEEDORES'
+    | 'TRANSFERENCIAS'
+    | 'USUARIOS'
+    | 'CONFIGURACION'
+
+  const tabsList: { key: TabKey; label: string; iconName: LightIconName }[] = [
+    { key: 'RESUMEN', label: 'Resumen', iconName: 'dashboard' },
+    { key: 'INVENTARIO', label: 'Inventario', iconName: 'inventory' },
+    { key: 'MOVIMIENTOS', label: 'Movimientos', iconName: 'kardex' },
+    { key: 'VENTAS', label: 'Ventas', iconName: 'sales' },
+    { key: 'COMPRAS', label: 'Compras', iconName: 'purchases' },
+    { key: 'CLIENTES', label: 'Clientes', iconName: 'customers' },
+    { key: 'PROVEEDORES', label: 'Proveedores', iconName: 'suppliers' },
+    { key: 'TRANSFERENCIAS', label: 'Transferencias', iconName: 'transfers' },
+    { key: 'USUARIOS', label: 'Usuarios', iconName: 'users' },
+    { key: 'CONFIGURACION', label: 'Configuración', iconName: 'settings' },
+  ]
 
   return (
     <div className="warehouse-detail-page page-enter">
@@ -309,7 +310,6 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
       {/* 10 Navigation Tabs */}
       <div className="tabs warehouse-detail-tabs" role="tablist">
         {tabsList.map((t) => {
-          const Icon = t.icon
           const isActive = activeTab === t.key
           return (
             <button
@@ -320,7 +320,7 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
               className={isActive ? 'active' : ''}
               onClick={() => setActiveTab(t.key)}
             >
-              <Icon size={14} />
+              <AppIcon name={t.iconName} size={14} />
               <span>{t.label}</span>
               {t.key === 'TRANSFERENCIAS' && warehouse.pendingTransfersCount > 0 && (
                 <span className="tab-pill">{warehouse.pendingTransfersCount}</span>

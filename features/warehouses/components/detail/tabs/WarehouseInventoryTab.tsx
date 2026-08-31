@@ -1,18 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  Search,
-  Filter,
-  Plus,
-  Boxes,
-  Truck,
-  ClipboardList,
-  AlertTriangle,
-  ArrowUpDown,
-  Eye,
-  Pencil,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseInventoryItem, LocationWithMetrics } from '../../../types'
 import { WarehousePermissions } from '../../../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
@@ -59,7 +48,7 @@ export function WarehouseInventoryTab({
       {/* Toolbar */}
       <div className="toolbar inventory-toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}
@@ -109,7 +98,7 @@ export function WarehouseInventoryTab({
             }}
             title="Realizar ajuste de existencias mediante Kardex"
           >
-            <Plus size={15} />
+            <AppIcon name="plus" size={15} />
             <span>Ajustar inventario</span>
           </button>
         )}
@@ -149,7 +138,7 @@ export function WarehouseInventoryTab({
                     <td>
                       <div className="product-cell">
                         <div className="product-thumb">
-                          <Boxes size={18} />
+                          <AppIcon name="products" size={18} />
                         </div>
                         <div>
                           <strong>{item.productName}</strong>
@@ -213,7 +202,7 @@ export function WarehouseInventoryTab({
                             title="Ajustar existencia (Kardex)"
                             aria-label={`Ajustar stock de ${item.productName}`}
                           >
-                            <Pencil size={14} />
+                            <AppIcon name="edit" size={14} />
                           </button>
                         )}
                         {permissions.canTransferStock &&
@@ -226,7 +215,7 @@ export function WarehouseInventoryTab({
                               title="Transferir a otra bodega"
                               aria-label={`Transferir ${item.productName}`}
                             >
-                              <Truck size={14} />
+                              <AppIcon name="transfers" size={14} />
                             </button>
                           )}
                         <button
@@ -236,7 +225,7 @@ export function WarehouseInventoryTab({
                           title="Ver trazabilidad en Kardex"
                           aria-label={`Ver Kardex de ${item.productName}`}
                         >
-                          <ClipboardList size={14} />
+                          <AppIcon name="kardex" size={14} />
                         </button>
                       </div>
                     </td>

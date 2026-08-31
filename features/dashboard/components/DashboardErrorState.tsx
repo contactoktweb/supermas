@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 
 interface DashboardErrorStateProps {
   message?: string
@@ -15,12 +15,12 @@ export function DashboardErrorState({
   return (
     <div className="warehouse-error-state page-enter">
       <div className="error-icon-box">
-        <AlertTriangle size={32} color="var(--red)" />
+        <AppIcon name="warning" size={32} color="var(--red)" />
       </div>
       <h2>No fue posible cargar el Dashboard</h2>
       <p>{message}</p>
       <button type="button" className="primary-button" onClick={onRetry}>
-        <RefreshCw size={15} /> Reintentar sincronización
+        <AppIcon name="refresh" size={15} /> Reintentar sincronización
       </button>
     </div>
   )

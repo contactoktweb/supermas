@@ -1,21 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  ChevronRight,
-  Pencil,
-  Truck,
-  ClipboardList,
-  ArrowLeft,
-  Warehouse,
-  Store,
-  Building,
-  PowerOff,
-  Globe,
-  MapPin,
-  User,
-  Clock,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { LocationWithMetrics } from '../../types'
 import { WarehousePermissions } from '../../hooks/useWarehousePermissions'
 
@@ -38,12 +24,12 @@ export function WarehouseDetailHeader({
   onOpenKardexTab,
   onDeactivate,
 }: WarehouseDetailHeaderProps) {
-  const Icon =
+  const iconName: LightIconName =
     warehouse.type === 'STORE_POINT'
-      ? Store
+      ? 'pos'
       : warehouse.type === 'DISTRIBUTION_CENTER'
-      ? Building
-      : Warehouse
+      ? 'suppliers'
+      : 'warehouse'
 
   const isEcommerce = warehouse.settings.isEcommerceProcessingSource
 
@@ -51,13 +37,13 @@ export function WarehouseDetailHeader({
     <div className="warehouse-detail-header-card page-enter">
       <div className="detail-top-nav">
         <button type="button" className="back-button" onClick={onBack}>
-          <ArrowLeft size={16} />
+          <AppIcon name="chevronLeft" size={16} />
           <span>Volver al listado de bodegas</span>
         </button>
 
         <div className="breadcrumbs">
           <span>Bodegas</span>
-          <ChevronRight size={14} />
+          <AppIcon name="chevronRight" size={14} />
           <strong>{warehouse.name}</strong>
         </div>
       </div>
@@ -73,7 +59,7 @@ export function WarehouseDetailHeader({
                 : 'tone-blue'
             }`}
           >
-            <Icon size={28} />
+            <AppIcon name={iconName} size={28} />
           </div>
 
           <div className="detail-title-copy">
@@ -90,7 +76,7 @@ export function WarehouseDetailHeader({
 
               {isEcommerce && (
                 <span className="ecommerce-badge">
-                  <Globe size={12} />
+                  <AppIcon name="webOrders" size={12} />
                   Despacho Ecommerce
                 </span>
               )}
@@ -109,17 +95,17 @@ export function WarehouseDetailHeader({
 
             <div className="detail-meta-list">
               <span>
-                <MapPin size={13} />
+                <AppIcon name="suppliers" size={13} />
                 {warehouse.address}, {warehouse.city}
               </span>
               {warehouse.managerName && (
                 <span>
-                  <User size={13} />
+                  <AppIcon name="users" size={13} />
                   Responsable: {warehouse.managerName}
                 </span>
               )}
               <span>
-                <Clock size={13} />
+                <AppIcon name="clock" size={13} />
                 Última actividad: {warehouse.lastActivityAt}
               </span>
             </div>
@@ -134,7 +120,7 @@ export function WarehouseDetailHeader({
               onClick={onEdit}
               title="Editar datos y configuración"
             >
-              <Pencil size={15} />
+              <AppIcon name="edit" size={15} />
               <span>Editar</span>
             </button>
           )}
@@ -146,7 +132,7 @@ export function WarehouseDetailHeader({
               onClick={onTransfer}
               title="Despachar o recibir transferencia"
             >
-              <Truck size={15} />
+              <AppIcon name="transfers" size={15} />
               <span>Transferencia</span>
             </button>
           )}
@@ -157,7 +143,7 @@ export function WarehouseDetailHeader({
             onClick={onOpenKardexTab}
             title="Ir al Kardex de esta bodega"
           >
-            <ClipboardList size={15} />
+            <AppIcon name="kardex" size={15} />
             <span>Ver Kardex</span>
           </button>
 
@@ -169,7 +155,7 @@ export function WarehouseDetailHeader({
               title="Desactivar bodega de forma segura"
               aria-label="Desactivar bodega"
             >
-              <PowerOff size={16} />
+              <AppIcon name="powerOff" size={16} />
             </button>
           )}
         </div>

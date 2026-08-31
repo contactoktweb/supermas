@@ -1,26 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  CircleDollarSign,
-  TrendingUp,
-  Boxes,
-  Package,
-  AlertTriangle,
-  Truck,
-  ShoppingCart,
-  CreditCard,
-  Zap,
-  Bell,
-  Lock,
-  ArrowUpRight,
-  ArrowDownRight,
-  ChevronDown,
-  ChevronUp,
-  XCircle,
-  Clock,
-  Layers,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { DashboardMetrics, UserProfile } from '../types'
 import { useCountUp } from '@/features/warehouses/hooks/useCountUp'
 
@@ -36,7 +17,7 @@ interface StatCardProps {
   isPercent?: boolean
   decimals?: number
   suffix?: string
-  icon: React.ElementType
+  iconName: LightIconName
   tone: 'blue' | 'red' | 'teal' | 'amber' | 'purple'
   note?: string
   isPositive?: boolean
@@ -54,7 +35,7 @@ function StatCard({
   isPercent = false,
   decimals = 0,
   suffix = '',
-  icon: Icon,
+  iconName,
   tone,
   note,
   isPositive = true,
@@ -79,7 +60,11 @@ function StatCard({
     >
       <div className="stat-card-header">
         <div className={`stat-icon ${tone}`}>
-          {isRedacted ? <Lock size={18} /> : <Icon size={18} />}
+          {isRedacted ? (
+            <AppIcon name="lock" size={18} />
+          ) : (
+            <AppIcon name={iconName} size={18} />
+          )}
         </div>
         {badge && <span className="stat-card-badge">{badge}</span>}
       </div>
@@ -101,7 +86,10 @@ function StatCard({
         {note && !isRedacted && (
           <div className="stat-delta-row">
             <small className={isPositive ? 'positive' : 'negative-text'}>
-              {isPositive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+              <AppIcon
+                name={isPositive ? 'arrowUpRight' : 'arrowDownRight'}
+                size={13}
+              />
               {note}
             </small>
             {subtext && <span className="stat-subtext">{subtext}</span>}
@@ -131,7 +119,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           title="Ventas de hoy"
           value={metrics.todaySales.value}
           isCurrency
-          icon={CircleDollarSign}
+          iconName="sales"
           tone="teal"
           note={`+${metrics.todaySales.deltaYesterdayPct}%`}
           isPositive={metrics.todaySales.deltaYesterdayPct >= 0}
@@ -145,7 +133,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           title="Ventas del periodo"
           value={metrics.periodSales.value}
           isCurrency
-          icon={TrendingUp}
+          iconName="sales"
           tone="blue"
           note={`+${metrics.periodSales.deltaPct}%`}
           isPositive={metrics.periodSales.deltaPct >= 0}
@@ -159,7 +147,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           title="Utilidad bruta"
           value={metrics.grossProfit?.value || 0}
           isCurrency
-          icon={CircleDollarSign}
+          iconName="sales"
           tone="teal"
           isRedacted={isFinancialRedacted}
           note={
@@ -180,7 +168,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           title="Inventario a costo"
           value={metrics.inventoryAtCost?.value || 0}
           isCurrency
-          icon={Boxes}
+          iconName="inventory"
           tone="blue"
           isRedacted={isFinancialRedacted}
           note={
@@ -198,7 +186,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
         <StatCard
           title="Productos en catálogo"
           value={metrics.productsCount.total}
-          icon={Package}
+          iconName="products"
           tone="blue"
           note={`${metrics.productsCount.active} activos`}
           isPositive={true}
@@ -211,7 +199,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
         <StatCard
           title="Stock bajo crítico"
           value={metrics.productsCount.lowStock}
-          icon={AlertTriangle}
+          iconName="warning"
           tone="amber"
           note="Bajo mínimo"
           isPositive={false}
@@ -224,7 +212,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
         <StatCard
           title="Transferencias activas"
           value={metrics.pendingTransfers.total}
-          icon={Truck}
+          iconName="transfers"
           tone="blue"
           note={`${metrics.pendingTransfers.inTransit} en tránsito`}
           isPositive={true}
@@ -237,7 +225,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
         <StatCard
           title="Pedidos web hoy"
           value={metrics.webOrders.totalToday}
-          icon={Zap}
+          iconName="webOrders"
           tone="red"
           note={`${metrics.webOrders.newOrders} nuevos`}
           isPositive={true}
@@ -258,7 +246,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           <span>
             {showSecondary ? 'Ocultar indicadores secundarios' : 'Ver más indicadores operativos y financieros'}
           </span>
-          {showSecondary ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          <AppIcon
+            name={showSecondary ? 'chevronUp' : 'chevronDown'}
+            size={15}
+          />
         </button>
       </div>
 
@@ -270,7 +261,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             title="Compras del periodo"
             value={metrics.purchases?.value || 0}
             isCurrency
-            icon={ShoppingCart}
+            iconName="purchases"
             tone="teal"
             isRedacted={isFinancialRedacted}
             note={metrics.purchases ? `${metrics.purchases.count} facturas` : undefined}
@@ -284,7 +275,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             title="Cuentas por pagar"
             value={metrics.accountsPayable?.pendingBalance || 0}
             isCurrency
-            icon={CreditCard}
+            iconName="cashRegisters"
             tone="amber"
             isRedacted={isFinancialRedacted}
             note={
@@ -301,7 +292,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           <StatCard
             title="Productos sin existencias"
             value={metrics.productsCount.outOfStock}
-            icon={XCircle}
+            iconName="close"
             tone="red"
             note="0 unidades"
             isPositive={false}
@@ -313,7 +304,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           <StatCard
             title="Alertas activas totales"
             value={metrics.activeAlerts.total}
-            icon={Bell}
+            iconName="alerts"
             tone="amber"
             note={`${metrics.activeAlerts.inventory} inventario`}
             isPositive={false}

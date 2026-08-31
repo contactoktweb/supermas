@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 
 export interface ToastMessage {
   id: string
@@ -35,20 +35,20 @@ function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss: () =>
     return () => clearTimeout(timer)
   }, [onDismiss])
 
-  const Icon =
-    toast.type === 'success' ? CheckCircle2 : toast.type === 'error' ? AlertCircle : Info
+  const iconName: LightIconName =
+    toast.type === 'success' ? 'check' : toast.type === 'error' ? 'warning' : 'info'
 
   return (
     <div className={`warehouse-toast toast-${toast.type}`}>
       <div className="toast-icon">
-        <Icon size={18} />
+        <AppIcon name={iconName} size={18} />
       </div>
       <div className="toast-body">
         <strong>{toast.title}</strong>
         {toast.description && <p>{toast.description}</p>}
       </div>
       <button className="icon-button toast-close" onClick={onDismiss} aria-label="Cerrar notificación">
-        <X size={14} />
+        <AppIcon name="close" size={14} />
       </button>
     </div>
   )

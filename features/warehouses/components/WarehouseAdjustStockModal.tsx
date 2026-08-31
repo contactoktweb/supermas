@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Check, Boxes, AlertTriangle, ShieldAlert } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseInventoryItem } from '../types'
 import { stockAdjustmentSchema, StockAdjustmentFormData } from '../schemas/warehouse.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
@@ -110,7 +110,7 @@ export function WarehouseAdjustStockModal({
         <div className="dialog-header-standard">
           <div className="dialog-header-title">
             <div className="stat-icon teal">
-              <Boxes size={22} />
+              <AppIcon name="inventory" size={22} />
             </div>
             <div>
               <p className="eyebrow">Control de existencias e inventario</p>
@@ -123,7 +123,7 @@ export function WarehouseAdjustStockModal({
             onClick={onClose}
             aria-label="Cerrar modal"
           >
-            <X size={18} />
+            <AppIcon name="close" size={18} />
           </button>
         </div>
 
@@ -163,7 +163,7 @@ export function WarehouseAdjustStockModal({
         <form onSubmit={handleSubmit}>
           {errors.general && (
             <div className="form-error-banner">
-              <AlertTriangle size={16} />
+              <AppIcon name="warning" size={16} />
               <span>{errors.general}</span>
             </div>
           )}
@@ -191,7 +191,7 @@ export function WarehouseAdjustStockModal({
 
             <div className="input-field-block">
               <label htmlFor="adjust-qty">
-                Cantidad a {formData.type === 'AJUSTE_POSITIVO' ? 'aumentar' : 'disminuir'} <span className="req">*</span>
+                Cantidad a ajustar ({formData.type === 'AJUSTE_POSITIVO' ? '+' : '-'}) <span className="req">*</span>
               </label>
               <input
                 id="adjust-qty"
@@ -294,7 +294,7 @@ export function WarehouseAdjustStockModal({
               className="primary-button"
               disabled={isSubmitting || resultingStock < 0}
             >
-              <Check size={16} />
+              <AppIcon name="check" size={16} />
               <span>{isSubmitting ? 'Registrando...' : 'Confirmar ajuste en Kardex'}</span>
             </button>
           </div>

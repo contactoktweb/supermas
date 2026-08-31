@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, Users, Phone, Mail, FileText } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { CustomerLocationRelation } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 
@@ -24,7 +24,7 @@ export function WarehouseCustomersTab({ customers }: WarehouseCustomersTabProps)
     <div className="warehouse-customers-tab page-enter">
       <div className="toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}
@@ -65,7 +65,7 @@ export function WarehouseCustomersTab({ customers }: WarehouseCustomersTabProps)
                     <td>
                       <div className="product-cell">
                         <div className="product-thumb">
-                          <Users size={16} />
+                          <AppIcon name="customers" size={16} />
                         </div>
                         <div>
                           <strong>{c.customerName}</strong>

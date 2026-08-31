@@ -1,16 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  Warehouse,
-  CircleDollarSign,
-  TrendingUp,
-  AlertTriangle,
-  Truck,
-  Bell,
-  ArrowUpRight,
-  ShieldAlert,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { GlobalWarehousesStats } from '../types'
 import { useCountUp } from '../hooks/useCountUp'
 
@@ -26,7 +17,7 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
         title="Total de bodegas"
         value={stats.activeWarehouses}
         note={`${stats.totalWarehouses} registradas`}
-        icon={Warehouse}
+        iconName="warehouse"
         tone="blue"
         tooltip="Cantidad de bodegas y puntos de venta activos en operación."
       />
@@ -36,7 +27,7 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
         value={stats.totalInventoryValueAtCost}
         isCurrency
         note="Valorizado a costo"
-        icon={CircleDollarSign}
+        iconName="sales"
         tone="teal"
         tooltip="Sumatoria del inventario disponible multiplicado por el costo promedio vigente en cada bodega."
         isRestricted={!canReadCost}
@@ -47,7 +38,7 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
         value={stats.totalTodaySales}
         isCurrency
         note="+12.4% vs ayer"
-        icon={TrendingUp}
+        iconName="sales"
         tone="blue"
         tooltip="Ventas emitidas hoy en la totalidad de puntos y despachos de bodegas."
       />
@@ -56,29 +47,27 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
         title="Stock bajo"
         value={stats.totalLowStockProducts}
         note={stats.totalLowStockProducts > 0 ? 'Requiere revisión' : 'En nivel óptimo'}
-        icon={AlertTriangle}
+        iconName="warning"
         tone={stats.totalLowStockProducts > 0 ? 'amber' : 'teal'}
-        tooltip="Productos cuyo stock actual está en o por debajo del umbral mínimo de seguridad."
-        isWarning={stats.totalLowStockProducts > 0}
+        tooltip="Productos con inventario menor o igual al stock mínimo configurado."
       />
 
       <StatCard
-        title="Transferencias pendientes"
+        title="Transferencias activas"
         value={stats.totalPendingTransfers}
-        note="En tránsito o espera"
-        icon={Truck}
+        note="En tránsito o por recibir"
+        iconName="transfers"
         tone="blue"
-        tooltip="Transferencias entre bodegas aún no despachadas o pendientes de recepción en destino."
+        tooltip="Transferencias inter-bodegas pendientes de despacho o recepción."
       />
 
       <StatCard
-        title="Alertas activas"
+        title="Alertas operativas"
         value={stats.totalActiveAlerts}
-        note={stats.totalActiveAlerts > 0 ? 'Atención urgente' : 'Sin novedades'}
-        icon={Bell}
+        note={stats.totalActiveAlerts > 0 ? 'Atención urgente' : 'Sin alertas críticas'}
+        iconName="alerts"
         tone={stats.totalActiveAlerts > 0 ? 'red' : 'teal'}
-        tooltip="Eventos operativos, agotados y discrepancias que requieren gestión administrativa."
-        isWarning={stats.totalActiveAlerts > 0}
+        tooltip="Incidencias que requieren acción correctiva o administrativa."
       />
     </section>
   )
@@ -87,48 +76,61 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
 interface StatCardProps {
   title: string
   value: number
-  note: string
-  icon: React.ComponentType<{ size?: number }>
-  tone?: string
   isCurrency?: boolean
+  note: string
+  iconName: LightIconName
+  tone: 'blue' | 'teal' | 'amber' | 'red'
   tooltip: string
-  isWarning?: boolean
   isRestricted?: boolean
 }
 
 function StatCard({
   title,
   value,
-  note,
-  icon: Icon,
-  tone = 'blue',
   isCurrency = false,
+  note,
+  iconName,
+  tone,
   tooltip,
-  isWarning = false,
   isRestricted = false,
 }: StatCardProps) {
-  const formattedValue = useCountUp(value, { isCurrency })
+  const animatedValue = useCountUp(isRestricted ? 0 : value, {
+    isCurrency,
+    duration: 900,
+  })
 
   return (
-    <article
-      className="stat-card warehouse-stat-card"
-      tabIndex={0}
-      title={tooltip}
-      aria-label={`${title}: ${isRestricted ? 'Restringido' : formattedValue}. ${note}`}
-    >
+    <article className="stat-card" title={tooltip}>
       <div className={`stat-icon ${tone}`}>
-        <Icon size={18} />
+        {isRestricted ? (
+          <AppIcon name="lock" size={18} />
+        ) : (
+          <AppIcon name={iconName} size={18} />
+        )}
       </div>
-
       <div className="stat-text">
         <span>{title}</span>
-        <strong>{isRestricted ? '••••••••' : formattedValue}</strong>
-        <small className={isWarning ? 'warning-text' : isRestricted ? 'muted-text' : 'positive'}>
-          {isWarning ? <AlertTriangle size={11} /> : isRestricted ? <ShieldAlert size={11} /> : <ArrowUpRight size={11} />}
-          {isRestricted ? 'Requiere permiso de costos' : note}
+        <strong>
+          {isRestricted ? 'Restringido' : animatedValue}
+        </strong>
+        <small
+          className={
+            tone === 'red' || (tone === 'amber' && value > 0)
+              ? 'warning-text'
+              : 'positive'
+          }
+        >
+          <AppIcon
+            name={
+              tone === 'red' || (tone === 'amber' && value > 0)
+                ? 'warning'
+                : 'arrowUpRight'
+            }
+            size={13}
+          />
+          {note}
         </small>
       </div>
-
       <svg className="sparkline" viewBox="0 0 90 30" aria-hidden="true">
         <polyline points="0,25 12,22 22,24 35,15 48,19 60,10 72,14 90,3" />
       </svg>

@@ -1,18 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  Warehouse,
-  Store,
-  Building2,
-  ChevronRight,
-  TrendingUp,
-  Boxes,
-  AlertTriangle,
-  Truck,
-  ArrowRight,
-  Zap,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseDashboardCard, UserProfile } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 
@@ -36,7 +25,7 @@ export function DashboardWarehousesSummary({
       <div className="section-header-compact">
         <div>
           <div className="section-title-row">
-            <Warehouse size={16} color="var(--navy)" />
+            <AppIcon name="warehouse" size={18} color="var(--navy)" />
             <h2>Estado de las bodegas</h2>
           </div>
           <span className="section-subtitle">
@@ -49,7 +38,7 @@ export function DashboardWarehousesSummary({
           className="outline-button compact view-all-wh-btn"
           onClick={onViewAllWarehouses}
         >
-          Ver todas las bodegas <ChevronRight size={14} />
+          Ver todas las bodegas <AppIcon name="chevronRight" size={14} />
         </button>
       </div>
 
@@ -67,18 +56,18 @@ export function DashboardWarehousesSummary({
               <div className="wh-card-top-row">
                 <div className="wh-type-icon-wrap">
                   {isStorePoint ? (
-                    <Store size={18} color="var(--red)" />
+                    <AppIcon name="pos" size={18} color="var(--red)" />
                   ) : isCEDI ? (
-                    <Building2 size={18} color="var(--amber)" />
+                    <AppIcon name="suppliers" size={18} color="var(--amber)" />
                   ) : (
-                    <Warehouse size={18} color="var(--navy)" />
+                    <AppIcon name="warehouse" size={18} color="var(--navy)" />
                   )}
                 </div>
 
                 <div className="wh-badges-group">
                   {wh.isEcommerce && (
                     <span className="ecommerce-badge">
-                      <Zap size={11} /> E-commerce
+                      <AppIcon name="webOrders" size={11} /> E-commerce
                     </span>
                   )}
                   <span className="code-badge">{wh.code}</span>
@@ -135,10 +124,10 @@ export function DashboardWarehousesSummary({
               {/* Footer Row */}
               <div className="wh-card-footer">
                 <span className="wh-transfers-info">
-                  <Truck size={13} /> {wh.pendingTransfersCount} transferencias
+                  <AppIcon name="transfers" size={13} /> {wh.pendingTransfersCount} transferencias
                 </span>
                 <span className="wh-action-link">
-                  Ver sede <ArrowRight size={13} />
+                  Ver sede <AppIcon name="arrowRight" size={13} />
                 </span>
               </div>
             </article>

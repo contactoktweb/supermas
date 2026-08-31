@@ -1,22 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import {
-  Warehouse,
-  Store,
-  Building,
-  MoreVertical,
-  ArrowRight,
-  Eye,
-  Pencil,
-  Boxes,
-  ClipboardList,
-  Truck,
-  Users,
-  PowerOff,
-  AlertTriangle,
-  Globe,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { LocationWithMetrics } from '../types'
 import { WarehousePermissions } from '../hooks/useWarehousePermissions'
 
@@ -61,12 +46,12 @@ export function WarehouseCard({
     }
   }, [menuOpen])
 
-  const Icon =
+  const iconName: LightIconName =
     warehouse.type === 'STORE_POINT'
-      ? Store
+      ? 'pos'
       : warehouse.type === 'DISTRIBUTION_CENTER'
-      ? Building
-      : Warehouse
+      ? 'suppliers'
+      : 'warehouse'
 
   const isEcommerce = warehouse.settings.isEcommerceProcessingSource
 
@@ -101,7 +86,7 @@ export function WarehouseCard({
 
           {isEcommerce && (
             <span className="ecommerce-badge" title="Bodega configurada para despacho web">
-              <Globe size={11} />
+              <AppIcon name="webOrders" size={11} />
               Ecommerce
             </span>
           )}
@@ -129,7 +114,7 @@ export function WarehouseCard({
             aria-label="Acciones de bodega"
             aria-expanded={menuOpen}
           >
-            <MoreVertical size={16} />
+            <AppIcon name="more" size={16} />
           </button>
 
           {menuOpen && (
@@ -142,7 +127,7 @@ export function WarehouseCard({
                   onSelect(warehouse.id)
                 }}
               >
-                <Eye size={14} />
+                <AppIcon name="eye" size={14} />
                 <span>Ver detalle</span>
               </button>
 
@@ -155,7 +140,7 @@ export function WarehouseCard({
                     onEdit(warehouse)
                   }}
                 >
-                  <Pencil size={14} />
+                  <AppIcon name="edit" size={14} />
                   <span>Editar bodega</span>
                 </button>
               )}
@@ -169,7 +154,7 @@ export function WarehouseCard({
                     onOpenInventory(warehouse.id)
                   }}
                 >
-                  <Boxes size={14} />
+                  <AppIcon name="inventory" size={14} />
                   <span>Ver inventario</span>
                 </button>
               )}
@@ -182,7 +167,7 @@ export function WarehouseCard({
                   onOpenKardex(warehouse.id)
                 }}
               >
-                <ClipboardList size={14} />
+                <AppIcon name="kardex" size={14} />
                 <span>Ver Kardex</span>
               </button>
 
@@ -195,7 +180,7 @@ export function WarehouseCard({
                     onTransfer(warehouse)
                   }}
                 >
-                  <Truck size={14} />
+                  <AppIcon name="transfers" size={14} />
                   <span>Nueva transferencia</span>
                 </button>
               )}
@@ -208,7 +193,7 @@ export function WarehouseCard({
                   onOpenUsers(warehouse.id)
                 }}
               >
-                <Users size={14} />
+                <AppIcon name="users" size={14} />
                 <span>Usuarios asignados</span>
               </button>
 
@@ -221,7 +206,7 @@ export function WarehouseCard({
                     onDeactivate(warehouse)
                   }}
                 >
-                  <PowerOff size={14} />
+                  <AppIcon name="powerOff" size={14} />
                   <span>Desactivar bodega</span>
                 </button>
               )}
@@ -241,7 +226,7 @@ export function WarehouseCard({
               : 'tone-blue'
           }`}
         >
-          <Icon size={22} />
+          <AppIcon name={iconName} size={22} />
         </div>
         <div>
           <h2>{warehouse.name}</h2>
@@ -299,14 +284,14 @@ export function WarehouseCard({
         <div className="footer-chips">
           {warehouse.pendingTransfersCount > 0 && (
             <span className="transfer-indicator" title="Transferencias pendientes">
-              <Truck size={12} />
+              <AppIcon name="transfers" size={12} />
               {warehouse.pendingTransfersCount} trans.
             </span>
           )}
 
           {warehouse.activeAlertsCount > 0 && (
             <span className="alert-count" title="Alertas operativas">
-              <AlertTriangle size={11} />
+              <AppIcon name="warning" size={11} />
               {warehouse.activeAlertsCount} alertas
             </span>
           )}
@@ -321,7 +306,7 @@ export function WarehouseCard({
           aria-label={`Ver detalles de ${warehouse.name}`}
         >
           <span>Ver bodega</span>
-          <ArrowRight size={14} />
+          <AppIcon name="arrowRight" size={14} />
         </button>
       </div>
     </article>

@@ -1,21 +1,7 @@
 'use client'
 
 import React from 'react'
-import {
-  Store,
-  CircleDollarSign,
-  ShoppingCart,
-  Truck,
-  Boxes,
-  Package,
-  FileText,
-  Building2,
-  Users,
-  Zap,
-  Bell,
-  ArrowRight,
-  Sparkles,
-} from 'lucide-react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { QuickActionItem } from '../types'
 
 interface DashboardQuickActionsProps {
@@ -23,18 +9,18 @@ interface DashboardQuickActionsProps {
   onSelectAction: (targetView: string) => void
 }
 
-const iconMap: Record<string, React.ElementType> = {
-  Store,
-  CircleDollarSign,
-  ShoppingCart,
-  Truck,
-  Boxes,
-  Package,
-  FileText,
-  Building2,
-  Users,
-  Zap,
-  Bell,
+const iconMap: Record<string, LightIconName> = {
+  Store: 'pos',
+  CircleDollarSign: 'sales',
+  ShoppingCart: 'purchases',
+  Truck: 'transfers',
+  Boxes: 'inventory',
+  Package: 'products',
+  FileText: 'invoices',
+  Building2: 'suppliers',
+  Users: 'customers',
+  Zap: 'webOrders',
+  Bell: 'alerts',
 }
 
 export function DashboardQuickActions({
@@ -47,7 +33,7 @@ export function DashboardQuickActions({
     <section className="quick-actions-section page-enter">
       <div className="section-header-compact">
         <div className="section-title-wrap">
-          <Sparkles size={14} color="var(--red)" />
+          <AppIcon name="sparkles" size={16} color="var(--red)" />
           <h2>Accesos rápidos operativos</h2>
         </div>
         <span className="section-subtitle">
@@ -57,7 +43,7 @@ export function DashboardQuickActions({
 
       <div className="quick-actions-grid">
         {actions.map((action) => {
-          const Icon = iconMap[action.icon] || Zap
+          const iconName = iconMap[action.icon] || 'webOrders'
 
           return (
             <button
@@ -68,7 +54,7 @@ export function DashboardQuickActions({
             >
               <div className="action-card-top">
                 <div className="action-icon-wrap">
-                  <Icon size={18} />
+                  <AppIcon name={iconName} size={18} />
                 </div>
                 {action.badge && (
                   <span className="action-badge">{action.badge}</span>
@@ -81,7 +67,7 @@ export function DashboardQuickActions({
               </div>
 
               <div className="action-card-arrow">
-                <ArrowRight size={13} />
+                <AppIcon name="chevronRight" size={14} />
               </div>
             </button>
           )

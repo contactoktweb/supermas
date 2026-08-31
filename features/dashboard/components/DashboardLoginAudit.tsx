@@ -1,15 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import {
-  ShieldCheck,
-  Check,
-  AlertTriangle,
-  Laptop,
-  UserRound,
-  ExternalLink,
-  ChevronRight,
-} from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LoginAuditItem, UserProfile } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 import { DashboardAuditModal } from './DashboardAuditModal'
@@ -33,7 +25,7 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
         <div className="panel-heading">
           <div>
             <div className="panel-title-row">
-              <ShieldCheck size={16} color="var(--navy)" />
+              <AppIcon name="audit" size={18} color="var(--navy)" />
               <h2>Accesos recientes al sistema</h2>
             </div>
             <p>
@@ -46,7 +38,7 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
             className="outline-button compact"
             onClick={() => setIsModalOpen(true)}
           >
-            Ver historial completo <ChevronRight size={14} />
+            Ver historial completo <AppIcon name="chevronRight" size={14} />
           </button>
         </div>
 
@@ -69,7 +61,7 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
                     <td>
                       <div className="product-cell">
                         <div className="product-thumb">
-                          <UserRound size={15} />
+                          <AppIcon name="users" size={16} />
                         </div>
                         <div>
                           <strong>{log.userName}</strong>
@@ -105,11 +97,11 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
                       >
                         {log.status === 'SUCCESS' ? (
                           <>
-                            <Check size={11} /> Exitoso
+                            <AppIcon name="check" size={12} /> Exitoso
                           </>
                         ) : (
                           <>
-                            <AlertTriangle size={11} /> Fallido
+                            <AppIcon name="warning" size={12} /> Fallido
                           </>
                         )}
                       </span>
@@ -129,7 +121,7 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
 
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Laptop size={13} color="var(--muted)" />
+                        <AppIcon name="laptop" size={14} color="var(--muted)" />
                         <span>{log.userAgent}</span>
                       </div>
                     </td>

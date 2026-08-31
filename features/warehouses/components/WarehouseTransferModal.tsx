@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X, Truck, ArrowRight, ShieldAlert, Check } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseInventoryItem } from '../types'
 import { createTransferSchema, CreateTransferFormData } from '../schemas/warehouse.schema'
 import { warehouseRepository } from '../repositories/warehouse.repository'
@@ -73,7 +73,7 @@ export function WarehouseTransferModal({
             units: Number(units),
           },
         ],
-        notes: notes.trim(),
+        notes: notes || undefined,
       }
 
       const validated = createTransferSchema.parse(payload)
@@ -114,7 +114,7 @@ export function WarehouseTransferModal({
         <div className="dialog-header-standard">
           <div className="dialog-header-title">
             <div className="stat-icon blue">
-              <Truck size={20} />
+              <AppIcon name="transfers" size={20} />
             </div>
             <div>
               <p className="eyebrow">Logística interna</p>
@@ -127,7 +127,7 @@ export function WarehouseTransferModal({
             onClick={onClose}
             aria-label="Cerrar modal"
           >
-            <X size={18} />
+            <AppIcon name="close" size={18} />
           </button>
         </div>
 
@@ -139,8 +139,8 @@ export function WarehouseTransferModal({
             <small>{originWarehouse.code}</small>
           </div>
           <div className="route-arrow">
-            <Truck size={18} />
-            <ArrowRight size={16} />
+            <AppIcon name="transfers" size={18} />
+            <AppIcon name="arrowRight" size={16} />
           </div>
           <div className="route-node">
             <span>Destino</span>
@@ -155,7 +155,7 @@ export function WarehouseTransferModal({
 
         {errors.general && (
           <div className="form-error-banner" role="alert">
-            <ShieldAlert size={16} />
+            <AppIcon name="warning" size={16} />
             <span>{errors.general}</span>
           </div>
         )}
@@ -253,7 +253,7 @@ export function WarehouseTransferModal({
               className="primary-button"
               disabled={isSubmitting || !selectedItem || selectedItem.currentStock <= 0}
             >
-              <Check size={16} />
+              <AppIcon name="check" size={16} />
               <span>{isSubmitting ? 'Creando...' : 'Crear transferencia'}</span>
             </button>
           </div>

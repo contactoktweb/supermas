@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { Search, Filter, ArrowDownRight, ArrowUpRight, Download, ClipboardList } from 'lucide-react'
+import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseMovement } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 
@@ -30,7 +30,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
     <div className="warehouse-movements-tab page-enter">
       <div className="toolbar">
         <div className="search-box wide">
-          <Search size={16} />
+          <AppIcon name="search" size={16} />
           <input
             type="search"
             value={query}
@@ -64,7 +64,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
           className="outline-button compact export"
           onClick={() => alert('Exportando Kardex de ' + locationName)}
         >
-          <Download size={14} />
+          <AppIcon name="download" size={14} />
           <span>Exportar Kardex</span>
         </button>
       </div>

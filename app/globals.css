@@ -303,24 +303,40 @@
 
 .detail-stats-section .period-row{position:relative;z-index:40}
 
-/* KPI Statistics Grid */
+/* KPI Statistics Grid (Clean & Elevated SaaS Design) */
 .dashboard-stats-section{margin-bottom:24px}
 .dashboard-primary-grid{grid-template-columns:repeat(4,1fr);gap:14px}
-.dashboard-kpi-card{padding:18px;min-height:124px;border:1px solid var(--line);border-radius:12px;background:#fff;transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease;cursor:default}
-.dashboard-kpi-card:hover{transform:translateY(-4px);box-shadow:0 14px 28px rgba(16,33,63,0.12);border-color:#bcc8da}
-.stat-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
-.stat-card-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;background:#e9edf6;color:var(--navy)}
-.stat-card-title{font-size:11px;color:var(--muted);display:block;margin-bottom:4px}
-.stat-card-value{font-size:22px;letter-spacing:-.8px;color:var(--foreground);display:block}
-.stat-delta-row{display:flex;align-items:center;gap:6px;margin-top:5px}
-.stat-subtext{font-size:10px;color:var(--muted)}
+.dashboard-kpi-card{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:18px 20px;min-height:136px;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;box-shadow:0 2px 8px rgba(16,33,63,0.03);transition:transform .22s cubic-bezier(0.16,1,0.3,1),box-shadow .22s ease,border-color .22s ease;cursor:default;overflow:hidden}
+.dashboard-kpi-card:hover{transform:translateY(-3px);box-shadow:0 12px 26px rgba(0,27,92,0.08);border-color:#b9cadf}
+
+.kpi-card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.kpi-icon-wrap{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;transition:transform .2s ease}
+.dashboard-kpi-card:hover .kpi-icon-wrap{transform:scale(1.05)}
+.kpi-icon-wrap.teal{background:#ecfdf5;color:#059669}
+.kpi-icon-wrap.blue{background:#eff6ff;color:#1e40af}
+.kpi-icon-wrap.amber{background:#fffbeb;color:#d97706}
+.kpi-icon-wrap.red{background:#fef2f2;color:#dc2626}
+.kpi-icon-wrap.purple{background:#f5f3ff;color:#7c3aed}
+
+.kpi-scope-badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#f1f5f9;color:#475569;letter-spacing:0.2px}
+
+.kpi-card-body{display:flex;flex-direction:column;gap:3px;margin-bottom:12px}
+.kpi-card-title{font-size:12px;font-weight:600;color:#64748b;letter-spacing:-0.1px}
+.kpi-card-value{font-size:24px;font-weight:800;letter-spacing:-0.8px;color:#0f172a;line-height:1.2}
+
+.kpi-card-footer{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid #f1f5f9}
+.kpi-trend-pill{display:inline-flex;align-items:center;gap:3px;padding:3px 7px;border-radius:6px;font-size:11px;font-weight:700;line-height:1.2}
+.kpi-trend-pill.trend-positive{background:#ecfdf5;color:#059669}
+.kpi-trend-pill.trend-warning{background:#fffbeb;color:#b45309}
+.kpi-subtext{font-size:11px;color:#64748b;font-weight:500}
+
 .is-redacted{background:#fafbfc;border-style:dashed}
 .redacted-value-wrap{display:flex;flex-direction:column;gap:2px}
 .redacted-text{font-size:14px;color:#8d9bb0;font-style:italic}
 .redacted-hint{font-size:9px;color:#a3b0c4}
 
-.secondary-indicators-control{display:flex;justify-content:center;margin:14px 0 0}
-.toggle-secondary-btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;border:1px solid var(--line);background:#fff;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;transition:.2s}
+.secondary-indicators-control{display:flex;justify-content:center;margin:16px 0 0}
+.toggle-secondary-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border-radius:20px;border:1px solid #d0dbe9;background:#fff;font-size:11px;font-weight:700;color:#475569;cursor:pointer;transition:.2s}
 .toggle-secondary-btn:hover{background:#edf3fc;color:var(--navy);border-color:#b9cadf}
 .dashboard-secondary-grid{grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
 

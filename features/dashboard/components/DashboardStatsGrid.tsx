@@ -24,7 +24,6 @@ interface StatCardProps {
   subtext?: string
   isRedacted?: boolean
   badge?: string
-  sparkPoints?: string
   index?: number
 }
 
@@ -42,7 +41,6 @@ function StatCard({
   subtext,
   isRedacted = false,
   badge,
-  sparkPoints = '0,25 15,20 30,22 45,14 60,18 75,8 90,4',
   index = 0,
 }: StatCardProps) {
   const animatedValue = useCountUp(isRedacted ? 0 : value, {
@@ -53,66 +51,72 @@ function StatCard({
 
   return (
     <article
-      className={`stat-card dashboard-kpi-card tone-${tone} ${
+      className={`dashboard-kpi-card tone-${tone} ${
         isRedacted ? 'is-redacted' : ''
       }`}
-      style={{ animationDelay: `${index * 0.05}s` }}
+      style={{ animationDelay: `${index * 0.04}s` }}
     >
-      <div className="stat-card-header">
-        <div className={`stat-icon ${tone}`}>
+      <div className="kpi-card-header">
+        <div className={`kpi-icon-wrap ${tone}`}>
           {isRedacted ? (
             <AppIcon name="lock" size={18} />
           ) : (
             <AppIcon name={iconName} size={18} />
           )}
         </div>
-        {badge && <span className="stat-card-badge">{badge}</span>}
+        {badge && <span className="kpi-scope-badge">{badge}</span>}
       </div>
 
-      <div className="stat-text">
-        <span className="stat-card-title">{title}</span>
+      <div className="kpi-card-body">
+        <span className="kpi-card-title">{title}</span>
         {isRedacted ? (
           <div className="redacted-value-wrap">
             <strong className="redacted-text">Confidencial</strong>
             <small className="redacted-hint">Acceso restringido por rol</small>
           </div>
         ) : (
-          <strong className="stat-card-value">
-            {animatedValue}
-            {suffix}
-          </strong>
-        )}
-
-        {note && !isRedacted && (
-          <div className="stat-delta-row">
-            <small className={isPositive ? 'positive' : 'negative-text'}>
-              <AppIcon
-                name={isPositive ? 'arrowUpRight' : 'arrowDownRight'}
-                size={13}
-              />
-              {note}
-            </small>
-            {subtext && <span className="stat-subtext">{subtext}</span>}
+          <div className="kpi-value-row">
+            <strong className="kpi-card-value">
+              {animatedValue}
+              {suffix}
+            </strong>
           </div>
         )}
       </div>
 
-      {!isRedacted && (
-        <svg className="sparkline" viewBox="0 0 90 30" preserveAspectRatio="none">
-          <polyline points={sparkPoints} />
-        </svg>
-      )}
+      <div className="kpi-card-footer">
+        {isRedacted ? (
+          <span className="kpi-subtext">Información financiera protegida</span>
+        ) : (
+          <>
+            {note && (
+              <span
+                className={`kpi-trend-pill ${
+                  isPositive ? 'trend-positive' : 'trend-warning'
+                }`}
+              >
+                <AppIcon
+                  name={isPositive ? 'arrowUpRight' : 'arrowDownRight'}
+                  size={12}
+                />
+                <span>{note}</span>
+              </span>
+            )}
+            {subtext && <span className="kpi-subtext">{subtext}</span>}
+          </>
+        )}
+      </div>
     </article>
   )
 }
 
-export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
+export function DashboardStatsGrid({ metrics }: DashboardStatsGridProps) {
   const [showSecondary, setShowSecondary] = useState(false)
   const isFinancialRedacted = metrics.isFinancialRedacted
 
   return (
     <section className="dashboard-stats-section page-enter">
-      {/* Primary KPI Grid (6 - 8 cards) */}
+      {/* Primary KPI Grid (8 cards) */}
       <div className="stats-grid dashboard-primary-grid">
         {/* 1. Ventas de hoy */}
         <StatCard
@@ -121,10 +125,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           isCurrency
           iconName="sales"
           tone="teal"
+          badge="Hoy"
           note={`+${metrics.todaySales.deltaYesterdayPct}%`}
           isPositive={metrics.todaySales.deltaYesterdayPct >= 0}
           subtext={`${metrics.todaySales.count} tickets hoy`}
-          sparkPoints="0,24 15,19 30,22 45,12 60,15 75,7 90,3"
           index={1}
         />
 
@@ -135,10 +139,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           isCurrency
           iconName="sales"
           tone="blue"
+          badge="Consolidado"
           note={`+${metrics.periodSales.deltaPct}%`}
           isPositive={metrics.periodSales.deltaPct >= 0}
           subtext={`${metrics.periodSales.count} transacciones`}
-          sparkPoints="0,26 15,22 30,18 45,19 60,11 75,9 90,2"
           index={2}
         />
 
@@ -149,6 +153,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           isCurrency
           iconName="sales"
           tone="teal"
+          badge="Rentabilidad"
           isRedacted={isFinancialRedacted}
           note={
             metrics.grossProfit ? `${metrics.grossProfit.marginPct}% margen` : undefined
@@ -159,7 +164,6 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
               ? `+${metrics.grossProfit.deltaPct}% vs anterior`
               : undefined
           }
-          sparkPoints="0,25 15,20 30,16 45,15 60,10 75,6 90,4"
           index={3}
         />
 
@@ -170,6 +174,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           isCurrency
           iconName="inventory"
           tone="blue"
+          badge="Valoración"
           isRedacted={isFinancialRedacted}
           note={
             metrics.inventoryAtCost
@@ -178,7 +183,6 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           }
           isPositive={false}
           subtext="Todas las bodegas"
-          sparkPoints="0,15 15,18 30,14 45,16 60,19 75,17 90,20"
           index={4}
         />
 
@@ -188,10 +192,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           value={metrics.productsCount.total}
           iconName="products"
           tone="blue"
+          badge="Catálogo"
           note={`${metrics.productsCount.active} activos`}
           isPositive={true}
           subtext={`${metrics.productsCount.outOfStock} agotados`}
-          sparkPoints="0,22 15,20 30,18 45,17 60,14 75,10 90,6"
           index={5}
         />
 
@@ -201,10 +205,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           value={metrics.productsCount.lowStock}
           iconName="warning"
           tone="amber"
+          badge="Alertas"
           note="Bajo mínimo"
           isPositive={false}
           subtext={`${metrics.productsCount.critical} urgentes`}
-          sparkPoints="0,10 15,14 30,16 45,22 60,20 75,25 90,26"
           index={6}
         />
 
@@ -214,10 +218,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           value={metrics.pendingTransfers.total}
           iconName="transfers"
           tone="blue"
+          badge="Logística"
           note={`${metrics.pendingTransfers.inTransit} en tránsito`}
           isPositive={true}
           subtext={`${metrics.pendingTransfers.pending} por despachar`}
-          sparkPoints="0,20 15,18 30,14 45,19 60,12 75,8 90,4"
           index={7}
         />
 
@@ -227,10 +231,10 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
           value={metrics.webOrders.totalToday}
           iconName="webOrders"
           tone="red"
+          badge="Ecommerce"
           note={`${metrics.webOrders.newOrders} nuevos`}
           isPositive={true}
           subtext={`${metrics.webOrders.preparing} alistando`}
-          sparkPoints="0,26 15,20 30,17 45,14 60,8 75,5 90,2"
           index={8}
         />
       </div>
@@ -263,10 +267,11 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             isCurrency
             iconName="purchases"
             tone="teal"
+            badge="Abastecimiento"
             isRedacted={isFinancialRedacted}
             note={metrics.purchases ? `${metrics.purchases.count} facturas` : undefined}
             isPositive={true}
-            subtext="Abastecimiento"
+            subtext="Entradas registradas"
             index={9}
           />
 
@@ -277,6 +282,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             isCurrency
             iconName="cashRegisters"
             tone="amber"
+            badge="Tesorería"
             isRedacted={isFinancialRedacted}
             note={
               metrics.accountsPayable
@@ -294,6 +300,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             value={metrics.productsCount.outOfStock}
             iconName="close"
             tone="red"
+            badge="Agotados"
             note="0 unidades"
             isPositive={false}
             subtext="Requieren compra"
@@ -306,6 +313,7 @@ export function DashboardStatsGrid({ metrics, user }: DashboardStatsGridProps) {
             value={metrics.activeAlerts.total}
             iconName="alerts"
             tone="amber"
+            badge="Incidencias"
             note={`${metrics.activeAlerts.inventory} inventario`}
             isPositive={false}
             subtext={`${metrics.activeAlerts.purchases} compras`}

@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+/.pnp
+.pnp.js
+
+# Next.js build
+.next/
+out/
+build
+dist
+
+# Environment variables
+.env
+.env*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vercel & tools
+.vercel
+__v0_runtime_loader.js
+__v0_devtools.tsx
+__v0_jsx-dev-runtime.ts
+.snowflake/
+.v0-trash/
+
+# Logs & debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+*.pem

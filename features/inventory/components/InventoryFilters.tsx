@@ -67,6 +67,8 @@ export function InventoryFilters({
   hasActiveFilters,
 }: InventoryFiltersProps) {
   const [searchInput, setSearchInput] = useState(filters.query || '')
+  const onFilterChangeRef = React.useRef(onFilterChange)
+  onFilterChangeRef.current = onFilterChange
 
   useEffect(() => {
     setSearchInput(filters.query || '')
@@ -76,11 +78,11 @@ export function InventoryFilters({
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchInput !== (filters.query || '')) {
-        onFilterChange({ query: searchInput, page: 1 })
+        onFilterChangeRef.current({ query: searchInput, page: 1 })
       }
     }, 280)
     return () => clearTimeout(timer)
-  }, [searchInput, filters.query, onFilterChange])
+  }, [searchInput, filters.query])
 
   return (
     <div className="inventory-filters-card">

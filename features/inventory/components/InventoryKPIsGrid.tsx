@@ -12,29 +12,33 @@ interface InventoryKPIsGridProps {
   isLoading?: boolean
 }
 
-function useCountUp(target: number, duration: number = 800) {
-  const [count, setCount] = useState(0)
+function useCountUp(target: number, duration: number = 600) {
+  const [count, setCount] = useState(target)
 
   useEffect(() => {
-    let start = 0
-    const end = target
-    if (end === 0) {
+    let startTimestamp: number | null = null
+    const startVal = 0
+    const endVal = target
+    if (endVal === 0) {
       setCount(0)
       return
     }
 
-    const increment = end / (duration / 16)
-    const timer = setInterval(() => {
-      start += increment
-      if (start >= end) {
-        setCount(end)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(start))
-      }
-    }, 16)
+    let animationFrameId: number
 
-    return () => clearInterval(timer)
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1)
+      setCount(Math.floor(progress * (endVal - startVal) + startVal))
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step)
+      } else {
+        setCount(endVal)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(animationFrameId)
   }, [target, duration])
 
   return count

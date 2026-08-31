@@ -54,16 +54,22 @@ const DEFAULT_COLUMN_VISIBILITY: InventoryColumnVisibility = {
   actions: true,
 }
 
+const DEFAULT_USER_CONTEXT: UserPermissionContext = {
+  userId: 'usr-admin-01',
+  userRole: 'ADMIN',
+  permissions: ['inventory.read', 'inventory.adjust', 'inventory.transfer', 'cost.read'],
+}
+
 export function InventoryPage({
   initialLocationId,
   initialStatus,
   onNavigate,
-  userContext = {
-    userId: 'usr-admin-01',
-    userRole: 'ADMIN',
-    permissions: ['inventory.read', 'inventory.adjust', 'inventory.transfer', 'cost.read'],
-  },
+  userContext = DEFAULT_USER_CONTEXT,
 }: InventoryPageProps) {
+  const effectiveUser = userContext || DEFAULT_USER_CONTEXT
+  const userRole = effectiveUser.userRole
+  const userId = effectiveUser.userId
+
   const [viewMode, setViewMode] = useState<InventoryViewMode>('CONSOLIDATED')
   const [activeTab, setActiveTab] = useState<InventoryTabFilter>(
     (initialStatus as InventoryTabFilter) || 'ALL'
@@ -123,22 +129,25 @@ export function InventoryPage({
     type: 'success' | 'info' | 'error'
   } | null>(null)
 
-  const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
-    setToastMessage({ text, type })
-    setTimeout(() => setToastMessage(null), 4000)
-  }
+  const showToast = useCallback(
+    (text: string, type: 'success' | 'info' | 'error' = 'success') => {
+      setToastMessage({ text, type })
+      setTimeout(() => setToastMessage(null), 4000)
+    },
+    []
+  )
 
-  const canSeeCost = inventoryService.hasCostReadPermission(userContext)
+  const canSeeCost = inventoryService.hasCostReadPermission(effectiveUser)
 
   // Load KPIs
   const loadKPIs = useCallback(async () => {
     try {
-      const data = await inventoryService.getKPIs(userContext)
+      const data = await inventoryService.getKPIs(effectiveUser)
       setKpis(data)
     } catch (err) {
       console.error('Error loading inventory KPIs:', err)
     }
-  }, [userContext])
+  }, [userId, userRole])
 
   // Load Table Data
   const loadData = useCallback(async () => {
@@ -153,14 +162,14 @@ export function InventoryPage({
       if (viewMode === 'CONSOLIDATED') {
         const result = await inventoryService.getConsolidatedStock(
           queryParams,
-          userContext
+          effectiveUser
         )
         setConsolidatedData(result.data)
         setTotalRecords(result.total)
       } else {
         const result = await inventoryService.getStockLevelsByLocation(
           queryParams,
-          userContext
+          effectiveUser
         )
         setByLocationData(result.data)
         setTotalRecords(result.total)
@@ -170,7 +179,22 @@ export function InventoryPage({
     } finally {
       setIsLoading(false)
     }
-  }, [filters, activeTab, viewMode, userContext])
+  }, [
+    filters.query,
+    filters.locationId,
+    filters.category,
+    filters.brand,
+    filters.stockHealth,
+    filters.hasStock,
+    filters.page,
+    filters.pageSize,
+    filters.sortField,
+    filters.sortDirection,
+    activeTab,
+    viewMode,
+    userId,
+    userRole,
+  ])
 
   useEffect(() => {
     loadKPIs()
@@ -181,11 +205,11 @@ export function InventoryPage({
   }, [loadData])
 
   // Filter handlers
-  const handleFilterChange = (newFilters: Partial<InventoryFilterParams>) => {
+  const handleFilterChange = useCallback((newFilters: Partial<InventoryFilterParams>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }))
-  }
+  }, [])
 
-  const handleResetFilters = () => {
+  const handleResetFilters = useCallback(() => {
     setFilters({
       query: '',
       locationId: 'ALL',
@@ -200,7 +224,7 @@ export function InventoryPage({
     })
     setActiveTab('ALL')
     showToast('Filtros restablecidos correctamente', 'info')
-  }
+  }, [showToast])
 
   const hasActiveFilters =
     Boolean(filters.query) ||

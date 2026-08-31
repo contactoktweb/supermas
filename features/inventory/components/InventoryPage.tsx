@@ -400,7 +400,24 @@ export function InventoryPage({
       {!isLoading && totalRecords === 0 ? (
         <InventoryEmptyState
           hasFilters={hasActiveFilters}
+          activeTab={activeTab}
+          query={filters.query}
+          locationId={filters.locationId}
+          category={filters.category}
+          brand={filters.brand}
           onResetFilters={handleResetFilters}
+          onSelectTab={(tab) => {
+            setActiveTab(tab)
+            setFilters((f) => ({ ...f, page: 1 }))
+          }}
+          onOpenAdjustModal={() => {
+            setAdjustTargetProduct({})
+            setIsAdjustModalOpen(true)
+          }}
+          onOpenTransferModal={() => {
+            setTransferTargetProduct({})
+            setIsTransferModalOpen(true)
+          }}
         />
       ) : (
         <InventoryTable

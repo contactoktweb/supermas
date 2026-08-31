@@ -202,7 +202,11 @@ export class InventoryRepository {
 
     const activeTab = params.tab && params.tab !== 'ALL' ? params.tab : params.stockHealth
     if (activeTab && activeTab !== 'ALL') {
-      consolidatedList = consolidatedList.filter((c) => c.overallHealth === activeTab)
+      consolidatedList = consolidatedList.filter(
+        (c) =>
+          c.overallHealth === activeTab ||
+          c.locationBreakdown.some((l) => l.health === activeTab)
+      )
     }
 
     if (params.hasStock === 'WITH_STOCK') {

@@ -17,13 +17,13 @@ const MOVEMENT_TYPE_OPTIONS: { value: MovementType | 'ALL'; label: string }[] = 
   { value: 'ALL', label: 'Todos los movimientos' },
   { value: 'COMPRA', label: 'Compras (+)' },
   { value: 'VENTA', label: 'Ventas (-)' },
-  { value: 'TRANSFERENCIA_ENTRADA', label: 'Transferencias entrada (+)' },
-  { value: 'TRANSFERENCIA_SALIDA', label: 'Transferencias salida (-)' },
-  { value: 'AJUSTE_ENTRADA', label: 'Ajustes de entrada (+)' },
-  { value: 'AJUSTE_SALIDA', label: 'Ajustes de salida (-)' },
+  { value: 'TRANSFERENCIA_ENTRADA', label: 'Transf. Entrada (+)' },
+  { value: 'TRANSFERENCIA_SALIDA', label: 'Transf. Salida (-)' },
+  { value: 'AJUSTE_ENTRADA', label: 'Ajustes Entrada (+)' },
+  { value: 'AJUSTE_SALIDA', label: 'Ajustes Salida (-)' },
   { value: 'DEVOLUCION', label: 'Devoluciones (+)' },
-  { value: 'REMISION', label: 'Remisiones (-)' },
   { value: 'REVERSION', label: 'Reversiones (Compensación)' },
+  { value: 'REMISION', label: 'Remisiones (-)' },
 ]
 
 const LOCATION_OPTIONS = [
@@ -32,6 +32,15 @@ const LOCATION_OPTIONS = [
   { value: 'loc-02', label: 'Punto Centro - Carrera 5' },
   { value: 'loc-03', label: 'Bodega Norte - Yumbo' },
   { value: 'loc-04', label: 'Punto Sur - Ciudad Jardín' },
+]
+
+const USER_OPTIONS = [
+  { value: 'ALL', label: 'Todos los usuarios' },
+  { value: 'user-01', label: 'Laura Gómez (Compras)' },
+  { value: 'user-02', label: 'Mauricio Arango (Logística)' },
+  { value: 'user-03', label: 'Ana María Orozco (Cajero POS)' },
+  { value: 'user-04', label: 'Carlos Mario Ruiz (Ventas)' },
+  { value: 'user-05', label: 'Daniel Restrepo (Auditoría)' },
 ]
 
 export function KardexFilters({
@@ -45,56 +54,96 @@ export function KardexFilters({
     filters.query?.trim() ||
       (filters.locationId && filters.locationId !== 'ALL') ||
       (filters.movementType && filters.movementType !== 'ALL') ||
+      (filters.userId && filters.userId !== 'ALL') ||
       filters.documentQuery?.trim() ||
       filters.startDate ||
       filters.endDate
   )
 
   return (
-    <div className="products-toolbar page-enter" role="search" aria-label="Filtros de Kardex">
-      {/* Search by Product, SKU, Barcode, Document */}
-      <div className="products-search-box">
-        <div className="input-wrap with-action">
-          <AppIcon name="search" size={15} />
-          <input
-            value={filters.query || ''}
-            onChange={(e) => onFilterChange('query', e.target.value)}
-            placeholder="Buscar por producto, SKU, documento, usuario o notas..."
-            aria-label="Buscar en el Kardex"
-          />
-          {filters.query && (
-            <button
-              type="button"
-              className="search-clear-btn"
-              onClick={() => onFilterChange('query', '')}
-              aria-label="Limpiar búsqueda"
-            >
-              <AppIcon name="close" size={13} />
-            </button>
-          )}
-        </div>
+    <div
+      className="toolbar inventory-toolbar products-toolbar page-enter"
+      role="search"
+      aria-label="Filtros del Kardex"
+    >
+      {/* 1. Main Search: Producto, SKU, Código de barras */}
+      <div className="search-box wide products-search-box">
+        <AppIcon name="search" size={16} />
+        <input
+          value={filters.query || ''}
+          onChange={(e) => onFilterChange('query', e.target.value)}
+          placeholder="Buscar producto, SKU o código de barras..."
+          aria-label="Buscar producto o SKU en el Kardex"
+        />
+        {filters.query && (
+          <button
+            type="button"
+            className="search-clear-btn"
+            onClick={() => onFilterChange('query', '')}
+            aria-label="Limpiar búsqueda"
+          >
+            <AppIcon name="close" size={14} />
+          </button>
+        )}
       </div>
 
-      {/* Dropdown Filters */}
+      {/* 2. Dropdown Filters */}
       <div className="filter-select-group">
-        {/* Location Select */}
+        {/* Bodega Select */}
         <div className="filter-select-item" style={{ minWidth: 170 }}>
           <CustomSelect
             options={LOCATION_OPTIONS}
             value={filters.locationId || 'ALL'}
             onChange={(val) => onFilterChange('locationId', val)}
             placeholder="Bodega"
+            size="sm"
+            icon={<AppIcon name="warehouses" size={14} color="var(--navy)" />}
           />
         </div>
 
         {/* Movement Type Select */}
-        <div className="filter-select-item" style={{ minWidth: 190 }}>
+        <div className="filter-select-item" style={{ minWidth: 180 }}>
           <CustomSelect
             options={MOVEMENT_TYPE_OPTIONS}
             value={filters.movementType || 'ALL'}
             onChange={(val) => onFilterChange('movementType', val)}
             placeholder="Tipo de movimiento"
+            size="sm"
+            icon={<AppIcon name="kardex" size={14} color="var(--red)" />}
           />
+        </div>
+
+        {/* User Responsable Select */}
+        <div className="filter-select-item" style={{ minWidth: 170 }}>
+          <CustomSelect
+            options={USER_OPTIONS}
+            value={filters.userId || 'ALL'}
+            onChange={(val) => onFilterChange('userId', val)}
+            placeholder="Usuario responsable"
+            size="sm"
+            icon={<AppIcon name="users" size={14} color="#64748b" />}
+          />
+        </div>
+
+        {/* Document Search Filter */}
+        <div className="search-box" style={{ width: 150, minWidth: 140 }}>
+          <AppIcon name="fileText" size={14} />
+          <input
+            value={filters.documentQuery || ''}
+            onChange={(e) => onFilterChange('documentQuery', e.target.value)}
+            placeholder="N° Documento"
+            aria-label="Filtrar por número de documento"
+          />
+          {filters.documentQuery && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => onFilterChange('documentQuery', '')}
+              aria-label="Limpiar documento"
+            >
+              <AppIcon name="close" size={12} />
+            </button>
+          )}
         </div>
 
         {/* Date Inputs */}
@@ -121,31 +170,32 @@ export function KardexFilters({
         </div>
       </div>
 
-      {/* Column Selector Popover Trigger */}
-      <button
-        type="button"
-        className={`filter-button column-selector-trigger ${
-          isColumnSelectorOpen ? 'active' : ''
-        }`}
-        onClick={onToggleColumnSelector}
-        aria-label="Configurar columnas visibles"
-      >
-        <AppIcon name="sliders" size={14} />
-        <span>Columnas</span>
-      </button>
+      {/* 3. Column Selector & Clear Button */}
+      <div className="filter-actions-cluster" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="outline-button compact reset-filter-btn"
+            onClick={onResetFilters}
+            title="Restablecer todos los filtros"
+          >
+            <AppIcon name="close" size={12} />
+            <span>Limpiar</span>
+          </button>
+        )}
 
-      {/* Clear Filters Button */}
-      {hasActiveFilters && (
         <button
           type="button"
-          className="reset-filters-pill"
-          onClick={onResetFilters}
-          title="Restablecer todos los filtros"
+          className={`outline-button compact ${
+            isColumnSelectorOpen ? 'active' : ''
+          }`}
+          onClick={onToggleColumnSelector}
+          title="Configurar columnas visibles"
         >
-          <AppIcon name="close" size={12} />
-          <span>Limpiar</span>
+          <AppIcon name="sliders" size={14} />
+          <span>Columnas</span>
         </button>
-      )}
+      </div>
     </div>
   )
 }

@@ -204,6 +204,7 @@ export class KardexRepository {
     const totalUnitsOut = exits.reduce((acc, m) => acc + m.quantityOut, 0)
     const totalValueInAtCost = entries.reduce((acc, m) => acc + m.totalValue, 0)
     const totalValueOutAtCost = exits.reduce((acc, m) => acc + m.totalValue, 0)
+    const distinctProductsCount = new Set(items.map((m) => m.productId)).size
 
     return {
       totalMovements,
@@ -213,6 +214,7 @@ export class KardexRepository {
       totalUnitsOut,
       totalValueInAtCost,
       totalValueOutAtCost,
+      distinctProductsCount,
       isCostRedacted: false,
     }
   }

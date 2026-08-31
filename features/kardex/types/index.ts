@@ -91,6 +91,7 @@ export interface GlobalKardexStats {
   totalUnitsOut: number
   totalValueInAtCost: number
   totalValueOutAtCost: number
+  distinctProductsCount: number
   isCostRedacted: boolean
 }
 

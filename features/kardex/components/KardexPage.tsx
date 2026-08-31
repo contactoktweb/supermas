@@ -96,6 +96,7 @@ export function KardexPage({
     totalUnitsOut: 0,
     totalValueInAtCost: 0,
     totalValueOutAtCost: 0,
+    distinctProductsCount: 0,
     isCostRedacted: false,
   })
 

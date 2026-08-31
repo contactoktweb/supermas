@@ -22,6 +22,7 @@ export function KardexTimeline({
   const formatTimeOnly = (isoString: string) => {
     const d = new Date(isoString)
     return d.toLocaleTimeString('es-CO', {
+      timeZone: 'America/Bogota',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',

@@ -21,66 +21,70 @@ export function KardexHeader({
   activeFilterCount,
 }: KardexHeaderProps) {
   return (
-    <div className="products-header-wrap page-enter">
-      <div className="page-title-group">
-        <p className="eyebrow">Trazabilidad de Inventario</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <h1 style={{ margin: 0 }}>Kardex</h1>
-          <span className="count-tag-pill">Movimientos Inmutables</span>
-        </div>
+    <header className="page-heading products-header-wrap page-enter">
+      <div className="title-area">
+        <span className="eyebrow">Trazabilidad & Movimientos de Stock</span>
+        <h1>Kardex de inventario</h1>
         <p className="welcome-subtitle">
-          Consulta y rastrea todos los movimientos del inventario de Super Más en tiempo real.
+          Consulta la trazabilidad completa de entradas, salidas y movimientos de mercancía.
         </p>
       </div>
 
-      <div className="products-actions-bar">
-        {/* Table / Timeline View Toggle */}
-        <div className="segmented-view-toggle">
+      <div className="heading-actions products-actions-bar">
+        {/* View Mode Toggle: Tabla | Línea de tiempo */}
+        <div
+          className="period-segmented-tabs view-switcher"
+          role="tablist"
+          aria-label="Modo de visualización"
+        >
           <button
             type="button"
-            className={`view-toggle-btn ${viewMode === 'table' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={viewMode === 'table'}
+            className={`period-tab-btn ${viewMode === 'table' ? 'selected' : ''}`}
             onClick={() => onViewModeChange('table')}
-            aria-label="Vista en tabla"
+            title="Vista tabular detallada del Kardex"
           >
-            <AppIcon name="table" size={15} />
+            <AppIcon name="receipt" size={14} />
             <span>Tabla</span>
           </button>
-
           <button
             type="button"
-            className={`view-toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
+            role="tab"
+            aria-selected={viewMode === 'timeline'}
+            className={`period-tab-btn ${viewMode === 'timeline' ? 'selected' : ''}`}
             onClick={() => onViewModeChange('timeline')}
-            aria-label="Vista en línea de tiempo"
+            title="Vista cronológica en línea de tiempo"
           >
-            <AppIcon name="reports" size={15} />
+            <AppIcon name="reports" size={14} />
             <span>Línea de tiempo</span>
           </button>
         </div>
 
-        {/* Reset filters button if active */}
+        {/* Clear Filters Button */}
         {hasActiveFilters && (
           <button
             type="button"
-            className="reset-filters-pill"
+            className="outline-button"
             onClick={onResetFilters}
+            title="Restablecer todos los filtros aplicados"
           >
-            <AppIcon name="close" size={12} />
-            <span>Limpiar filtros</span>
-            <span className="active-filter-badge">{activeFilterCount}</span>
+            <AppIcon name="close" size={14} />
+            <span>Limpiar filtros ({activeFilterCount})</span>
           </button>
         )}
 
-        {/* Export Action */}
+        {/* Export Button */}
         <button
           type="button"
           className="outline-button"
           onClick={onExport}
-          aria-label="Exportar Kardex"
+          title="Exportar movimientos filtrados en formato CSV"
         >
           <AppIcon name="download" size={16} />
           <span>Exportar</span>
         </button>
       </div>
-    </div>
+    </header>
   )
 }

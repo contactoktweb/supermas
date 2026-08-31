@@ -34,6 +34,7 @@ export function KardexDetailDrawer({
   if (!isOpen || !movement || !mounted) return null
 
   const isEntry = movement.quantityIn > 0
+  const deltaQty = isEntry ? movement.quantityIn : movement.quantityOut
   const canRevert =
     !userContext ||
     userContext.userRole === 'ADMIN' ||
@@ -42,6 +43,7 @@ export function KardexDetailDrawer({
   const formatFullDate = (isoString: string) => {
     const d = new Date(isoString)
     return d.toLocaleString('es-CO', {
+      timeZone: 'America/Bogota',
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -59,7 +61,6 @@ export function KardexDetailDrawer({
     movement.resultingStock,
     1
   )
-  const prevPct = Math.min(100, Math.round((movement.previousStock / maxStockReference) * 100))
   const resultPct = Math.min(100, Math.round((movement.resultingStock / maxStockReference) * 100))
 
   return createPortal(
@@ -102,8 +103,8 @@ export function KardexDetailDrawer({
                 <span className="code-badge">{movement.sku}</span>
                 {getMovementTypeBadge(movement.type)}
                 {movement.isReversion && (
-                  <span className="status-indicator-pill inactive">
-                    Compensatorio
+                  <span className="status-indicator-pill inactive" style={{ background: '#ede9fe', color: '#6d28d9', borderColor: '#c4b5fd' }}>
+                    <AppIcon name="refresh" size={12} /> Revertido
                   </span>
                 )}
               </div>
@@ -124,13 +125,28 @@ export function KardexDetailDrawer({
         <div className="detail-tab-body" style={{ paddingTop: 18 }}>
           {/* SECTION 1: DETALLE DEL MOVIMIENTO */}
           <div className="drawer-section" style={{ padding: '0 0 16px' }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 13 }}>
-              Ficha del Movimiento
+            <h4 style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--navy)' }}>
+              1. Información General
             </h4>
             <div className="info-list-grid">
               <div className="info-kv-item">
+                <span>Tipo de movimiento:</span>
+                <strong>{movement.type}</strong>
+              </div>
+
+              <div className="info-kv-item">
                 <span>Fecha y hora exacta:</span>
                 <strong>{formatFullDate(movement.createdAt)}</strong>
+              </div>
+
+              <div className="info-kv-item">
+                <span>Producto:</span>
+                <strong>{movement.productName}</strong>
+              </div>
+
+              <div className="info-kv-item">
+                <span>SKU / Categoría:</span>
+                <strong>{movement.sku} · {movement.category}</strong>
               </div>
 
               <div className="info-kv-item">
@@ -142,15 +158,15 @@ export function KardexDetailDrawer({
 
               {movement.destinationLocationName && (
                 <div className="info-kv-item">
-                  <span>Bodega destino:</span>
-                  <strong>{movement.destinationLocationName}</strong>
+                  <span>Bodega destino (Transferencia):</span>
+                  <strong style={{ color: 'var(--navy)' }}>{movement.destinationLocationName}</strong>
                 </div>
               )}
 
               {movement.originLocationName && (
                 <div className="info-kv-item">
-                  <span>Bodega origen:</span>
-                  <strong>{movement.originLocationName}</strong>
+                  <span>Bodega origen (Transferencia):</span>
+                  <strong style={{ color: 'var(--navy)' }}>{movement.originLocationName}</strong>
                 </div>
               )}
 
@@ -168,10 +184,10 @@ export function KardexDetailDrawer({
             </div>
           </div>
 
-          {/* SECTION 2: CANTIDADES Y BALANCES */}
+          {/* SECTION 2: INVENTARIO Y CANTIDADES */}
           <div className="drawer-section">
-            <h4 style={{ margin: '0 0 12px', fontSize: 13 }}>
-              Balance y Trazabilidad de Cantidades
+            <h4 style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--navy)' }}>
+              2. Inventario y Variación de Stock
             </h4>
 
             <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
@@ -209,9 +225,9 @@ export function KardexDetailDrawer({
             {/* Visual Balance Progression */}
             <div className="balance-bar-visual" style={{ marginTop: 14 }}>
               <div className="distribution-info-head">
-                <span>Variación de stock en sede:</span>
+                <span>Flujo de existencia:</span>
                 <small>
-                  {movement.previousStock} → <strong>{movement.resultingStock} {movement.unitOfMeasure}s</strong>
+                  {movement.previousStock} → <strong>{isEntry ? `+${deltaQty}` : `-${deltaQty}`}</strong> → <strong>{movement.resultingStock} {movement.unitOfMeasure}s</strong>
                 </small>
               </div>
               <div className="distribution-bar" style={{ height: 9 }}>
@@ -227,10 +243,10 @@ export function KardexDetailDrawer({
             </div>
           </div>
 
-          {/* SECTION 3: COSTOS Y FINANZAS (RBAC) */}
+          {/* SECTION 3: COSTOS Y VALORIZACIÓN (RBAC) */}
           <div className="drawer-section">
             <div className="panel-heading" style={{ marginBottom: 12 }}>
-              <h4 style={{ margin: 0, fontSize: 13 }}>Valorización y Costos Asociados</h4>
+              <h4 style={{ margin: 0, fontSize: 13, color: 'var(--navy)' }}>3. Costos y Valorización</h4>
               {isCostRedacted && (
                 <span className="redacted-pill">
                   <AppIcon name="lock" size={12} /> Confidencial RBAC
@@ -264,9 +280,9 @@ export function KardexDetailDrawer({
             </div>
           </div>
 
-          {/* SECTION 4: DOCUMENTO ORIGEN Y AUDITORÍA */}
+          {/* SECTION 4: DOCUMENTO ORIGEN */}
           <div className="drawer-section" style={{ borderBottom: 0 }}>
-            <h4 style={{ margin: '0 0 12px', fontSize: 13 }}>Documento Origen</h4>
+            <h4 style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--navy)' }}>4. Documento Origen</h4>
 
             <div className="doc-origin-card">
               <div className="doc-origin-head">
@@ -291,7 +307,7 @@ export function KardexDetailDrawer({
                       )
                     }
                   >
-                    <span>Ver documento</span>
+                    <span>Ver documento origen</span>
                     <AppIcon name="chevronRight" size={13} />
                   </button>
                 )}

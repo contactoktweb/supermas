@@ -53,6 +53,7 @@ export interface InventoryMovement {
   originLocationName?: string
   isReversion?: boolean
   originalMovementId?: string
+  evidenceUrl?: string
 }
 
 export type KardexSortField =

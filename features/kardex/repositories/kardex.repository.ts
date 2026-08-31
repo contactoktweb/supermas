@@ -279,6 +279,82 @@ export class KardexRepository {
     this.movements.unshift(newMovement)
     return newMovement
   }
+
+  /**
+   * Registra un movimiento inmutable en el Kardex.
+   */
+  async recordMovement(input: {
+    productId: string
+    productName: string
+    sku: string
+    barcode?: string
+    category?: string
+    unitOfMeasure?: string
+    imageUrl?: string
+    locationId: string
+    locationName: string
+    locationCode: string
+    timestamp?: string
+    type: any
+    sourceDocType: any
+    sourceDocNumber: string
+    sourceDocId?: string
+    quantityIn: number
+    quantityOut: number
+    previousStock: number
+    resultingStock: number
+    unitCost: number
+    totalCost: number
+    unitPrice?: number
+    totalPrice?: number
+    responsibleUserId: string
+    responsibleUserName: string
+    responsibleUserRole?: string
+    notes?: string
+    evidenceUrl?: string
+  }): Promise<InventoryMovement> {
+    const isEntry = input.quantityIn > 0
+    const qty = isEntry ? input.quantityIn : input.quantityOut
+    const now = input.timestamp || new Date().toISOString()
+    const movNumber = `MOV-${new Date().getFullYear()}-${Date.now().toString().slice(-6)}`
+
+    const newMovement: InventoryMovement = {
+      id: `mov-${Date.now()}`,
+      movementNumber: movNumber,
+      createdAt: now,
+      productId: input.productId,
+      productName: input.productName,
+      sku: input.sku,
+      barcode: input.barcode,
+      category: input.category || 'General',
+      unitOfMeasure: input.unitOfMeasure || 'UND',
+      imageUrl: input.imageUrl,
+      locationId: input.locationId,
+      locationName: input.locationName,
+      locationCode: input.locationCode,
+      type: input.type,
+      quantityIn: input.quantityIn,
+      quantityOut: input.quantityOut,
+      quantityDelta: isEntry ? qty : -qty,
+      previousStock: input.previousStock,
+      resultingStock: input.resultingStock,
+      unitCost: input.unitCost,
+      averageCostAfter: input.unitCost,
+      totalValue: input.totalCost,
+      sourceDocumentType: input.sourceDocType,
+      sourceDocumentId: input.sourceDocId || `doc-${Date.now()}`,
+      sourceDocumentNumber: input.sourceDocNumber,
+      userId: input.responsibleUserId,
+      userName: input.responsibleUserName,
+      userRole: input.responsibleUserRole || 'ADMIN',
+      notes: input.notes,
+      evidenceUrl: input.evidenceUrl,
+      isReversion: false,
+    }
+
+    this.movements.unshift(newMovement)
+    return newMovement
+  }
 }
 
 export const kardexRepository = new KardexRepository()

@@ -11,6 +11,7 @@ export const LIGHT_ICON_MAP = {
   // Navigation & Core Modules
   dashboard: 'solar:widget-linear',
   warehouse: 'ph:warehouse-light',
+  warehouses: 'ph:warehouse-light',
   products: 'solar:box-linear',
   inventory: 'solar:box-minimalistic-linear',
   kardex: 'solar:clipboard-list-linear',
@@ -35,6 +36,8 @@ export const LIGHT_ICON_MAP = {
   users: 'solar:user-rounded-linear',
   roles: 'solar:user-id-linear',
   settings: 'solar:settings-linear',
+  layers: 'solar:layers-linear',
+  wallet: 'solar:wallet-money-linear',
 
   // Actions & Controls
   search: 'solar:magnifier-linear',
@@ -42,6 +45,8 @@ export const LIGHT_ICON_MAP = {
   sliders: 'solar:tuning-square-2-linear',
   sort: 'solar:sort-vertical-linear',
   plus: 'solar:add-circle-linear',
+  plusMinus: 'solar:calculator-minimalistic-linear',
+  terminal: 'solar:code-square-linear',
   edit: 'solar:pen-linear',
   trash: 'solar:trash-bin-trash-linear',
   eye: 'solar:eye-linear',

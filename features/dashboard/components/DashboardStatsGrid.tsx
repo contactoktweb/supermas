@@ -25,6 +25,13 @@ interface StatCardProps {
   isRedacted?: boolean
   badge?: string
   index?: number
+  onClick?: () => void
+}
+
+interface DashboardStatsGridProps {
+  metrics: DashboardMetrics
+  user: UserProfile
+  onNavigate?: (viewName: string) => void
 }
 
 function StatCard({
@@ -42,6 +49,7 @@ function StatCard({
   isRedacted = false,
   badge,
   index = 0,
+  onClick,
 }: StatCardProps) {
   const animatedValue = useCountUp(isRedacted ? 0 : value, {
     isCurrency,
@@ -53,8 +61,11 @@ function StatCard({
     <article
       className={`dashboard-kpi-card tone-${tone} ${
         isRedacted ? 'is-redacted' : ''
-      }`}
-      style={{ animationDelay: `${index * 0.04}s` }}
+      } ${onClick ? 'cursor-pointer hover-lift' : ''}`}
+      style={{ animationDelay: `${index * 0.04}s`, cursor: onClick ? 'pointer' : 'default' }}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
     >
       <div className="kpi-card-header">
         <div className={`kpi-icon-wrap ${tone}`}>
@@ -110,7 +121,7 @@ function StatCard({
   )
 }
 
-export function DashboardStatsGrid({ metrics }: DashboardStatsGridProps) {
+export function DashboardStatsGrid({ metrics, user, onNavigate }: DashboardStatsGridProps) {
   const [showSecondary, setShowSecondary] = useState(false)
   const isFinancialRedacted = metrics.isFinancialRedacted
 
@@ -182,7 +193,8 @@ export function DashboardStatsGrid({ metrics }: DashboardStatsGridProps) {
               : undefined
           }
           isPositive={false}
-          subtext="Todas las bodegas"
+          subtext="Ver módulo Inventario →"
+          onClick={() => onNavigate?.('Inventario')}
           index={4}
         />
 
@@ -196,6 +208,7 @@ export function DashboardStatsGrid({ metrics }: DashboardStatsGridProps) {
           note={`${metrics.productsCount.active} activos`}
           isPositive={true}
           subtext={`${metrics.productsCount.outOfStock} agotados`}
+          onClick={() => onNavigate?.('Productos')}
           index={5}
         />
 
@@ -208,7 +221,8 @@ export function DashboardStatsGrid({ metrics }: DashboardStatsGridProps) {
           badge="Alertas"
           note="Bajo mínimo"
           isPositive={false}
-          subtext={`${metrics.productsCount.critical} urgentes`}
+          subtext={`${metrics.productsCount.critical} urgentes · Ver en Inventario →`}
+          onClick={() => onNavigate?.('Inventario')}
           index={6}
         />
 

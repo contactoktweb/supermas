@@ -72,7 +72,13 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
       />
 
       {/* 2. Key KPI Statistics Grid (Primary + Collapsible Secondary) */}
-      {metrics && <DashboardStatsGrid metrics={metrics} user={currentUser} />}
+      {metrics && (
+        <DashboardStatsGrid
+          metrics={metrics}
+          user={currentUser}
+          onNavigate={(target) => handleNavigate(target)}
+        />
+      )}
 
       {/* 3. Quick Actions Matrix */}
       <DashboardQuickActions

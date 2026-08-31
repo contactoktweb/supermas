@@ -54,6 +54,7 @@ export default function KardexRoutePage() {
 
   return (
     <div className="app-shell">
+      {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} />}
       {/* Sidebar */}
       <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
         <div className="sidebar-top">

@@ -40,6 +40,7 @@ export default function BodegasRoutePage() {
 
   return (
     <div className="app-shell">
+      {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} />}
       <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
         <div className="sidebar-top">
           <div className="brand brand-compact">

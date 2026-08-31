@@ -45,39 +45,42 @@ const transfers = [{code:'TR-000154',date:'18 feb, 2025',from:'Bodega Principal'
 function Brand({compact=false}:{compact?:boolean}){return <div className={`brand ${compact?'brand-compact':''}`}><img src="/super-mas-logo.svg" alt="Super Más"/><span>ERP / POS</span></div>}
 
 function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string)=>void;open:boolean;close:()=>void;logout:()=>void}){
-  return <aside className={`sidebar ${open?'sidebar-open':''}`}>
-    <div className="sidebar-top">
-      <Brand compact/>
-      <button className="mobile-close icon-button" onClick={close} aria-label="Cerrar menú">
-        <AppIcon name="close" size={18}/>
-      </button>
-    </div>
-    <div className="workspace">
-      <div className="workspace-icon">
-        <AppIcon name="suppliers" size={18}/>
-      </div>
-      <div>
-        <strong>Super Más S.A.S.</strong>
-        <span>Principal</span>
-      </div>
-      <AppIcon name="chevronDown" size={14}/>
-    </div>
-    <nav>
-      <p className="nav-caption">Menú principal</p>
-      {modules.map(([label,iconName])=>(
-        <button key={label} className={`nav-item ${view===label?'active':''}`} onClick={()=>{setView(label);close()}}>
-          <AppIcon name={iconName} size={18}/>
-          <span>{label}</span>
-          {label==='Alertas'&&<b>3</b>}
+  return <>
+    {open && <div className="sidebar-backdrop" onClick={close} />}
+    <aside className={`sidebar ${open?'sidebar-open':''}`}>
+      <div className="sidebar-top">
+        <Brand compact/>
+        <button className="mobile-close icon-button" onClick={close} aria-label="Cerrar menú">
+          <AppIcon name="close" size={18}/>
         </button>
-      ))}
-    </nav>
-    <button className="user-mini" onClick={logout}>
-      <div className="avatar">AM</div>
-      <div><strong>Admin Mauricio</strong><span>Administrador</span></div>
-      <AppIcon name="logout" size={18}/>
-    </button>
-  </aside>
+      </div>
+      <div className="workspace">
+        <div className="workspace-icon">
+          <AppIcon name="suppliers" size={18}/>
+        </div>
+        <div>
+          <strong>Super Más S.A.S.</strong>
+          <span>Principal</span>
+        </div>
+        <AppIcon name="chevronDown" size={14}/>
+      </div>
+      <nav>
+        <p className="nav-caption">Menú principal</p>
+        {modules.map(([label,iconName])=>(
+          <button key={label} className={`nav-item ${view===label?'active':''}`} onClick={()=>{setView(label);close()}}>
+            <AppIcon name={iconName} size={18}/>
+            <span>{label}</span>
+            {label==='Alertas'&&<b>3</b>}
+          </button>
+        ))}
+      </nav>
+      <button className="user-mini" onClick={logout}>
+        <div className="avatar">AM</div>
+        <div><strong>Admin Mauricio</strong><span>Administrador</span></div>
+        <AppIcon name="logout" size={18}/>
+      </button>
+    </aside>
+  </>
 }
 
 function Header({view,open}:{view:string;open:()=>void}){
@@ -219,6 +222,9 @@ function Login({onLogin}:{onLogin:()=>void}){
     </section>
     <section className="login-panel">
       <div className="login-card">
+        <div className="mobile-brand">
+          <Brand />
+        </div>
         <div className="login-heading"><span className="status-dot">● En línea</span><h2>Bienvenido de nuevo</h2><p>Ingresa a tu centro de control</p></div>
         <div style={{marginBottom:18,padding:'12px 14px',borderRadius:10,background:'#eef4fd',border:'1px solid #001b5c24',display:'flex',flexDirection:'column',gap:8}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>

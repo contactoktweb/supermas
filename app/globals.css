@@ -1479,6 +1479,55 @@
    DRAWER & MODAL TABS — SEAMLESS ALIGNMENT & MICRO-INTERACTIONS
    ========================================================================== */
 
+.scrollable-tabs-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.scrollable-tabs-container .drawer-tabs {
+  margin-top: 0;
+  width: 100%;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tabs-scroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0, 27, 92, 0.16);
+  color: var(--navy);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tabs-scroll-btn:hover {
+  background: var(--navy);
+  color: #ffffff;
+  border-color: var(--navy);
+  transform: translateY(-50%) scale(1.1);
+  box-shadow: 0 6px 18px rgba(0, 27, 92, 0.28);
+}
+
+.tabs-scroll-btn.left-arrow {
+  left: -8px;
+}
+
+.tabs-scroll-btn.right-arrow {
+  right: -8px;
+}
+
 .drawer-tabs, .tabs {
   display: flex;
   align-items: center;

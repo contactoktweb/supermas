@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
+import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import {
   Product,
   ProductMovementSummary,
@@ -117,7 +118,7 @@ export function ProductDetailDrawer({
         </div>
 
         {/* Tab Navigation */}
-        <div className="drawer-tabs" role="tablist">
+        <ScrollableTabs>
           <button
             type="button"
             role="tab"
@@ -172,7 +173,7 @@ export function ProductDetailDrawer({
             <AppIcon name="webOrders" size={14} />
             <span>Web</span>
           </button>
-        </div>
+        </ScrollableTabs>
 
         {/* TAB 1: RESUMEN */}
         {activeTab === 'summary' && (

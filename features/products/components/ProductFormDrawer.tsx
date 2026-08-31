@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { FileUpload } from '@/components/ui/FileUpload'
+import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import {
   Product,
   CreateProductInput,
@@ -265,7 +266,7 @@ export function ProductFormDrawer({
         </div>
 
         {/* Tab Navigation */}
-        <div className="drawer-tabs form-tabs" role="tablist">
+        <ScrollableTabs className="form-tabs">
           <button
             type="button"
             role="tab"
@@ -320,7 +321,7 @@ export function ProductFormDrawer({
             <AppIcon name="audit" size={14} />
             <span>Gobernanza</span>
           </button>
-        </div>
+        </ScrollableTabs>
 
         {/* Global Form Errors Banner */}
         {errors.general && (

@@ -85,8 +85,8 @@ export function InventoryFilters({
   }, [searchInput, filters.query])
 
   return (
-    <div className="inventory-filters-card">
-      <div className="inventory-filters-grid">
+    <div className="toolbar inventory-toolbar products-toolbar page-enter">
+      <div className="inventory-filters-grid" style={{ width: '100%' }}>
         {/* 1. Main Search Bar */}
         <div className="search-box inventory-search-box">
           <AppIcon name="search" size={15} color="#94a3b8" />

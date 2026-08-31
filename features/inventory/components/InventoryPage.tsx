@@ -287,7 +287,7 @@ export function InventoryPage({
   }
 
   return (
-    <div className="dashboard-content inventory-module-container page-enter">
+    <div className="page-enter">
       {/* Toast Notification */}
       {toastMessage && (
         <div className={`global-toast-banner ${toastMessage.type} animate-slide-down`}>

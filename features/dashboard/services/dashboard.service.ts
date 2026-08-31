@@ -10,6 +10,7 @@ import {
   LoginAuditItem,
   PendingAttentionItem,
   PeriodType,
+  DateRange,
   UserRole,
 } from '../types'
 import { dashboardRepository } from '../repositories/dashboard.repository'
@@ -271,6 +272,16 @@ export class DashboardService {
     } catch {
       return isoString
     }
+  }
+
+  /**
+   * Format DateRange in user-friendly Colombian Spanish representation
+   */
+  formatDateRange(range?: DateRange): string {
+    if (!range || !range.startDate || !range.endDate) return 'Personalizado'
+    const [sy, sm, sd] = range.startDate.split('-')
+    const [ey, em, ed] = range.endDate.split('-')
+    return `${sd}/${sm}/${sy} — ${ed}/${em}/${ey}`
   }
 
   /**

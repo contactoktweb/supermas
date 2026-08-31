@@ -13,6 +13,7 @@ import {
   LoginAuditItem,
   PendingAttentionItem,
   PeriodType,
+  DateRange,
 } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 import { mockUserProfiles } from '../mocks/dashboard.mock'
@@ -20,6 +21,10 @@ import { mockUserProfiles } from '../mocks/dashboard.mock'
 export function useDashboardData() {
   const [currentUser, setCurrentUser] = useState<UserProfile>(mockUserProfiles[0])
   const [period, setPeriod] = useState<PeriodType>('TODAY')
+  const [customRange, setCustomRange] = useState<DateRange>({
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+  })
 
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null)
   const [chartPoints, setChartPoints] = useState<SalesChartPoint[]>([])
@@ -73,7 +78,7 @@ export function useDashboardData() {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [period, currentUser])
+  }, [period, currentUser, customRange])
 
   useEffect(() => {
     setIsLoading(true)
@@ -92,6 +97,11 @@ export function useDashboardData() {
     }
   }
 
+  const handleCustomRangeChange = (range: DateRange) => {
+    setCustomRange(range)
+    setPeriod('CUSTOM')
+  }
+
   return {
     currentUser,
     setCurrentUser,
@@ -99,6 +109,8 @@ export function useDashboardData() {
     availableProfiles: mockUserProfiles,
     period,
     setPeriod,
+    customRange,
+    setCustomRange: handleCustomRangeChange,
     metrics,
     chartPoints,
     warehouses,

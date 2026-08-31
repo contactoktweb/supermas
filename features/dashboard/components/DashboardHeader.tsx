@@ -1,15 +1,18 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { UserProfile, PeriodType } from '../types'
+import { UserProfile, PeriodType, DateRange } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { DateRangePicker, DateRangeValue } from '@/components/ui/DateRangePicker'
 
 interface DashboardHeaderProps {
   user: UserProfile
   period: PeriodType
   onPeriodChange: (period: PeriodType) => void
+  customRange?: DateRange
+  onCustomRangeChange?: (range: DateRange) => void
   onRefresh: () => void
   isRefreshing: boolean
   availableProfiles: UserProfile[]
@@ -29,13 +32,35 @@ export function DashboardHeader({
   user,
   period,
   onPeriodChange,
+  customRange = { startDate: '2026-08-01', endDate: '2026-08-31' },
+  onCustomRangeChange,
   onRefresh,
   isRefreshing,
   availableProfiles,
   onUserChange,
 }: DashboardHeaderProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
   const greeting = dashboardService.getDynamicGreeting()
   const lastLoginFormatted = dashboardService.formatDateTime(user.lastLoginAt)
+
+  const handlePeriodClick = (pId: PeriodType) => {
+    if (pId === 'CUSTOM') {
+      onPeriodChange('CUSTOM')
+      setIsPickerOpen((prev) => (period === 'CUSTOM' ? !prev : true))
+    } else {
+      setIsPickerOpen(false)
+      onPeriodChange(pId)
+    }
+  }
+
+  const handleRangeApply = (range: DateRangeValue) => {
+    if (onCustomRangeChange) {
+      onCustomRangeChange(range)
+    }
+    onPeriodChange('CUSTOM')
+  }
+
+  const customRangeFormatted = dashboardService.formatDateRange(customRange)
 
   return (
     <header className="dashboard-hero-header page-enter">
@@ -83,21 +108,53 @@ export function DashboardHeader({
           />
         </div>
 
-        {/* Period Selector Tabs */}
+        {/* Period Selector Tabs & Custom Date Picker */}
         <div className="hero-period-controls">
           <div className="period-segmented-tabs" role="tablist">
-            {periodLabels.map((p) => (
-              <button
-                key={p.id}
-                role="tab"
-                aria-selected={period === p.id}
-                className={`period-tab-btn ${period === p.id ? 'selected' : ''}`}
-                onClick={() => onPeriodChange(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
+            {periodLabels.map((p) => {
+              const isCustom = p.id === 'CUSTOM'
+              const isSelected = period === p.id
+
+              return (
+                <button
+                  key={p.id}
+                  role="tab"
+                  aria-selected={isSelected}
+                  className={`period-tab-btn ${isSelected ? 'selected' : ''} ${
+                    isCustom ? 'custom-period-btn' : ''
+                  }`}
+                  onClick={() => handlePeriodClick(p.id)}
+                  title={
+                    isCustom && isSelected
+                      ? `Rango activo: ${customRangeFormatted}. Clic para cambiar fechas.`
+                      : undefined
+                  }
+                >
+                  {isCustom && isSelected ? (
+                    <span className="custom-tab-content">
+                      <AppIcon name="calendar" size={12} />
+                      <span>{p.label}</span>
+                      <small className="custom-dates-pill">
+                        {customRange.startDate.substring(5).replace('-', '/')} -{' '}
+                        {customRange.endDate.substring(5).replace('-', '/')}
+                      </small>
+                    </span>
+                  ) : (
+                    p.label
+                  )}
+                </button>
+              )
+            })}
           </div>
+
+          {/* Floating Date Range Picker Dropdown */}
+          <DateRangePicker
+            isOpen={isPickerOpen}
+            value={customRange}
+            onChange={handleRangeApply}
+            onClose={() => setIsPickerOpen(false)}
+            align="right"
+          />
 
           {/* Refresh Action */}
           <button

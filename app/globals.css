@@ -260,15 +260,46 @@
 .hero-right-section{display:flex;align-items:center;flex-wrap:wrap;gap:14px}
 .role-simulator-wrap{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:9px;background:#f5f8fd;border:1px solid var(--line)}
 .simulator-label{font-size:11px;font-weight:700;color:var(--navy);display:flex;align-items:center;gap:4px;white-space:nowrap}
-.hero-period-controls{display:flex;align-items:center;gap:8px}
-.period-segmented-tabs{background:#f3f6fb;padding:3px;border-radius:9px;border:1px solid var(--line)}
-.period-tab-btn{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.2s}
+.hero-period-controls{display:flex;align-items:center;gap:8px;position:relative}
+.period-segmented-tabs{background:#f3f6fb;padding:3px;border-radius:9px;border:1px solid var(--line);display:inline-flex;align-items:center}
+.period-tab-btn{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .period-tab-btn:hover{color:var(--navy)}
 .period-tab-btn.selected{background:var(--navy);color:#fff;box-shadow:0 3px 8px rgba(0,27,92,0.2)}
+.custom-tab-content{display:inline-flex;align-items:center;gap:4px}
+.custom-dates-pill{background:rgba(255,255,255,0.2);padding:1px 5px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:-0.2px}
 .refresh-btn{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;color:var(--muted);transition:.2s}
 .refresh-btn:hover{color:var(--navy);border-color:#b4c3d8}
 .spin-animation{animation:spin 0.8s linear infinite}
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+
+/* Floating Date Range Picker Dropdown / Popover */
+.date-range-popover{position:absolute;top:calc(100% + 8px);background:#ffffff;border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 40px rgba(0,27,92,0.18),0 4px 12px rgba(16,33,63,0.06);padding:16px;z-index:1000;width:340px;max-width:calc(100vw - 32px);animation:popoverSlideDown .22s cubic-bezier(0.16,1,0.3,1);color:var(--foreground)}
+.date-range-popover.align-right{right:0}
+.date-range-popover.align-left{left:0}
+@keyframes popoverSlideDown{from{opacity:0;transform:translateY(-8px) scale(0.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+.date-range-popover-header{display:flex;align-items:center;justify-content:space-between;padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.popover-title-row{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--navy)}
+.close-popover-btn{width:24px;height:24px;border-radius:6px}
+
+.date-range-presets-list{margin-bottom:14px}
+.presets-caption{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:6px;display:block}
+.presets-chips{display:flex;flex-wrap:wrap;gap:5px}
+.preset-chip{border:1px solid var(--line);background:#f8fafc;border-radius:6px;padding:4px 8px;font-size:10px;font-weight:600;color:#475569;cursor:pointer;transition:.18s}
+.preset-chip:hover{background:#edf2f7;color:var(--navy);border-color:#cbd5e1}
+.preset-chip.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+.date-range-form{display:flex;flex-direction:column}
+.date-inputs-grid{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.date-input-group{flex:1;display:flex;flex-direction:column;gap:4px}
+.date-input-group label{font-size:10px;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:4px}
+.styled-date-input{width:100%;padding:7px 8px;font-size:11px;font-family:inherit;color:var(--foreground);background:#fff;border:1px solid var(--line);border-radius:7px;outline:none;transition:.18s}
+.styled-date-input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,27,92,0.1)}
+.date-range-separator{display:grid;place-items:center;color:var(--muted);padding-top:14px;flex-shrink:0}
+
+.date-range-error{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:6px;background:#fff5f5;border:1px solid #fed7d7;color:#c53030;font-size:11px;margin-bottom:10px}
+
+.date-range-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
 
 /* KPI Statistics Grid */
 .dashboard-stats-section{margin-bottom:24px}

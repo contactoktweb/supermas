@@ -25,6 +25,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
     availableProfiles,
     period,
     setPeriod,
+    customRange,
+    setCustomRange,
     metrics,
     chartPoints,
     warehouses,
@@ -61,6 +63,8 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         user={currentUser}
         period={period}
         onPeriodChange={setPeriod}
+        customRange={customRange}
+        onCustomRangeChange={setCustomRange}
         onRefresh={refreshData}
         isRefreshing={isRefreshing}
         availableProfiles={availableProfiles}

@@ -91,7 +91,14 @@ async function runDashboardTests() {
   assert.ok(formattedStandard.includes('24.850.000') || formattedStandard.includes('24,850,000') || formattedStandard.includes('$'), 'Standard COP format')
   assert.strictEqual(formattedCompactMillions, '$24.85M', 'Compact COP format in Millions')
   assert.strictEqual(formattedCompactBillions, '$1.84B', 'Compact COP format in Billions')
-  console.log('✓ Currency Formatter passed')
+  // Test 7: Custom Date Range Formatter
+  console.log('Test 7: Custom Date Range Formatter')
+  const formattedRange = service.formatDateRange({
+    startDate: '2026-08-01',
+    endDate: '2026-08-31',
+  })
+  assert.strictEqual(formattedRange, '01/08/2026 — 31/08/2026', 'Formatted date range must match Colombian DD/MM/YYYY style')
+  console.log('✓ Custom Date Range Formatter passed')
 
   console.log('\n======================================')
   console.log('ALL DASHBOARD BUSINESS LOGIC TESTS PASSED!')

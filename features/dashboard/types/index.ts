@@ -2,6 +2,11 @@
 
 export type PeriodType = 'TODAY' | '7_DAYS' | '30_DAYS' | 'THIS_MONTH' | 'YEAR' | 'CUSTOM'
 
+export interface DateRange {
+  startDate: string // YYYY-MM-DD
+  endDate: string // YYYY-MM-DD
+}
+
 export type UserRole =
   | 'SUPERADMIN'
   | 'ADMIN'

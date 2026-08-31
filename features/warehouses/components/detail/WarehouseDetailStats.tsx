@@ -1,15 +1,18 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, PeriodFilter } from '../../types'
 import { useCountUp } from '../../hooks/useCountUp'
+import { DateRangePicker, DateRangeValue } from '@/components/ui/DateRangePicker'
 
 interface WarehouseDetailStatsProps {
   warehouse: LocationWithMetrics
   period: PeriodFilter
   onPeriodChange: (period: PeriodFilter) => void
   canReadCost: boolean
+  customRange?: { startDate: string; endDate: string }
+  onCustomRangeChange?: (range: { startDate: string; endDate: string }) => void
 }
 
 export function WarehouseDetailStats({
@@ -17,7 +20,11 @@ export function WarehouseDetailStats({
   period,
   onPeriodChange,
   canReadCost,
+  customRange = { startDate: '2026-08-01', endDate: '2026-08-31' },
+  onCustomRangeChange,
 }: WarehouseDetailStatsProps) {
+  const [isPickerOpen, setIsPickerOpen] = useState(false)
+
   const formattedInv = useCountUp(warehouse.inventoryValueAtCost, { isCurrency: true })
   const formattedSales = useCountUp(
     period === 'TODAY' ? warehouse.todaySalesAmount : warehouse.monthSalesAmount,
@@ -26,32 +33,77 @@ export function WarehouseDetailStats({
   const formattedPurchases = useCountUp(warehouse.monthPurchasesAmount, { isCurrency: true })
   const formattedProfit = useCountUp(warehouse.estimatedProfit, { isCurrency: true })
 
+  const handlePeriodClick = (key: PeriodFilter) => {
+    if (key === 'CUSTOM') {
+      onPeriodChange('CUSTOM')
+      setIsPickerOpen((prev) => (period === 'CUSTOM' ? !prev : true))
+    } else {
+      setIsPickerOpen(false)
+      onPeriodChange(key)
+    }
+  }
+
+  const handleRangeApply = (range: DateRangeValue) => {
+    if (onCustomRangeChange) {
+      onCustomRangeChange(range)
+    }
+    onPeriodChange('CUSTOM')
+  }
+
   return (
     <section className="detail-stats-section" aria-label="Estadísticas de la bodega">
       {/* Period Selector Bar */}
       <div className="period-row">
         <span className="period-label">Periodo analizado:</span>
-        <div className="period-tabs" role="group" aria-label="Selector de periodo">
-          {(
-            [
-              ['TODAY', 'Hoy'],
-              ['7_DAYS', '7 días'],
-              ['30_DAYS', '30 días'],
-              ['MONTH', 'Mes'],
-              ['YEAR', 'Año'],
-              ['CUSTOM', 'Personalizado'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              className={period === key ? 'selected' : ''}
-              onClick={() => onPeriodChange(key)}
-              aria-pressed={period === key}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="period-tabs-wrapper" style={{ position: 'relative' }}>
+          <div className="period-tabs" role="group" aria-label="Selector de periodo">
+            {(
+              [
+                ['TODAY', 'Hoy'],
+                ['7_DAYS', '7 días'],
+                ['30_DAYS', '30 días'],
+                ['MONTH', 'Mes'],
+                ['YEAR', 'Año'],
+                ['CUSTOM', 'Personalizado'],
+              ] as const
+            ).map(([key, label]) => {
+              const isCustom = key === 'CUSTOM'
+              const isSelected = period === key
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`${isSelected ? 'selected' : ''} ${
+                    isCustom ? 'custom-period-btn' : ''
+                  }`}
+                  onClick={() => handlePeriodClick(key)}
+                  aria-pressed={isSelected}
+                >
+                  {isCustom && isSelected ? (
+                    <span className="custom-tab-content">
+                      <AppIcon name="calendar" size={12} />
+                      <span>{label}</span>
+                      <small className="custom-dates-pill">
+                        {customRange.startDate.substring(5).replace('-', '/')} -{' '}
+                        {customRange.endDate.substring(5).replace('-', '/')}
+                      </small>
+                    </span>
+                  ) : (
+                    label
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          <DateRangePicker
+            isOpen={isPickerOpen}
+            value={customRange}
+            onChange={handleRangeApply}
+            onClose={() => setIsPickerOpen(false)}
+            align="right"
+          />
         </div>
       </div>
 

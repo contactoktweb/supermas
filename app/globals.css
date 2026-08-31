@@ -99,13 +99,15 @@
 .row-btn{padding:5px;border-radius:6px;color:var(--muted);transition:.2s}
 .row-btn:hover{background:#edf2fb;color:var(--navy);transform:scale(1.1)}
 .row-btn.text-danger:hover{background:#fff0ef;color:var(--red)}
-.table-pagination-footer{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--line);background:#fafbfc;font-size:11px;color:var(--muted)}
+.table-pagination-footer{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-top:1px solid var(--line);background:#fafbfc;font-size:11px;color:var(--muted);flex-wrap:wrap;gap:12px}
 .pagination-info{display:flex;align-items:center;gap:18px}
 .page-size-selector{display:flex;align-items:center;gap:6px}
 .page-size-selector select{border:1px solid var(--line);border-radius:6px;padding:4px 8px;background:#fff;font-size:11px}
 .pagination-controls{display:flex;align-items:center;gap:8px}
-.pagination-btn{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:#fff}
-.pagination-btn:disabled{opacity:.4;cursor:not-allowed}
+.pagination-btn{height:32px;min-width:32px;padding:0 12px;border-radius:7px;border:1px solid var(--line);background:#fff;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:11px;font-weight:600;color:#475569;cursor:pointer;white-space:nowrap;transition:all .18s ease}
+.pagination-btn.icon-button{padding:0;width:32px}
+.pagination-btn:hover:not(:disabled){background:#f8fafc;border-color:#cbd5e1;color:var(--navy);transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,27,92,0.06)}
+.pagination-btn:disabled{opacity:.4;cursor:not-allowed;background:#f8fafc}
 .pagination-page-indicator{font-size:11px;color:var(--foreground)}
 
 /* Form Drawer & Modals */
@@ -952,60 +954,81 @@
 .pagination-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .pagination-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #fff;
+  background: #ffffff;
   font-size: 11px;
   font-weight: 600;
   color: #475569;
   cursor: pointer;
-  transition: .15s ease;
+  white-space: nowrap;
+  transition: all 0.18s ease;
+  user-select: none;
 }
+
+.pagination-btn.icon-button {
+  padding: 0;
+  width: 32px;
+}
+
 .pagination-btn:hover:not(:disabled) {
   background: #f8fafc;
   border-color: #cbd5e1;
   color: var(--navy);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 27, 92, 0.06);
 }
+
 .pagination-btn:disabled {
-  opacity: .45;
+  opacity: 0.4;
   cursor: not-allowed;
+  background: #f8fafc;
 }
 
 .pagination-pages {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .pagination-number-btn {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border: 1px solid transparent;
+  border-radius: 7px;
   background: transparent;
   font-size: 11px;
   font-weight: 700;
   color: #64748b;
   cursor: pointer;
-  transition: .15s ease;
+  transition: all 0.18s ease;
+  user-select: none;
 }
-.pagination-number-btn:hover {
+
+.pagination-number-btn:hover:not(.active) {
   background: #f1f5f9;
   color: var(--navy);
+  border-color: #e2e8f0;
 }
+
 .pagination-number-btn.active {
   background: var(--navy);
   color: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 27, 92, 0.22);
 }
 
 /* Products Grid View Modern */

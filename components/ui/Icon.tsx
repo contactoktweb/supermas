@@ -10,7 +10,7 @@ import { Icon as IconifyIcon, IconProps as IconifyProps } from '@iconify/react'
 export const LIGHT_ICON_MAP = {
   // Navigation & Core Modules
   dashboard: 'solar:widget-linear',
-  warehouse: 'solar:warehouse-linear',
+  warehouse: 'ph:warehouse-light',
   products: 'solar:box-linear',
   inventory: 'solar:box-minimalistic-linear',
   kardex: 'solar:clipboard-list-linear',

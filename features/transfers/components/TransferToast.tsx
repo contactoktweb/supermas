@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 
 export interface TransferToastMessage {
@@ -19,14 +20,20 @@ export function TransferToastContainer({
   toasts,
   onDismiss,
 }: TransferToastContainerProps) {
-  if (toasts.length === 0) return null
+  const [mounted, setMounted] = useState(false)
 
-  return (
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted || toasts.length === 0) return null
+
+  return createPortal(
     <div className="toast-notifications-root" aria-live="polite">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`toast-banner toast-${t.type} page-enter`}
+          className={`toast-banner toast-${t.type} toast-pop-in`}
           role="alert"
         >
           <div className="toast-icon-side">
@@ -38,7 +45,7 @@ export function TransferToastContainer({
                   ? 'warning'
                   : 'info'
               }
-              size={16}
+              size={18}
             />
           </div>
           <div className="toast-body-side">
@@ -51,10 +58,11 @@ export function TransferToastContainer({
             onClick={() => onDismiss(t.id)}
             aria-label="Cerrar notificación"
           >
-            <AppIcon name="close" size={12} />
+            <AppIcon name="close" size={14} />
           </button>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }

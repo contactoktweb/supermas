@@ -7,6 +7,7 @@ import { DashboardView } from '@/features/dashboard/components/DashboardView'
 import { ProductsPage } from '@/features/products/components/ProductsPage'
 import { KardexPage } from '@/features/kardex/components/KardexPage'
 import { InventoryPage } from '@/features/inventory/components/InventoryPage'
+import { TransferPage } from '@/features/transfers/components/TransferPage'
 import { Footer } from '@/components/Footer'
 
 const modules: [string, LightIconName][] = [
@@ -175,35 +176,7 @@ function Kardex(){
   </>
 }
 
-function Transfers(){
-  const [selected,setSelected]=useState<typeof transfers[number]|null>(null);
-  const [mode,setMode]=useState('Tabla');
-  return <>
-    <PageHead eyebrow="Logística interna" title="Transferencias" sub="Controla el movimiento de mercancía entre bodegas y puntos de venta." action="Nueva transferencia"/>
-    <section className="stats-grid products-stats">
-      {[
-        ['Transferencias pendientes','9','kardex','amber'],
-        ['En tránsito','4','transfers','blue'],
-        ['Recibidas','128','check','teal'],
-        ['Rechazadas','3','close','red'],
-        ['Unidades este mes','12,840','inventory','blue']
-      ].map(([t,v,icon,tone])=><Stat key={t as string} title={t as string} value={v as string} iconName={icon as LightIconName} tone={tone as string} note={tone==='red'?'Revisar':'+12.4%'}/>)}
-    </section>
-    <div className="toolbar">
-      <div className="search-box wide">
-        <AppIcon name="search" size={16}/>
-        <input placeholder="Buscar código o bodega..."/>
-      </div>
-      {['Origen','Destino','Estado','Periodo'].map(x=><button className="filter-button" key={x}>{x} <AppIcon name="chevronDown" size={13}/></button>)}
-      <div className="segmented">
-        <button className={mode==='Tabla'?'selected':''} onClick={()=>setMode('Tabla')}>Tabla</button>
-        <button className={mode==='Flujo'?'selected':''} onClick={()=>setMode('Flujo')}>Flujo</button>
-      </div>
-    </div>
-    {mode==='Flujo'?<div className="flow-grid">{transfers.map(t=><article className="flow-card" key={t.code} onClick={()=>setSelected(t)}><span className={`state ${t.status.toLowerCase().replace(' ','-')}`}>{t.status}</span><div className="flow-location"><strong>{t.from}</strong><AppIcon name="transfers" size={18}/><strong>{t.to}</strong></div><div className="flow-units"><b>{t.units}</b><span>unidades en movimiento</span></div><div className="stepper"><span className="done">✓</span><i className="done"/><span className="done">✓</span><i/><span>○</span></div><small>{t.code} · {t.updated}</small></article>)}</div>:<div className="table-panel animated-table"><div className="table-scroll"><table><thead><tr><th>Código</th><th>Fecha</th><th>Origen</th><th>Destino</th><th>Productos</th><th>Unidades</th><th>Responsable</th><th>Estado</th><th>Última actualización</th><th/></tr></thead><tbody>{transfers.map(t=><tr key={t.code} onClick={()=>setSelected(t)}><td><strong>{t.code}</strong></td><td>{t.date}</td><td>{t.from}</td><td><AppIcon name="arrowLeftRight" size={13}/> {t.to}</td><td>{t.products}</td><td><b>{t.units}</b></td><td>{t.owner}</td><td><span className={`state ${t.status.toLowerCase().replace(' ','-')}`}>{t.status}</span></td><td>{t.updated}</td><td><button className="icon-button"><AppIcon name="chevronRight" size={15}/></button></td></tr>)}</tbody></table></div></div>}
-    {selected&&<div className="drawer-backdrop" onClick={()=>setSelected(null)}><aside className="transfer-drawer" onClick={e=>e.stopPropagation()}><div className="drawer-header"><div><p className="eyebrow">Detalle de transferencia</p><h2>{selected.code}</h2></div><button className="icon-button" onClick={()=>setSelected(null)}><AppIcon name="close" size={18}/></button></div><div className="transfer-route"><strong>{selected.from}</strong><AppIcon name="arrowLeftRight" size={18}/><strong>{selected.to}</strong></div><span className={`state ${selected.status.toLowerCase().replace(' ','-')}`}>{selected.status}</span><div className="detail-stepper"><div className="step done"><AppIcon name="check" size={14}/><span>Creada</span></div><i/><div className="step done"><AppIcon name="check" size={14}/><span>Preparada</span></div><i/><div className="step"><span>3</span><span>Despachada</span></div><i/><div className="step"><span>4</span><span>Recibida</span></div></div><div className="drawer-section"><h3>Productos · {selected.products}</h3>{products.slice(0,3).map(p=><div className="transfer-product" key={p.sku}><div className="product-thumb"><AppIcon name="products" size={16}/></div><div><strong>{p.name}</strong><span>{p.sku}</span></div><b>{Math.ceil(selected.units/3)} uds</b></div>)}</div><div className="drawer-section info-list"><p><span>Creó</span><b>{selected.owner}</b></p><p><span>Última actualización</span><b>{selected.updated}</b></p><p><span>Observaciones</span><b>Despacho programado para hoy.</b></p></div></aside></div>}
-  </>
-}
+
 
 function Login({onLogin}:{onLogin:()=>void}){
   const [email,setEmail]=useState('admin@supermas.com.co');
@@ -478,7 +451,7 @@ function App(){
   ) : view === 'Kardex' ? (
     <KardexPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Transferencias' ? (
-    <Transfers />
+    <TransferPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'POS' ? (
     <POS />
   ) : view === 'Cajas' ? (

@@ -15,7 +15,10 @@ export const transferCreateSchema = z
     items: z
       .array(transferItemInputSchema)
       .min(1, 'Debe incluir al menos un producto en la transferencia'),
+    reason: z.string().max(200).optional(),
+    internalReference: z.string().max(100).optional(),
     notes: z.string().max(500, 'Las observaciones no pueden exceder 500 caracteres').optional(),
+    idempotencyKey: z.string().optional(),
   })
   .refine((data) => data.originLocationId !== data.destinationLocationId, {
     message: 'La bodega de origen y destino no pueden ser la misma ubicación',

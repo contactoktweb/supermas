@@ -238,6 +238,8 @@ export class TransferRepository {
       createdByUserId: userContext.userId,
       createdByUserName: userContext.userName,
       createdByUserRole: userContext.userRole,
+      reason: input.reason,
+      internalReference: input.internalReference,
       hasIncident: false,
       notes: input.notes,
       createdAt: now,

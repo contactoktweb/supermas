@@ -9,6 +9,8 @@ import {
   TransferRejectInput,
   UserPermissionContext,
   TransferFlowEdge,
+  TransferLocationOption,
+  ProductAvailabilityForTransfer,
 } from '../types'
 import {
   transferCreateSchema,
@@ -18,7 +20,10 @@ import {
   transferFilterSchema,
 } from '../schemas/transfer.schema'
 import { transferRepository } from '../repositories/transfer.repository'
-import { AVAILABLE_PRODUCTS_FOR_TRANSFER } from '../mocks/transfers.mock'
+import {
+  AVAILABLE_PRODUCTS_FOR_TRANSFER,
+  TRANSFER_LOCATIONS_MOCK,
+} from '../mocks/transfers.mock'
 
 export class TransferService {
   private hasPermission(
@@ -99,17 +104,45 @@ export class TransferService {
     }
   }
 
-  async getAvailableProductsForTransfer(originLocationId: string) {
-    return AVAILABLE_PRODUCTS_FOR_TRANSFER.map((p) => ({
-      productId: p.productId,
-      productName: p.productName,
-      sku: p.sku,
-      barcode: p.barcode,
-      category: p.category,
-      unitOfMeasure: p.unitOfMeasure,
-      imageUrl: p.imageUrl,
-      availableStock: p.stocksByLocation[originLocationId] || 0,
-    }))
+  async getTransferLocations(
+    userContext?: UserPermissionContext
+  ): Promise<TransferLocationOption[]> {
+    let locations = TRANSFER_LOCATIONS_MOCK.filter((l) => l.status === 'ACTIVE')
+
+    // Si el usuario está restringido a una bodega específica
+    if (userContext && userContext.userRole !== 'ADMIN' && userContext.assignedLocationId) {
+      // Puede ver todas para destino, pero solo su asignada para origen
+    }
+
+    return locations
+  }
+
+  async getAvailableProductsForTransfer(
+    originLocationId: string,
+    destinationLocationId?: string
+  ): Promise<ProductAvailabilityForTransfer[]> {
+    return AVAILABLE_PRODUCTS_FOR_TRANSFER.map((p) => {
+      const stockInOrigin = p.stocksByLocation[originLocationId] || 0
+      const stockInDestination = destinationLocationId
+        ? p.stocksByLocation[destinationLocationId] || 0
+        : 0
+
+      return {
+        productId: p.productId,
+        productName: p.productName,
+        sku: p.sku,
+        barcode: p.barcode,
+        category: p.category,
+        unitOfMeasure: p.unitOfMeasure,
+        imageUrl: p.imageUrl,
+        status: p.status,
+        minStock: p.minStock,
+        stockInOrigin,
+        stockInDestination,
+        stocksByLocation: p.stocksByLocation,
+        unitCost: p.unitCost,
+      }
+    })
   }
 
   async createTransfer(
@@ -122,13 +155,32 @@ export class TransferService {
 
     const validated = transferCreateSchema.parse(input)
 
-    // Validar disponibilidad de stock en el origen para cada producto
+    // Validar existencia y estado de las bodegas
+    const originLoc = TRANSFER_LOCATIONS_MOCK.find((l) => l.id === validated.originLocationId)
+    const destLoc = TRANSFER_LOCATIONS_MOCK.find((l) => l.id === validated.destinationLocationId)
+
+    if (!originLoc || originLoc.status !== 'ACTIVE') {
+      throw new Error('La bodega de origen seleccionada no está activa o no existe')
+    }
+    if (!destLoc || destLoc.status !== 'ACTIVE') {
+      throw new Error('La bodega de destino seleccionada no está activa o no existe')
+    }
+
+    if (validated.originLocationId === validated.destinationLocationId) {
+      throw new Error('La bodega de origen y destino no pueden ser la misma ubicación')
+    }
+
+    // Validar disponibilidad de stock en tiempo real en servidor (anti-concurrencia)
     for (const item of validated.items) {
       const prod = AVAILABLE_PRODUCTS_FOR_TRANSFER.find((p) => p.productId === item.productId)
-      const stockInOrigin = prod?.stocksByLocation[validated.originLocationId] ?? 0
+      if (!prod || prod.status !== 'ACTIVE') {
+        throw new Error(`El producto ${prod?.productName || item.productId} no está activo`)
+      }
+
+      const stockInOrigin = prod.stocksByLocation[validated.originLocationId] ?? 0
       if (item.units > stockInOrigin) {
         throw new Error(
-          `Stock insuficiente para ${prod?.productName || item.productId}: solicita ${item.units} uds pero solo hay ${stockInOrigin} uds disponibles en la bodega de origen`
+          `El stock disponible cambió. Actualmente hay ${stockInOrigin} unidades disponibles para "${prod.productName}", pero intentas transferir ${item.units}.`
         )
       }
     }
@@ -277,6 +329,8 @@ export class TransferService {
       'Creado Por',
       'Despachado Por',
       'Recibido Por',
+      'Motivo',
+      'Referencia Interna',
       'Tiene Novedad',
       'Notas Novedad',
       'Observaciones',
@@ -298,6 +352,8 @@ export class TransferService {
       `"${t.createdByUserName.replace(/"/g, '""')}"`,
       `"${(t.dispatchedByUserName || '').replace(/"/g, '""')}"`,
       `"${(t.receivedByUserName || '').replace(/"/g, '""')}"`,
+      `"${(t.reason || '').replace(/"/g, '""')}"`,
+      `"${(t.internalReference || '').replace(/"/g, '""')}"`,
       t.hasIncident ? '"SI"' : '"NO"',
       `"${(t.incidentNotes || '').replace(/"/g, '""')}"`,
       `"${(t.notes || '').replace(/"/g, '""')}"`,

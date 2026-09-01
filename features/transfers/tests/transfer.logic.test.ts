@@ -147,7 +147,28 @@ async function runTests() {
   if (!csvSeller.includes('••••••••')) {
     throw new Error('Seller CSV must mask cost values')
   }
-  console.log('✓ CSV export with RBAC passed')
+  // Test 9: Location Options and Active Status Filtering
+  console.log('Test 9: Location Options and Active Status Filtering')
+  const locations = await transferService.getTransferLocations()
+  if (locations.length < 2) {
+    throw new Error('Expected at least 2 active locations')
+  }
+  if (locations.some((l) => l.status !== 'ACTIVE')) {
+    throw new Error('Inactive locations returned in transfer options')
+  }
+  console.log(`✓ Active locations correctly returned (${locations.length} locations)`)
+
+  // Test 10: Multi-Warehouse Availability Query with Projections
+  console.log('Test 10: Multi-Warehouse Availability Query with Projections')
+  const prodsWithAvail = await transferService.getAvailableProductsForTransfer('loc-01', 'loc-02')
+  if (prodsWithAvail.length === 0) {
+    throw new Error('Available products query returned empty list')
+  }
+  const firstProd = prodsWithAvail[0]
+  if (firstProd.stockInOrigin === undefined || firstProd.stockInDestination === undefined || !firstProd.stocksByLocation) {
+    throw new Error('Product availability missing origin/destination/network stocks')
+  }
+  console.log(`✓ Multi-warehouse availability correctly computed for ${firstProd.productName}`)
 
   console.log('\n======================================')
   console.log('ALL TRANSFERS BUSINESS LOGIC TESTS PASSED!')

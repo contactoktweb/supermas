@@ -2,6 +2,34 @@ export type TransferStatus = 'PENDING' | 'IN_TRANSIT' | 'RECEIVED' | 'REJECTED'
 
 export type TransferDirection = 'ALL' | 'INBOUND' | 'OUTBOUND'
 
+export interface TransferLocationOption {
+  id: string
+  code: string
+  name: string
+  city: string
+  department: string
+  type: 'WAREHOUSE' | 'STORE_POINT' | 'DISTRIBUTION_CENTER'
+  typeLabel: string
+  status: 'ACTIVE' | 'INACTIVE'
+  description?: string
+}
+
+export interface ProductAvailabilityForTransfer {
+  productId: string
+  productName: string
+  sku: string
+  barcode?: string
+  category: string
+  unitOfMeasure: string
+  imageUrl?: string
+  status: 'ACTIVE' | 'INACTIVE'
+  minStock: number
+  stockInOrigin: number
+  stockInDestination: number
+  stocksByLocation: Record<string, number>
+  unitCost: number
+}
+
 export interface TransferItem {
   id: string
   productId: string
@@ -50,6 +78,8 @@ export interface Transfer {
   rejectedByUserName?: string
   rejectedAt?: string
   rejectionReason?: string
+  reason?: string
+  internalReference?: string
   hasIncident: boolean
   incidentNotes?: string
   notes?: string
@@ -117,7 +147,10 @@ export interface TransferCreateInput {
     productId: string
     units: number
   }[]
+  reason?: string
+  internalReference?: string
   notes?: string
+  idempotencyKey?: string
 }
 
 export interface TransferDispatchInput {

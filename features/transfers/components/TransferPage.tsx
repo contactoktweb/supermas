@@ -376,6 +376,10 @@ export function TransferPage({
           showToast('Transferencia Creada', `Se generó la orden de traslado ${code}.`, 'success')
           loadData()
         }}
+        onViewTransfer={async (code) => {
+          const found = await transferService.getTransferById(code, userContext)
+          if (found) setSelectedTransfer(found)
+        }}
       />
 
       <TransferReceiveModal

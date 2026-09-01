@@ -654,6 +654,12 @@
   flex-wrap: wrap;
 }
 
+.header-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .products-stats-grid {
   grid-template-columns: repeat(6, 1fr);
   gap: 14px;
@@ -4644,14 +4650,62 @@ html, body {
   .products-actions-bar {
     width: 100% !important;
     flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .header-action-buttons {
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
     gap: 8px !important;
+  }
+
+  .header-action-buttons button,
+  .header-action-buttons a {
+    flex: 1 !important;
+    width: auto !important;
+  }
+
+  .header-action-buttons .primary-button {
+    flex: 1.4 !important;
   }
 
   .heading-actions button,
   .heading-actions a,
-  .products-actions-bar button {
-    width: 100% !important;
+  .products-actions-bar button,
+  .primary-button,
+  .outline-button {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 16px !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    display: inline-flex !important;
+    align-items: center !important;
     justify-content: center !important;
+    gap: 8px !important;
+  }
+
+  .period-segmented-tabs.view-switcher {
+    width: 100% !important;
+    height: 42px !important;
+    display: flex !important;
+    background: #f1f5f9 !important;
+    border-radius: 10px !important;
+    padding: 3px !important;
+  }
+
+  .period-segmented-tabs.view-switcher .period-tab-btn {
+    flex: 1 !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border-radius: 8px !important;
   }
 
   /* View Toggle & Segmented */

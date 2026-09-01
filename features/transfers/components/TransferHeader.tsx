@@ -63,40 +63,43 @@ export function TransferHeader({
           </button>
         </div>
 
-        {/* Clear Filters Button */}
-        {hasActiveFilters && (
+        {/* Action Buttons Group */}
+        <div className="header-action-buttons">
+          {/* Clear Filters Button */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="outline-button"
+              onClick={onResetFilters}
+              title="Restablecer todos los filtros aplicados"
+            >
+              <AppIcon name="close" size={14} />
+              <span>Limpiar ({activeFilterCount})</span>
+            </button>
+          )}
+
+          {/* Export Action */}
           <button
             type="button"
             className="outline-button"
-            onClick={onResetFilters}
-            title="Restablecer todos los filtros aplicados"
+            onClick={onExport}
+            title="Exportar transferencias en formato CSV"
           >
-            <AppIcon name="close" size={14} />
-            <span>Limpiar filtros ({activeFilterCount})</span>
+            <AppIcon name="download" size={16} />
+            <span>Exportar</span>
           </button>
-        )}
 
-        {/* Export Action */}
-        <button
-          type="button"
-          className="outline-button"
-          onClick={onExport}
-          title="Exportar transferencias en formato CSV"
-        >
-          <AppIcon name="download" size={16} />
-          <span>Exportar</span>
-        </button>
-
-        {/* New Transfer Primary Button */}
-        <button
-          type="button"
-          className="primary-button"
-          onClick={onNewTransfer}
-          title="Crear un nuevo traslado de inventario"
-        >
-          <AppIcon name="plus" size={16} />
-          <span>Nueva transferencia</span>
-        </button>
+          {/* New Transfer Primary Button */}
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onNewTransfer}
+            title="Crear un nuevo traslado de inventario"
+          >
+            <AppIcon name="plus" size={16} />
+            <span>Nueva transferencia</span>
+          </button>
+        </div>
       </div>
     </header>
   )

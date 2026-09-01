@@ -15,7 +15,7 @@ import { TransferFilters } from './TransferFilters'
 import { TransferTable } from './TransferTable'
 import { TransferFlowView } from './TransferFlowView'
 import { TransferDetailDrawer } from './TransferDetailDrawer'
-import { TransferNewDrawer } from './TransferNewDrawer'
+import { TransferNewModal } from './TransferNewModal'
 import { TransferReceiveModal } from './TransferReceiveModal'
 import { TransferRejectModal } from './TransferRejectModal'
 import { TransferExportModal } from './TransferExportModal'
@@ -366,7 +366,7 @@ export function TransferPage({
         }}
       />
 
-      <TransferNewDrawer
+      <TransferNewModal
         isOpen={isNewDrawerOpen}
         initialOriginLocationId={initialLocationId || 'loc-01'}
         initialProductId={initialProductId}

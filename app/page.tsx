@@ -8,6 +8,8 @@ import { ProductsPage } from '@/features/products/components/ProductsPage'
 import { KardexPage } from '@/features/kardex/components/KardexPage'
 import { InventoryPage } from '@/features/inventory/components/InventoryPage'
 import { TransferPage } from '@/features/transfers/components/TransferPage'
+import { PurchasesPage } from '@/features/purchases/components/PurchasesPage'
+import { SuppliersPage } from '@/features/suppliers'
 import { Footer } from '@/components/Footer'
 import { db } from '@/lib/supabase'
 
@@ -438,6 +440,10 @@ function App(){
     <KardexPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Transferencias' ? (
     <TransferPage onNavigate={(targetView) => setView(targetView)} />
+  ) : view === 'Compras' ? (
+    <PurchasesPage onNavigate={(targetView) => setView(targetView)} />
+  ) : view === 'Proveedores' ? (
+    <SuppliersPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'POS' ? (
     <POS />
   ) : view === 'Cajas' ? (

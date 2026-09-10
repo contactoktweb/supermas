@@ -140,7 +140,7 @@ export function ProductFormDrawer({
   const handleTaxProfileChange = (selectedCode: string) => {
     const found = db.taxConfigs.find((t) => t.code === selectedCode)
     if (found) {
-      setTaxProfile(found.code)
+      setTaxProfile(found.code as any)
       setVatRatePercent(found.ratePercent)
     } else {
       setTaxProfile('CUSTOM')

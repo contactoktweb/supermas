@@ -538,6 +538,48 @@ export class ProductService {
     return db.brands
   }
 
+  /**
+   * Búsqueda reactiva de productos para órdenes de compra, POS e inventario.
+   * Filtra por nombre, SKU o código de barras y devuelve stock y costos actuales.
+   */
+  async search(query: string, locationId?: string) {
+    const q = query.toLowerCase().trim()
+    const allProducts = await productRepository.findAll({ query: '', pageSize: 200 })
+    
+    let filtered = allProducts.items
+    if (q) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sku.toLowerCase().includes(q) ||
+          (p.barcode && p.barcode.toLowerCase().includes(q))
+      )
+    }
+
+    return filtered.map((p) => {
+      let currentStock = p.totalStock
+      if (locationId) {
+        const stockInLocation = p.warehouseStock?.find((w) => w.locationId === locationId)
+        if (stockInLocation) {
+          currentStock = stockInLocation.quantity
+        }
+      }
+      return {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        barcode: p.barcode,
+        imageUrl: p.imageUrl,
+        unitOfMeasure: p.unitOfMeasure,
+        currentCost: p.averageCost || 0,
+        currentStock,
+        totalStock: p.totalStock,
+        vatRatePercent: p.vatRatePercent ?? 19,
+        taxProfile: p.taxProfile || 'IVA_GENERAL',
+      }
+    })
+  }
+
   async getTaxConfigs(): Promise<TaxRateConfig[]> {
     return db.taxConfigs as unknown as TaxRateConfig[]
   }

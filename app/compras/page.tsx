@@ -148,7 +148,7 @@ export default function PurchasesRoutePage() {
         </header>
 
         {/* Dynamic Content */}
-        <main className="content">
+        <main className="dashboard-content">
           <Suspense fallback={<div style={{ padding: 32 }}>Cargando módulo de compras...</div>}>
             <PurchasesContent />
           </Suspense>

@@ -4,6 +4,8 @@ import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Purchase, PurchaseStatus, PurchasePaymentType } from '../types'
 
+type PurchaseSortField = 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt'
+
 interface PurchaseTableProps {
   purchases: Purchase[]
   total: number
@@ -11,9 +13,9 @@ interface PurchaseTableProps {
   pageSize: number
   totalPages: number
   isCostRedacted: boolean
-  sortField?: 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt'
+  sortField?: PurchaseSortField
   sortDirection?: 'asc' | 'desc'
-  onSort: (field: 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt') => void
+  onSort: (field: PurchaseSortField) => void
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSelectPurchase: (purchase: Purchase) => void
@@ -106,6 +108,19 @@ export function PurchaseTable({
   onViewAttachment,
   onCancelPurchase,
 }: PurchaseTableProps) {
+  const getSortIcon = (field: PurchaseSortField) => {
+    if (sortField !== field) {
+      return <AppIcon name="sort" size={13} style={{ opacity: 0.35 }} />
+    }
+    return (
+      <AppIcon
+        name={sortDirection === 'asc' ? 'chevronUp' : 'chevronDown'}
+        size={13}
+        style={{ color: 'var(--navy)' }}
+      />
+    )
+  }
+
   const formatCurrency = (val: number) => {
     if (isCostRedacted) return '••••••'
     return new Intl.NumberFormat('es-CO', {
@@ -126,287 +141,337 @@ export function PurchaseTable({
     })
   }
 
-  const renderSortIndicator = (field: 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt') => {
-    if (sortField !== field) return null
-    return (
-      <span className="sort-icon-indicator" style={{ marginLeft: 4 }}>
-        {sortDirection === 'asc' ? '↑' : '↓'}
-      </span>
-    )
-  }
-
   return (
-    <div className="table-responsive page-enter">
-      <table className="products-table" aria-label="Tabla de órdenes de compra">
-        <thead>
-          <tr>
-            <th
-              scope="col"
-              className="sortable-th"
-              onClick={() => onSort('purchaseNumber')}
-              title="Ordenar por número de compra"
-            >
-              <span>N° Compra</span>
-              {renderSortIndicator('purchaseNumber')}
-            </th>
-            <th scope="col">Factura Proveedor</th>
-            <th
-              scope="col"
-              className="sortable-th"
-              onClick={() => onSort('date')}
-              title="Ordenar por fecha de compra"
-            >
-              <span>Fecha</span>
-              {renderSortIndicator('date')}
-            </th>
-            <th scope="col">Proveedor</th>
-            <th scope="col">Bodega Destino</th>
-            <th scope="col">Tipo Pago</th>
-            <th
-              scope="col"
-              className="sortable-th numeric"
-              onClick={() => onSort('total')}
-              title="Ordenar por total"
-            >
-              <span>Total</span>
-              {renderSortIndicator('total')}
-            </th>
-            <th
-              scope="col"
-              className="sortable-th numeric"
-              onClick={() => onSort('pendingBalance')}
-              title="Ordenar por saldo pendiente"
-            >
-              <span>Saldo Pendiente</span>
-              {renderSortIndicator('pendingBalance')}
-            </th>
-            <th scope="col">Estado</th>
-            <th scope="col">Usuario</th>
-            <th scope="col" style={{ textAlign: 'right', paddingRight: 16 }}>
-              Acciones
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {purchases.map((p) => {
-            const hasAttachment = p.attachments && p.attachments.length > 0
-            const canReceive = p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT'
-            const canPay = p.pendingBalance > 0 && p.status !== 'CANCELLED'
-            const canEdit = p.status === 'DRAFT'
-            const canCancel = p.status !== 'RECEIVED' && p.status !== 'CANCELLED' && p.status !== 'PAID'
-
-            return (
-              <tr
-                key={p.id}
-                className="table-row-clickable"
-                onClick={() => onSelectPurchase(p)}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onSelectPurchase(p)
-                }}
+    <div className="table-panel products-table-panel page-enter">
+      <div className="table-scroll" tabIndex={0} aria-label="Tabla de órdenes de compra">
+        <table>
+          <thead>
+            <tr>
+              {/* 1. N° Compra */}
+              <th
+                onClick={() => onSort('purchaseNumber')}
+                className="sortable-th sticky-left-col"
+                style={{ minWidth: 140 }}
               >
-                {/* 1. N° Compra */}
-                <td className="product-code-col">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span className="sku-badge" style={{ fontWeight: 700 }}>
-                      {p.purchaseNumber}
-                    </span>
-                    {hasAttachment && (
-                      <span
-                        title="Factura adjunta disponible"
-                        style={{ color: 'var(--navy)', opacity: 0.8 }}
-                      >
-                        <AppIcon name="invoices" size={13} />
+                <div className="th-content">
+                  <span>N° Compra</span>
+                  {getSortIcon('purchaseNumber')}
+                </div>
+              </th>
+
+              {/* 2. Factura Proveedor */}
+              <th style={{ minWidth: 140 }}>
+                <div className="th-content">
+                  <span>Factura Prov.</span>
+                </div>
+              </th>
+
+              {/* 3. Fecha */}
+              <th
+                onClick={() => onSort('date')}
+                className="sortable-th"
+                style={{ minWidth: 130 }}
+              >
+                <div className="th-content">
+                  <span>Fecha</span>
+                  {getSortIcon('date')}
+                </div>
+              </th>
+
+              {/* 4. Proveedor */}
+              <th style={{ minWidth: 200 }}>
+                <div className="th-content">
+                  <span>Proveedor</span>
+                </div>
+              </th>
+
+              {/* 5. Bodega Destino */}
+              <th style={{ minWidth: 160 }}>
+                <div className="th-content">
+                  <span>Bodega Destino</span>
+                </div>
+              </th>
+
+              {/* 6. Tipo Pago */}
+              <th style={{ minWidth: 120 }}>
+                <div className="th-content">
+                  <span>Tipo Pago</span>
+                </div>
+              </th>
+
+              {/* 7. Total */}
+              <th
+                onClick={() => onSort('total')}
+                className="sortable-th"
+                style={{ textAlign: 'right', minWidth: 130 }}
+              >
+                <div className="th-content right">
+                  <span>Total</span>
+                  {getSortIcon('total')}
+                </div>
+              </th>
+
+              {/* 8. Saldo Pendiente */}
+              <th
+                onClick={() => onSort('pendingBalance')}
+                className="sortable-th"
+                style={{ textAlign: 'right', minWidth: 140 }}
+              >
+                <div className="th-content right">
+                  <span>Saldo Pendiente</span>
+                  {getSortIcon('pendingBalance')}
+                </div>
+              </th>
+
+              {/* 9. Estado */}
+              <th style={{ minWidth: 130 }}>
+                <div className="th-content">
+                  <span>Estado</span>
+                </div>
+              </th>
+
+              {/* 10. Responsable */}
+              <th style={{ minWidth: 130 }}>
+                <div className="th-content">
+                  <span>Responsable</span>
+                </div>
+              </th>
+
+              {/* 11. Acciones */}
+              <th
+                style={{ width: 140, textAlign: 'center' }}
+                className="sticky-right-col"
+              >
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {purchases.map((p) => {
+              const hasAttachment = p.attachments && p.attachments.length > 0
+              const canReceive = p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT'
+              const canPay = p.pendingBalance > 0 && p.status !== 'CANCELLED'
+              const canEdit = p.status === 'DRAFT'
+              const canCancel =
+                p.status !== 'RECEIVED' && p.status !== 'CANCELLED' && p.status !== 'PAID'
+
+              return (
+                <tr
+                  key={p.id}
+                  className="table-row-clickable"
+                  onClick={() => onSelectPurchase(p)}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onSelectPurchase(p)
+                  }}
+                >
+                  {/* 1. N° Compra */}
+                  <td className="product-code-col sticky-left-col">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="sku-badge" style={{ fontWeight: 700 }}>
+                        {p.purchaseNumber}
                       </span>
-                    )}
-                  </div>
-                </td>
-
-                {/* 2. Factura Proveedor */}
-                <td>
-                  <span className="secondary-meta" style={{ fontWeight: 600 }}>
-                    {p.supplierInvoiceNumber || '—'}
-                  </span>
-                </td>
-
-                {/* 3. Fecha */}
-                <td>
-                  <span className="product-date-cell">{formatDate(p.date)}</span>
-                </td>
-
-                {/* 4. Proveedor */}
-                <td className="product-primary-col">
-                  <div className="product-info-cell">
-                    <strong className="product-name-text" style={{ fontSize: 13 }}>
-                      {p.supplierName}
-                    </strong>
-                    {p.supplierNit && (
-                      <span className="sku-meta-text">NIT: {p.supplierNit}</span>
-                    )}
-                  </div>
-                </td>
-
-                {/* 5. Bodega Destino */}
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <AppIcon name="warehouse" size={13} />
-                    <span style={{ fontSize: 12, fontWeight: 500 }}>
-                      {p.destinationLocationName}
-                    </span>
-                  </div>
-                </td>
-
-                {/* 6. Tipo Pago */}
-                <td>{getPaymentTypeBadge(p.paymentType)}</td>
-
-                {/* 7. Total */}
-                <td className="numeric font-tabular">
-                  <strong style={{ color: 'var(--text-main)', fontSize: 13 }}>
-                    {formatCurrency(p.total)}
-                  </strong>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {p.items?.length || 0} {p.items?.length === 1 ? 'item' : 'items'}
-                  </div>
-                </td>
-
-                {/* 8. Saldo Pendiente */}
-                <td className="numeric font-tabular">
-                  {p.pendingBalance > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                      <span style={{ color: '#b45309', fontWeight: 700, fontSize: 13 }}>
-                        {formatCurrency(p.pendingBalance)}
-                      </span>
-                      {p.dueDate && (
-                        <span style={{ fontSize: 10, color: '#dc2626' }}>
-                          Vence: {formatDate(p.dueDate)}
+                      {hasAttachment && (
+                        <span
+                          title="Factura adjunta disponible"
+                          style={{ color: 'var(--navy)', opacity: 0.85 }}
+                        >
+                          <AppIcon name="invoices" size={13} />
                         </span>
                       )}
                     </div>
-                  ) : (
-                    <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
-                      Al día ($0)
+                  </td>
+
+                  {/* 2. Factura Proveedor */}
+                  <td>
+                    <span className="secondary-meta" style={{ fontWeight: 600 }}>
+                      {p.supplierInvoiceNumber || '—'}
                     </span>
-                  )}
-                </td>
+                  </td>
 
-                {/* 9. Estado */}
-                <td>{getPurchaseStatusBadge(p.status)}</td>
+                  {/* 3. Fecha */}
+                  <td>
+                    <span className="product-date-cell">{formatDate(p.date)}</span>
+                  </td>
 
-                {/* 10. Usuario */}
-                <td>
-                  <span className="secondary-meta" style={{ fontSize: 12 }}>
-                    {p.createdByUserName || 'Sistema'}
-                  </span>
-                </td>
+                  {/* 4. Proveedor */}
+                  <td className="product-primary-col">
+                    <div className="product-info-cell">
+                      <strong className="product-name-text" style={{ fontSize: 13 }}>
+                        {p.supplierName}
+                      </strong>
+                      {p.supplierNit && (
+                        <span className="sku-meta-text">NIT: {p.supplierNit}</span>
+                      )}
+                    </div>
+                  </td>
 
-                {/* 11. Acciones */}
-                <td
-                  style={{ textAlign: 'right', paddingRight: 16 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="table-actions-cluster" style={{ justifyContent: 'flex-end', gap: 4 }}>
-                    {/* Ver Detalle */}
-                    <button
-                      type="button"
-                      className="icon-button-sm"
-                      onClick={() => onSelectPurchase(p)}
-                      title="Ver detalle completo de la compra"
-                      aria-label="Ver detalle"
+                  {/* 5. Bodega Destino */}
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <AppIcon name="warehouse" size={13} color="#64748b" />
+                      <span style={{ fontSize: 12, fontWeight: 500 }}>
+                        {p.destinationLocationName}
+                      </span>
+                    </div>
+                  </td>
+
+                  {/* 6. Tipo Pago */}
+                  <td>{getPaymentTypeBadge(p.paymentType)}</td>
+
+                  {/* 7. Total */}
+                  <td style={{ textAlign: 'right' }}>
+                    <strong style={{ color: 'var(--foreground)', fontSize: 13 }}>
+                      {formatCurrency(p.total)}
+                    </strong>
+                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>
+                      {p.items?.length || 0} {p.items?.length === 1 ? 'item' : 'items'}
+                    </div>
+                  </td>
+
+                  {/* 8. Saldo Pendiente */}
+                  <td style={{ textAlign: 'right' }}>
+                    {p.pendingBalance > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span style={{ color: '#b45309', fontWeight: 700, fontSize: 13 }}>
+                          {formatCurrency(p.pendingBalance)}
+                        </span>
+                        {p.dueDate && (
+                          <span style={{ fontSize: 10, color: '#dc2626' }}>
+                            Vence: {formatDate(p.dueDate)}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
+                        Al día ($0)
+                      </span>
+                    )}
+                  </td>
+
+                  {/* 9. Estado */}
+                  <td>{getPurchaseStatusBadge(p.status)}</td>
+
+                  {/* 10. Responsable */}
+                  <td>
+                    <span className="secondary-meta" style={{ fontSize: 12 }}>
+                      {p.createdByUserName || 'Sistema'}
+                    </span>
+                  </td>
+
+                  {/* 11. Acciones */}
+                  <td
+                    className="sticky-right-col"
+                    style={{ textAlign: 'center' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="action-buttons-group"
+                      style={{ justifyContent: 'center', gap: 4 }}
                     >
-                      <AppIcon name="eye" size={15} />
-                    </button>
+                      {/* Editar Borrador */}
+                      {canEdit && onEditDraft && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onEditDraft(p)}
+                          title="Editar borrador de compra"
+                          aria-label="Editar borrador"
+                        >
+                          <AppIcon name="edit" size={15} />
+                        </button>
+                      )}
 
-                    {/* Editar Borrador */}
-                    {canEdit && onEditDraft && (
+                      {/* Recibir Compra */}
+                      {canReceive && onReceivePurchase && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onReceivePurchase(p)}
+                          title="Registrar recepción física en bodega"
+                          aria-label="Recibir compra"
+                          style={{ color: '#16a34a' }}
+                        >
+                          <AppIcon name="warehouse" size={15} />
+                        </button>
+                      )}
+
+                      {/* Registrar Pago */}
+                      {canPay && onRegisterPayment && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onRegisterPayment(p)}
+                          title="Registrar abono o pago a factura pendiente"
+                          aria-label="Registrar pago"
+                          style={{ color: '#7c3aed' }}
+                        >
+                          <AppIcon name="wallet" size={15} />
+                        </button>
+                      )}
+
+                      {/* Ver Documento Adjunto */}
+                      {hasAttachment && onViewAttachment && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onViewAttachment(p)}
+                          title="Ver soporte o factura adjunta"
+                          aria-label="Ver soporte adjunto"
+                          style={{ color: 'var(--navy)' }}
+                        >
+                          <AppIcon name="invoices" size={15} />
+                        </button>
+                      )}
+
+                      {/* Anular Compra */}
+                      {canCancel && onCancelPurchase && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onCancelPurchase(p)}
+                          title="Anular orden de compra"
+                          aria-label="Anular compra"
+                          style={{ color: '#dc2626' }}
+                        >
+                          <AppIcon name="close" size={15} />
+                        </button>
+                      )}
+
+                      {/* Inspeccionar */}
                       <button
                         type="button"
-                        className="icon-button-sm"
-                        onClick={() => onEditDraft(p)}
-                        title="Editar borrador de compra"
-                        aria-label="Editar borrador"
+                        className="icon-button inspect-row-btn"
+                        onClick={() => onSelectPurchase(p)}
+                        title="Ver detalle completo de compra"
+                        aria-label={`Ver detalle de compra ${p.purchaseNumber}`}
                       >
-                        <AppIcon name="edit" size={15} />
+                        <AppIcon name="chevronRight" size={15} />
                       </button>
-                    )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
-                    {/* Recibir Compra */}
-                    {canReceive && onReceivePurchase && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onReceivePurchase(p)}
-                        title="Registrar recepción física en bodega e ingresar a Kardex"
-                        aria-label="Recibir compra"
-                        style={{ color: '#16a34a' }}
-                      >
-                        <AppIcon name="warehouse" size={15} />
-                      </button>
-                    )}
-
-                    {/* Registrar Pago */}
-                    {canPay && onRegisterPayment && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onRegisterPayment(p)}
-                        title="Registrar abono o pago a factura pendiente"
-                        aria-label="Registrar pago"
-                        style={{ color: '#7c3aed' }}
-                      >
-                        <AppIcon name="wallet" size={15} />
-                      </button>
-                    )}
-
-                    {/* Ver Documento Adjunto */}
-                    {hasAttachment && onViewAttachment && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onViewAttachment(p)}
-                        title="Previsualizar factura adjunta"
-                        aria-label="Ver documento"
-                      >
-                        <AppIcon name="download" size={15} />
-                      </button>
-                    )}
-
-                    {/* Anular */}
-                    {canCancel && onCancelPurchase && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onCancelPurchase(p)}
-                        title="Anular compra"
-                        aria-label="Anular compra"
-                        style={{ color: '#dc2626' }}
-                      >
-                        <AppIcon name="close" size={15} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-
-      {/* Paginador */}
-      <div className="table-pagination-bar">
+      {/* Pagination Footer */}
+      <div className="table-pagination-footer">
         <div className="pagination-info">
           <span>
-            Mostrando {purchases.length} de {total} compras registradas
+            Mostrando <strong>{purchases.length}</strong> de <strong>{total}</strong> compras registradas
           </span>
           <div className="page-size-selector">
-            <label htmlFor="purchase-page-size">Por página:</label>
+            <span>Por página:</span>
             <select
-              id="purchase-page-size"
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="page-size-select"
+              aria-label="Registros por página"
             >
               <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
           </div>
@@ -415,24 +480,46 @@ export function PurchaseTable({
         <div className="pagination-controls">
           <button
             type="button"
-            className="outline-button pagination-btn"
+            className="outline-button compact"
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
             aria-label="Página anterior"
           >
-            ← Anterior
+            <AppIcon name="chevronLeft" size={14} />
+            <span>Anterior</span>
           </button>
-          <span className="pagination-current-page">
-            Página <strong>{page}</strong> de <strong>{Math.max(totalPages, 1)}</strong>
-          </span>
+
+          <div className="page-numbers-cluster">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1]
+                const hasGap = prev && p - prev > 1
+                return (
+                  <React.Fragment key={p}>
+                    {hasGap && <span className="pagination-ellipsis">...</span>}
+                    <button
+                      type="button"
+                      className={`page-num-btn ${page === p ? 'active' : ''}`}
+                      onClick={() => onPageChange(p)}
+                      aria-label={`Ir a página ${p}`}
+                    >
+                      {p}
+                    </button>
+                  </React.Fragment>
+                )
+              })}
+          </div>
+
           <button
             type="button"
-            className="outline-button pagination-btn"
+            className="outline-button compact"
             disabled={page >= totalPages}
             onClick={() => onPageChange(page + 1)}
             aria-label="Página siguiente"
           >
-            Siguiente →
+            <span>Siguiente</span>
+            <AppIcon name="chevronRight" size={14} />
           </button>
         </div>
       </div>

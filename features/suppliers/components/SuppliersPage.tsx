@@ -278,7 +278,7 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
   ].filter(Boolean).length
 
   return (
-    <div className="dashboard-content page-enter">
+    <div className="products-module-wrapper suppliers-module-wrapper page-enter">
       {/* Toast Notifications */}
       <SupplierToastContainer toasts={toasts} onDismiss={dismissToast} />
 

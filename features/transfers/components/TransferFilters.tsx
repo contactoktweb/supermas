@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import { TransferFilterParams, TransferStatus, TransferDirection } from '../types'
 
 import { getDbLocationOptions, getDbUserOptions } from '@/lib/supabase'
@@ -162,28 +163,17 @@ export function TransferFilters({
           />
         </div>
 
-        {/* Date Inputs */}
-        <div className="date-filter-wrap">
-          <div className="date-input-mini">
-            <span className="date-mini-label">Desde:</span>
-            <input
-              type="date"
-              value={filters.startDate || ''}
-              onChange={(e) => onFilterChange('startDate', e.target.value || undefined)}
-              aria-label="Fecha inicial"
-            />
-          </div>
-
-          <div className="date-input-mini">
-            <span className="date-mini-label">Hasta:</span>
-            <input
-              type="date"
-              value={filters.endDate || ''}
-              onChange={(e) => onFilterChange('endDate', e.target.value || undefined)}
-              aria-label="Fecha final"
-            />
-          </div>
-        </div>
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          startDate={filters.startDate}
+          endDate={filters.endDate}
+          onChange={({ startDate, endDate }) => {
+            onFilterChange('startDate', startDate)
+            onFilterChange('endDate', endDate)
+          }}
+          placeholder="Fecha traslado"
+          size="sm"
+        />
       </div>
 
       {/* 4. Reset Button */}

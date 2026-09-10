@@ -294,7 +294,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   ].filter(Boolean).length
 
   return (
-    <div className="dashboard-content page-enter">
+    <div className="products-module-wrapper purchases-module-wrapper page-enter">
       {/* Toast Notifications */}
       <PurchaseToastContainer toasts={toasts} onDismiss={dismissToast} />
 

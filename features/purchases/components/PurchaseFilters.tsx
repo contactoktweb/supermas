@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import {
   PurchaseFilterParams,
   PurchaseStatus,
@@ -22,17 +23,11 @@ interface PurchaseFiltersProps {
 const STATUS_OPTIONS: { value: PurchaseStatus | 'ALL'; label: string }[] = [
   { value: 'ALL', label: 'Todos los estados' },
   { value: 'DRAFT', label: 'Borrador' },
-  { value: 'PENDING_RECEPTION', label: 'Pendiente recepción' },
+  { value: 'PENDING_RECEPTION', label: 'Por recibir' },
   { value: 'RECEIVED', label: 'Recibida' },
   { value: 'PAYMENT_PENDING', label: 'Pendiente pago' },
   { value: 'PAID', label: 'Pagada' },
   { value: 'CANCELLED', label: 'Anulada' },
-]
-
-const PAYMENT_TYPE_OPTIONS: { value: PurchasePaymentType | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'Todo tipo de pago' },
-  { value: 'CONTADO', label: 'Contado' },
-  { value: 'CREDITO', label: 'Crédito' },
 ]
 
 export function PurchaseFilters({
@@ -51,6 +46,8 @@ export function PurchaseFilters({
       filters.startDate ||
       filters.endDate
   )
+
+  const paymentType = filters.paymentType || 'ALL'
 
   const supplierOptions = [
     { value: 'ALL', label: 'Todos los proveedores' },
@@ -76,101 +73,126 @@ export function PurchaseFilters({
       role="search"
       aria-label="Filtros de compras"
     >
-      {/* 1. Main Search (Purchase #, Invoice #) */}
+      {/* 1. Main Search (Purchase #, Invoice #, Notes) */}
       <div className="search-box wide products-search-box">
         <AppIcon name="search" size={16} />
         <input
           value={filters.query || ''}
           onChange={(e) => onFilterChange('query', e.target.value)}
-          placeholder="Buscar por N° compra, factura proveedor o notas..."
+          placeholder="Buscar por N° compra (COM-...), factura proveedor o notas..."
           aria-label="Buscar compras"
         />
         {filters.query && (
           <button
             type="button"
-            className="clear-search-btn"
+            className="search-clear-btn"
             onClick={() => onFilterChange('query', '')}
-            aria-label="Borrar búsqueda"
+            aria-label="Limpiar búsqueda"
           >
             <AppIcon name="close" size={14} />
           </button>
         )}
       </div>
 
-      {/* 2. Filtro Proveedor */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.supplierId || 'ALL'}
-          onChange={(val) => onFilterChange('supplierId', val)}
-          options={supplierOptions}
+      {/* 2. Quick Payment Type Selector: Todos | Contado | Crédito */}
+      <div
+        className="period-segmented-tabs"
+        role="tablist"
+        aria-label="Filtro rápido de tipo de pago"
+        style={{ flexShrink: 0 }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={paymentType === 'ALL'}
+          className={`period-tab-btn ${paymentType === 'ALL' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('paymentType', 'ALL')}
+        >
+          <span>Todos</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={paymentType === 'CONTADO'}
+          className={`period-tab-btn ${paymentType === 'CONTADO' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('paymentType', 'CONTADO')}
+        >
+          <AppIcon name="receipt" size={12} />
+          <span>Contado</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={paymentType === 'CREDITO'}
+          className={`period-tab-btn ${paymentType === 'CREDITO' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('paymentType', 'CREDITO')}
+        >
+          <AppIcon name="wallet" size={12} />
+          <span>Crédito</span>
+        </button>
+      </div>
+
+      {/* 3. Dropdowns Group */}
+      <div className="filter-select-group">
+        {/* Proveedor */}
+        <div className="filter-select-item" style={{ minWidth: 175 }}>
+          <CustomSelect
+            options={supplierOptions}
+            value={filters.supplierId || 'ALL'}
+            onChange={(val) => onFilterChange('supplierId', val)}
+            placeholder="Proveedor"
+            size="sm"
+            icon={<AppIcon name="suppliers" size={14} color="var(--navy)" />}
+          />
+        </div>
+
+        {/* Bodega Destino */}
+        <div className="filter-select-item" style={{ minWidth: 170 }}>
+          <CustomSelect
+            options={locationOptions}
+            value={filters.locationId || 'ALL'}
+            onChange={(val) => onFilterChange('locationId', val)}
+            placeholder="Bodega destino"
+            size="sm"
+            icon={<AppIcon name="warehouse" size={14} color="#64748b" />}
+          />
+        </div>
+
+        {/* Estado */}
+        <div className="filter-select-item" style={{ minWidth: 165 }}>
+          <CustomSelect
+            options={STATUS_OPTIONS}
+            value={filters.status || 'ALL'}
+            onChange={(val) => onFilterChange('status', val)}
+            placeholder="Estado"
+            size="sm"
+            icon={<AppIcon name="purchases" size={14} color="var(--red)" />}
+          />
+        </div>
+
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          startDate={filters.startDate}
+          endDate={filters.endDate}
+          onChange={({ startDate, endDate }) => {
+            onFilterChange('startDate', startDate)
+            onFilterChange('endDate', endDate)
+          }}
+          placeholder="Fecha compra"
           size="sm"
-          placeholder="Proveedor"
         />
       </div>
 
-      {/* 3. Filtro Bodega Destino */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.locationId || 'ALL'}
-          onChange={(val) => onFilterChange('locationId', val)}
-          options={locationOptions}
-          size="sm"
-          placeholder="Bodega destino"
-        />
-      </div>
-
-      {/* 4. Filtro Estado */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.status || 'ALL'}
-          onChange={(val) => onFilterChange('status', val)}
-          options={STATUS_OPTIONS}
-          size="sm"
-          placeholder="Estado"
-        />
-      </div>
-
-      {/* 5. Filtro Tipo de Pago (Contado / Crédito) */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.paymentType || 'ALL'}
-          onChange={(val) => onFilterChange('paymentType', val)}
-          options={PAYMENT_TYPE_OPTIONS}
-          size="sm"
-          placeholder="Tipo de pago"
-        />
-      </div>
-
-      {/* 6. Fecha Desde */}
-      <div className="filter-date-group">
-        <input
-          type="date"
-          className="filter-date-input"
-          value={filters.startDate || ''}
-          onChange={(e) => onFilterChange('startDate', e.target.value)}
-          aria-label="Fecha inicial"
-          title="Fecha inicial de compra"
-        />
-        <span className="filter-date-sep">a</span>
-        <input
-          type="date"
-          className="filter-date-input"
-          value={filters.endDate || ''}
-          onChange={(e) => onFilterChange('endDate', e.target.value)}
-          aria-label="Fecha final"
-          title="Fecha final de compra"
-        />
-      </div>
-
-      {/* 7. Reset filters button */}
+      {/* 4. Reset Button */}
       {hasActiveFilters && (
         <button
           type="button"
-          className="outline-button icon-only-btn"
+          className="outline-button compact reset-filter-btn"
           onClick={onResetFilters}
-          title="Limpiar todos los filtros"
+          title="Limpiar filtros"
+          style={{ marginLeft: 'auto' }}
         >
-          <AppIcon name="close" size={14} />
+          <AppIcon name="close" size={12} />
           <span>Limpiar</span>
         </button>
       )}

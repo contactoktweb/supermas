@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import { SupplierFilterParams, SupplierStatus } from '../types'
 
 interface SupplierFiltersProps {
@@ -11,12 +12,6 @@ interface SupplierFiltersProps {
   onResetFilters: () => void
   locations: { id: string; name: string; code: string }[]
 }
-
-const STATUS_OPTIONS: { value: SupplierStatus | 'ALL'; label: string }[] = [
-  { value: 'ALL', label: 'Todos los estados' },
-  { value: 'ACTIVE', label: 'Activo' },
-  { value: 'INACTIVE', label: 'Inactivo' },
-]
 
 export function SupplierFilters({
   filters,
@@ -33,6 +28,8 @@ export function SupplierFilters({
       filters.startDate ||
       filters.endDate
   )
+
+  const status = filters.status || 'ALL'
 
   const locationOptions = [
     { value: 'ALL', label: 'Todas las bodegas' },
@@ -62,7 +59,7 @@ export function SupplierFilters({
       role="search"
       aria-label="Filtros de proveedores"
     >
-      {/* 1. Main Search (Name, Commercial Name, Contact, Email, City) */}
+      {/* 1. Main Search (Business Name, Commercial Name, Contact, Email, City) */}
       <div className="search-box wide products-search-box">
         <AppIcon name="search" size={16} />
         <input
@@ -74,28 +71,66 @@ export function SupplierFilters({
         {filters.query && (
           <button
             type="button"
-            className="clear-search-btn"
+            className="search-clear-btn"
             onClick={() => onFilterChange('query', '')}
-            aria-label="Borrar búsqueda"
+            aria-label="Limpiar búsqueda"
           >
             <AppIcon name="close" size={14} />
           </button>
         )}
       </div>
 
-      {/* 2. Filtro NIT / Documento */}
-      <div className="search-box" style={{ maxWidth: 170 }}>
+      {/* 2. Quick Status Selector: Todos | Activos | Inactivos */}
+      <div
+        className="period-segmented-tabs"
+        role="tablist"
+        aria-label="Filtro rápido de estado"
+        style={{ flexShrink: 0 }}
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={status === 'ALL'}
+          className={`period-tab-btn ${status === 'ALL' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('status', 'ALL')}
+        >
+          <span>Todos</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={status === 'ACTIVE'}
+          className={`period-tab-btn ${status === 'ACTIVE' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('status', 'ACTIVE')}
+        >
+          <AppIcon name="check" size={12} />
+          <span>Activos</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={status === 'INACTIVE'}
+          className={`period-tab-btn ${status === 'INACTIVE' ? 'selected' : ''}`}
+          onClick={() => onFilterChange('status', 'INACTIVE')}
+        >
+          <AppIcon name="close" size={12} />
+          <span>Inactivos</span>
+        </button>
+      </div>
+
+      {/* 3. Filtro NIT / Documento */}
+      <div className="search-box" style={{ width: 175, flexShrink: 0 }}>
+        <AppIcon name="fileText" size={14} color="#64748b" />
         <input
           value={filters.documentNumber || ''}
           onChange={(e) => onFilterChange('documentNumber', e.target.value)}
-          placeholder="Filtrar por NIT..."
+          placeholder="Filtrar NIT..."
           aria-label="Filtrar por NIT"
-          style={{ paddingLeft: 12 }}
         />
         {filters.documentNumber && (
           <button
             type="button"
-            className="clear-search-btn"
+            className="search-clear-btn"
             onClick={() => onFilterChange('documentNumber', '')}
             aria-label="Borrar filtro NIT"
           >
@@ -104,73 +139,59 @@ export function SupplierFilters({
         )}
       </div>
 
-      {/* 3. Filtro Estado (Activo / Inactivo) */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.status || 'ALL'}
-          onChange={(val) => onFilterChange('status', val)}
-          options={STATUS_OPTIONS}
-          size="sm"
-          placeholder="Estado"
-        />
-      </div>
+      {/* 4. Dropdowns Group */}
+      <div className="filter-select-group">
+        {/* Bodega Relacionada */}
+        <div className="filter-select-item" style={{ minWidth: 175 }}>
+          <CustomSelect
+            options={locationOptions}
+            value={filters.locationId || 'ALL'}
+            onChange={(val) => onFilterChange('locationId', val)}
+            placeholder="Bodega destino"
+            size="sm"
+            icon={<AppIcon name="warehouse" size={14} color="#64748b" />}
+          />
+        </div>
 
-      {/* 4. Filtro Bodega Relacionada */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={filters.locationId || 'ALL'}
-          onChange={(val) => onFilterChange('locationId', val)}
-          options={locationOptions}
-          size="sm"
-          placeholder="Bodega destino"
-        />
-      </div>
+        {/* Obligaciones / Saldos */}
+        <div className="filter-select-item" style={{ minWidth: 175 }}>
+          <CustomSelect
+            options={balanceOptions}
+            value={currentBalanceVal}
+            onChange={(val) => {
+              if (val === 'WITH_BALANCE') onFilterChange('hasPendingBalance', true)
+              else if (val === 'WITHOUT_BALANCE') onFilterChange('hasPendingBalance', false)
+              else onFilterChange('hasPendingBalance', undefined)
+            }}
+            placeholder="Obligaciones"
+            size="sm"
+            icon={<AppIcon name="wallet" size={14} color="var(--red)" />}
+          />
+        </div>
 
-      {/* 5. Filtro Con Saldo Pendiente */}
-      <div className="filter-select-wrap">
-        <CustomSelect
-          value={currentBalanceVal}
-          onChange={(val) => {
-            if (val === 'WITH_BALANCE') onFilterChange('hasPendingBalance', true)
-            else if (val === 'WITHOUT_BALANCE') onFilterChange('hasPendingBalance', false)
-            else onFilterChange('hasPendingBalance', undefined)
+        {/* Date Range Filter */}
+        <DateRangeFilter
+          startDate={filters.startDate}
+          endDate={filters.endDate}
+          onChange={({ startDate, endDate }) => {
+            onFilterChange('startDate', startDate)
+            onFilterChange('endDate', endDate)
           }}
-          options={balanceOptions}
+          placeholder="Fecha registro"
           size="sm"
-          placeholder="Obligaciones"
         />
       </div>
 
-      {/* 6. Rango de Fechas */}
-      <div className="filter-date-group">
-        <input
-          type="date"
-          className="filter-date-input"
-          value={filters.startDate || ''}
-          onChange={(e) => onFilterChange('startDate', e.target.value)}
-          aria-label="Fecha inicial"
-          title="Fecha inicial de compra"
-        />
-        <span className="filter-date-sep">a</span>
-        <input
-          type="date"
-          className="filter-date-input"
-          value={filters.endDate || ''}
-          onChange={(e) => onFilterChange('endDate', e.target.value)}
-          aria-label="Fecha final"
-          title="Fecha final de compra"
-        />
-      </div>
-
-      {/* 7. Limpiar Filtros */}
+      {/* 5. Reset Button */}
       {hasActiveFilters && (
         <button
           type="button"
-          className="outline-button icon-only-btn"
+          className="outline-button compact reset-filter-btn"
           onClick={onResetFilters}
-          title="Limpiar todos los filtros"
+          title="Limpiar filtros"
+          style={{ marginLeft: 'auto' }}
         >
-          <AppIcon name="close" size={14} />
+          <AppIcon name="close" size={12} />
           <span>Limpiar</span>
         </button>
       )}

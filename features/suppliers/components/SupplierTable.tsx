@@ -4,6 +4,14 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { Supplier, SupplierStatus } from '../types'
 
+type SupplierSortField =
+  | 'businessName'
+  | 'documentNumber'
+  | 'totalPurchased'
+  | 'currentBalance'
+  | 'lastPurchaseDate'
+  | 'createdAt'
+
 interface SupplierTableProps {
   suppliers: Supplier[]
   total: number
@@ -11,23 +19,9 @@ interface SupplierTableProps {
   pageSize: number
   totalPages: number
   isCostRedacted: boolean
-  sortField?:
-    | 'businessName'
-    | 'documentNumber'
-    | 'totalPurchased'
-    | 'currentBalance'
-    | 'lastPurchaseDate'
-    | 'createdAt'
+  sortField?: SupplierSortField
   sortDirection?: 'asc' | 'desc'
-  onSort: (
-    field:
-      | 'businessName'
-      | 'documentNumber'
-      | 'totalPurchased'
-      | 'currentBalance'
-      | 'lastPurchaseDate'
-      | 'createdAt'
-  ) => void
+  onSort: (field: SupplierSortField) => void
   onPageChange: (page: number) => void
   onPageSizeChange: (size: number) => void
   onSelectSupplier: (supplier: Supplier) => void
@@ -74,6 +68,19 @@ export function SupplierTable({
   onDeactivateSupplier,
   onActivateSupplier,
 }: SupplierTableProps) {
+  const getSortIcon = (field: SupplierSortField) => {
+    if (sortField !== field) {
+      return <AppIcon name="sort" size={13} style={{ opacity: 0.35 }} />
+    }
+    return (
+      <AppIcon
+        name={sortDirection === 'asc' ? 'chevronUp' : 'chevronDown'}
+        size={13}
+        style={{ color: 'var(--navy)' }}
+      />
+    )
+  }
+
   const formatCurrency = (val: number) => {
     if (isCostRedacted) return '••••••'
     return new Intl.NumberFormat('es-CO', {
@@ -94,289 +101,326 @@ export function SupplierTable({
     })
   }
 
-  const renderSortIndicator = (
-    field:
-      | 'businessName'
-      | 'documentNumber'
-      | 'totalPurchased'
-      | 'currentBalance'
-      | 'lastPurchaseDate'
-      | 'createdAt'
-  ) => {
-    if (sortField !== field) return null
-    return (
-      <span className="sort-icon-indicator" style={{ marginLeft: 4 }}>
-        {sortDirection === 'asc' ? '↑' : '↓'}
-      </span>
-    )
-  }
-
   return (
-    <div className="table-responsive page-enter">
-      <table className="products-table" aria-label="Tabla de proveedores">
-        <thead>
-          <tr>
-            <th
-              scope="col"
-              className="sortable-th"
-              onClick={() => onSort('businessName')}
-              title="Ordenar por razón social"
-            >
-              <span>Nombre Proveedor</span>
-              {renderSortIndicator('businessName')}
-            </th>
-            <th
-              scope="col"
-              className="sortable-th"
-              onClick={() => onSort('documentNumber')}
-              title="Ordenar por documento o NIT"
-            >
-              <span>Documento / NIT</span>
-              {renderSortIndicator('documentNumber')}
-            </th>
-            <th scope="col">Contacto</th>
-            <th scope="col">Teléfono</th>
-            <th scope="col">Email</th>
-            <th scope="col">Ciudad</th>
-            <th scope="col" className="numeric">
-              Compras
-            </th>
-            <th
-              scope="col"
-              className="sortable-th"
-              onClick={() => onSort('lastPurchaseDate')}
-              title="Ordenar por fecha de última compra"
-            >
-              <span>Última Compra</span>
-              {renderSortIndicator('lastPurchaseDate')}
-            </th>
-            <th
-              scope="col"
-              className="sortable-th numeric"
-              onClick={() => onSort('currentBalance')}
-              title="Ordenar por saldo pendiente"
-            >
-              <span>Saldo Pendiente</span>
-              {renderSortIndicator('currentBalance')}
-            </th>
-            <th scope="col">Estado</th>
-            <th scope="col" style={{ textAlign: 'right', paddingRight: 16 }}>
-              Acciones
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {suppliers.map((s) => {
-            const hasPendingBalance = (s.currentBalance || 0) > 0
-
-            return (
-              <tr
-                key={s.id}
-                className="table-row-clickable"
-                onClick={() => onSelectSupplier(s)}
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onSelectSupplier(s)
-                }}
+    <div className="table-panel products-table-panel page-enter">
+      <div className="table-scroll" tabIndex={0} aria-label="Tabla de proveedores">
+        <table>
+          <thead>
+            <tr>
+              {/* 1. Razón Social */}
+              <th
+                onClick={() => onSort('businessName')}
+                className="sortable-th sticky-left-col"
+                style={{ minWidth: 220 }}
               >
-                {/* 1. Nombre Proveedor */}
-                <td className="product-primary-col">
-                  <div className="product-info-cell">
-                    <strong className="product-name-text" style={{ fontSize: 13 }}>
-                      {s.businessName || s.supplierName}
-                    </strong>
-                    {s.commercialName && (
-                      <span className="sku-meta-text">{s.commercialName}</span>
-                    )}
-                  </div>
-                </td>
+                <div className="th-content">
+                  <span>Nombre Proveedor</span>
+                  {getSortIcon('businessName')}
+                </div>
+              </th>
 
-                {/* 2. Documento / NIT */}
-                <td className="product-code-col">
-                  <span className="sku-badge" style={{ fontWeight: 700 }}>
-                    {s.documentNumber || s.nit}
-                  </span>
-                </td>
+              {/* 2. Documento / NIT */}
+              <th
+                onClick={() => onSort('documentNumber')}
+                className="sortable-th"
+                style={{ minWidth: 140 }}
+              >
+                <div className="th-content">
+                  <span>Documento / NIT</span>
+                  {getSortIcon('documentNumber')}
+                </div>
+              </th>
 
-                {/* 3. Contacto */}
-                <td>
-                  <span style={{ fontSize: 12, fontWeight: 500 }}>
-                    {s.contactName}
-                  </span>
-                </td>
+              {/* 3. Contacto */}
+              <th style={{ minWidth: 150 }}>
+                <div className="th-content">
+                  <span>Contacto</span>
+                </div>
+              </th>
 
-                {/* 4. Teléfono */}
-                <td>
-                  <span className="secondary-meta" style={{ fontSize: 12 }}>
-                    {s.phone}
-                  </span>
-                </td>
+              {/* 4. Teléfono */}
+              <th style={{ minWidth: 130 }}>
+                <div className="th-content">
+                  <span>Teléfono</span>
+                </div>
+              </th>
 
-                {/* 5. Email */}
-                <td>
-                  <span
-                    className="secondary-meta"
-                    style={{ fontSize: 12, color: 'var(--navy)' }}
-                  >
-                    {s.email}
-                  </span>
-                </td>
+              {/* 5. Email */}
+              <th style={{ minWidth: 180 }}>
+                <div className="th-content">
+                  <span>Email</span>
+                </div>
+              </th>
 
-                {/* 6. Ciudad */}
-                <td>
-                  <span style={{ fontSize: 12 }}>
-                    {s.city}
-                    {s.department ? `, ${s.department}` : ''}
-                  </span>
-                </td>
+              {/* 6. Ciudad */}
+              <th style={{ minWidth: 120 }}>
+                <div className="th-content">
+                  <span>Ciudad</span>
+                </div>
+              </th>
 
-                {/* 7. Compras Realizadas */}
-                <td className="numeric font-tabular">
-                  <strong>{s.deliveriesCount || 0}</strong>
-                  <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    pedidos
-                  </div>
-                </td>
+              {/* 7. Compras */}
+              <th style={{ textAlign: 'center', minWidth: 100 }}>
+                <div className="th-content" style={{ justifyContent: 'center' }}>
+                  <span>Compras</span>
+                </div>
+              </th>
 
-                {/* 8. Última Compra */}
-                <td>
-                  <span className="product-date-cell">
-                    {s.lastPurchaseDate
-                      ? formatDate(s.lastPurchaseDate)
-                      : s.lastDeliveryDate || '—'}
-                  </span>
-                </td>
+              {/* 8. Última Compra */}
+              <th
+                onClick={() => onSort('lastPurchaseDate')}
+                className="sortable-th"
+                style={{ minWidth: 130 }}
+              >
+                <div className="th-content">
+                  <span>Última Compra</span>
+                  {getSortIcon('lastPurchaseDate')}
+                </div>
+              </th>
 
-                {/* 9. Saldo Pendiente */}
-                <td className="numeric font-tabular">
-                  {hasPendingBalance ? (
-                    <strong style={{ color: '#b45309', fontSize: 13 }}>
-                      {formatCurrency(s.currentBalance)}
-                    </strong>
-                  ) : (
-                    <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
-                      Al día ($0)
-                    </span>
-                  )}
-                  {s.creditDays > 0 && (
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                      Plazo: {s.creditDays} días
-                    </div>
-                  )}
-                </td>
+              {/* 9. Saldo Pendiente */}
+              <th
+                onClick={() => onSort('currentBalance')}
+                className="sortable-th"
+                style={{ textAlign: 'right', minWidth: 140 }}
+              >
+                <div className="th-content right">
+                  <span>Saldo Pendiente</span>
+                  {getSortIcon('currentBalance')}
+                </div>
+              </th>
 
-                {/* 10. Estado */}
-                <td>{getSupplierStatusBadge(s.status)}</td>
+              {/* 10. Estado */}
+              <th style={{ minWidth: 110 }}>
+                <div className="th-content">
+                  <span>Estado</span>
+                </div>
+              </th>
 
-                {/* 11. Acciones */}
-                <td
-                  style={{ textAlign: 'right', paddingRight: 16 }}
-                  onClick={(e) => e.stopPropagation()}
+              {/* 11. Acciones */}
+              <th
+                style={{ width: 140, textAlign: 'center' }}
+                className="sticky-right-col"
+              >
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map((s) => {
+              const hasPendingBalance = s.currentBalance > 0
+              const isActive = s.status === 'ACTIVE'
+
+              return (
+                <tr
+                  key={s.id}
+                  className="table-row-clickable"
+                  onClick={() => onSelectSupplier(s)}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') onSelectSupplier(s)
+                  }}
                 >
-                  <div className="table-actions-cluster" style={{ justifyContent: 'flex-end', gap: 4 }}>
-                    {/* Ver Detalle */}
-                    <button
-                      type="button"
-                      className="icon-button-sm"
-                      onClick={() => onSelectSupplier(s)}
-                      title="Ver ficha completa y compras del proveedor"
-                      aria-label="Ver detalle"
+                  {/* 1. Nombre / Razón Social */}
+                  <td className="product-primary-col sticky-left-col">
+                    <div className="product-info-cell">
+                      <strong className="product-name-text" style={{ fontSize: 13 }}>
+                        {s.businessName}
+                      </strong>
+                      {s.commercialName && (
+                        <span className="sku-meta-text">{s.commercialName}</span>
+                      )}
+                    </div>
+                  </td>
+
+                  {/* 2. Documento / NIT */}
+                  <td>
+                    <span className="sku-badge" style={{ fontWeight: 700 }}>
+                      {s.documentNumber || s.nit}
+                    </span>
+                  </td>
+
+                  {/* 3. Contacto */}
+                  <td>
+                    <span style={{ fontSize: 12, fontWeight: 500 }}>
+                      {s.contactName || '—'}
+                    </span>
+                  </td>
+
+                  {/* 4. Teléfono */}
+                  <td>
+                    <span className="secondary-meta" style={{ fontSize: 12 }}>
+                      {s.phone || '—'}
+                    </span>
+                  </td>
+
+                  {/* 5. Email */}
+                  <td>
+                    <span className="secondary-meta" style={{ fontSize: 12 }}>
+                      {s.email || '—'}
+                    </span>
+                  </td>
+
+                  {/* 6. Ciudad */}
+                  <td>
+                    <span style={{ fontSize: 12 }}>
+                      {s.city}
+                      {s.department ? `, ${s.department}` : ''}
+                    </span>
+                  </td>
+
+                  {/* 7. Compras Realizadas */}
+                  <td style={{ textAlign: 'center' }}>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        padding: '2px 8px',
+                        background: '#f1f5f9',
+                        borderRadius: 6,
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: 'var(--navy)',
+                      }}
                     >
-                      <AppIcon name="eye" size={15} />
-                    </button>
+                      {s.deliveriesCount || 0}
+                    </span>
+                  </td>
 
-                    {/* Editar */}
-                    {onEditSupplier && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onEditSupplier(s)}
-                        title="Editar datos del proveedor"
-                        aria-label="Editar proveedor"
-                      >
-                        <AppIcon name="edit" size={15} />
-                      </button>
-                    )}
+                  {/* 8. Última Compra */}
+                  <td>
+                    <span className="product-date-cell">
+                      {formatDate(s.lastPurchaseDate || s.lastDeliveryDate)}
+                    </span>
+                  </td>
 
-                    {/* Nueva Compra */}
-                    {onNewPurchaseForSupplier && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onNewPurchaseForSupplier(s)}
-                        title="Registrar nueva orden de compra a este proveedor"
-                        aria-label="Nueva compra"
-                        style={{ color: 'var(--navy)' }}
-                      >
-                        <AppIcon name="purchases" size={15} />
-                      </button>
-                    )}
-
-                    {/* Ver Documentos */}
-                    {onViewDocuments && (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onViewDocuments(s)}
-                        title="Ver facturas y documentos digitales"
-                        aria-label="Ver documentos"
-                        style={{ color: '#0284c7' }}
-                      >
-                        <AppIcon name="invoices" size={15} />
-                      </button>
-                    )}
-
-                    {/* Desactivar / Activar */}
-                    {s.status === 'ACTIVE' && onDeactivateSupplier ? (
-                      <button
-                        type="button"
-                        className="icon-button-sm"
-                        onClick={() => onDeactivateSupplier(s)}
-                        title="Desactivar proveedor"
-                        aria-label="Desactivar proveedor"
-                        style={{ color: '#dc2626' }}
-                      >
-                        <AppIcon name="close" size={15} />
-                      </button>
+                  {/* 9. Saldo Pendiente */}
+                  <td style={{ textAlign: 'right' }}>
+                    {hasPendingBalance ? (
+                      <strong style={{ color: '#b45309', fontSize: 13 }}>
+                        {formatCurrency(s.currentBalance)}
+                      </strong>
                     ) : (
-                      s.status === 'INACTIVE' &&
-                      onActivateSupplier && (
+                      <span style={{ color: '#16a34a', fontSize: 12, fontWeight: 600 }}>
+                        Al día ($0)
+                      </span>
+                    )}
+                  </td>
+
+                  {/* 10. Estado */}
+                  <td>{getSupplierStatusBadge(s.status)}</td>
+
+                  {/* 11. Acciones */}
+                  <td
+                    className="sticky-right-col"
+                    style={{ textAlign: 'center' }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className="action-buttons-group"
+                      style={{ justifyContent: 'center', gap: 4 }}
+                    >
+                      {/* Editar */}
+                      {onEditSupplier && (
                         <button
                           type="button"
-                          className="icon-button-sm"
-                          onClick={() => onActivateSupplier(s)}
-                          title="Reactivar proveedor"
-                          aria-label="Activar proveedor"
-                          style={{ color: '#16a34a' }}
+                          className="icon-button"
+                          onClick={() => onEditSupplier(s)}
+                          title="Editar información de proveedor"
+                          aria-label={`Editar proveedor ${s.businessName}`}
                         >
-                          <AppIcon name="check" size={15} />
+                          <AppIcon name="edit" size={15} />
                         </button>
-                      )
-                    )}
-                  </div>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+                      )}
 
-      {/* Paginador */}
-      <div className="table-pagination-bar">
+                      {/* Nueva Compra */}
+                      {isActive && onNewPurchaseForSupplier && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onNewPurchaseForSupplier(s)}
+                          title="Crear nueva orden de compra para este proveedor"
+                          aria-label="Nueva compra"
+                          style={{ color: 'var(--navy)' }}
+                        >
+                          <AppIcon name="purchases" size={15} />
+                        </button>
+                      )}
+
+                      {/* Ver Documentos */}
+                      {onViewDocuments && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onViewDocuments(s)}
+                          title="Ver documentos fiscales y soportes"
+                          aria-label="Ver documentos"
+                        >
+                          <AppIcon name="invoices" size={15} />
+                        </button>
+                      )}
+
+                      {/* Desactivar / Reactivar */}
+                      {isActive && onDeactivateSupplier ? (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onDeactivateSupplier(s)}
+                          title="Desactivar proveedor"
+                          aria-label="Desactivar proveedor"
+                          style={{ color: '#dc2626' }}
+                        >
+                          <AppIcon name="close" size={15} />
+                        </button>
+                      ) : (
+                        !isActive &&
+                        onActivateSupplier && (
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => onActivateSupplier(s)}
+                            title="Reactivar proveedor"
+                            aria-label="Reactivar proveedor"
+                            style={{ color: '#16a34a' }}
+                          >
+                            <AppIcon name="check" size={15} />
+                          </button>
+                        )
+                      )}
+
+                      {/* Inspeccionar */}
+                      <button
+                        type="button"
+                        className="icon-button inspect-row-btn"
+                        onClick={() => onSelectSupplier(s)}
+                        title="Ver detalle completo de proveedor"
+                        aria-label={`Ver detalle de ${s.businessName}`}
+                      >
+                        <AppIcon name="chevronRight" size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination Footer */}
+      <div className="table-pagination-footer">
         <div className="pagination-info">
           <span>
-            Mostrando {suppliers.length} de {total} proveedores registrados
+            Mostrando <strong>{suppliers.length}</strong> de <strong>{total}</strong> proveedores registrados
           </span>
           <div className="page-size-selector">
-            <label htmlFor="supplier-page-size">Por página:</label>
+            <span>Por página:</span>
             <select
-              id="supplier-page-size"
               value={pageSize}
               onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              className="page-size-select"
+              aria-label="Registros por página"
             >
               <option value={10}>10</option>
-              <option value={20}>20</option>
+              <option value={25}>25</option>
               <option value={50}>50</option>
             </select>
           </div>
@@ -385,24 +429,46 @@ export function SupplierTable({
         <div className="pagination-controls">
           <button
             type="button"
-            className="outline-button pagination-btn"
+            className="outline-button compact"
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
             aria-label="Página anterior"
           >
-            ← Anterior
+            <AppIcon name="chevronLeft" size={14} />
+            <span>Anterior</span>
           </button>
-          <span className="pagination-current-page">
-            Página <strong>{page}</strong> de <strong>{Math.max(totalPages, 1)}</strong>
-          </span>
+
+          <div className="page-numbers-cluster">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1]
+                const hasGap = prev && p - prev > 1
+                return (
+                  <React.Fragment key={p}>
+                    {hasGap && <span className="pagination-ellipsis">...</span>}
+                    <button
+                      type="button"
+                      className={`page-num-btn ${page === p ? 'active' : ''}`}
+                      onClick={() => onPageChange(p)}
+                      aria-label={`Ir a página ${p}`}
+                    >
+                      {p}
+                    </button>
+                  </React.Fragment>
+                )
+              })}
+          </div>
+
           <button
             type="button"
-            className="outline-button pagination-btn"
+            className="outline-button compact"
             disabled={page >= totalPages}
             onClick={() => onPageChange(page + 1)}
             aria-label="Página siguiente"
           >
-            Siguiente →
+            <span>Siguiente</span>
+            <AppIcon name="chevronRight" size={14} />
           </button>
         </div>
       </div>

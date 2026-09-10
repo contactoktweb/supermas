@@ -10,6 +10,11 @@ import { InventoryPage } from '@/features/inventory/components/InventoryPage'
 import { TransferPage } from '@/features/transfers/components/TransferPage'
 import { PurchasesPage } from '@/features/purchases/components/PurchasesPage'
 import { SuppliersPage } from '@/features/suppliers'
+import { CustomersPage } from '@/features/customers'
+import { SalesPage } from '@/features/sales'
+import { POSView } from '@/features/pos'
+import { InvoicesPage } from '@/features/invoices'
+import { RemissionsPage } from '@/features/remissions'
 import { Footer } from '@/components/Footer'
 import { db } from '@/lib/supabase'
 
@@ -42,7 +47,6 @@ const modules: [string, LightIconName][] = [
   ['Configuración', 'settings'],
 ]
 
-const products = db.operationalModules.posProducts
 const movements = [
   {type:'Compra',product:'Arroz Diana 500g',sku:'SKU-001842',warehouse:'Bodega Principal',doc:'FV-1542',in:'+120',out:'—',balance:'482',user:'Laura Gómez',time:'Hoy, 10:32 AM'},
   {type:'Transferencia salida',product:'Aceite Premier 900ml',sku:'SKU-002107',warehouse:'Bodega Principal',doc:'TR-000154',in:'—',out:'25',balance:'38',user:'Mauricio A.',time:'Hoy, 9:48 AM'},
@@ -298,45 +302,6 @@ function ModulePage({name}:{name:string}){
   </>
 }
 
-function POS(){
-  const [cart,setCart]=useState<typeof products>([]);
-  return <>
-    <PageHead eyebrow="Punto de venta" title="POS" sub="Vende rápido, consulta inventario y centraliza cada transacción." action="Abrir caja"/>
-    <div className="pos-layout">
-      <section className="pos-products">
-        <div className="search-box wide">
-          <AppIcon name="search" size={16}/>
-          <input placeholder="Buscar producto o código de barras..."/>
-        </div>
-        <div className="segmented">
-          <button className="selected">Todos</button>
-          <button>Despensa</button>
-          <button>Bebidas</button>
-          <button>Lácteos</button>
-        </div>
-        <div className="product-grid">
-          {products.map(p=><article className="product-card" key={p.sku} onClick={()=>setCart(c=>c.some(x=>x.sku===p.sku)?c:[...c,p])}>
-            <div className="product-thumb"><AppIcon name="products" size={18}/></div>
-            <p>{p.category}</p>
-            <h3>{p.name}</h3>
-            <span>{p.stock} disponibles</span>
-            <strong>{p.price}</strong>
-          </article>)}
-        </div>
-      </section>
-      <aside className="pos-cart">
-        <div className="drawer-header">
-          <div><p className="eyebrow">Venta actual</p><h2>Carrito <span>{cart.length}</span></h2></div>
-          <button className="outline-button">Cliente</button>
-        </div>
-        {cart.length===0?<div className="drawer-empty"><AppIcon name="purchases" size={32}/><p>Tu carrito está vacío</p><span>Agrega productos para comenzar.</span></div>:cart.map(p=><div className="cart-row" key={p.sku}><div><strong>{p.name}</strong><span>1 × {p.price}</span></div><button className="icon-button" onClick={()=>setCart(c=>c.filter(x=>x.sku!==p.sku))}><AppIcon name="close" size={14}/></button></div>)}
-        <div className="cart-total"><span>Total</span><strong>${cart.reduce((a,p)=>a+Number(p.price.replace(/[$.]/g,'').replace(',','')),0).toLocaleString('es-CO')}</strong></div>
-        <button className="primary-button" disabled={!cart.length}>Finalizar venta <AppIcon name="chevronRight" size={14}/></button>
-      </aside>
-    </div>
-  </>
-}
-
 function Cajas(){
   return <>
     <PageHead eyebrow="Control de efectivo" title="Cajas" sub="Controla aperturas, ventas, arqueos y cierres por punto de venta." action="Abrir caja"/>
@@ -428,6 +393,10 @@ function App(){
 
   if(!auth)return <Login onLogin={()=>setAuth(true)}/>;
 
+  if (view === 'POS') {
+    return <POSView onExit={() => setView('Dashboard')} />;
+  }
+
   const content = view === 'Dashboard' ? (
     <DashboardView onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Bodegas' ? (
@@ -444,8 +413,16 @@ function App(){
     <PurchasesPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Proveedores' ? (
     <SuppliersPage onNavigate={(targetView) => setView(targetView)} />
+  ) : view === 'Clientes' ? (
+    <CustomersPage onNavigate={(targetView) => setView(targetView)} />
+  ) : view === 'Ventas' ? (
+    <SalesPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'POS' ? (
-    <POS />
+    <POSView onExit={() => setView('Dashboard')} />
+  ) : view === 'Facturación' ? (
+    <InvoicesPage onNavigate={(targetView) => setView(targetView)} />
+  ) : view === 'Remisiones' ? (
+    <RemissionsPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Cajas' ? (
     <Cajas />
   ) : adminConfigs[view] ? (

@@ -20,6 +20,11 @@ import transferAvailabilityData from './mock-db/transfer_availability.json'
 import salesData from './mock-db/sales.json'
 import purchasesData from './mock-db/purchases.json'
 import customersData from './mock-db/customers.json'
+import invoicesData from './mock-db/invoices.json'
+import remissionsData from './mock-db/remissions.json'
+import webOrdersData from './mock-db/web_orders.json'
+import customerPaymentsData from './mock-db/customer_payments.json'
+import customerDocumentsData from './mock-db/customer_documents.json'
 import suppliersData from './mock-db/suppliers.json'
 import usersData from './mock-db/users.json'
 import userAssignmentsData from './mock-db/user_assignments.json'
@@ -43,6 +48,11 @@ export interface SupabaseMockTableMap {
   transfer_locations: typeof transferLocationsData
   transfer_availability: typeof transferAvailabilityData
   sales: typeof salesData
+  invoices: typeof invoicesData
+  remissions: typeof remissionsData
+  web_orders: typeof webOrdersData
+  customer_payments: typeof customerPaymentsData
+  customer_documents: typeof customerDocumentsData
   purchases: typeof purchasesData
   customers: typeof customersData
   suppliers: typeof suppliersData
@@ -69,6 +79,11 @@ export const db = {
   transferLocations: transferLocationsData,
   transferAvailability: transferAvailabilityData,
   sales: salesData,
+  invoices: invoicesData,
+  remissions: remissionsData,
+  webOrders: webOrdersData,
+  customerPayments: customerPaymentsData,
+  customerDocuments: customerDocumentsData,
   purchases: purchasesData,
   customers: customersData,
   suppliers: suppliersData,
@@ -114,6 +129,12 @@ export const supabaseMock = {
         ? 'auditLogs'
         : table === 'warehouse_overview_analytics'
         ? 'warehouseOverviewAnalytics'
+        : table === 'web_orders'
+        ? 'webOrders'
+        : table === 'customer_payments'
+        ? 'customerPayments'
+        : table === 'customer_documents'
+        ? 'customerDocuments'
         : table === 'operational_modules'
         ? 'operationalModules'
         : table

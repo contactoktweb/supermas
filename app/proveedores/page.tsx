@@ -15,7 +15,7 @@ const modules: [string, LightIconName, string][] = [
   ['Transferencias', 'transfers', '/transferencias'],
   ['Compras', 'purchases', '/compras'],
   ['Proveedores', 'suppliers', '/proveedores'],
-  ['Clientes', 'customers', '/'],
+  ['Clientes', 'customers', '/clientes'],
   ['Ventas', 'sales', '/'],
   ['POS', 'pos', '/'],
   ['Facturación', 'invoices', '/'],

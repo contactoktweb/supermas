@@ -1,0 +1,50 @@
+[
+  {
+    "id": "doc-001",
+    "customerId": "cust-001",
+    "fileName": "RUT_Comercializadora_El_Sol_2026.pdf",
+    "fileUrl": "supabase-storage://customers/cust-001/RUT_Comercializadora_El_Sol_2026.pdf",
+    "fileType": "application/pdf",
+    "fileSize": "1.4 MB",
+    "category": "RUT",
+    "uploadedAt": "2026-03-15T09:30:00Z",
+    "uploadedBy": "Laura Gómez",
+    "notes": "RUT actualizado con actividades comerciales mayoristas."
+  },
+  {
+    "id": "doc-002",
+    "customerId": "cust-001",
+    "fileName": "Camara_Comercio_El_Sol_Vigente.pdf",
+    "fileUrl": "supabase-storage://customers/cust-001/Camara_Comercio_El_Sol_Vigente.pdf",
+    "fileType": "application/pdf",
+    "fileSize": "2.1 MB",
+    "category": "CAMARA_COMERCIO",
+    "uploadedAt": "2026-03-15T09:32:00Z",
+    "uploadedBy": "Laura Gómez",
+    "notes": "Certificado de existencia y representación legal con vigencia menor a 30 días."
+  },
+  {
+    "id": "doc-003",
+    "customerId": "cust-002",
+    "fileName": "RUT_Sazon_Gourmet_2026.pdf",
+    "fileUrl": "supabase-storage://customers/cust-002/RUT_Sazon_Gourmet_2026.pdf",
+    "fileType": "application/pdf",
+    "fileSize": "890 KB",
+    "category": "RUT",
+    "uploadedAt": "2026-07-20T11:45:00Z",
+    "uploadedBy": "Mauricio Andrade",
+    "notes": "RUT verificado."
+  },
+  {
+    "id": "doc-004",
+    "customerId": "cust-005",
+    "fileName": "Acuerdo_Credito_Comercial_Javier_Castro.pdf",
+    "fileUrl": "supabase-storage://customers/cust-005/Acuerdo_Credito_Comercial_Javier_Castro.pdf",
+    "fileType": "application/pdf",
+    "fileSize": "1.8 MB",
+    "category": "ACUERDO_COMERCIAL",
+    "uploadedAt": "2026-02-18T10:30:00Z",
+    "uploadedBy": "Administrador Maestro",
+    "notes": "Pagaré firmado y acuerdo de cupo rotativo a 30 días."
+  }
+]

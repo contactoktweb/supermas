@@ -1,0 +1,44 @@
+[
+  {
+    "id": "pay-001",
+    "receiptNumber": "RC-2026-00341",
+    "customerId": "cust-001",
+    "customerName": "Comercializadora El Sol S.A.S.",
+    "invoiceId": "inv-001",
+    "invoiceNumber": "FAC-2026-00481",
+    "date": "2026-09-09T14:30:00Z",
+    "amount": 3020000,
+    "paymentMethod": "TRANSFERENCIA",
+    "reference": "TRANSF-BANCOLOMBIA-992140",
+    "user": "Laura Gómez",
+    "notes": "Abono inicial 62% valor total de la factura FAC-2026-00481."
+  },
+  {
+    "id": "pay-002",
+    "receiptNumber": "RC-2026-00312",
+    "customerId": "cust-003",
+    "customerName": "Supermercados 24 Horas Express S.A.S.",
+    "invoiceId": "inv-003",
+    "invoiceNumber": "FAC-2026-00410",
+    "date": "2026-09-06T10:00:00Z",
+    "amount": 2360000,
+    "paymentMethod": "TRANSFERENCIA",
+    "reference": "PSE-DAVIVIENDA-88120",
+    "user": "Mauricio Andrade",
+    "notes": "Liquidación total de factura de compra mayorista."
+  },
+  {
+    "id": "pay-003",
+    "receiptNumber": "RC-2026-00298",
+    "customerId": "cust-004",
+    "customerName": "Luz Marina Restrepo (Tienda La 32)",
+    "invoiceId": "inv-004",
+    "invoiceNumber": "FAC-2026-00388",
+    "date": "2026-09-07T17:20:00Z",
+    "amount": 1820000,
+    "paymentMethod": "EFECTIVO",
+    "reference": "PAGO-POS-CAJA-01",
+    "user": "Andrés Martínez",
+    "notes": "Pago de contado en caja de punto de venta centro."
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ord-001",
+    "orderNumber": "WEB-2026-0891",
+    "customerId": "cust-001",
+    "customerName": "Comercializadora El Sol S.A.S.",
+    "date": "2026-09-08T14:15:00Z",
+    "status": "DELIVERED",
+    "paymentStatus": "PAID",
+    "paymentMethod": "Wompi / PSE Bancolombia",
+    "totalAmount": 4820000,
+    "itemsCount": 14,
+    "channel": "CATALOGO_DISTRIBUIDORA",
+    "shippingAddress": "Cra 15 # 45-20, Cali",
+    "assignedLocationId": "loc-001"
+  },
+  {
+    "id": "ord-002",
+    "orderNumber": "WEB-2026-0885",
+    "customerId": "cust-003",
+    "customerName": "Supermercados 24 Horas Express S.A.S.",
+    "date": "2026-09-05T07:20:00Z",
+    "status": "DELIVERED",
+    "paymentStatus": "PAID",
+    "paymentMethod": "Wompi / PSE Davivienda",
+    "totalAmount": 2360000,
+    "itemsCount": 38,
+    "channel": "CATALOGO_DISTRIBUIDORA",
+    "shippingAddress": "Calle 70 # 1A-12, Cali",
+    "assignedLocationId": "loc-002"
+  },
+  {
+    "id": "ord-003",
+    "orderNumber": "WEB-2026-0910",
+    "customerId": "cust-002",
+    "customerName": "Restaurante Sazón Gourmet S.A.",
+    "date": "2026-09-09T08:45:00Z",
+    "status": "IN_TRANSIT",
+    "paymentStatus": "PENDING_CREDIT",
+    "paymentMethod": "Crédito Comercial 15D",
+    "totalAmount": 1240000,
+    "itemsCount": 22,
+    "channel": "CATALOGO_SUPERMAS",
+    "shippingAddress": "Av 6N # 28N-45, Cali",
+    "assignedLocationId": "loc-001"
+  }
+]

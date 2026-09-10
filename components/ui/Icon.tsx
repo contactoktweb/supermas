@@ -53,6 +53,8 @@ export const LIGHT_ICON_MAP = {
   download: 'solar:download-minimalistic-linear',
   upload: 'solar:upload-minimalistic-linear',
   save: 'solar:diskette-linear',
+  print: 'solar:printer-minimalistic-linear',
+  printer: 'solar:printer-minimalistic-linear',
   refresh: 'solar:restart-linear',
   logout: 'solar:logout-2-linear',
   menu: 'solar:hamburger-menu-linear',

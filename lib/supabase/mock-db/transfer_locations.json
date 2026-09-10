@@ -1,0 +1,46 @@
+[
+  {
+    "id": "loc-01",
+    "code": "BOD-PRI-01",
+    "name": "Bodega Principal Cali",
+    "city": "Cali",
+    "department": "Valle del Cauca",
+    "type": "WAREHOUSE",
+    "typeLabel": "Almacenamiento masivo y CEDI",
+    "status": "ACTIVE",
+    "description": "Centro logístico primario de distribución y recepción directa de proveedores."
+  },
+  {
+    "id": "loc-02",
+    "code": "POS-CEN-01",
+    "name": "Punto Centro - Carrera 5",
+    "city": "Cali",
+    "department": "Valle del Cauca",
+    "type": "STORE_POINT",
+    "typeLabel": "Punto de venta y atención directa",
+    "status": "ACTIVE",
+    "description": "Local comercial y cajas POS para venta al detalle en el centro de la ciudad."
+  },
+  {
+    "id": "loc-03",
+    "code": "BOD-NOR-01",
+    "name": "Bodega Norte - Yumbo",
+    "city": "Yumbo",
+    "department": "Valle del Cauca",
+    "type": "WAREHOUSE",
+    "typeLabel": "Distribución regional industrial",
+    "status": "ACTIVE",
+    "description": "Bodega auxiliar para despachos industriales y abastecimiento al norte."
+  },
+  {
+    "id": "loc-04",
+    "code": "POS-SUR-01",
+    "name": "Punto Sur - Ciudad Jardín",
+    "city": "Cali",
+    "department": "Valle del Cauca",
+    "type": "STORE_POINT",
+    "typeLabel": "Punto de venta residencial",
+    "status": "ACTIVE",
+    "description": "Punto de venta express para clientes del sur de la ciudad."
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "slr-001",
+    "supplierId": "sup-001",
+    "supplierName": "Distribuciones La 14 S.A.S.",
+    "nit": "900.421.882-1",
+    "contactName": "Andrés Pérez",
+    "phone": "+57 310 445 8821",
+    "email": "ventas@la14dist.com",
+    "locationId": "loc-001",
+    "deliveriesCount": 34,
+    "totalPurchased": 184500000,
+    "lastDeliveryDate": "Hoy, 09:15 AM",
+    "pendingInvoicesCount": 2,
+    "currentBalance": 18420000,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "slr-002",
+    "supplierId": "sup-002",
+    "supplierName": "Alimentos Diana S.A.",
+    "nit": "860.003.211-7",
+    "contactName": "María Rojas",
+    "phone": "+57 315 220 1630",
+    "email": "pedidos@diana.com.co",
+    "locationId": "loc-001",
+    "deliveriesCount": 28,
+    "totalPurchased": 142000000,
+    "lastDeliveryDate": "25 ago, 2026",
+    "pendingInvoicesCount": 0,
+    "currentBalance": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "slr-003",
+    "supplierId": "sup-003",
+    "supplierName": "Bebidas Nacionales de Colombia",
+    "nit": "800.140.998-6",
+    "contactName": "Laura Nieto",
+    "phone": "+57 318 445 7700",
+    "email": "comercial@bebidasnac.co",
+    "locationId": "loc-001",
+    "deliveriesCount": 42,
+    "totalPurchased": 98400000,
+    "lastDeliveryDate": "Ayer, 03:40 PM",
+    "pendingInvoicesCount": 1,
+    "currentBalance": 6920000,
+    "status": "ACTIVE"
+  }
+]

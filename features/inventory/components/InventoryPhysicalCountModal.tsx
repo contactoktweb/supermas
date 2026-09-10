@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { PhysicalCountSession, PhysicalCountItem } from '../types'
 import { inventoryService } from '../services/inventory.service'
+import { getDbLocationOptions } from '@/lib/supabase'
 
 interface InventoryPhysicalCountModalProps {
   isOpen: boolean
@@ -12,12 +13,7 @@ interface InventoryPhysicalCountModalProps {
   onApplyDiscrepancies: (session: PhysicalCountSession) => Promise<void>
 }
 
-const LOCATION_OPTIONS: SelectOption[] = [
-  { value: 'loc-01', label: 'Bodega Principal Cali', badge: 'BOD-PRI-01' },
-  { value: 'loc-02', label: 'Punto Centro - Cra 5', badge: 'POS-CEN-01' },
-  { value: 'loc-03', label: 'Bodega Norte - Yumbo', badge: 'BOD-NOR-01' },
-  { value: 'loc-04', label: 'Punto Sur - Ciudad Jardín', badge: 'POS-SUR-01' },
-]
+const LOCATION_OPTIONS: SelectOption[] = getDbLocationOptions()
 
 export function InventoryPhysicalCountModal({
   isOpen,

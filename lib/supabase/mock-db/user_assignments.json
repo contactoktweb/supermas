@@ -1,0 +1,54 @@
+[
+  {
+    "id": "ua-001",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userEmail": "mauricio.andrade@supermas.com.co",
+    "userRole": "STORE_ADMIN",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "isPrimaryLocation": true,
+    "assignedAt": "10 ene, 2025",
+    "lastAccessAt": "Hoy, 10:45 AM",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "ua-002",
+    "userId": "usr-002",
+    "userName": "Laura Gómez",
+    "userEmail": "laura.gomez@supermas.com.co",
+    "userRole": "POINT_ADMIN",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "isPrimaryLocation": false,
+    "assignedAt": "01 feb, 2025",
+    "lastAccessAt": "Hoy, 10:30 AM",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "ua-003",
+    "userId": "usr-005",
+    "userName": "Andrés Montoya",
+    "userEmail": "andres.montoya@supermas.com.co",
+    "userRole": "INVENTORY_CLERK",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "isPrimaryLocation": true,
+    "assignedAt": "15 mar, 2025",
+    "lastAccessAt": "Hoy, 09:12 AM",
+    "status": "ACTIVE"
+  },
+  {
+    "id": "ua-004",
+    "userId": "usr-006",
+    "userName": "Diana Patricia Castro",
+    "userEmail": "diana.castro@supermas.com.co",
+    "userRole": "SELLER",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "isPrimaryLocation": true,
+    "assignedAt": "01 jun, 2025",
+    "lastAccessAt": "Hoy, 08:50 AM",
+    "status": "ACTIVE"
+  }
+]

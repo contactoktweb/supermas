@@ -1,0 +1,45 @@
+[
+  {
+    "id": "usr-001",
+    "name": "Mauricio Andrade",
+    "email": "admin@supermas.com.co",
+    "role": "SUPERADMIN",
+    "roleName": "Superadministrador",
+    "locationName": "Consolidado General (Todas las sedes)",
+    "avatar": "MA",
+    "lastLoginAt": "2026-08-31T21:18:32.000Z"
+  },
+  {
+    "id": "usr-002",
+    "name": "Carlos Ruiz",
+    "email": "carlos.ruiz@supermas.com.co",
+    "role": "WAREHOUSE_ADMIN",
+    "roleName": "Administrador de Bodega",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "avatar": "CR",
+    "lastLoginAt": "2026-08-31T20:45:10.000Z"
+  },
+  {
+    "id": "usr-003",
+    "name": "Laura Gómez",
+    "email": "laura.gomez@supermas.com.co",
+    "role": "POINT_ADMIN",
+    "roleName": "Administrador de Punto de Venta",
+    "locationId": "loc-002",
+    "locationName": "Punto Centro (POS)",
+    "avatar": "LG",
+    "lastLoginAt": "2026-08-31T19:30:15.000Z"
+  },
+  {
+    "id": "usr-004",
+    "name": "Andrés Morales",
+    "email": "andres.morales@supermas.com.co",
+    "role": "SELLER",
+    "roleName": "Vendedor / Cajero",
+    "locationId": "loc-002",
+    "locationName": "Punto Centro (POS)",
+    "avatar": "AM",
+    "lastLoginAt": "2026-08-31T21:15:07.000Z"
+  }
+]

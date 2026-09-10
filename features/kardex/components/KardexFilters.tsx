@@ -5,6 +5,8 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { KardexFilterParams, MovementType } from '../types'
 
+import { getDbLocationOptions, getDbUserOptions } from '@/lib/supabase'
+
 interface KardexFiltersProps {
   filters: KardexFilterParams
   onFilterChange: (key: keyof KardexFilterParams, value: any) => void
@@ -28,20 +30,10 @@ const MOVEMENT_TYPE_OPTIONS: { value: MovementType | 'ALL'; label: string }[] = 
 
 const LOCATION_OPTIONS = [
   { value: 'ALL', label: 'Todas las bodegas' },
-  { value: 'loc-01', label: 'Bodega Principal Cali' },
-  { value: 'loc-02', label: 'Punto Centro - Carrera 5' },
-  { value: 'loc-03', label: 'Bodega Norte - Yumbo' },
-  { value: 'loc-04', label: 'Punto Sur - Ciudad Jardín' },
+  ...getDbLocationOptions(),
 ]
 
-const USER_OPTIONS = [
-  { value: 'ALL', label: 'Todos los usuarios' },
-  { value: 'user-01', label: 'Laura Gómez (Compras)' },
-  { value: 'user-02', label: 'Mauricio Arango (Logística)' },
-  { value: 'user-03', label: 'Ana María Orozco (Cajero POS)' },
-  { value: 'user-04', label: 'Carlos Mario Ruiz (Ventas)' },
-  { value: 'user-05', label: 'Daniel Restrepo (Auditoría)' },
-]
+const USER_OPTIONS = getDbUserOptions()
 
 export function KardexFilters({
   filters,

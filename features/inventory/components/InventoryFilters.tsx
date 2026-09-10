@@ -13,37 +13,15 @@ interface InventoryFiltersProps {
   hasActiveFilters: boolean
 }
 
+import { getDbLocationOptions, getDbCategoryOptions, getDbBrandOptions } from '@/lib/supabase'
+
 const LOCATION_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todas las bodegas' },
-  { value: 'loc-01', label: 'Bodega Principal Cali', badge: 'BOD-PRI-01' },
-  { value: 'loc-02', label: 'Punto Centro - Cra 5', badge: 'POS-CEN-01' },
-  { value: 'loc-03', label: 'Bodega Norte - Yumbo', badge: 'BOD-NOR-01' },
-  { value: 'loc-04', label: 'Punto Sur - Ciudad Jardín', badge: 'POS-SUR-01' },
+  ...getDbLocationOptions(),
 ]
 
-const CATEGORY_OPTIONS: SelectOption[] = [
-  { value: 'ALL', label: 'Todas las categorías' },
-  { value: 'Abarrotes y Despensa', label: 'Abarrotes y Despensa' },
-  { value: 'Aceites y Grasas', label: 'Aceites y Grasas' },
-  { value: 'Lácteos y Huevos', label: 'Lácteos y Huevos' },
-  { value: 'Bebidas y Licores', label: 'Bebidas y Licores' },
-  { value: 'Enlatados y Conservas', label: 'Enlatados y Conservas' },
-  { value: 'Aseo y Hogar', label: 'Aseo y Hogar' },
-  { value: 'Granos y Cereales', label: 'Granos y Cereales' },
-]
-
-const BRAND_OPTIONS: SelectOption[] = [
-  { value: 'ALL', label: 'Todas las marcas' },
-  { value: 'Diana', label: 'Diana' },
-  { value: 'OleoCali', label: 'OleoCali' },
-  { value: 'Alquería', label: 'Alquería' },
-  { value: 'Sello Rojo', label: 'Sello Rojo' },
-  { value: 'Coca-Cola', label: 'Coca-Cola' },
-  { value: 'Van Camps', label: 'Van Camps' },
-  { value: 'Familia', label: 'Familia' },
-  { value: 'Super Más', label: 'Super Más' },
-  { value: 'Fab', label: 'Fab' },
-]
+const CATEGORY_OPTIONS: SelectOption[] = getDbCategoryOptions()
+const BRAND_OPTIONS: SelectOption[] = getDbBrandOptions()
 
 const HEALTH_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todos los estados' },

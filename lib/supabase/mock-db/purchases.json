@@ -1,0 +1,38 @@
+[
+  {
+    "id": "pur-001",
+    "locationId": "loc-001",
+    "invoiceNumber": "CP-002184",
+    "supplierName": "Distribuciones La 14 S.A.S.",
+    "supplierNit": "900.421.882-1",
+    "date": "Hoy, 09:15 AM",
+    "itemsCount": 45,
+    "totalCost": 18420000,
+    "paymentTerms": "CREDITO",
+    "status": "PENDIENTE"
+  },
+  {
+    "id": "pur-002",
+    "locationId": "loc-001",
+    "invoiceNumber": "CP-002181",
+    "supplierName": "Bebidas Nacionales de Colombia",
+    "supplierNit": "800.140.998-6",
+    "date": "Ayer, 03:40 PM",
+    "itemsCount": 28,
+    "totalCost": 6920000,
+    "paymentTerms": "CREDITO",
+    "status": "POR_VENCER"
+  },
+  {
+    "id": "pur-003",
+    "locationId": "loc-001",
+    "invoiceNumber": "CP-002175",
+    "supplierName": "Alimentos Diana S.A.",
+    "supplierNit": "860.003.211-7",
+    "date": "25 ago, 2026",
+    "itemsCount": 60,
+    "totalCost": 24500000,
+    "paymentTerms": "CONTADO",
+    "status": "PAGADA"
+  }
+]

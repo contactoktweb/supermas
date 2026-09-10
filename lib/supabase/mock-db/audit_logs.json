@@ -1,0 +1,46 @@
+[
+  {
+    "id": "aud-001",
+    "action": "STOCK_ADJUSTED",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "userId": "usr-003",
+    "userName": "Carlos Ruiz",
+    "timestamp": "Ayer, 04:15 PM",
+    "changes": {
+      "field": "stock",
+      "previousValue": "12 uds",
+      "newValue": "0 uds",
+      "details": "Ajuste negativo por avería en Leche Entera Alquería 1L (Doc: AJ-00092)"
+    }
+  },
+  {
+    "id": "aud-002",
+    "action": "TRANSFER_CREATED",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "timestamp": "Hoy, 09:48 AM",
+    "changes": {
+      "field": "transfer",
+      "newValue": "TR-000154",
+      "details": "Transferencia de 125 unidades hacia Punto Centro"
+    }
+  },
+  {
+    "id": "aud-003",
+    "action": "LOCATION_UPDATED",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "timestamp": "25 ago, 2026",
+    "changes": {
+      "field": "isEcommerceProcessingSource",
+      "previousValue": false,
+      "newValue": true,
+      "details": "Asignada como bodega principal para procesamiento de ventas web"
+    }
+  }
+]

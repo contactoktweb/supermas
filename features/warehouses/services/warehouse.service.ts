@@ -571,6 +571,14 @@ export class WarehouseService {
   async getAuditLogs(locationId: string): Promise<WarehouseAuditLog[]> {
     return warehouseRepository.getAuditLogsByLocationId(locationId)
   }
+
+  async getWarehouseOverviewAnalytics(_locationId?: string): Promise<{
+    topSelling: { name: string; sku: string; sales: string; units: number }[]
+    categoriesDistribution: { name: string; pct: string; value: string }[]
+  }> {
+    const { db } = await import('@/lib/supabase')
+    return db.warehouseOverviewAnalytics
+  }
 }
 
 export const warehouseService = new WarehouseService()

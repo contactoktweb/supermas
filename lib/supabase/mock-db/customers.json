@@ -1,0 +1,62 @@
+[
+  {
+    "id": "clr-001",
+    "customerId": "cust-001",
+    "customerName": "Comercializadora El Sol",
+    "documentType": "NIT",
+    "documentNumber": "901.442.118-2",
+    "phone": "+57 300 458 2011",
+    "email": "compras@elsol.co",
+    "locationId": "loc-001",
+    "purchasesCount": 48,
+    "totalPurchased": 42800000,
+    "lastPurchaseDate": "Hoy, 10:42 AM",
+    "currentBalance": 180000,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "clr-002",
+    "customerId": "cust-002",
+    "customerName": "Restaurante Sazón Gourmet",
+    "documentType": "NIT",
+    "documentNumber": "900.112.883-1",
+    "phone": "+57 315 998 1200",
+    "email": "admin@sazon.co",
+    "locationId": "loc-001",
+    "purchasesCount": 32,
+    "totalPurchased": 19400000,
+    "lastPurchaseDate": "Hoy, 10:12 AM",
+    "currentBalance": 1240000,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "clr-003",
+    "customerId": "cust-003",
+    "customerName": "Mini mercado 24H",
+    "documentType": "NIT",
+    "documentNumber": "901.883.210-4",
+    "phone": "+57 301 773 1009",
+    "email": "contacto@24h.co",
+    "locationId": "loc-001",
+    "purchasesCount": 26,
+    "totalPurchased": 15600000,
+    "lastPurchaseDate": "Hoy, 08:35 AM",
+    "currentBalance": 0,
+    "status": "ACTIVE"
+  },
+  {
+    "id": "clr-004",
+    "customerId": "cust-004",
+    "customerName": "Tienda La 32",
+    "documentType": "CC",
+    "documentNumber": "43.882.901",
+    "phone": "+57 310 220 4410",
+    "email": "tienda32@mail.com",
+    "locationId": "loc-001",
+    "purchasesCount": 19,
+    "totalPurchased": 8900000,
+    "lastPurchaseDate": "Ayer, 05:18 PM",
+    "currentBalance": 0,
+    "status": "ACTIVE"
+  }
+]

@@ -8,10 +8,7 @@ import {
   ProductStatus,
   ProductStockHealth,
 } from '../types'
-import {
-  PRODUCT_CATEGORIES_MOCK,
-  PRODUCT_BRANDS_MOCK,
-} from '../mocks/product.mock'
+import { getDbCategoryOptions, getDbBrandOptions } from '@/lib/supabase'
 
 interface ProductFiltersProps {
   filters: ProductFilterParams
@@ -38,17 +35,11 @@ export function ProductFilters({
     Boolean(filters.webChannel && filters.webChannel !== 'ALL'),
   ].filter(Boolean).length
 
-  // Build category options
-  const categoryOptions = [
-    { value: 'ALL', label: 'Todas las categorías' },
-    ...PRODUCT_CATEGORIES_MOCK.map((cat) => ({ value: cat, label: cat })),
-  ]
+  // Build category options from Supabase DB
+  const categoryOptions = getDbCategoryOptions()
 
-  // Build brand options
-  const brandOptions = [
-    { value: 'ALL', label: 'Todas las marcas' },
-    ...PRODUCT_BRANDS_MOCK.map((brand) => ({ value: brand, label: brand })),
-  ]
+  // Build brand options from Supabase DB
+  const brandOptions = getDbBrandOptions()
 
   // Build status options
   const statusOptions = [

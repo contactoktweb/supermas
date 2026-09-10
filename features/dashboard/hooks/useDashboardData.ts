@@ -16,10 +16,10 @@ import {
   DateRange,
 } from '../types'
 import { dashboardService } from '../services/dashboard.service'
-import { mockUserProfiles } from '../mocks/dashboard.mock'
 
 export function useDashboardData() {
-  const [currentUser, setCurrentUser] = useState<UserProfile>(mockUserProfiles[0])
+  const availableProfiles = dashboardService.getAvailableProfiles()
+  const [currentUser, setCurrentUser] = useState<UserProfile>(availableProfiles[0])
   const [period, setPeriod] = useState<PeriodType>('TODAY')
   const [customRange, setCustomRange] = useState<DateRange>({
     startDate: '2026-08-01',
@@ -91,7 +91,7 @@ export function useDashboardData() {
   }
 
   const changeUser = (userId: string) => {
-    const found = mockUserProfiles.find((u) => u.id === userId)
+    const found = availableProfiles.find((u) => u.id === userId)
     if (found) {
       setCurrentUser(found)
     }
@@ -106,7 +106,7 @@ export function useDashboardData() {
     currentUser,
     setCurrentUser,
     changeUser,
-    availableProfiles: mockUserProfiles,
+    availableProfiles,
     period,
     setPeriod,
     customRange,

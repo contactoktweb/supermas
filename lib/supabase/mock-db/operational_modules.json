@@ -1,0 +1,634 @@
+{
+  "posProducts": [
+    {
+      "name": "Arroz Diana 500g",
+      "sku": "SKU-001842",
+      "barcode": "7701234567890",
+      "category": "Granos",
+      "brand": "Diana",
+      "stock": 482,
+      "state": "Disponible",
+      "cost": "$2,480",
+      "price": "$3,400",
+      "wholesale": "$3,050",
+      "margin": "27.1%",
+      "total": "$1.19M"
+    },
+    {
+      "name": "Aceite Premier 900ml",
+      "sku": "SKU-002107",
+      "barcode": "7709876543210",
+      "category": "Despensa",
+      "brand": "Premier",
+      "stock": 38,
+      "state": "Stock bajo",
+      "cost": "$7,420",
+      "price": "$9,800",
+      "wholesale": "$8,900",
+      "margin": "24.3%",
+      "total": "$282K"
+    },
+    {
+      "name": "Leche Entera Alquería 1L",
+      "sku": "SKU-003501",
+      "barcode": "7705556677889",
+      "category": "Lácteos",
+      "brand": "Alquería",
+      "stock": 0,
+      "state": "Agotado",
+      "cost": "$3,120",
+      "price": "$4,500",
+      "wholesale": "$4,050",
+      "margin": "30.7%",
+      "total": "$0"
+    },
+    {
+      "name": "Café Sello Rojo 500g",
+      "sku": "SKU-004229",
+      "barcode": "7703334445556",
+      "category": "Despensa",
+      "brand": "Sello Rojo",
+      "stock": 84,
+      "state": "Disponible",
+      "cost": "$10,800",
+      "price": "$14,200",
+      "wholesale": "$12,900",
+      "margin": "23.9%",
+      "total": "$907K"
+    },
+    {
+      "name": "Gaseosa Coca-Cola 1.5L",
+      "sku": "SKU-005882",
+      "barcode": "7701112223334",
+      "category": "Bebidas",
+      "brand": "Coca-Cola",
+      "stock": 12,
+      "state": "Crítico",
+      "cost": "$3,250",
+      "price": "$5,200",
+      "wholesale": "$4,600",
+      "margin": "37.5%",
+      "total": "$39K"
+    }
+  ],
+  "moduleRows": {
+    "Compras": [
+      [
+        "CP-002184",
+        "Distribuciones La 14",
+        "Bodega Principal",
+        "18 feb, 2025",
+        "$8.42M",
+        "Crédito",
+        "Pendiente"
+      ],
+      [
+        "CP-002183",
+        "Alimentos Diana S.A.",
+        "Bodega Norte",
+        "17 feb, 2025",
+        "$4.18M",
+        "Contado",
+        "Pagada"
+      ],
+      [
+        "CP-002182",
+        "Lácteos del Valle",
+        "Punto Centro",
+        "16 feb, 2025",
+        "$2.76M",
+        "Crédito",
+        "Por vencer"
+      ],
+      [
+        "CP-002181",
+        "Bebidas Nacionales",
+        "Bodega Principal",
+        "15 feb, 2025",
+        "$6.92M",
+        "Crédito",
+        "Vencida"
+      ]
+    ],
+    "Proveedores": [
+      [
+        "Distribuciones La 14",
+        "900.421.882-1",
+        "Andrés Pérez",
+        "310 445 8821",
+        "3 bodegas",
+        "24",
+        "$18.4M",
+        "Activo"
+      ],
+      [
+        "Alimentos Diana S.A.",
+        "860.003.211-7",
+        "María Rojas",
+        "315 220 1630",
+        "2 bodegas",
+        "18",
+        "$7.2M",
+        "Activo"
+      ],
+      [
+        "Lácteos del Valle",
+        "901.288.044-3",
+        "Camilo Díaz",
+        "300 814 0032",
+        "1 bodega",
+        "9",
+        "$2.8M",
+        "Activo"
+      ],
+      [
+        "Bebidas Nacionales",
+        "800.140.998-6",
+        "Laura Nieto",
+        "318 445 7700",
+        "4 bodegas",
+        "31",
+        "$9.1M",
+        "En revisión"
+      ]
+    ],
+    "Clientes": [
+      [
+        "Comercializadora El Sol",
+        "NIT 901.442.118",
+        "300 458 2011",
+        "compras@elsol.co",
+        "Punto Centro",
+        "18 feb, 2025",
+        "$2.4M",
+        "$180K",
+        "Activo"
+      ],
+      [
+        "Tienda La 32",
+        "CC 43.882.901",
+        "310 220 4410",
+        "tienda32@mail.com",
+        "Punto Sur",
+        "17 feb, 2025",
+        "$1.8M",
+        "$0",
+        "Activo"
+      ],
+      [
+        "Restaurante Sazón",
+        "NIT 900.112.883",
+        "315 998 1200",
+        "admin@sazon.co",
+        "Bodega Norte",
+        "15 feb, 2025",
+        "$980K",
+        "$240K",
+        "Crédito"
+      ],
+      [
+        "Mini mercado 24H",
+        "NIT 901.883.210",
+        "301 773 1009",
+        "contacto@24h.co",
+        "Punto Centro",
+        "14 feb, 2025",
+        "$640K",
+        "$0",
+        "Activo"
+      ]
+    ],
+    "Ventas": [
+      [
+        "VT-88421",
+        "18 feb, 10:42 AM",
+        "Comercializadora El Sol",
+        "Punto Centro",
+        "Laura Gómez",
+        "14 productos",
+        "$482K",
+        "Tarjeta",
+        "Emitida"
+      ],
+      [
+        "VT-88420",
+        "18 feb, 10:31 AM",
+        "Tienda La 32",
+        "Punto Sur",
+        "Carlos Ruiz",
+        "8 productos",
+        "$218K",
+        "Efectivo",
+        "Emitida"
+      ],
+      [
+        "VT-88419",
+        "18 feb, 10:12 AM",
+        "Restaurante Sazón",
+        "Punto Centro",
+        "Laura Gómez",
+        "22 productos",
+        "$1.24M",
+        "Crédito",
+        "Pendiente"
+      ],
+      [
+        "VT-88418",
+        "18 feb, 9:54 AM",
+        "Venta mostrador",
+        "Punto Norte",
+        "Andrés M.",
+        "5 productos",
+        "$96K",
+        "Transferencia",
+        "Emitida"
+      ]
+    ],
+    "Facturación": [
+      [
+        "FV-88421",
+        "18 feb, 10:42 AM",
+        "Comercializadora El Sol",
+        "Punto Centro",
+        "POS",
+        "$482K",
+        "Emitida",
+        "Aceptada"
+      ],
+      [
+        "FV-88420",
+        "18 feb, 10:31 AM",
+        "Tienda La 32",
+        "Punto Sur",
+        "Electrónica",
+        "$218K",
+        "Emitida",
+        "Aceptada"
+      ],
+      [
+        "FV-88419",
+        "18 feb, 10:12 AM",
+        "Restaurante Sazón",
+        "Punto Centro",
+        "POS",
+        "$1.24M",
+        "Pendiente",
+        "Procesando"
+      ],
+      [
+        "FV-88418",
+        "18 feb, 9:54 AM",
+        "Venta mostrador",
+        "Punto Norte",
+        "Electrónica",
+        "$96K",
+        "Anulada",
+        "Anulada"
+      ]
+    ],
+    "Remisiones": [
+      [
+        "RM-001284",
+        "Comercializadora El Sol",
+        "Bodega Principal",
+        "18 feb, 2025",
+        "14 productos",
+        "84",
+        "Mauricio A.",
+        "Despachada",
+        "—"
+      ],
+      [
+        "RM-001283",
+        "Tienda La 32",
+        "Bodega Norte",
+        "18 feb, 2025",
+        "8 productos",
+        "42",
+        "Laura Gómez",
+        "Entregada",
+        "FV-88392"
+      ],
+      [
+        "RM-001282",
+        "Restaurante Sazón",
+        "Punto Centro",
+        "17 feb, 2025",
+        "22 productos",
+        "126",
+        "Carlos Ruiz",
+        "Pendiente",
+        "—"
+      ],
+      [
+        "RM-001281",
+        "Mini mercado 24H",
+        "Bodega Principal",
+        "17 feb, 2025",
+        "5 productos",
+        "18",
+        "Andrés M.",
+        "Facturada",
+        "FV-88380"
+      ]
+    ]
+  },
+  "adminConfigs": {
+    "Contabilidad": {
+      "eyebrow": "Control financiero",
+      "sub": "Consolida la información contable y el resultado de cada operación.",
+      "stats": [
+        "Activos",
+        "Pasivos",
+        "Inventario",
+        "Cuentas por cobrar",
+        "Cuentas por pagar",
+        "Ingresos del mes",
+        "Costos",
+        "Utilidad bruta"
+      ],
+      "values": [
+        "$1.84B",
+        "$642M",
+        "$912.6M",
+        "$184M",
+        "$96M",
+        "$428M",
+        "$286M",
+        "$142M"
+      ],
+      "iconName": "accounting",
+      "tabs": [
+        "Resumen",
+        "Plan de cuentas",
+        "Asientos",
+        "Libro diario",
+        "Libro mayor",
+        "Balance de prueba",
+        "Periodos"
+      ]
+    },
+    "Impuestos": {
+      "eyebrow": "Administración tributaria",
+      "sub": "Gestiona tarifas, vigencias y productos asociados a cada impuesto.",
+      "stats": [
+        "IVA generado",
+        "IVA descontable",
+        "Retenciones",
+        "Impuestos del periodo"
+      ],
+      "values": [
+        "$48.2M",
+        "$31.6M",
+        "$8.4M",
+        "$24.9M"
+      ],
+      "iconName": "taxes",
+      "tabs": [
+        "Resumen",
+        "Tipos de impuesto",
+        "Tarifas",
+        "Vigencias"
+      ]
+    },
+    "Exógena": {
+      "eyebrow": "Información tributaria",
+      "sub": "Prepara, valida y exporta la información exógena de la compañía.",
+      "stats": [
+        "Registros",
+        "Terceros",
+        "Inconsistencias",
+        "Formatos preparados"
+      ],
+      "values": [
+        "18,426",
+        "2,184",
+        "12",
+        "8 / 12"
+      ],
+      "iconName": "exogena",
+      "tabs": [
+        "Resumen",
+        "Formatos",
+        "Inconsistencias",
+        "Historial"
+      ]
+    },
+    "Pedidos Web": {
+      "eyebrow": "Canal digital",
+      "sub": "Coordina los pedidos recibidos desde la página web hasta su entrega.",
+      "stats": [
+        "Nuevos",
+        "Confirmados",
+        "En preparación",
+        "Listos",
+        "Despachados",
+        "Entregados",
+        "Cancelados"
+      ],
+      "values": [
+        "24",
+        "18",
+        "12",
+        "9",
+        "31",
+        "284",
+        "6"
+      ],
+      "iconName": "webOrders",
+      "tabs": [
+        "Tabla",
+        "Kanban"
+      ]
+    },
+    "Catálogo Super Más": {
+      "eyebrow": "Canal ecommerce",
+      "sub": "Administra los productos publicados para compra en el catálogo Super Más.",
+      "stats": [
+        "Productos publicados",
+        "Disponibles",
+        "Pocas unidades",
+        "Agotados"
+      ],
+      "values": [
+        "6,840",
+        "6,512",
+        "214",
+        "114"
+      ],
+      "iconName": "ecommerceSM",
+      "tabs": [
+        "Productos",
+        "Categorías",
+        "Publicación"
+      ]
+    },
+    "Catálogo Distribuidora": {
+      "eyebrow": "Canal distribuidora",
+      "sub": "Gestiona disponibilidad, WhatsApp y compra web para clientes mayoristas.",
+      "stats": [
+        "Publicados",
+        "Solo WhatsApp",
+        "Compra + WhatsApp",
+        "Sin disponibilidad"
+      ],
+      "values": [
+        "4,208",
+        "1,482",
+        "2,726",
+        "38"
+      ],
+      "iconName": "ecommerceDist",
+      "tabs": [
+        "Productos",
+        "Canales",
+        "Precios mayoristas"
+      ]
+    },
+    "Reportes": {
+      "eyebrow": "Inteligencia operativa",
+      "sub": "Genera reportes accionables para cada área de Super Más.",
+      "stats": [
+        "Reportes disponibles",
+        "Generados este mes",
+        "Programados",
+        "Última actualización"
+      ],
+      "values": [
+        "42",
+        "186",
+        "12",
+        "Hace 8 min"
+      ],
+      "iconName": "reports",
+      "tabs": [
+        "Todos",
+        "Ventas",
+        "Compras",
+        "Inventario",
+        "Contabilidad"
+      ]
+    },
+    "Alertas": {
+      "eyebrow": "Centro de atención",
+      "sub": "Revisa eventos operativos que requieren seguimiento del equipo.",
+      "stats": [
+        "Nuevas",
+        "Inventario",
+        "Compras",
+        "Ventas",
+        "Facturación",
+        "Sistema"
+      ],
+      "values": [
+        "3",
+        "8",
+        "4",
+        "12",
+        "2",
+        "6"
+      ],
+      "iconName": "alerts",
+      "tabs": [
+        "Todas",
+        "Inventario",
+        "Compras",
+        "Ventas",
+        "Facturación",
+        "Sistema"
+      ]
+    },
+    "Auditoría": {
+      "eyebrow": "Trazabilidad de cambios",
+      "sub": "Consulta quién hizo cada cambio y compara los valores antes y después.",
+      "stats": [
+        "Eventos hoy",
+        "Usuarios activos",
+        "Módulos auditados",
+        "Cambios aprobados"
+      ],
+      "values": [
+        "284",
+        "18",
+        "12",
+        "96%"
+      ],
+      "iconName": "audit",
+      "tabs": [
+        "Todos",
+        "Inventario",
+        "Ventas",
+        "Configuración"
+      ]
+    },
+    "Usuarios": {
+      "eyebrow": "Accesos administrativos",
+      "sub": "Administra las personas con acceso al sistema y su actividad reciente.",
+      "stats": [
+        "Usuarios activos",
+        "Administradores",
+        "Vendedores",
+        "Usuarios bloqueados"
+      ],
+      "values": [
+        "18",
+        "3",
+        "9",
+        "2"
+      ],
+      "iconName": "users",
+      "tabs": [
+        "Todos",
+        "Activos",
+        "Bloqueados"
+      ]
+    },
+    "Roles": {
+      "eyebrow": "Gobierno de permisos",
+      "sub": "Define el alcance operativo de cada rol con una matriz clara de permisos.",
+      "stats": [
+        "Roles configurados",
+        "Permisos activos",
+        "Usuarios asignados",
+        "Revisiones pendientes"
+      ],
+      "values": [
+        "8",
+        "142",
+        "18",
+        "2"
+      ],
+      "iconName": "roles",
+      "tabs": [
+        "Roles",
+        "Matriz de permisos",
+        "Historial"
+      ]
+    },
+    "Configuración": {
+      "eyebrow": "Centro de configuración",
+      "sub": "Ajusta la operación general, canales, seguridad e integraciones.",
+      "stats": [
+        "Secciones",
+        "Cambios pendientes",
+        "Integraciones",
+        "Última sincronización"
+      ],
+      "values": [
+        "12",
+        "4",
+        "6",
+        "Hace 3 min"
+      ],
+      "iconName": "settings",
+      "tabs": [
+        "General",
+        "Empresa",
+        "Inventario",
+        "Facturación",
+        "Ecommerce",
+        "Seguridad"
+      ]
+    }
+  }
+}

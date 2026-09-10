@@ -14,11 +14,7 @@ import {
   UnitOfMeasure,
 } from '../types'
 import { productFormSchema } from '../schemas/product.schema'
-import {
-  PRODUCT_CATEGORIES_MOCK,
-  PRODUCT_BRANDS_MOCK,
-  TAX_CONFIGS_MOCK,
-} from '../mocks/product.mock'
+import { db } from '@/lib/supabase'
 import { productService } from '../services/product.service'
 
 interface ProductFormDrawerProps {
@@ -142,7 +138,7 @@ export function ProductFormDrawer({
 
   // Tax Profile change handler
   const handleTaxProfileChange = (selectedCode: string) => {
-    const found = TAX_CONFIGS_MOCK.find((t) => t.code === selectedCode)
+    const found = db.taxConfigs.find((t) => t.code === selectedCode)
     if (found) {
       setTaxProfile(found.code)
       setVatRatePercent(found.ratePercent)
@@ -387,7 +383,7 @@ export function ProductFormDrawer({
                     Categoría <em>*</em>
                   </label>
                   <CustomSelect
-                    options={PRODUCT_CATEGORIES_MOCK.map((c) => ({
+                    options={db.categories.map((c) => ({
                       value: c,
                       label: c,
                     }))}
@@ -404,7 +400,7 @@ export function ProductFormDrawer({
                     Marca <em>*</em>
                   </label>
                   <CustomSelect
-                    options={PRODUCT_BRANDS_MOCK.map((b) => ({
+                    options={db.brands.map((b) => ({
                       value: b,
                       label: b,
                     }))}
@@ -581,7 +577,7 @@ export function ProductFormDrawer({
               <div className="form-field">
                 <label>Perfil Tributario DIAN</label>
                 <CustomSelect
-                  options={TAX_CONFIGS_MOCK.map((t) => ({
+                  options={db.taxConfigs.map((t) => ({
                     value: t.code,
                     label: `${t.name} (${t.ratePercent}%)`,
                   }))}

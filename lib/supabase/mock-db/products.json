@@ -1,0 +1,784 @@
+[
+  {
+    "id": "prod-001",
+    "sku": "ABA-ARR-001",
+    "barcode": "7702001001234",
+    "name": "Arroz Diana Premium Extra 5kg",
+    "slug": "arroz-diana-premium-extra-5kg",
+    "description": "Arroz blanco seleccionado grano largo no se pega ni se empapa. Presentación familiar de 5 Kilogramos.",
+    "category": "Granos y Cereales",
+    "brand": "Diana",
+    "unitOfMeasure": "PAQ",
+    "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "EXENTO",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 21500,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x6+)",
+        "code": "MAYORISTA",
+        "price": 18900,
+        "minQuantity": 6
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x20+)",
+        "code": "DISTRIBUIDOR",
+        "price": 17800,
+        "minQuantity": 20
+      }
+    ],
+    "normalPrice": 21500,
+    "wholesalePrice": 18900,
+    "distributorPrice": 17800,
+    "averageCost": 15400,
+    "inventoryValueAtCost": 6468000,
+    "profitMarginAmount": 6100,
+    "profitMarginPercent": 28.37,
+    "totalStock": 420,
+    "availableUnits": 412,
+    "minStockThreshold": 100,
+    "criticalStockThreshold": 30,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "AVAILABLE",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 230,
+        "minStock": 60,
+        "criticalStock": 20,
+        "averageCost": 15400,
+        "inventoryValueAtCost": 3542000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 54.8
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 110,
+        "minStock": 25,
+        "criticalStock": 10,
+        "averageCost": 15400,
+        "inventoryValueAtCost": 1694000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 26.2
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 80,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 15400,
+        "inventoryValueAtCost": 1232000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 19
+      }
+    ],
+    "createdAt": "2026-01-15T08:30:00Z",
+    "updatedAt": "2026-08-30T14:20:00Z"
+  },
+  {
+    "id": "prod-002",
+    "sku": "ACE-OLE-002",
+    "barcode": "7702111005678",
+    "name": "Aceite Vegetal OleoCali 3000ml",
+    "slug": "aceite-vegetal-oleocali-3000ml",
+    "description": "Aceite 100% puro vegetal enriquecido con Vitamina E y Omega 3 y 6. Libre de colesterol.",
+    "category": "Aceites y Grasas",
+    "brand": "OleoCali",
+    "unitOfMeasure": "UND",
+    "imageUrl": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "IVA_19",
+    "vatRatePercent": 19,
+    "isExempt": false,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 29800,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x4+)",
+        "code": "MAYORISTA",
+        "price": 26200,
+        "minQuantity": 4
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x12+)",
+        "code": "DISTRIBUIDOR",
+        "price": 24900,
+        "minQuantity": 12
+      }
+    ],
+    "normalPrice": 29800,
+    "wholesalePrice": 26200,
+    "distributorPrice": 24900,
+    "averageCost": 19800,
+    "inventoryValueAtCost": 3564000,
+    "profitMarginAmount": 5242.016806722691,
+    "profitMarginPercent": 20.93,
+    "totalStock": 180,
+    "availableUnits": 174,
+    "minStockThreshold": 50,
+    "criticalStockThreshold": 20,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "AVAILABLE",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 110,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 19800,
+        "inventoryValueAtCost": 2178000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 61.1
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 45,
+        "minStock": 15,
+        "criticalStock": 5,
+        "averageCost": 19800,
+        "inventoryValueAtCost": 891000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 25
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 25,
+        "minStock": 15,
+        "criticalStock": 5,
+        "averageCost": 19800,
+        "inventoryValueAtCost": 495000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 13.9
+      }
+    ],
+    "createdAt": "2026-02-10T10:00:00Z",
+    "updatedAt": "2026-08-29T16:40:00Z"
+  },
+  {
+    "id": "prod-003",
+    "sku": "LAC-ALQ-003",
+    "barcode": "7702005009876",
+    "name": "Leche Entera Alquería Bolsa 1100ml",
+    "slug": "leche-entera-alqueria-bolsa-1100ml",
+    "description": "Leche entera pasteurizada ultrapurificada con Vitaminas A y D3.",
+    "category": "Lácteos y Huevos",
+    "brand": "Alquería",
+    "unitOfMeasure": "UND",
+    "imageUrl": "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "EXENTO",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 4600,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x12+)",
+        "code": "MAYORISTA",
+        "price": 4100,
+        "minQuantity": 12
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x36+)",
+        "code": "DISTRIBUIDOR",
+        "price": 3850,
+        "minQuantity": 36
+      }
+    ],
+    "normalPrice": 4600,
+    "wholesalePrice": 4100,
+    "distributorPrice": 3850,
+    "averageCost": 3450,
+    "inventoryValueAtCost": 124200,
+    "profitMarginAmount": 1150,
+    "profitMarginPercent": 25,
+    "totalStock": 36,
+    "availableUnits": 36,
+    "minStockThreshold": 80,
+    "criticalStockThreshold": 40,
+    "stockHealth": "CRITICAL",
+    "webSuperMas": true,
+    "webDistribuidora": false,
+    "webAvailability": "LOW_STOCK",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 12,
+        "minStock": 40,
+        "criticalStock": 20,
+        "averageCost": 3450,
+        "inventoryValueAtCost": 41400,
+        "stockHealth": "CRITICAL",
+        "percentageOfTotalStock": 33.3
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 24,
+        "minStock": 30,
+        "criticalStock": 15,
+        "averageCost": 3450,
+        "inventoryValueAtCost": 82800,
+        "stockHealth": "LOW_STOCK",
+        "percentageOfTotalStock": 66.7
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 0,
+        "minStock": 20,
+        "criticalStock": 10,
+        "averageCost": 3450,
+        "inventoryValueAtCost": 0,
+        "stockHealth": "OUT_OF_STOCK",
+        "percentageOfTotalStock": 0
+      }
+    ],
+    "createdAt": "2026-03-01T09:15:00Z",
+    "updatedAt": "2026-08-31T07:10:00Z"
+  },
+  {
+    "id": "prod-004",
+    "sku": "PAS-DOR-004",
+    "barcode": "7702002004321",
+    "name": "Pasta Spaghetti Doria Tradicional 500g",
+    "slug": "pasta-spaghetti-doria-tradicional-500g",
+    "description": "Pasta elaborada con sémola de trigo fortificada con vitaminas B1, B2, Niacina, Ácido Fólico y Hierro.",
+    "category": "Abarrotes y Despensa",
+    "brand": "Doria",
+    "unitOfMeasure": "PAQ",
+    "imageUrl": "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1612927601601-6638404737ce?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "IVA_5",
+    "vatRatePercent": 5,
+    "isExempt": false,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 3950,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x10+)",
+        "code": "MAYORISTA",
+        "price": 3400,
+        "minQuantity": 10
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x24+)",
+        "code": "DISTRIBUIDOR",
+        "price": 3100,
+        "minQuantity": 24
+      }
+    ],
+    "normalPrice": 3950,
+    "wholesalePrice": 3400,
+    "distributorPrice": 3100,
+    "averageCost": 2600,
+    "inventoryValueAtCost": 1456000,
+    "profitMarginAmount": 1161.904761904762,
+    "profitMarginPercent": 30.89,
+    "totalStock": 560,
+    "availableUnits": 550,
+    "minStockThreshold": 120,
+    "criticalStockThreshold": 40,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "AVAILABLE",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 320,
+        "minStock": 60,
+        "criticalStock": 20,
+        "averageCost": 2600,
+        "inventoryValueAtCost": 832000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 57.1
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 140,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 2600,
+        "inventoryValueAtCost": 364000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 25
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 100,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 2600,
+        "inventoryValueAtCost": 260000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 17.9
+      }
+    ],
+    "createdAt": "2026-03-12T11:00:00Z",
+    "updatedAt": "2026-08-30T10:30:00Z"
+  },
+  {
+    "id": "prod-005",
+    "sku": "BEB-POS-005",
+    "barcode": "7702008007654",
+    "name": "Gaseosa Colombiana Postobón 3.125L Pet",
+    "slug": "gaseosa-colombiana-postobon-3125l-pet",
+    "description": "La nuestra, gaseosa tradicional sabor kola con gas en presentación familiar rendidora.",
+    "category": "Bebidas y Refrescos",
+    "brand": "Postobón",
+    "unitOfMeasure": "UND",
+    "imageUrl": "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "IVA_19",
+    "vatRatePercent": 19,
+    "isExempt": false,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 6800,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x6+)",
+        "code": "MAYORISTA",
+        "price": 5900,
+        "minQuantity": 6
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x24+)",
+        "code": "DISTRIBUIDOR",
+        "price": 5400,
+        "minQuantity": 24
+      }
+    ],
+    "normalPrice": 6800,
+    "wholesalePrice": 5900,
+    "distributorPrice": 5400,
+    "averageCost": 4500,
+    "inventoryValueAtCost": 945000,
+    "profitMarginAmount": 1214.2857142857147,
+    "profitMarginPercent": 21.25,
+    "totalStock": 210,
+    "availableUnits": 205,
+    "minStockThreshold": 60,
+    "criticalStockThreshold": 20,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "AVAILABLE",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 130,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 4500,
+        "inventoryValueAtCost": 585000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 61.9
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 50,
+        "minStock": 20,
+        "criticalStock": 10,
+        "averageCost": 4500,
+        "inventoryValueAtCost": 225000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 23.8
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 30,
+        "minStock": 10,
+        "criticalStock": 5,
+        "averageCost": 4500,
+        "inventoryValueAtCost": 135000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 14.3
+      }
+    ],
+    "createdAt": "2026-03-20T14:30:00Z",
+    "updatedAt": "2026-08-30T18:00:00Z"
+  },
+  {
+    "id": "prod-006",
+    "sku": "ASE-FAM-006",
+    "barcode": "7702009001122",
+    "name": "Papel Higiénico Familia Acolchamax x12 Rollos",
+    "slug": "papel-higienico-familia-acolchamax-x12-rollos",
+    "description": "Doble hoja con tecnología acolchada suave y resistente. Paquete x12 mega rollos.",
+    "category": "Aseo del Hogar",
+    "brand": "Familia",
+    "unitOfMeasure": "PAQ",
+    "imageUrl": "https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1584556812952-905ffd0c611a?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "IVA_19",
+    "vatRatePercent": 19,
+    "isExempt": false,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 23900,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x4+)",
+        "code": "MAYORISTA",
+        "price": 20800,
+        "minQuantity": 4
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x16+)",
+        "code": "DISTRIBUIDOR",
+        "price": 19400,
+        "minQuantity": 16
+      }
+    ],
+    "normalPrice": 23900,
+    "wholesalePrice": 20800,
+    "distributorPrice": 19400,
+    "averageCost": 15900,
+    "inventoryValueAtCost": 1510500,
+    "profitMarginAmount": 4184.033613445379,
+    "profitMarginPercent": 20.83,
+    "totalStock": 95,
+    "availableUnits": 90,
+    "minStockThreshold": 40,
+    "criticalStockThreshold": 15,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "AVAILABLE",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 55,
+        "minStock": 20,
+        "criticalStock": 10,
+        "averageCost": 15900,
+        "inventoryValueAtCost": 874500,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 57.9
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 25,
+        "minStock": 12,
+        "criticalStock": 5,
+        "averageCost": 15900,
+        "inventoryValueAtCost": 397500,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 26.3
+      },
+      {
+        "locationId": "loc-003",
+        "locationName": "Bodega Norte Acopi",
+        "locationCode": "BOD-NOR-02",
+        "locationType": "SATELLITE_WAREHOUSE",
+        "quantity": 15,
+        "minStock": 10,
+        "criticalStock": 5,
+        "averageCost": 15900,
+        "inventoryValueAtCost": 238500,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 15.8
+      }
+    ],
+    "createdAt": "2026-04-05T12:00:00Z",
+    "updatedAt": "2026-08-28T09:30:00Z"
+  },
+  {
+    "id": "prod-007",
+    "sku": "ENL-ZEN-007",
+    "barcode": "7702003009988",
+    "name": "Atún Zenú Lomitos en Aceite 170g",
+    "slug": "atun-zenu-lomitos-en-aceite-170g",
+    "description": "Lomitos de atún enlatados en aceite vegetal. Fuente de proteína y fósforo.",
+    "category": "Enlatados y Conservas",
+    "brand": "Zenú",
+    "unitOfMeasure": "UND",
+    "imageUrl": "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "EXENTO",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 6200,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x12+)",
+        "code": "MAYORISTA",
+        "price": 5400,
+        "minQuantity": 12
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x48+)",
+        "code": "DISTRIBUIDOR",
+        "price": 4950,
+        "minQuantity": 48
+      }
+    ],
+    "normalPrice": 6200,
+    "wholesalePrice": 5400,
+    "distributorPrice": 4950,
+    "averageCost": 4300,
+    "inventoryValueAtCost": 0,
+    "profitMarginAmount": 1900,
+    "profitMarginPercent": 30.65,
+    "totalStock": 0,
+    "availableUnits": 0,
+    "minStockThreshold": 100,
+    "criticalStockThreshold": 30,
+    "stockHealth": "OUT_OF_STOCK",
+    "webSuperMas": false,
+    "webDistribuidora": true,
+    "webAvailability": "OUT_OF_STOCK",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 0,
+        "minStock": 50,
+        "criticalStock": 15,
+        "averageCost": 4300,
+        "inventoryValueAtCost": 0,
+        "stockHealth": "OUT_OF_STOCK",
+        "percentageOfTotalStock": 0
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 0,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 4300,
+        "inventoryValueAtCost": 0,
+        "stockHealth": "OUT_OF_STOCK",
+        "percentageOfTotalStock": 0
+      }
+    ],
+    "createdAt": "2026-04-18T15:20:00Z",
+    "updatedAt": "2026-08-31T06:00:00Z"
+  },
+  {
+    "id": "prod-008",
+    "sku": "GRA-ROA-008",
+    "barcode": "7702004005544",
+    "name": "Frijol Bola Roja Roa Seleccionado 1000g",
+    "slug": "frijol-bola-roja-roa-seleccionado-1000g",
+    "description": "Frijol bola roja de cocción rápida, grano suave y homogéneo.",
+    "category": "Granos y Cereales",
+    "brand": "Roa",
+    "unitOfMeasure": "PAQ",
+    "imageUrl": "https://images.unsplash.com/photo-1551462147-ff29053fad54?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1551462147-ff29053fad54?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "taxProfile": "EXENTO",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Normal (Público)",
+        "code": "NORMAL",
+        "price": 9200,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x10+)",
+        "code": "MAYORISTA",
+        "price": 8100,
+        "minQuantity": 10
+      },
+      {
+        "id": "p3",
+        "name": "Precio Distribuidor (x25+)",
+        "code": "DISTRIBUIDOR",
+        "price": 7600,
+        "minQuantity": 25
+      }
+    ],
+    "normalPrice": 9200,
+    "wholesalePrice": 8100,
+    "distributorPrice": 7600,
+    "averageCost": 6500,
+    "inventoryValueAtCost": 487500,
+    "profitMarginAmount": 2700,
+    "profitMarginPercent": 29.35,
+    "totalStock": 75,
+    "availableUnits": 72,
+    "minStockThreshold": 90,
+    "criticalStockThreshold": 30,
+    "stockHealth": "LOW_STOCK",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webAvailability": "LOW_STOCK",
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 45,
+        "minStock": 45,
+        "criticalStock": 15,
+        "averageCost": 6500,
+        "inventoryValueAtCost": 292500,
+        "stockHealth": "LOW_STOCK",
+        "percentageOfTotalStock": 60
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 30,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 6500,
+        "inventoryValueAtCost": 195000,
+        "stockHealth": "LOW_STOCK",
+        "percentageOfTotalStock": 40
+      }
+    ],
+    "createdAt": "2026-05-02T08:00:00Z",
+    "updatedAt": "2026-08-27T11:15:00Z"
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "sale-001",
+    "locationId": "loc-001",
+    "saleCode": "VT-88421",
+    "date": "Hoy, 10:42 AM",
+    "customerName": "Comercializadora El Sol",
+    "customerDoc": "NIT 901.442.118-2",
+    "sellerName": "Laura Gómez",
+    "itemsCount": 14,
+    "totalAmount": 4820000,
+    "costAmount": 3580000,
+    "profitAmount": 1240000,
+    "paymentMethod": "TRANSFERENCIA",
+    "status": "EMITIDA"
+  },
+  {
+    "id": "sale-002",
+    "locationId": "loc-001",
+    "saleCode": "VT-88419",
+    "date": "Hoy, 10:12 AM",
+    "customerName": "Restaurante Sazón",
+    "customerDoc": "NIT 900.112.883-1",
+    "sellerName": "Laura Gómez",
+    "itemsCount": 22,
+    "totalAmount": 1240000,
+    "costAmount": 920000,
+    "profitAmount": 320000,
+    "paymentMethod": "CREDITO",
+    "status": "PENDIENTE"
+  },
+  {
+    "id": "sale-003",
+    "locationId": "loc-001",
+    "saleCode": "VT-88415",
+    "date": "Hoy, 08:35 AM",
+    "customerName": "Mini mercado 24H",
+    "customerDoc": "NIT 901.883.210-4",
+    "sellerName": "Mauricio Andrade",
+    "itemsCount": 38,
+    "totalAmount": 2360000,
+    "costAmount": 1740000,
+    "profitAmount": 620000,
+    "paymentMethod": "EFECTIVO",
+    "status": "EMITIDA"
+  },
+  {
+    "id": "sale-004",
+    "locationId": "loc-001",
+    "saleCode": "VT-88390",
+    "date": "Ayer, 05:18 PM",
+    "customerName": "Tienda La 32",
+    "customerDoc": "CC 43.882.901",
+    "sellerName": "Andrés Martínez",
+    "itemsCount": 19,
+    "totalAmount": 1820000,
+    "costAmount": 1360000,
+    "profitAmount": 460000,
+    "paymentMethod": "TARJETA",
+    "status": "EMITIDA"
+  }
+]

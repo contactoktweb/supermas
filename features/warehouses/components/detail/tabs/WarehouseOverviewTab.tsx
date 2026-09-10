@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseInventoryItem, WarehouseTransfer, WarehouseMovement } from '../../../types'
+import { warehouseService } from '../../../services/warehouse.service'
 
 interface WarehouseOverviewTabProps {
   warehouse: LocationWithMetrics
@@ -22,25 +23,26 @@ export function WarehouseOverviewTab({
   onNavigateTab,
 }: WarehouseOverviewTabProps) {
   const [chartMetric, setChartMetric] = useState<'SALES' | 'PROFIT'>('SALES')
+  const [analytics, setAnalytics] = useState<{
+    topSelling: { name: string; sku: string; sales: string; units: number }[]
+    categoriesDistribution: { name: string; pct: string; value: string }[]
+  }>({
+    topSelling: [],
+    categoriesDistribution: [],
+  })
+
+  useEffect(() => {
+    warehouseService.getWarehouseOverviewAnalytics(warehouse.id).then((res) => {
+      setAnalytics(res)
+    })
+  }, [warehouse.id])
 
   const lowStockItems = inventory.filter(
     (i) => i.status === 'LOW_STOCK' || i.status === 'CRITICAL' || i.status === 'OUT_OF_STOCK'
   )
 
-  const topSellingMock = [
-    { name: 'Arroz Diana 500g', sku: 'SKU-001842', sales: '$4.82M', units: 1420 },
-    { name: 'Aceite Premier 900ml', sku: 'SKU-002107', sales: '$2.94M', units: 300 },
-    { name: 'Café Sello Rojo 500g', sku: 'SKU-004229', sales: '$2.13M', units: 150 },
-    { name: 'Gaseosa Coca-Cola 1.5L', sku: 'SKU-005882', sales: '$1.45M', units: 280 },
-  ]
-
-  const categoriesDistribution = [
-    { name: 'Granos y Abastos', pct: '38%', value: '$93.4M' },
-    { name: 'Despensa y Aceites', pct: '26%', value: '$63.9M' },
-    { name: 'Lácteos y Refrigerados', pct: '18%', value: '$44.2M' },
-    { name: 'Bebidas y Líquidos', pct: '12%', value: '$29.5M' },
-    { name: 'Enlatados y Otros', pct: '6%', value: '$14.7M' },
-  ]
+  const topSelling = analytics.topSelling
+  const categoriesDistribution = analytics.categoriesDistribution
 
   return (
     <div className="overview-tab-grid page-enter">
@@ -170,7 +172,7 @@ export function WarehouseOverviewTab({
           </div>
 
           <div className="admin-list" style={{ padding: '10px 0 0' }}>
-            {topSellingMock.map((prod, idx) => (
+            {topSelling.map((prod, idx) => (
               <article className="rank-row" key={prod.sku}>
                 <span className="rank">0{idx + 1}</span>
                 <div className="admin-row-icon">

@@ -14,7 +14,7 @@ import {
   UserRole,
 } from '../types'
 import { dashboardRepository } from '../repositories/dashboard.repository'
-import { mockQuickActions } from '../mocks/dashboard.mock'
+import { db } from '@/lib/supabase'
 
 export class DashboardService {
   /**
@@ -203,11 +203,19 @@ export class DashboardService {
   }
 
   /**
+   * Get available user profiles from Supabase DB
+   */
+  getAvailableProfiles(): UserProfile[] {
+    return db.users as unknown as UserProfile[]
+  }
+
+  /**
    * Get available quick actions filtered by user permissions
    */
   getQuickActions(user: UserProfile): QuickActionItem[] {
     const perms = this.getUserPermissions(user.role)
-    return mockQuickActions.filter((qa) => perms.has(qa.requiredPermission))
+    const quickActions = db.dashboardMetrics.quickActions as unknown as QuickActionItem[]
+    return quickActions.filter((qa) => perms.has(qa.requiredPermission))
   }
 
   /**

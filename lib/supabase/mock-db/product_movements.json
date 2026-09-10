@@ -1,0 +1,52 @@
+{
+  "prod-001": [
+    {
+      "id": "mov-101",
+      "timestamp": "2026-08-31T14:30:00Z",
+      "type": "VENTA",
+      "quantity": 12,
+      "unitCost": 15400,
+      "previousBalance": 432,
+      "newBalance": 420,
+      "documentRef": "POS-TKT-8902",
+      "locationName": "Punto de Venta Centro",
+      "userName": "Carlos Vendedor"
+    },
+    {
+      "id": "mov-102",
+      "timestamp": "2026-08-30T10:15:00Z",
+      "type": "TRANSFERENCIA_SALIDA",
+      "quantity": 40,
+      "unitCost": 15400,
+      "previousBalance": 472,
+      "newBalance": 432,
+      "documentRef": "TRF-2026-042",
+      "locationName": "Bodega Principal Cali",
+      "userName": "Almacenista Jefe"
+    },
+    {
+      "id": "mov-103",
+      "timestamp": "2026-08-28T16:00:00Z",
+      "type": "COMPRA",
+      "quantity": 200,
+      "unitCost": 15400,
+      "previousBalance": 272,
+      "newBalance": 472,
+      "documentRef": "FAC-PROV-77821",
+      "locationName": "Bodega Principal Cali",
+      "userName": "Compras Admin"
+    },
+    {
+      "id": "mov-104",
+      "timestamp": "2026-08-25T09:40:00Z",
+      "type": "AJUSTE_POSITIVO",
+      "quantity": 5,
+      "unitCost": 15400,
+      "previousBalance": 267,
+      "newBalance": 272,
+      "documentRef": "AJU-INV-0019",
+      "locationName": "Bodega Norte Acopi",
+      "userName": "Auditor de Inventario"
+    }
+  ]
+}

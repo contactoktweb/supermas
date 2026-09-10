@@ -10,10 +10,11 @@ import {
   WebAvailability,
   ProductStockHealth,
   ProductAuditEntry,
+  TaxRateConfig,
 } from '../types'
 import { productRepository } from '../repositories/product.repository'
 import { productFormSchema } from '../schemas/product.schema'
-import { PRODUCT_MOVEMENTS_MOCK } from '../mocks/product.mock'
+import { db } from '@/lib/supabase'
 
 export class ProductService {
   /**
@@ -380,7 +381,8 @@ export class ProductService {
    * Obtiene los movimientos de Kardex recientes del producto.
    */
   async getProductMovements(id: string): Promise<ProductMovementSummary[]> {
-    return PRODUCT_MOVEMENTS_MOCK[id] || []
+    const movements = db.productMovements as unknown as Record<string, ProductMovementSummary[]>
+    return movements[id] || []
   }
 
   /**
@@ -526,6 +528,18 @@ export class ProductService {
       .replace(/\s+/g, '-')
       .replace(/[^\w\-]+/g, '')
       .replace(/\-\-+/g, '-')
+  }
+
+  async getCategories(): Promise<string[]> {
+    return db.categories
+  }
+
+  async getBrands(): Promise<string[]> {
+    return db.brands
+  }
+
+  async getTaxConfigs(): Promise<TaxRateConfig[]> {
+    return db.taxConfigs as unknown as TaxRateConfig[]
   }
 }
 

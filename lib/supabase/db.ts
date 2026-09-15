@@ -29,6 +29,9 @@ import suppliersData from './mock-db/suppliers.json'
 import usersData from './mock-db/users.json'
 import userAssignmentsData from './mock-db/user_assignments.json'
 import taxConfigsData from './mock-db/tax_configs.json'
+import accountingEntriesData from './mock-db/accounting_entries.json'
+import exogenaNormativaData from './mock-db/exogena_normativa.json'
+import exogenaGenerationsData from './mock-db/exogena_generations.json'
 import categoriesData from './mock-db/categories.json'
 import brandsData from './mock-db/brands.json'
 import dashboardMetricsData from './mock-db/dashboard_metrics.json'
@@ -59,6 +62,9 @@ export interface SupabaseMockTableMap {
   users: typeof usersData
   user_assignments: typeof userAssignmentsData
   tax_configs: typeof taxConfigsData
+  accounting_entries: typeof accountingEntriesData
+  exogena_normativa: typeof exogenaNormativaData
+  exogena_generations: typeof exogenaGenerationsData
   categories: typeof categoriesData
   brands: typeof brandsData
   dashboard_metrics: typeof dashboardMetricsData
@@ -90,6 +96,9 @@ export const db = {
   users: usersData,
   userAssignments: userAssignmentsData,
   taxConfigs: taxConfigsData,
+  accountingEntries: accountingEntriesData,
+  exogenaNormativa: exogenaNormativaData,
+  exogenaGenerations: exogenaGenerationsData,
   categories: categoriesData,
   brands: brandsData,
   dashboardMetrics: dashboardMetricsData,
@@ -123,6 +132,12 @@ export const supabaseMock = {
         ? 'userAssignments'
         : table === 'tax_configs'
         ? 'taxConfigs'
+        : table === 'accounting_entries'
+        ? 'accountingEntries'
+        : table === 'exogena_normativa'
+        ? 'exogenaNormativa'
+        : table === 'exogena_generations'
+        ? 'exogenaGenerations'
         : table === 'dashboard_metrics'
         ? 'dashboardMetrics'
         : table === 'audit_logs'

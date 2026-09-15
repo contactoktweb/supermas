@@ -22,7 +22,7 @@ const modules: [string, LightIconName, string][] = [
   ['Remisiones', 'remisiones', '/'],
   ['Cajas', 'cashRegisters', '/'],
   ['Contabilidad', 'accounting', '/'],
-  ['Impuestos', 'taxes', '/'],
+  ['Impuestos', 'taxes', '/impuestos'],
   ['Exógena', 'exogena', '/'],
   ['Pedidos Web', 'webOrders', '/'],
   ['Catálogo Super Más', 'ecommerceSM', '/'],

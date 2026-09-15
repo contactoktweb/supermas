@@ -15,6 +15,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
     "vatRatePercent": 0,
     "isExempt": true,
     "prices": [
@@ -116,6 +117,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "IVA_19",
+    "taxConfigId": "tax-19",
     "vatRatePercent": 19,
     "isExempt": false,
     "prices": [
@@ -217,6 +219,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
     "vatRatePercent": 0,
     "isExempt": true,
     "prices": [
@@ -318,6 +321,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "IVA_5",
+    "taxConfigId": "tax-5",
     "vatRatePercent": 5,
     "isExempt": false,
     "prices": [
@@ -419,6 +423,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "IVA_19",
+    "taxConfigId": "tax-19",
     "vatRatePercent": 19,
     "isExempt": false,
     "prices": [
@@ -520,6 +525,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "IVA_19",
+    "taxConfigId": "tax-19",
     "vatRatePercent": 19,
     "isExempt": false,
     "prices": [
@@ -620,7 +626,8 @@
       "https://images.unsplash.com/photo-1599488615731-7e5c2823ff28?w=400&auto=format&fit=crop&q=80"
     ],
     "status": "ACTIVE",
-    "taxProfile": "EXENTO",
+    "taxProfile": "EXCLUIDO",
+    "taxConfigId": "tax-excluido",
     "vatRatePercent": 0,
     "isExempt": true,
     "prices": [
@@ -709,6 +716,7 @@
     ],
     "status": "ACTIVE",
     "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
     "vatRatePercent": 0,
     "isExempt": true,
     "prices": [

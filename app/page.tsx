@@ -15,6 +15,8 @@ import { SalesPage } from '@/features/sales'
 import { POSView } from '@/features/pos'
 import { InvoicesPage } from '@/features/invoices'
 import { RemissionsPage } from '@/features/remissions'
+import { TaxPage } from '@/features/taxes/components/TaxPage'
+import { ExogenaPage } from '@/features/exogena/components/ExogenaPage'
 import { Footer } from '@/components/Footer'
 import { db } from '@/lib/supabase'
 
@@ -425,6 +427,10 @@ function App(){
     <RemissionsPage onNavigate={(targetView) => setView(targetView)} />
   ) : view === 'Cajas' ? (
     <Cajas />
+  ) : view === 'Impuestos' ? (
+    <TaxPage />
+  ) : view === 'Exógena' ? (
+    <ExogenaPage />
   ) : adminConfigs[view] ? (
     <AdminModule name={view} />
   ) : moduleMeta[view] ? (

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
+import { TaxPage } from '@/features/taxes/components/TaxPage'
 import { Footer } from '@/components/Footer'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import Link from 'next/link'
@@ -13,17 +13,17 @@ const modules: [string, LightIconName, string][] = [
   ['Inventario', 'inventory', '/inventario'],
   ['Kardex', 'kardex', '/kardex'],
   ['Transferencias', 'transfers', '/transferencias'],
-  ['Compras', 'purchases', '/'],
+  ['Compras', 'purchases', '/compras'],
   ['Proveedores', 'suppliers', '/proveedores'],
   ['Clientes', 'customers', '/clientes'],
-  ['Ventas', 'sales', '/'],
-  ['POS', 'pos', '/'],
-  ['Facturación', 'invoices', '/'],
-  ['Remisiones', 'remisiones', '/'],
+  ['Ventas', 'sales', '/ventas'],
+  ['POS', 'pos', '/pos'],
+  ['Facturación', 'invoices', '/facturacion'],
+  ['Remisiones', 'remisiones', '/remisiones'],
   ['Cajas', 'cashRegisters', '/'],
   ['Contabilidad', 'accounting', '/'],
   ['Impuestos', 'taxes', '/impuestos'],
-  ['Exógena', 'exogena', '/'],
+  ['Exógena', 'exogena', '/exogena'],
   ['Pedidos Web', 'webOrders', '/'],
   ['Catálogo Super Más', 'ecommerceSM', '/'],
   ['Catálogo Distribuidora', 'ecommerceDist', '/'],
@@ -35,7 +35,7 @@ const modules: [string, LightIconName, string][] = [
   ['Configuración', 'settings', '/'],
 ]
 
-export default function BodegasRoutePage() {
+export default function ImpuestosRoutePage() {
   const [menu, setMenu] = useState(false)
 
   return (
@@ -58,7 +58,7 @@ export default function BodegasRoutePage() {
 
         <div className="workspace">
           <div className="workspace-icon">
-            <AppIcon name="suppliers" size={18} />
+            <AppIcon name="taxes" size={18} />
           </div>
           <div>
             <strong>Super Más S.A.S.</strong>
@@ -73,7 +73,7 @@ export default function BodegasRoutePage() {
             <Link
               key={label}
               href={path}
-              className={`nav-item ${label === 'Bodegas' ? 'active' : ''}`}
+              className={`nav-item ${label === 'Impuestos' ? 'active' : ''}`}
               onClick={() => setMenu(false)}
             >
               <AppIcon name={iconName} size={18} />
@@ -105,7 +105,7 @@ export default function BodegasRoutePage() {
           <div className="breadcrumbs">
             <span>Inicio</span>
             <AppIcon name="chevronRight" size={14} />
-            <strong>Bodegas</strong>
+            <strong>Impuestos</strong>
           </div>
           <div className="top-actions">
             <div className="search-box">
@@ -121,7 +121,7 @@ export default function BodegasRoutePage() {
         </header>
 
         <main className="dashboard-content">
-          <WarehousePage />
+          <TaxPage />
           <Footer isDark={false} />
         </main>
       </div>

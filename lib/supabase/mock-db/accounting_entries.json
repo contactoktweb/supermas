@@ -1,0 +1,164 @@
+[
+  {
+    "id": "entry-001",
+    "entryNumber": "AST-2026-000842",
+    "date": "2026-09-08T15:42:00Z",
+    "period": "2026-09",
+    "sourceType": "SALE",
+    "sourceId": "sale-001",
+    "documentNumber": "FAC-2026-00481",
+    "description": "Contabilización de venta con factura electrónica a Comercializadora El Sol S.A.S.",
+    "status": "POSTED",
+    "thirdPartyId": "cust-001",
+    "thirdPartyName": "Comercializadora El Sol S.A.S.",
+    "thirdPartyDoc": "NIT 901.442.118-2",
+    "lines": [
+      {
+        "id": "line-001-1",
+        "accountId": "acc-130505",
+        "accountCode": "130505",
+        "accountName": "Clientes nacionales",
+        "debit": 4757900,
+        "credit": 0,
+        "description": "Cuentas por cobrar comercial cliente"
+      },
+      {
+        "id": "line-001-2",
+        "accountId": "acc-413501",
+        "accountCode": "413501",
+        "accountName": "Comercio al por mayor y al por menor - Abarrotes",
+        "debit": 0,
+        "credit": 4360000,
+        "description": "Ingreso por venta de mercancías"
+      },
+      {
+        "id": "line-001-3",
+        "accountId": "acc-240805",
+        "accountCode": "240805",
+        "accountName": "240805 - IVA generado en ventas y servicios (19%)",
+        "debit": 0,
+        "credit": 372400,
+        "taxConfigId": "tax-19",
+        "taxRatePercent": 19,
+        "baseAmount": 1960000,
+        "description": "IVA generado tarifa general 19%"
+      },
+      {
+        "id": "line-001-4",
+        "accountId": "acc-240806",
+        "accountCode": "240806",
+        "accountName": "240806 - IVA generado tarifa reducida (5%)",
+        "debit": 0,
+        "credit": 25500,
+        "taxConfigId": "tax-5",
+        "taxRatePercent": 5,
+        "baseAmount": 510000,
+        "description": "IVA generado tarifa reducida 5%"
+      }
+    ],
+    "totalDebit": 4757900,
+    "totalCredit": 4757900,
+    "isBalanced": true,
+    "createdAt": "2026-09-08T15:45:00Z"
+  },
+  {
+    "id": "entry-002",
+    "entryNumber": "AST-2026-000841",
+    "date": "2026-09-09T10:12:00Z",
+    "period": "2026-09",
+    "sourceType": "SALE",
+    "sourceId": "sale-002",
+    "documentNumber": "FAC-2026-00462",
+    "description": "Contabilización de venta a crédito a Restaurante Sazón Gourmet S.A.",
+    "status": "POSTED",
+    "thirdPartyId": "cust-002",
+    "thirdPartyName": "Restaurante Sazón Gourmet S.A.",
+    "thirdPartyDoc": "NIT 900.112.883-1",
+    "lines": [
+      {
+        "id": "line-002-1",
+        "accountId": "acc-130505",
+        "accountCode": "130505",
+        "accountName": "Clientes nacionales",
+        "debit": 1218455,
+        "credit": 0,
+        "description": "Cuentas por cobrar venta"
+      },
+      {
+        "id": "line-002-2",
+        "accountId": "acc-413501",
+        "accountCode": "413501",
+        "accountName": "Comercio al por mayor y al por menor - Abarrotes",
+        "debit": 0,
+        "credit": 1122125,
+        "description": "Ingreso por venta gravada y exenta"
+      },
+      {
+        "id": "line-002-3",
+        "accountId": "acc-240805",
+        "accountCode": "240805",
+        "accountName": "240805 - IVA generado en ventas y servicios (19%)",
+        "debit": 0,
+        "credit": 96330,
+        "taxConfigId": "tax-19",
+        "taxRatePercent": 19,
+        "baseAmount": 507000,
+        "description": "IVA generado tarifa 19%"
+      }
+    ],
+    "totalDebit": 1218455,
+    "totalCredit": 1218455,
+    "isBalanced": true,
+    "createdAt": "2026-09-09T10:15:00Z"
+  },
+  {
+    "id": "entry-003",
+    "entryNumber": "AST-2026-000218",
+    "date": "2026-09-08T09:15:00Z",
+    "period": "2026-09",
+    "sourceType": "PURCHASE",
+    "sourceId": "pur-001",
+    "documentNumber": "COM-002184",
+    "description": "Entrada de mercancías e IVA descontable factura proveedor Distribuciones La 14 S.A.S.",
+    "status": "POSTED",
+    "thirdPartyId": "sup-001",
+    "thirdPartyName": "Distribuciones La 14 S.A.S.",
+    "thirdPartyDoc": "NIT 900.421.882-1",
+    "lines": [
+      {
+        "id": "line-003-1",
+        "accountId": "acc-143501",
+        "accountCode": "143501",
+        "accountName": "Mercancías no fabricadas por la empresa - Abarrotes",
+        "debit": 15800000,
+        "credit": 0,
+        "description": "Ingreso a inventario valor de adquisición"
+      },
+      {
+        "id": "line-003-2",
+        "accountId": "acc-240810",
+        "accountCode": "240810",
+        "accountName": "240810 - IVA descontable en compras de inventario (19%)",
+        "debit": 2620000,
+        "credit": 0,
+        "taxConfigId": "tax-19",
+        "taxRatePercent": 19,
+        "baseAmount": 13789474,
+        "description": "IVA descontable en compras gravadas 19%"
+      },
+      {
+        "id": "line-003-3",
+        "accountId": "acc-220505",
+        "accountCode": "220505",
+        "accountName": "Proveedores nacionales",
+        "debit": 0,
+        "credit": 18420000,
+        "description": "Cuenta por pagar factura proveedor FAC-89214"
+      }
+    ],
+    "totalDebit": 18420000,
+    "totalCredit": 18420000,
+    "isBalanced": true,
+    "createdAt": "2026-09-08T09:20:00Z"
+  }
+]

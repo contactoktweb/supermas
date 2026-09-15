@@ -1,0 +1,320 @@
+[
+  {
+    "year": 2025,
+    "label": "Año Gravable 2025",
+    "normativaResolution": "Resolución DIAN 000162 de 2023 (Modificada por Res. 000187 de 2024)",
+    "obligadoType": "PERSONA_JURIDICA",
+    "companyNit": "900.852.147-3",
+    "companyName": "Distribuidora Super Más S.A.S.",
+    "responsibleName": "Carlos Ruiz (Contador Público T.P. 18452-T)",
+    "dueDate": "2026-05-14",
+    "status": "EN_PREPARACION",
+    "grossRevenueThreshold": 500000000,
+    "withholdingAgentRequired": true,
+    "formats": [
+      {
+        "formatNumber": "1001",
+        "version": 10,
+        "name": "Pagos o abonos en cuenta y retenciones practicadas",
+        "description": "Reporte de costos y deducciones por compras de inventario, servicios y retenciones en la fuente aplicadas a proveedores.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "COMPRAS_Y_GASTOS",
+        "legalBasis": "Art. 16 Res. 000162/2023",
+        "minimumThresholdCOP": 100000,
+        "concepts": [
+          {
+            "code": "5002",
+            "name": "Compras de activos movibles (Inventarios para comercio)",
+            "accountPrefixes": ["1435", "6205"],
+            "requiresWithholding": true
+          },
+          {
+            "code": "5004",
+            "name": "Servicios técnicos y de transporte de carga",
+            "accountPrefixes": ["5135", "5235"],
+            "requiresWithholding": true
+          },
+          {
+            "code": "5005",
+            "name": "Arrendamientos de bodegas y locales comerciales",
+            "accountPrefixes": ["5120"],
+            "requiresWithholding": true
+          },
+          {
+            "code": "5016",
+            "name": "Demás costos y deducciones operacionales",
+            "accountPrefixes": ["5195", "5295"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1003",
+        "version": 8,
+        "name": "Retenciones en la fuente que le practicaron",
+        "description": "Retenciones en la fuente a título de Renta e IVA que clientes mayoristas practicaron a Super Más.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "RETENCIONES_RECIBIDAS",
+        "legalBasis": "Art. 18 Res. 000162/2023",
+        "minimumThresholdCOP": 0,
+        "concepts": [
+          {
+            "code": "1301",
+            "name": "Retención en la fuente por ventas de bienes (Abarrotes)",
+            "accountPrefixes": ["135515"],
+            "requiresWithholding": true
+          },
+          {
+            "code": "1302",
+            "name": "Retención de IVA que le practicaron (ReteIVA clientes)",
+            "accountPrefixes": ["135517"],
+            "requiresWithholding": true
+          }
+        ]
+      },
+      {
+        "formatNumber": "1005",
+        "version": 8,
+        "name": "Impuesto a las ventas (IVA) descontable",
+        "description": "Valores de IVA pagados a proveedores de mercancías con derecho a compensación o devolución.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "IMPUESTOS_DESCONTABLES",
+        "legalBasis": "Art. 20 Res. 000162/2023",
+        "minimumThresholdCOP": 0,
+        "concepts": [
+          {
+            "code": "2401",
+            "name": "IVA descontable por compras de mercancías tarifa general (19%)",
+            "accountPrefixes": ["240810"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "2402",
+            "name": "IVA descontable por compras tarifa reducida (5%)",
+            "accountPrefixes": ["240811"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1006",
+        "version": 9,
+        "name": "Impuesto a las ventas (IVA) generado e Impuesto al Consumo",
+        "description": "IVA facturado y liquidado en operaciones de venta mayorista y mostrador POS.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "IMPUESTOS_GENERADOS",
+        "legalBasis": "Art. 21 Res. 000162/2023",
+        "minimumThresholdCOP": 0,
+        "concepts": [
+          {
+            "code": "2405",
+            "name": "IVA generado en ventas gravadas tarifa general 19%",
+            "accountPrefixes": ["240805"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "2406",
+            "name": "IVA generado en ventas gravadas tarifa reducida 5%",
+            "accountPrefixes": ["240806"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "2412",
+            "name": "Impuesto Nacional al Consumo generado (8%)",
+            "accountPrefixes": ["241205"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1007",
+        "version": 9,
+        "name": "Ingresos propios recibidos en el año",
+        "description": "Consolidado de facturación de venta discriminada por cliente y cuantías menores.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "INGRESOS",
+        "legalBasis": "Art. 22 Res. 000162/2023",
+        "minimumThresholdCOP": 500000,
+        "concepts": [
+          {
+            "code": "4001",
+            "name": "Ingresos brutos operacionales por comercio al por mayor y menor",
+            "accountPrefixes": ["4135"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "4003",
+            "name": "Devoluciones, rebajas y descuentos en ventas comerciales",
+            "accountPrefixes": ["4175"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1008",
+        "version": 8,
+        "name": "Saldo de cuentas por cobrar a 31 de diciembre",
+        "description": "Cartera pendiente de recaudo por cliente comercial con saldo a fin de año.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "CARTERA_Y_CXC",
+        "legalBasis": "Art. 23 Res. 000162/2023",
+        "minimumThresholdCOP": 1000000,
+        "concepts": [
+          {
+            "code": "1315",
+            "name": "Cuentas por cobrar a clientes nacionales comerciales",
+            "accountPrefixes": ["1305"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "1317",
+            "name": "Anticipos y saldos a favor de clientes",
+            "accountPrefixes": ["1330", "1365"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1009",
+        "version": 8,
+        "name": "Saldo de cuentas por pagar a 31 de diciembre",
+        "description": "Obligaciones pendientes con proveedores de víveres y acreedores comerciales.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "PASIVOS_Y_CXP",
+        "legalBasis": "Art. 24 Res. 000162/2023",
+        "minimumThresholdCOP": 1000000,
+        "concepts": [
+          {
+            "code": "2201",
+            "name": "Cuentas por pagar a proveedores nacionales",
+            "accountPrefixes": ["2205"],
+            "requiresWithholding": false
+          },
+          {
+            "code": "2205",
+            "name": "Costos y gastos por pagar a acreedores varios",
+            "accountPrefixes": ["2335"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "1010",
+        "version": 9,
+        "name": "Información de socios, accionistas y participaciones",
+        "description": "Composición accionaria y aportes de capital a 31 de diciembre.",
+        "appliesToSuperMas": false,
+        "isEnabled": false,
+        "category": "SOCIOS_Y_PATRIMONIO",
+        "legalBasis": "Art. 25 Res. 000162/2023",
+        "minimumThresholdCOP": 0,
+        "concepts": [
+          {
+            "code": "3001",
+            "name": "Aportes y acciones en sociedades anónimas simplificadas",
+            "accountPrefixes": ["3105"],
+            "requiresWithholding": false
+          }
+        ]
+      },
+      {
+        "formatNumber": "2276",
+        "version": 4,
+        "name": "Rentas de trabajo y pensiones (Nómina y personal)",
+        "description": "Certificado de ingresos y retenciones laborales por nómina de colaboradores.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "NOMINA_Y_LABORAL",
+        "legalBasis": "Art. 35 Res. 000162/2023",
+        "minimumThresholdCOP": 0,
+        "concepts": [
+          {
+            "code": "5010",
+            "name": "Sueldos y compensaciones laborales directas",
+            "accountPrefixes": ["5105", "5205"],
+            "requiresWithholding": true
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "year": 2024,
+    "label": "Año Gravable 2024",
+    "normativaResolution": "Resolución DIAN 0001255 de 2022 (Modificada)",
+    "obligadoType": "PERSONA_JURIDICA",
+    "companyNit": "900.852.147-3",
+    "companyName": "Distribuidora Super Más S.A.S.",
+    "responsibleName": "Carlos Ruiz (Contador Público)",
+    "dueDate": "2025-05-18",
+    "status": "FINALIZADO_Y_PRESENTADO",
+    "grossRevenueThreshold": 500000000,
+    "withholdingAgentRequired": true,
+    "formats": [
+      {
+        "formatNumber": "1001",
+        "version": 10,
+        "name": "Pagos o abonos en cuenta y retenciones practicadas",
+        "description": "Reporte de costos y retenciones practicadas a proveedores en 2024.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "COMPRAS_Y_GASTOS",
+        "legalBasis": "Res. 0001255/2022",
+        "minimumThresholdCOP": 100000,
+        "concepts": [
+          { "code": "5002", "name": "Compras de inventarios", "accountPrefixes": ["1435"], "requiresWithholding": true }
+        ]
+      },
+      {
+        "formatNumber": "1007",
+        "version": 9,
+        "name": "Ingresos propios recibidos en el año",
+        "description": "Facturación consolidada 2024.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "INGRESOS",
+        "legalBasis": "Res. 0001255/2022",
+        "minimumThresholdCOP": 500000,
+        "concepts": [
+          { "code": "4001", "name": "Ingresos comerciales", "accountPrefixes": ["4135"], "requiresWithholding": false }
+        ]
+      }
+    ]
+  },
+  {
+    "year": 2026,
+    "label": "Año Gravable 2026 (En curso)",
+    "normativaResolution": "Proyección normativa preliminar DIAN",
+    "obligadoType": "PERSONA_JURIDICA",
+    "companyNit": "900.852.147-3",
+    "companyName": "Distribuidora Super Más S.A.S.",
+    "responsibleName": "Carlos Ruiz",
+    "dueDate": "2027-05-15",
+    "status": "BORRADOR_PREVIO",
+    "grossRevenueThreshold": 500000000,
+    "withholdingAgentRequired": true,
+    "formats": [
+      {
+        "formatNumber": "1001",
+        "version": 10,
+        "name": "Pagos o abonos en cuenta y retenciones practicadas",
+        "description": "Pagos a proveedores y compras de inventario periodo actual.",
+        "appliesToSuperMas": true,
+        "isEnabled": true,
+        "category": "COMPRAS_Y_GASTOS",
+        "legalBasis": "Normativa Proyectada",
+        "minimumThresholdCOP": 100000,
+        "concepts": [
+          { "code": "5002", "name": "Compras de inventarios", "accountPrefixes": ["1435"], "requiresWithholding": true }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,40 @@
+[
+  {
+    "id": "gen-2024-final",
+    "year": 2024,
+    "batchCode": "EXO-2024-DEFINITIVO",
+    "date": "2025-05-12T16:30:00Z",
+    "userId": "usr-002",
+    "userName": "Carlos Ruiz",
+    "userRole": "Contador General",
+    "formatsIncluded": ["1001", "1003", "1005", "1006", "1007", "1008", "1009"],
+    "totalRecords": 1420,
+    "totalErrors": 0,
+    "totalWarnings": 2,
+    "status": "GENERATED",
+    "fileFormat": "XML",
+    "fileName": "Dmuisca_010100110202400000001.xml",
+    "fileUrl": "/exports/exogena/2024/Dmuisca_010100110202400000001.xml",
+    "checksum": "sha256-a982f1b47c093e11",
+    "notes": "Paquete final de medios magnéticos año 2024 firmado y presentado ante la DIAN sin sanciones."
+  },
+  {
+    "id": "gen-2025-borrador",
+    "year": 2025,
+    "batchCode": "EXO-2025-CORTE-PREVIO",
+    "date": "2026-09-10T11:20:00Z",
+    "userId": "usr-admin",
+    "userName": "Admin Mauricio",
+    "userRole": "Administrador General",
+    "formatsIncluded": ["1001", "1005", "1006", "1007"],
+    "totalRecords": 248,
+    "totalErrors": 2,
+    "totalWarnings": 5,
+    "status": "HAS_ERRORS",
+    "fileFormat": "XML",
+    "fileName": "Dmuisca_010100110202500000001_draft.xml",
+    "fileUrl": "/exports/exogena/2025/draft.xml",
+    "checksum": "sha256-f5610bc281e00912",
+    "notes": "Generación preliminar de prueba. Se detectaron terceros sin DV y una dirección pendiente."
+  }
+]

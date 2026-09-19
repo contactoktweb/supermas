@@ -103,5 +103,27 @@
     "dianCufe": "5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b",
     "itemsCount": 14,
     "saleId": "sale-005"
+  },
+  {
+    "id": "inv-006",
+    "invoiceNumber": "FAC-2026-00495",
+    "customerId": "cust-002",
+    "customerName": "Restaurante Sazón Gourmet S.A.",
+    "customerDoc": "NIT 900.112.883-1",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal (CEDI)",
+    "date": "2026-09-18T14:10:00Z",
+    "dueDate": "2026-10-18T14:10:00Z",
+    "subtotal": 2100000,
+    "taxTotal": 399000,
+    "total": 2499000,
+    "pendingBalance": 2499000,
+    "status": "ISSUED",
+    "paymentMethod": "TRANSFERENCIA",
+    "dianStatus": "RECHAZADA_DIAN",
+    "dianErrorMessage": "Regla DIAN R-04: Código postal del receptor no coincide con tabla DIAN.",
+    "dianCufe": null,
+    "itemsCount": 18,
+    "saleId": "sale-006"
   }
 ]

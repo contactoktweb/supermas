@@ -72,15 +72,6 @@ export default function KardexRoutePage() {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="suppliers" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Principal</span>
-          </div>
-        </div>
 
         <nav className="nav-list">
           {modules.map(([m, icon, href]) => (

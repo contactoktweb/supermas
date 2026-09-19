@@ -87,15 +87,6 @@ export default function CustomersRoutePage() {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="customers" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Directorio de Clientes</span>
-          </div>
-        </div>
 
         <nav className="nav-list">
           {modules.map(([m, icon, href]) => (

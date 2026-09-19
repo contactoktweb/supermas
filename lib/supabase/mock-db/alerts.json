@@ -1,0 +1,269 @@
+[
+  {
+    "id": "alt-2026-001",
+    "ruleId": "rule-pur-001",
+    "code": "ALT-PUR-001",
+    "title": "Factura Vencida: Bebidas Nacionales de Colombia",
+    "description": "La factura de compra FAC-44102 venció el 2026-09-15 y mantiene un saldo pendiente de $6,920,000 COP.",
+    "module": "PURCHASES",
+    "priority": "ALTA",
+    "status": "NEW",
+    "entityType": "PURCHASE_INVOICE",
+    "entityId": "pur-002",
+    "entityReference": "FAC-44102",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal (CEDI)",
+    "assignedRole": "ACCOUNTANT",
+    "assignedUserId": null,
+    "assignedUserName": null,
+    "readAt": null,
+    "readByUserId": null,
+    "attendedAt": null,
+    "attendedByUserId": null,
+    "attendedByUserName": null,
+    "attendedComment": null,
+    "resolvedAt": null,
+    "resolvedByUserId": null,
+    "resolvedByUserName": null,
+    "solutionNotes": null,
+    "closedAt": null,
+    "closedByUserId": null,
+    "metadata": {
+      "supplierName": "Bebidas Nacionales de Colombia",
+      "dueDate": "2026-09-15",
+      "pendingBalance": 6920000,
+      "totalAmount": 6920000
+    },
+    "history": [
+      {
+        "timestamp": "2026-09-16T00:05:00.000Z",
+        "actor": "Sistema de Reglas Automáticas",
+        "action": "CREATED",
+        "notes": "Detección automática por regla R-PUR-001 al vencer la fecha de pago programada."
+      }
+    ],
+    "createdAt": "2026-09-16T00:05:00.000Z",
+    "updatedAt": "2026-09-16T00:05:00.000Z"
+  },
+  {
+    "id": "alt-2026-002",
+    "ruleId": "rule-cash-001",
+    "code": "ALT-CASH-002",
+    "title": "Diferencia de Arqueo en Caja Rápida - Norte",
+    "description": "Se detectó un faltante de $5,000 COP entre el efectivo real ($3,195,000) y el teórico ($3,200,000) en la Caja CAJA-02.",
+    "module": "CASH",
+    "priority": "CRITICA",
+    "status": "IN_PROGRESS",
+    "entityType": "CASH_REGISTER",
+    "entityId": "cash-reg-002",
+    "entityReference": "CAJA-02",
+    "locationId": "loc-002",
+    "locationName": "Punto de Venta Norte",
+    "assignedRole": "CASHIER",
+    "assignedUserId": "usr-003",
+    "assignedUserName": "Andrés Martínez",
+    "readAt": "2026-09-18T08:10:00.000Z",
+    "readByUserId": "usr-003",
+    "attendedAt": "2026-09-18T08:15:00.000Z",
+    "attendedByUserId": "usr-003",
+    "attendedByUserName": "Andrés Martínez",
+    "attendedComment": "Revisando tirillas de pago en efectivo y monedas de reserva en gaveta.",
+    "resolvedAt": null,
+    "resolvedByUserId": null,
+    "resolvedByUserName": null,
+    "solutionNotes": null,
+    "closedAt": null,
+    "closedByUserId": null,
+    "metadata": {
+      "registerCode": "CAJA-02",
+      "cashierName": "Andrés Martínez",
+      "difference": -5000,
+      "expectedCash": 3200000,
+      "actualCash": 3195000
+    },
+    "history": [
+      {
+        "timestamp": "2026-09-18T08:00:00.000Z",
+        "actor": "Sistema de Reglas Automáticas",
+        "action": "CREATED",
+        "notes": "Diferencia detectada en arqueo parcial de turno mañana."
+      },
+      {
+        "timestamp": "2026-09-18T08:10:00.000Z",
+        "actor": "Andrés Martínez",
+        "action": "READ",
+        "notes": "Alerta leída por cajero responsable."
+      },
+      {
+        "timestamp": "2026-09-18T08:15:00.000Z",
+        "actor": "Andrés Martínez",
+        "action": "ATTENDED",
+        "notes": "Revisando tirillas de pago en efectivo y monedas de reserva en gaveta."
+      }
+    ],
+    "createdAt": "2026-09-18T08:00:00.000Z",
+    "updatedAt": "2026-09-18T08:15:00.000Z"
+  },
+  {
+    "id": "alt-2026-003",
+    "ruleId": "rule-web-001",
+    "code": "ALT-WEB-003",
+    "title": "Pedido Web Pendiente de Confirmación",
+    "description": "La orden WEB-2026-0897 generada con opción Contra Entrega lleva más de 24 horas sin confirmación telefónica con el cliente.",
+    "module": "WEB_ORDERS",
+    "priority": "ALTA",
+    "status": "NEW",
+    "entityType": "WEB_ORDER",
+    "entityId": "ord-007",
+    "entityReference": "WEB-2026-0897",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal (CEDI)",
+    "assignedRole": "WAREHOUSE_ADMIN",
+    "assignedUserId": null,
+    "assignedUserName": null,
+    "readAt": null,
+    "readByUserId": null,
+    "attendedAt": null,
+    "attendedByUserId": null,
+    "attendedByUserName": null,
+    "attendedComment": null,
+    "resolvedAt": null,
+    "resolvedByUserId": null,
+    "resolvedByUserName": null,
+    "solutionNotes": null,
+    "closedAt": null,
+    "closedByUserId": null,
+    "metadata": {
+      "orderNumber": "WEB-2026-0897",
+      "customerName": "Droguería San Jorge Cali",
+      "totalAmount": 1840000,
+      "orderStatus": "PENDING"
+    },
+    "history": [
+      {
+        "timestamp": "2026-09-13T10:00:00.000Z",
+        "actor": "Sistema de Reglas Automáticas",
+        "action": "CREATED",
+        "notes": "Tiempo límite de 2h superado para confirmación de pedido ecommerce contra entrega."
+      }
+    ],
+    "createdAt": "2026-09-13T10:00:00.000Z",
+    "updatedAt": "2026-09-13T10:00:00.000Z"
+  },
+  {
+    "id": "alt-2026-004",
+    "ruleId": "rule-trans-001",
+    "code": "ALT-TRANS-004",
+    "title": "Transferencia en Tránsito sin Confirmación",
+    "description": "El traslado TR-000154 (Aceite Premier 900ml x 25 und) despachado hacia Punto Centro no ha sido recepcionado en destino.",
+    "module": "TRANSFERS",
+    "priority": "MEDIA",
+    "status": "READ",
+    "entityType": "TRANSFER",
+    "entityId": "trans-154",
+    "entityReference": "TR-000154",
+    "locationId": "loc-002",
+    "locationName": "Punto Centro - Carrera 5",
+    "assignedRole": "POINT_ADMIN",
+    "assignedUserId": "usr-003",
+    "assignedUserName": "Laura Gómez",
+    "readAt": "2026-09-18T09:00:00.000Z",
+    "readByUserId": "usr-003",
+    "attendedAt": null,
+    "attendedByUserId": null,
+    "attendedByUserName": null,
+    "attendedComment": null,
+    "resolvedAt": null,
+    "resolvedByUserId": null,
+    "resolvedByUserName": null,
+    "solutionNotes": null,
+    "closedAt": null,
+    "closedByUserId": null,
+    "metadata": {
+      "transferCode": "TR-000154",
+      "origin": "Bodega Principal Cali",
+      "destination": "Punto Centro - Carrera 5",
+      "units": 25
+    },
+    "history": [
+      {
+        "timestamp": "2026-09-17T12:00:00.000Z",
+        "actor": "Sistema de Reglas Automáticas",
+        "action": "CREATED",
+        "notes": "Superado el tiempo estimado de tránsito de 24 horas."
+      },
+      {
+        "timestamp": "2026-09-18T09:00:00.000Z",
+        "actor": "Laura Gómez",
+        "action": "READ",
+        "notes": "Alerta visualizada por administradora de punto de venta."
+      }
+    ],
+    "createdAt": "2026-09-17T12:00:00.000Z",
+    "updatedAt": "2026-09-18T09:00:00.000Z"
+  },
+  {
+    "id": "alt-2026-005",
+    "ruleId": "rule-inv-002",
+    "code": "ALT-INV-005",
+    "title": "Nivel Crítico de Inventario: Azúcar Blanco 2.5kg",
+    "description": "Las existencias de Azúcar Blanco Manuelita 2.5kg llegaron a 18 unidades en Bodega Principal (Mínimo: 30 und).",
+    "module": "INVENTORY",
+    "priority": "ALTA",
+    "status": "RESOLVED",
+    "entityType": "PRODUCT",
+    "entityId": "prod-003",
+    "entityReference": "ABA-AZU-003",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal (CEDI)",
+    "assignedRole": "WAREHOUSE_ADMIN",
+    "assignedUserId": "usr-002",
+    "assignedUserName": "Carlos Ruiz",
+    "readAt": "2026-09-15T08:00:00.000Z",
+    "readByUserId": "usr-002",
+    "attendedAt": "2026-09-15T08:30:00.000Z",
+    "attendedByUserId": "usr-002",
+    "attendedByUserName": "Carlos Ruiz",
+    "attendedComment": "Generada orden de compra urgente a Ingenio Manuelita.",
+    "resolvedAt": "2026-09-17T14:20:00.000Z",
+    "resolvedByUserId": "usr-002",
+    "resolvedByUserName": "Carlos Ruiz",
+    "solutionNotes": "Ingresaron 300 unidades según remisión RM-8821. Stock actual normalizado en 318 unidades.",
+    "closedAt": null,
+    "closedByUserId": null,
+    "metadata": {
+      "productName": "Azúcar Blanco Manuelita 2.5kg",
+      "sku": "ABA-AZU-003",
+      "currentStock": 318,
+      "minStock": 30
+    },
+    "history": [
+      {
+        "timestamp": "2026-09-15T07:45:00.000Z",
+        "actor": "Sistema de Reglas Automáticas",
+        "action": "CREATED",
+        "notes": "Alerta de stock bajo generada."
+      },
+      {
+        "timestamp": "2026-09-15T08:00:00.000Z",
+        "actor": "Carlos Ruiz",
+        "action": "READ",
+        "notes": "Alerta leída."
+      },
+      {
+        "timestamp": "2026-09-15T08:30:00.000Z",
+        "actor": "Carlos Ruiz",
+        "action": "ATTENDED",
+        "notes": "Generada orden de compra urgente a Ingenio Manuelita."
+      },
+      {
+        "timestamp": "2026-09-17T14:20:00.000Z",
+        "actor": "Carlos Ruiz",
+        "action": "RESOLVED",
+        "notes": "Ingresaron 300 unidades según remisión RM-8821. Stock actual normalizado en 318 unidades."
+      }
+    ],
+    "createdAt": "2026-09-15T07:45:00.000Z",
+    "updatedAt": "2026-09-17T14:20:00.000Z"
+  }
+]

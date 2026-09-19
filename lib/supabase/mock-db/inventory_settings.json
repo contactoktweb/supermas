@@ -1,0 +1,23 @@
+{
+  "defaultMinStockThreshold": 10,
+  "criticalLowStockThreshold": 5,
+  "valuationMethod": "WEIGHTED_AVERAGE",
+  "allowNegativeStock": false,
+  "requireReasonForManualAdjustments": true,
+  "autoGenerateKardexMovement": true,
+  "stockCheckFrequencyHours": 24,
+  "webAvailability": {
+    "showAvailableBadge": true,
+    "showLowStockBadge": true,
+    "showOutOfStockBadge": true,
+    "lowStockWarningThreshold": 10,
+    "hideOutOfStockAfterDays": 0
+  },
+  "transferRules": {
+    "requireDualApproval": false,
+    "autoBlockTransitAfterHours": 24,
+    "defaultOriginLocationId": "loc-001"
+  },
+  "updatedAt": "2026-09-18T10:00:00.000Z",
+  "updatedBy": "Admin Mauricio"
+}

@@ -13,6 +13,7 @@ export const LIGHT_ICON_MAP = {
   warehouse: 'ph:warehouse-light',
   warehouses: 'ph:warehouse-light',
   products: 'solar:box-linear',
+  package: 'solar:box-linear',
   inventory: 'solar:box-minimalistic-linear',
   kardex: 'solar:clipboard-list-linear',
   transfers: 'solar:delivery-linear',

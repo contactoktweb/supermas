@@ -1,0 +1,24 @@
+{
+  "defaultLocationId": "loc-002",
+  "defaultLocationName": "Punto Centro",
+  "defaultCashRegisterId": "cash-reg-001",
+  "genericCustomerId": "cust-004",
+  "genericCustomerName": "Consumidor Final",
+  "genericCustomerDoc": "222222222222",
+  "autoPrintReceipt": true,
+  "allowQuickSaleWithoutCustomer": true,
+  "defaultReceiptTemplate": "TICKET_58MM",
+  "enableSoundFeedback": true,
+  "enabledPaymentMethods": ["CASH", "CARD", "TRANSFER", "CREDIT"],
+  "cashRegisterRules": {
+    "recommendedInitialFloat": 200000,
+    "maxAllowedInitialFloat": 500000,
+    "requireDailyClose": true,
+    "maxOpenHoursBeforeAlert": 14,
+    "maxDifferenceToleranceAmount": 0,
+    "requireDualSignatureOnDiscrepancy": true
+  },
+  "salesPriceList": "PRICE_NORMAL",
+  "updatedAt": "2026-09-18T10:00:00.000Z",
+  "updatedBy": "Admin Mauricio"
+}

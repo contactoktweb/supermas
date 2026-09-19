@@ -69,16 +69,6 @@ function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string
           <AppIcon name="close" size={18}/>
         </button>
       </div>
-      <div className="workspace">
-        <div className="workspace-icon">
-          <AppIcon name="suppliers" size={18}/>
-        </div>
-        <div>
-          <strong>Super Más S.A.S.</strong>
-          <span>Principal</span>
-        </div>
-        <AppIcon name="chevronDown" size={14}/>
-      </div>
       <nav>
         <p className="nav-caption">Menú principal</p>
         {modules.map(([label,iconName])=>(

@@ -87,15 +87,6 @@ export default function InvoicesRoutePage() {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="invoices" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Facturación Fiscal & DIAN</span>
-          </div>
-        </div>
 
         <nav className="nav-list">
           {modules.map(([m, icon, href]) => (

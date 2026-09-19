@@ -160,5 +160,157 @@
     "totalCredit": 18420000,
     "isBalanced": true,
     "createdAt": "2026-09-08T09:20:00Z"
+  },
+  {
+    "id": "entry-004",
+    "entryNumber": "AST-2026-000219",
+    "date": "2026-09-08T16:00:00Z",
+    "period": "2026-09",
+    "sourceType": "COST_OF_SALES",
+    "sourceId": "sale-001",
+    "documentNumber": "FAC-2026-00481",
+    "description": "Causación del costo de mercancías vendidas en factura FAC-2026-00481",
+    "status": "POSTED",
+    "thirdPartyId": "cust-001",
+    "thirdPartyName": "Comercializadora El Sol S.A.S.",
+    "thirdPartyDoc": "NIT 901.442.118-2",
+    "lines": [
+      {
+        "id": "line-004-1",
+        "accountId": "acc-613501",
+        "accountCode": "613501",
+        "accountName": "Costo de Venta - Abarrotes y Granos",
+        "debit": 3530000,
+        "credit": 0,
+        "description": "Costo de mercancía despachada según kardex"
+      },
+      {
+        "id": "line-004-2",
+        "accountId": "acc-143501",
+        "accountCode": "143501",
+        "accountName": "Inventario - Abarrotes y Granos",
+        "debit": 0,
+        "credit": 3530000,
+        "description": "Descargo de inventario por venta de mercancías"
+      }
+    ],
+    "totalDebit": 3530000,
+    "totalCredit": 3530000,
+    "isBalanced": true,
+    "createdAt": "2026-09-08T16:00:00Z"
+  },
+  {
+    "id": "entry-005",
+    "entryNumber": "AST-2026-000220",
+    "date": "2026-09-09T14:30:00Z",
+    "period": "2026-09",
+    "sourceType": "CUSTOMER_PAYMENT",
+    "sourceId": "cpay-001",
+    "documentNumber": "REC-00142",
+    "description": "Recaudo bancario abono factura FAC-2026-00481 Comercializadora El Sol",
+    "status": "POSTED",
+    "thirdPartyId": "cust-001",
+    "thirdPartyName": "Comercializadora El Sol S.A.S.",
+    "thirdPartyDoc": "NIT 901.442.118-2",
+    "lines": [
+      {
+        "id": "line-005-1",
+        "accountId": "acc-111005",
+        "accountCode": "111005",
+        "accountName": "Bancos Nacionales (Bancolombia)",
+        "debit": 3020000,
+        "credit": 0,
+        "description": "Ingreso a cuenta bancaria por transferencia de cliente"
+      },
+      {
+        "id": "line-005-2",
+        "accountId": "acc-130505",
+        "accountCode": "130505",
+        "accountName": "Clientes Nacionales",
+        "debit": 0,
+        "credit": 3020000,
+        "description": "Abono a cartera comercial factura FAC-2026-00481"
+      }
+    ],
+    "totalDebit": 3020000,
+    "totalCredit": 3020000,
+    "isBalanced": true,
+    "createdAt": "2026-09-09T14:35:00Z"
+  },
+  {
+    "id": "entry-006",
+    "entryNumber": "AST-2026-000221",
+    "date": "2026-09-10T11:00:00Z",
+    "period": "2026-09",
+    "sourceType": "SUPPLIER_PAYMENT",
+    "sourceId": "spay-001",
+    "documentNumber": "EGR-00084",
+    "description": "Abono a factura proveedor FAC-89214 Distribuciones La 14 S.A.S.",
+    "status": "POSTED",
+    "thirdPartyId": "sup-001",
+    "thirdPartyName": "Distribuciones La 14 S.A.S.",
+    "thirdPartyDoc": "NIT 900.421.882-1",
+    "lines": [
+      {
+        "id": "line-006-1",
+        "accountId": "acc-220505",
+        "accountCode": "220505",
+        "accountName": "Proveedores Nacionales de Mercancías",
+        "debit": 10000000,
+        "credit": 0,
+        "description": "Disminución cuenta por pagar proveedor nacional"
+      },
+      {
+        "id": "line-006-2",
+        "accountId": "acc-111005",
+        "accountCode": "111005",
+        "accountName": "Bancos Nacionales (Bancolombia)",
+        "debit": 0,
+        "credit": 10000000,
+        "description": "Egreso de fondos por transferencia bancaria Bancolombia"
+      }
+    ],
+    "totalDebit": 10000000,
+    "totalCredit": 10000000,
+    "isBalanced": true,
+    "createdAt": "2026-09-10T11:05:00Z"
+  },
+  {
+    "id": "entry-007",
+    "entryNumber": "AST-2026-000847",
+    "date": "2026-09-18T16:30:00Z",
+    "period": "2026-09",
+    "sourceType": "ADJUSTMENT",
+    "sourceId": "adj-009",
+    "documentNumber": "AJ-00092",
+    "description": "Ajuste manual de inventario pendiente de balancear",
+    "status": "DRAFT",
+    "thirdPartyId": "usr-002",
+    "thirdPartyName": "Carlos Ruiz",
+    "thirdPartyDoc": "CC 79.882.100",
+    "lines": [
+      {
+        "id": "line-007-1",
+        "accountId": "acc-143501",
+        "accountCode": "143501",
+        "accountName": "Inventario de Mercancías",
+        "debit": 350000,
+        "credit": 0,
+        "description": "Ajuste positivo de mercancía"
+      },
+      {
+        "id": "line-007-2",
+        "accountId": "acc-413501",
+        "accountCode": "413501",
+        "accountName": "Ingreso por ajuste de inventario",
+        "debit": 0,
+        "credit": 300000,
+        "description": "Partida crédito con diferencia de $50,000"
+      }
+    ],
+    "totalDebit": 350000,
+    "totalCredit": 300000,
+    "isBalanced": false,
+    "createdAt": "2026-09-18T16:30:00Z"
   }
 ]

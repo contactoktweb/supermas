@@ -30,6 +30,8 @@ import usersData from './mock-db/users.json'
 import userAssignmentsData from './mock-db/user_assignments.json'
 import taxConfigsData from './mock-db/tax_configs.json'
 import accountingEntriesData from './mock-db/accounting_entries.json'
+import accountingAccountsData from './mock-db/accounting_accounts.json'
+import accountingMovementsData from './mock-db/accounting_movements.json'
 import exogenaNormativaData from './mock-db/exogena_normativa.json'
 import exogenaGenerationsData from './mock-db/exogena_generations.json'
 import categoriesData from './mock-db/categories.json'
@@ -38,6 +40,15 @@ import dashboardMetricsData from './mock-db/dashboard_metrics.json'
 import auditLogsData from './mock-db/audit_logs.json'
 import warehouseOverviewAnalyticsData from './mock-db/warehouse_overview_analytics.json'
 import operationalModulesData from './mock-db/operational_modules.json'
+import cashRegistersData from './mock-db/cash_registers.json'
+import cashMovementsData from './mock-db/cash_movements.json'
+import alertsData from './mock-db/alerts.json'
+import alertRulesData from './mock-db/alert_rules.json'
+import companySettingsData from './mock-db/company_settings.json'
+import inventorySettingsData from './mock-db/inventory_settings.json'
+import posSettingsData from './mock-db/pos_settings.json'
+import ecommerceSettingsData from './mock-db/ecommerce_settings.json'
+import settingsData from './mock-db/settings.json'
 
 export interface SupabaseMockTableMap {
   locations: typeof locationsData
@@ -63,6 +74,8 @@ export interface SupabaseMockTableMap {
   user_assignments: typeof userAssignmentsData
   tax_configs: typeof taxConfigsData
   accounting_entries: typeof accountingEntriesData
+  accounting_accounts: typeof accountingAccountsData
+  accounting_movements: typeof accountingMovementsData
   exogena_normativa: typeof exogenaNormativaData
   exogena_generations: typeof exogenaGenerationsData
   categories: typeof categoriesData
@@ -71,6 +84,15 @@ export interface SupabaseMockTableMap {
   audit_logs: typeof auditLogsData
   warehouse_overview_analytics: typeof warehouseOverviewAnalyticsData
   operational_modules: typeof operationalModulesData
+  cash_registers: typeof cashRegistersData
+  cash_movements: typeof cashMovementsData
+  alerts: typeof alertsData
+  alert_rules: typeof alertRulesData
+  company_settings: typeof companySettingsData
+  inventory_settings: typeof inventorySettingsData
+  pos_settings: typeof posSettingsData
+  ecommerce_settings: typeof ecommerceSettingsData
+  settings: typeof settingsData
 }
 
 export const db = {
@@ -97,6 +119,8 @@ export const db = {
   userAssignments: userAssignmentsData,
   taxConfigs: taxConfigsData,
   accountingEntries: accountingEntriesData,
+  accountingAccounts: accountingAccountsData,
+  accountingMovements: accountingMovementsData,
   exogenaNormativa: exogenaNormativaData,
   exogenaGenerations: exogenaGenerationsData,
   categories: categoriesData,
@@ -105,6 +129,15 @@ export const db = {
   auditLogs: auditLogsData,
   warehouseOverviewAnalytics: warehouseOverviewAnalyticsData,
   operationalModules: operationalModulesData,
+  cashRegisters: cashRegistersData,
+  cashMovements: cashMovementsData,
+  alerts: alertsData,
+  alertRules: alertRulesData,
+  companySettings: companySettingsData,
+  inventorySettings: inventorySettingsData,
+  posSettings: posSettingsData,
+  ecommerceSettings: ecommerceSettingsData,
+  settings: settingsData,
 }
 
 /**
@@ -134,6 +167,10 @@ export const supabaseMock = {
         ? 'taxConfigs'
         : table === 'accounting_entries'
         ? 'accountingEntries'
+        : table === 'accounting_accounts'
+        ? 'accountingAccounts'
+        : table === 'accounting_movements'
+        ? 'accountingMovements'
         : table === 'exogena_normativa'
         ? 'exogenaNormativa'
         : table === 'exogena_generations'
@@ -152,6 +189,24 @@ export const supabaseMock = {
         ? 'customerDocuments'
         : table === 'operational_modules'
         ? 'operationalModules'
+        : table === 'cash_registers'
+        ? 'cashRegisters'
+        : table === 'cash_movements'
+        ? 'cashMovements'
+        : table === 'alerts'
+        ? 'alerts'
+        : table === 'alert_rules'
+        ? 'alertRules'
+        : table === 'company_settings'
+        ? 'companySettings'
+        : table === 'inventory_settings'
+        ? 'inventorySettings'
+        : table === 'pos_settings'
+        ? 'posSettings'
+        : table === 'ecommerce_settings'
+        ? 'ecommerceSettings'
+        : table === 'settings'
+        ? 'settings'
         : table
     ] as SupabaseMockTableMap[K]
 

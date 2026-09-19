@@ -1,46 +1,338 @@
 [
   {
     "id": "aud-001",
+    "timestamp": "2026-09-15T10:15:32.000Z",
     "action": "STOCK_ADJUSTED",
+    "level": "CRITICAL",
+    "module": "INVENTORY",
+    "entityType": "PRODUCT",
+    "entityId": "prod-003",
+    "entityReference": "Leche Entera Alquería 1L (SKU-003501)",
+    "userId": "usr-002",
+    "userName": "Carlos Ruiz",
+    "userRole": "Administrador de Bodega",
     "locationId": "loc-001",
     "locationName": "Bodega Principal",
-    "userId": "usr-003",
-    "userName": "Carlos Ruiz",
-    "timestamp": "Ayer, 04:15 PM",
-    "changes": {
-      "field": "stock",
-      "previousValue": "12 uds",
-      "newValue": "0 uds",
-      "details": "Ajuste negativo por avería en Leche Entera Alquería 1L (Doc: AJ-00092)"
-    }
+    "result": "SUCCESS",
+    "details": "Ajuste negativo de inventario por rotura de empaque reportada en recepción (Doc: AJ-00092).",
+    "ipAddress": "192.168.1.45",
+    "sessionId": "sess-98214a",
+    "changes": [
+      {
+        "field": "stock",
+        "label": "Stock disponible",
+        "previousValue": "12 uds",
+        "newValue": "0 uds"
+      },
+      {
+        "field": "inventoryValue",
+        "label": "Valor inventario",
+        "previousValue": "$52.800",
+        "newValue": "$0"
+      }
+    ]
   },
   {
     "id": "aud-002",
-    "action": "TRANSFER_CREATED",
-    "locationId": "loc-001",
-    "locationName": "Bodega Principal",
+    "timestamp": "2026-09-15T09:48:10.000Z",
+    "action": "TRANSFER_APPROVED",
+    "level": "INFO",
+    "module": "TRANSFERS",
+    "entityType": "TRANSFER",
+    "entityId": "tr-00154",
+    "entityReference": "TR-000154",
     "userId": "usr-001",
     "userName": "Mauricio Andrade",
-    "timestamp": "Hoy, 09:48 AM",
-    "changes": {
-      "field": "transfer",
-      "newValue": "TR-000154",
-      "details": "Transferencia de 125 unidades hacia Punto Centro"
-    }
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Aprobación y despacho de transferencia de 25 unidades de Aceite Premier hacia Punto Centro.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-88124b",
+    "changes": [
+      {
+        "field": "status",
+        "label": "Estado transferencia",
+        "previousValue": "PENDING",
+        "newValue": "IN_TRANSIT"
+      }
+    ]
   },
   {
     "id": "aud-003",
-    "action": "LOCATION_UPDATED",
-    "locationId": "loc-001",
-    "locationName": "Bodega Principal",
+    "timestamp": "2026-09-15T09:21:45.000Z",
+    "action": "SALE_CREATED",
+    "level": "INFO",
+    "module": "SALES",
+    "entityType": "SALE",
+    "entityId": "sale-88421",
+    "entityReference": "POS-88421",
+    "userId": "usr-003",
+    "userName": "Laura Gómez",
+    "userRole": "Administrador de Punto de Venta",
+    "locationId": "loc-002",
+    "locationName": "Punto Centro (POS)",
+    "result": "SUCCESS",
+    "details": "Venta presencial en caja Centro #1 por valor de $46.500 pagada en efectivo.",
+    "ipAddress": "192.168.2.14",
+    "sessionId": "sess-77211c",
+    "changes": [
+      {
+        "field": "total",
+        "label": "Monto total",
+        "previousValue": "—",
+        "newValue": "$46.500"
+      },
+      {
+        "field": "status",
+        "label": "Estado",
+        "previousValue": "—",
+        "newValue": "COMPLETED"
+      }
+    ]
+  },
+  {
+    "id": "aud-004",
+    "timestamp": "2026-09-15T08:35:12.000Z",
+    "action": "PRICE_MODIFIED",
+    "level": "CRITICAL",
+    "module": "PRODUCTS",
+    "entityType": "PRODUCT",
+    "entityId": "prod-001",
+    "entityReference": "Arroz Diana Premium Extra 5kg (ABA-ARR-001)",
     "userId": "usr-001",
     "userName": "Mauricio Andrade",
-    "timestamp": "25 ago, 2026",
-    "changes": {
-      "field": "isEcommerceProcessingSource",
-      "previousValue": false,
-      "newValue": true,
-      "details": "Asignada como bodega principal para procesamiento de ventas web"
-    }
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Actualización de lista de precios por negociación con molino proveedor.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-88124b",
+    "changes": [
+      {
+        "field": "normalPrice",
+        "label": "Precio Público",
+        "previousValue": "$22.500",
+        "newValue": "$21.500"
+      },
+      {
+        "field": "wholesalePrice",
+        "label": "Precio Mayorista",
+        "previousValue": "$19.800",
+        "newValue": "$18.900"
+      }
+    ]
+  },
+  {
+    "id": "aud-005",
+    "timestamp": "2026-09-15T08:02:00.000Z",
+    "action": "LOGIN",
+    "level": "INFO",
+    "module": "SECURITY",
+    "entityType": "USER",
+    "entityId": "usr-001",
+    "entityReference": "Mauricio Andrade (admin@supermas.com.co)",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Inicio de sesión exitoso con credenciales administrativas.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-88124b"
+  },
+  {
+    "id": "aud-006",
+    "timestamp": "2026-09-14T18:40:15.000Z",
+    "action": "CASH_REGISTER_CLOSED",
+    "level": "WARNING",
+    "module": "CASH",
+    "entityType": "CASH_REGISTER",
+    "entityId": "caja-01",
+    "entityReference": "Caja Principal Centro #1",
+    "userId": "usr-004",
+    "userName": "Andrés Morales",
+    "userRole": "Vendedor / Cajero",
+    "locationId": "loc-002",
+    "locationName": "Punto Centro (POS)",
+    "result": "SUCCESS",
+    "details": "Cierre de turno y arqueo con diferencia de -$3.200 frente al efectivo teórico del sistema.",
+    "ipAddress": "192.168.2.18",
+    "sessionId": "sess-66120d",
+    "changes": [
+      {
+        "field": "status",
+        "label": "Estado de caja",
+        "previousValue": "OPEN",
+        "newValue": "CLOSED"
+      },
+      {
+        "field": "difference",
+        "label": "Diferencia de arqueo",
+        "previousValue": "$0",
+        "newValue": "-$3.200"
+      }
+    ]
+  },
+  {
+    "id": "aud-007",
+    "timestamp": "2026-09-14T17:15:30.000Z",
+    "action": "INVOICE_CANCELLED",
+    "level": "CRITICAL",
+    "module": "INVOICING",
+    "entityType": "INVOICE",
+    "entityId": "inv-88418",
+    "entityReference": "Factura FV-88418",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Anulación de factura por error en la digitación del NIT del cliente. Se generó Nota Crédito NC-0012.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-55110e",
+    "changes": [
+      {
+        "field": "status",
+        "label": "Estado de factura",
+        "previousValue": "ISSUED",
+        "newValue": "CANCELLED"
+      },
+      {
+        "field": "creditNote",
+        "label": "Nota Crédito vinculada",
+        "previousValue": "—",
+        "newValue": "NC-0012"
+      }
+    ]
+  },
+  {
+    "id": "aud-008",
+    "timestamp": "2026-09-14T15:20:00.000Z",
+    "action": "PURCHASE_CREATED",
+    "level": "INFO",
+    "module": "PURCHASES",
+    "entityType": "PURCHASE",
+    "entityId": "pur-001",
+    "entityReference": "Factura Compra FC-1542 (Molinos Roa)",
+    "userId": "usr-002",
+    "userName": "Carlos Ruiz",
+    "userRole": "Administrador de Bodega",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Recepción y causación contable de compra de 120 paquetes de arroz a crédito 30 días.",
+    "ipAddress": "192.168.1.45",
+    "sessionId": "sess-44109f",
+    "changes": [
+      {
+        "field": "paymentStatus",
+        "label": "Estado de pago",
+        "previousValue": "—",
+        "newValue": "CREDIT"
+      },
+      {
+        "field": "total",
+        "label": "Valor compra",
+        "previousValue": "—",
+        "newValue": "$1.848.000"
+      }
+    ]
+  },
+  {
+    "id": "aud-009",
+    "timestamp": "2026-09-14T14:10:22.000Z",
+    "action": "LOGIN_FAILED",
+    "level": "WARNING",
+    "module": "SECURITY",
+    "entityType": "USER",
+    "entityId": "unknown",
+    "entityReference": "Intento con email: contabilidad@supermas.com.co",
+    "userId": "unknown",
+    "userName": "Desconocido",
+    "userRole": "Invitado",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "FAILED",
+    "details": "Contraseña errónea introducida 3 veces consecutivas desde IP remota.",
+    "ipAddress": "186.84.92.110",
+    "sessionId": "sess-anon"
+  },
+  {
+    "id": "aud-010",
+    "timestamp": "2026-09-14T11:05:00.000Z",
+    "action": "TAX_CONFIG_MODIFIED",
+    "level": "CRITICAL",
+    "module": "TAXES",
+    "entityType": "TAX_CONFIG",
+    "entityId": "tax-iva-general",
+    "entityReference": "IVA General (19%)",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Actualización de cuenta contable PUC débito para IVA en compras según sugerencia del revisor fiscal.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-33108g",
+    "changes": [
+      {
+        "field": "purchasesAccount",
+        "label": "Cuenta PUC Compras",
+        "previousValue": "240801",
+        "newValue": "240810"
+      }
+    ]
+  },
+  {
+    "id": "aud-011",
+    "timestamp": "2026-09-13T16:30:00.000Z",
+    "action": "LOCATION_UPDATED",
+    "level": "INFO",
+    "module": "WAREHOUSES",
+    "entityType": "LOCATION",
+    "entityId": "loc-001",
+    "entityReference": "Bodega Principal",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Configuración de bandera de procesamiento de pedidos web habilitada para Bodega Principal.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-22107h",
+    "changes": [
+      {
+        "field": "isEcommerceProcessingSource",
+        "label": "Procesador Ecommerce",
+        "previousValue": "Inactivo",
+        "newValue": "Activo"
+      }
+    ]
+  },
+  {
+    "id": "aud-012",
+    "timestamp": "2026-09-13T10:15:00.000Z",
+    "action": "EXOGENA_GENERATED",
+    "level": "INFO",
+    "module": "EXOGENA",
+    "entityType": "EXOGENA_BATCH",
+    "entityId": "gen-2025-001",
+    "entityReference": "Paquete Medios Magnéticos 2025",
+    "userId": "usr-001",
+    "userName": "Mauricio Andrade",
+    "userRole": "Superadministrador",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal",
+    "result": "SUCCESS",
+    "details": "Generación oficial del paquete DIAN para formatos 1001, 1005, 1006, 1007 con 128 registros auditados.",
+    "ipAddress": "192.168.1.10",
+    "sessionId": "sess-11106i"
   }
 ]

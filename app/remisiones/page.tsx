@@ -89,15 +89,6 @@ export default function RemissionsRoutePage() {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="remisiones" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Despachos & Remisiones</span>
-          </div>
-        </div>
 
         <nav className="nav-list">
           {modules.map(([m, icon, href]) => (

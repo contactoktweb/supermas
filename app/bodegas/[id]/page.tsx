@@ -63,16 +63,6 @@ export default function WarehouseDetailRoutePage({ params }: PageProps) {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="suppliers" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Principal</span>
-          </div>
-          <AppIcon name="chevronDown" size={14} />
-        </div>
 
         <nav>
           <p className="nav-caption">Menú principal</p>

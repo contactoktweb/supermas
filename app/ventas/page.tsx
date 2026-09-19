@@ -87,15 +87,6 @@ export default function SalesRoutePage() {
           </button>
         </div>
 
-        <div className="workspace">
-          <div className="workspace-icon">
-            <AppIcon name="sales" size={18} />
-          </div>
-          <div>
-            <strong>Super Más S.A.S.</strong>
-            <span>Ventas & Facturación</span>
-          </div>
-        </div>
 
         <nav className="nav-list">
           {modules.map(([m, icon, href]) => (

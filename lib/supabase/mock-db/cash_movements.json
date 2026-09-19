@@ -1,0 +1,80 @@
+[
+  {
+    "id": "cmov-001",
+    "cashRegisterId": "cash-reg-001",
+    "cashRegisterCode": "CAJA-01",
+    "locationId": "loc-001",
+    "type": "OPENING",
+    "amount": 350000,
+    "reference": "ARQ-2026-001",
+    "description": "Base inicial para apertura de turno",
+    "cashierId": "usr-002",
+    "cashierName": "Laura Gómez",
+    "timestamp": "2026-09-18T07:00:00Z"
+  },
+  {
+    "id": "cmov-002",
+    "cashRegisterId": "cash-reg-001",
+    "cashRegisterCode": "CAJA-01",
+    "locationId": "loc-001",
+    "type": "SALE",
+    "amount": 450000,
+    "reference": "VTA-2026-000842",
+    "description": "Pago en efectivo venta mostrador",
+    "cashierId": "usr-002",
+    "cashierName": "Laura Gómez",
+    "timestamp": "2026-09-18T09:15:00Z"
+  },
+  {
+    "id": "cmov-003",
+    "cashRegisterId": "cash-reg-001",
+    "cashRegisterCode": "CAJA-01",
+    "locationId": "loc-001",
+    "type": "INFLOW",
+    "amount": 100000,
+    "reference": "ING-0042",
+    "description": "Sencillo adicional entregado por tesorería",
+    "cashierId": "usr-002",
+    "cashierName": "Laura Gómez",
+    "timestamp": "2026-09-18T10:30:00Z"
+  },
+  {
+    "id": "cmov-004",
+    "cashRegisterId": "cash-reg-001",
+    "cashRegisterCode": "CAJA-01",
+    "locationId": "loc-001",
+    "type": "OUTFLOW",
+    "amount": 50000,
+    "reference": "EGR-0018",
+    "description": "Pago de mensajería urgente y transporte local",
+    "cashierId": "usr-002",
+    "cashierName": "Laura Gómez",
+    "timestamp": "2026-09-18T12:00:00Z"
+  },
+  {
+    "id": "cmov-005",
+    "cashRegisterId": "cash-reg-002",
+    "cashRegisterCode": "CAJA-02",
+    "locationId": "loc-002",
+    "type": "OPENING",
+    "amount": 300000,
+    "reference": "ARQ-2026-002",
+    "description": "Fondo fijo de apertura",
+    "cashierId": "usr-003",
+    "cashierName": "Andrés Martínez",
+    "timestamp": "2026-09-18T07:30:00Z"
+  },
+  {
+    "id": "cmov-006",
+    "cashRegisterId": "cash-reg-002",
+    "cashRegisterCode": "CAJA-02",
+    "locationId": "loc-002",
+    "type": "OUTFLOW",
+    "amount": 80000,
+    "reference": "EGR-0019",
+    "description": "Compra de insumos de papelería y rollos de ticket",
+    "cashierId": "usr-003",
+    "cashierName": "Andrés Martínez",
+    "timestamp": "2026-09-18T11:45:00Z"
+  }
+]

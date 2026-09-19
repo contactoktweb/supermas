@@ -1,0 +1,26 @@
+{
+  "dispatchWarehouseId": "loc-001",
+  "dispatchWarehouseName": "Bodega Principal (CEDI)",
+  "superCatalogEnabled": true,
+  "distributorCatalogEnabled": true,
+  "publicShowPrices": true,
+  "publicShowAvailability": true,
+  "defaultLowStockThreshold": 10,
+  "outOfStockBehavior": "SHOW_AS_OUT_OF_STOCK_DISABLE_PURCHASE",
+  "webPriceList": "PRICE_WEB",
+  "distributorPriceList": "PRICE_WHOLESALE",
+  "whatsapp": {
+    "phoneNumber": "+573104458821",
+    "displayPhoneNumber": "+57 310 445 8821",
+    "defaultQuoteTemplate": "Hola Distribuidora Super Más, deseo cotizar el producto {productName} (SKU: {sku}) en cantidad de {quantity} unidades.",
+    "defaultSupportTemplate": "Hola Super Más, necesito asesoría sobre mi pedido web o disponibilidad de producto.",
+    "allowDirectWhatsAppPurchase": true
+  },
+  "cartRules": {
+    "minOrderAmount": 50000,
+    "maxOrderAmount": 50000000,
+    "autoReserveStockMinutes": 120
+  },
+  "updatedAt": "2026-09-18T10:00:00.000Z",
+  "updatedBy": "Admin Mauricio"
+}

@@ -1,0 +1,160 @@
+[
+  {
+    "id": "rule-inv-001",
+    "code": "R-INV-001",
+    "name": "Producto Agotado (Stock Cero)",
+    "description": "Detecta cuando el inventario físico total de un producto llega a 0 unidades en cualquiera de las bodegas activas.",
+    "module": "INVENTORY",
+    "defaultPriority": "CRITICA",
+    "enabled": true,
+    "thresholds": {
+      "stockLimit": 0
+    },
+    "targetRoles": ["SUPERADMIN", "WAREHOUSE_ADMIN", "POINT_ADMIN"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-inv-002",
+    "code": "R-INV-002",
+    "name": "Stock Bajo / Nivel Crítico",
+    "description": "Dispara una alerta cuando las unidades disponibles caen por debajo del umbral mínimo o punto de reorden configurado.",
+    "module": "INVENTORY",
+    "defaultPriority": "ALTA",
+    "enabled": true,
+    "thresholds": {
+      "defaultMinStock": 10
+    },
+    "targetRoles": ["SUPERADMIN", "WAREHOUSE_ADMIN"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-pur-001",
+    "code": "R-PUR-001",
+    "name": "Factura de Proveedor Vencida",
+    "description": "Supervisa facturas comerciales de compra con fecha de vencimiento expirada y saldo pendiente de pago.",
+    "module": "PURCHASES",
+    "defaultPriority": "ALTA",
+    "enabled": true,
+    "thresholds": {
+      "daysOverdueLimit": 0
+    },
+    "targetRoles": ["SUPERADMIN", "ACCOUNTANT"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-pur-002",
+    "code": "R-PUR-002",
+    "name": "Factura de Proveedor Próxima a Vencer",
+    "description": "Alerta preventiva para programar pagos a proveedores con vencimiento en los próximos 10 días.",
+    "module": "PURCHASES",
+    "defaultPriority": "MEDIA",
+    "enabled": true,
+    "thresholds": {
+      "daysBeforeDue": 10
+    },
+    "targetRoles": ["SUPERADMIN", "ACCOUNTANT"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-invc-001",
+    "code": "R-INVC-001",
+    "name": "Factura Electrónica Rechazada por DIAN",
+    "description": "Notifica inmediatamente cuando la DIAN o el proveedor tecnológico rechaza la emisión de una factura electrónica fiscal.",
+    "module": "INVOICING",
+    "defaultPriority": "CRITICA",
+    "enabled": true,
+    "thresholds": {},
+    "targetRoles": ["SUPERADMIN", "ACCOUNTANT"],
+    "autoResolve": false,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-cash-001",
+    "code": "R-CASH-001",
+    "name": "Diferencia en Arqueo de Caja (Faltante / Sobrante)",
+    "description": "Detecta discrepancias entre el efectivo físico contado en el punto POS y el saldo teórico registrado por ventas.",
+    "module": "CASH",
+    "defaultPriority": "CRITICA",
+    "enabled": true,
+    "thresholds": {
+      "maxAllowedDifference": 0
+    },
+    "targetRoles": ["SUPERADMIN", "POINT_ADMIN", "CASHIER"],
+    "autoResolve": false,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-cash-002",
+    "code": "R-CASH-002",
+    "name": "Caja Registradora Abierta Prolongadamente",
+    "description": "Supervisa cajas que superen 14 horas continuas de apertura sin realizar corte de turno ni cierre de arqueo.",
+    "module": "CASH",
+    "defaultPriority": "ALTA",
+    "enabled": true,
+    "thresholds": {
+      "maxOpenHours": 14
+    },
+    "targetRoles": ["SUPERADMIN", "POINT_ADMIN", "CASHIER"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-web-001",
+    "code": "R-WEB-001",
+    "name": "Pedido Web Pendiente de Confirmación",
+    "description": "Alerta cuando un pedido de catálogo web permanece más de 2 horas sin confirmación administrativa.",
+    "module": "WEB_ORDERS",
+    "defaultPriority": "ALTA",
+    "enabled": true,
+    "thresholds": {
+      "maxHoursPending": 2
+    },
+    "targetRoles": ["SUPERADMIN", "WAREHOUSE_ADMIN"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-trans-001",
+    "code": "R-TRANS-001",
+    "name": "Transferencia en Tránsito Pendiente de Recepción",
+    "description": "Supervisa despachos entre bodegas que lleven más de 24 horas en estado En Tránsito sin confirmar recepción física.",
+    "module": "TRANSFERS",
+    "defaultPriority": "MEDIA",
+    "enabled": true,
+    "thresholds": {
+      "maxTransitHours": 24
+    },
+    "targetRoles": ["SUPERADMIN", "WAREHOUSE_ADMIN"],
+    "autoResolve": true,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  },
+  {
+    "id": "rule-acc-001",
+    "code": "R-ACC-001",
+    "name": "Asiento Contable Descuadrado (Doble Partida)",
+    "description": "Verifica que en todo comprobante contable la suma de débitos sea exactamente idéntica a la suma de créditos.",
+    "module": "ACCOUNTING",
+    "defaultPriority": "CRITICA",
+    "enabled": true,
+    "thresholds": {
+      "allowedTolerance": 0
+    },
+    "targetRoles": ["SUPERADMIN", "ACCOUNTANT"],
+    "autoResolve": false,
+    "updatedAt": "2026-09-18T10:00:00.000Z",
+    "updatedBy": "Mauricio Andrade"
+  }
+]

@@ -56,7 +56,13 @@
     "stockHealth": "AVAILABLE",
     "webSuperMas": true,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": true,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 80,
+    "webViewsCount": 1420,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -158,7 +164,13 @@
     "stockHealth": "AVAILABLE",
     "webSuperMas": true,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": true,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 60,
+    "webViewsCount": 1180,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -260,7 +272,13 @@
     "stockHealth": "CRITICAL",
     "webSuperMas": true,
     "webDistribuidora": false,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "LOW_STOCK",
+    "webShowPrice": true,
+    "webLowStockThreshold": 50,
+    "webViewsCount": 890,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -362,7 +380,13 @@
     "stockHealth": "AVAILABLE",
     "webSuperMas": true,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": true,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 40,
+    "webViewsCount": 2100,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -464,7 +488,13 @@
     "stockHealth": "AVAILABLE",
     "webSuperMas": true,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": true,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 75,
+    "webViewsCount": 760,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -566,7 +596,13 @@
     "stockHealth": "AVAILABLE",
     "webSuperMas": true,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 45,
+    "webViewsCount": 940,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -668,7 +704,13 @@
     "stockHealth": "OUT_OF_STOCK",
     "webSuperMas": false,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "OUT_OF_STOCK",
+    "webShowPrice": true,
+    "webLowStockThreshold": 30,
+    "webViewsCount": 620,
     "warehouseStock": [
       {
         "locationId": "loc-001",
@@ -755,9 +797,15 @@
     "minStockThreshold": 90,
     "criticalStockThreshold": 30,
     "stockHealth": "LOW_STOCK",
-    "webSuperMas": true,
+    "webSuperMas": false,
     "webDistribuidora": true,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
     "webAvailability": "LOW_STOCK",
+    "webShowPrice": true,
+    "webLowStockThreshold": 35,
+    "webViewsCount": 430,
     "warehouseStock": [
       {
         "locationId": "loc-001",

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { CustomerDocumentSummary, CustomerDocumentDTO } from '../../../types'
@@ -26,6 +27,10 @@ const DOC_CATEGORIES: { value: CustomerDocumentDTO['category']; label: string }[
   { value: 'ACUERDO_COMERCIAL', label: 'Acuerdo Comercial / Pagaré' },
   { value: 'OTRO', label: 'Otro Soporte' },
 ]
+
+function minW(val: number): string {
+  return `min(90vw, ${val}px)`
+}
 
 export function CustomerDocumentsTab({
   documents,
@@ -63,166 +68,168 @@ export function CustomerDocumentsTab({
   }
 
   return (
-    <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Top action row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <strong style={{ fontSize: 13, color: 'var(--foreground)' }}>
-            Expediente Digital del Cliente
-          </strong>
-          <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>
-            Almacenamiento seguro en Supabase Storage
-          </span>
+    <>
+      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Top action row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <strong style={{ fontSize: 13, color: 'var(--foreground)' }}>
+              Expediente Digital del Cliente
+            </strong>
+            <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>
+              Almacenamiento seguro en Supabase Storage
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button compact"
+            onClick={() => setShowUploadModal(true)}
+          >
+            <AppIcon name="plus" size={13} color="#fff" />
+            <span>Adjuntar Documento</span>
+          </button>
         </div>
 
-        <button
-          type="button"
-          className="primary-button compact"
-          onClick={() => setShowUploadModal(true)}
-        >
-          <AppIcon name="plus" size={13} color="#fff" />
-          <span>Adjuntar Documento</span>
-        </button>
-      </div>
-
-      {/* Documents Grid */}
-      {documents.length === 0 ? (
-        <div className="table-empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
+        {/* Documents Grid */}
+        {documents.length === 0 ? (
+          <div className="table-empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div
+              style={{
+                display: 'grid',
+                placeItems: 'center',
+                width: 48,
+                height: 48,
+                borderRadius: 12,
+                background: '#e9eef8',
+                color: 'var(--navy)',
+                margin: '0 auto 12px',
+              }}
+            >
+              <AppIcon name="fileText" size={24} />
+            </div>
+            <strong style={{ fontSize: 14 }}>No hay documentos adjuntos</strong>
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+              Puedes adjuntar el RUT, certificado de Cámara de Comercio o pagarés del cliente.
+            </p>
+          </div>
+        ) : (
           <div
             style={{
               display: 'grid',
-              placeItems: 'center',
-              width: 48,
-              height: 48,
-              borderRadius: 12,
-              background: '#e9eef8',
-              color: 'var(--navy)',
-              margin: '0 auto 12px',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 14,
             }}
           >
-            <AppIcon name="fileText" size={24} />
-          </div>
-          <strong style={{ fontSize: 14 }}>No hay documentos adjuntos</strong>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-            Puedes adjuntar el RUT, certificado de Cámara de Comercio o pagarés del cliente.
-          </p>
-        </div>
-      ) : (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 14,
-          }}
-        >
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              style={{
-                padding: 16,
-                borderRadius: 12,
-                background: '#ffffff',
-                border: '1.5px solid #cbd5e1',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                gap: 12,
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    background: '#fef2f2',
-                    color: 'var(--red)',
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <AppIcon name="fileText" size={18} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    {CATEGORY_LABELS[doc.category] || doc.category}
-                  </span>
-                  <strong
-                    style={{
-                      display: 'block',
-                      fontSize: 12,
-                      color: 'var(--foreground)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      marginTop: 2,
-                    }}
-                    title={doc.fileName}
-                  >
-                    {doc.fileName}
-                  </strong>
-                  <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                    {doc.fileSize} • Subido por {doc.uploadedBy}
-                  </span>
-                </div>
-              </div>
-
-              {doc.notes && (
-                <p style={{ margin: 0, fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
-                  {doc.notes}
-                </p>
-              )}
-
+            {documents.map((doc) => (
               <div
+                key={doc.id}
                 style={{
+                  padding: 16,
+                  borderRadius: 12,
+                  background: '#ffffff',
+                  border: '1.5px solid #cbd5e1',
                   display: 'flex',
-                  alignItems: 'center',
+                  flexDirection: 'column',
                   justifyContent: 'space-between',
-                  paddingTop: 10,
-                  borderTop: '1px solid var(--line)',
-                  fontSize: 11,
+                  gap: 12,
                 }}
               >
-                <span style={{ color: 'var(--muted)', fontSize: 10 }}>
-                  {new Date(doc.uploadedAt).toLocaleDateString('es-CO')}
-                </span>
-                <a
-                  href={`#download-${doc.id}`}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    alert(`Descargando archivo: ${doc.fileName} desde Supabase Storage`)
-                  }}
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: '#fef2f2',
+                      color: 'var(--red)',
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <AppIcon name="fileText" size={18} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: 'var(--muted)',
+                      }}
+                    >
+                      {CATEGORY_LABELS[doc.category] || doc.category}
+                    </span>
+                    <strong
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        color: 'var(--foreground)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginTop: 2,
+                      }}
+                      title={doc.fileName}
+                    >
+                      {doc.fileName}
+                    </strong>
+                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                      {doc.fileSize} • Subido por {doc.uploadedBy}
+                    </span>
+                  </div>
+                </div>
+
+                {doc.notes && (
+                  <p style={{ margin: 0, fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
+                    {doc.notes}
+                  </p>
+                )}
+
+                <div
                   style={{
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
-                    color: 'var(--navy)',
-                    fontWeight: 700,
+                    justifyContent: 'space-between',
+                    paddingTop: 10,
+                    borderTop: '1px solid var(--line)',
+                    fontSize: 11,
                   }}
                 >
-                  <AppIcon name="eye" size={12} />
-                  <span>Ver / Descargar</span>
-                </a>
+                  <span style={{ color: 'var(--muted)', fontSize: 10 }}>
+                    {new Date(doc.uploadedAt).toLocaleDateString('es-CO')}
+                  </span>
+                  <a
+                    href={`#download-${doc.id}`}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      alert(`Descargando archivo: ${doc.fileName} desde Supabase Storage`)
+                    }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      color: 'var(--navy)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <AppIcon name="eye" size={12} />
+                    <span>Ver / Descargar</span>
+                  </a>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
-      {/* Simple Upload Modal */}
-      {showUploadModal && (
+      {/* Upload Modal — mounted via portal at document root */}
+      {showUploadModal && createPortal(
         <div className="drawer-backdrop modal-center" onClick={() => setShowUploadModal(false)}>
           <div
             className="warehouse-card page-enter"
-            style={{ width: min(440), maxWidth: 440, padding: 24, cursor: 'default' }}
+            style={{ width: minW(440), maxWidth: 440, padding: 24, cursor: 'default' }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -294,12 +301,9 @@ export function CustomerDocumentsTab({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   )
-}
-
-function min(val: number): string {
-  return `min(90vw, ${val}px)`
 }

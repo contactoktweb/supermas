@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { Customer, CustomerInvoiceSummary, CustomerPaymentDTO } from '../types'
@@ -45,6 +46,16 @@ export function CustomerPaymentModal({
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
 
   useEffect(() => {
     if (selectedInvoice) {
@@ -60,7 +71,7 @@ export function CustomerPaymentModal({
     setError(null)
   }, [customer, selectedInvoice, isOpen])
 
-  if (!isOpen || !customer) return null
+  if (!isOpen || !customer || !mounted) return null
 
   const pendingInvoices = invoices.filter((i) => i.pendingBalance > 0)
   const invoiceOptions = [
@@ -104,7 +115,7 @@ export function CustomerPaymentModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="warehouse-card page-enter"
@@ -282,6 +293,7 @@ export function CustomerPaymentModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

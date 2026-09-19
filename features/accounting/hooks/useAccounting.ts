@@ -106,10 +106,13 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       setCategoryMappings(mapRes)
       setExogenaPrep(exoRes)
 
-      // Cargar libro mayor para la primera cuenta por defecto (110505)
+      // Cargar libro mayor para la primera cuenta con movimientos (130505 - Clientes Nacionales)
       if (accsRes.data.length > 0) {
-        const firstAcc = accsRes.data.find((a) => a.code === '110505') || accsRes.data[0]
-        const ledgerRes = await accountingService.getGeneralLedger(firstAcc.id, '2026-09', filters.locationId, userRole)
+        const preferredAcc =
+          accsRes.data.find((a) => a.code === '130505') ||
+          accsRes.data.find((a) => a.code === '111005') ||
+          accsRes.data[0]
+        const ledgerRes = await accountingService.getGeneralLedger(preferredAcc.id, '2026-09', filters.locationId, userRole)
         setSelectedLedger(ledgerRes)
       }
     } catch (err: any) {

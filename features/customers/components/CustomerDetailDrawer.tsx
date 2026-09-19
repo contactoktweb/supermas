@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { CustomerDetail } from '../types'
 import { CustomerOverviewTab } from './detail/tabs/CustomerOverviewTab'
@@ -53,10 +54,20 @@ export function CustomerDetailDrawer({
   onAddDocument,
 }: CustomerDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => { setMounted(true) }, [])
 
-  return (
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !mounted) return null
+
+  return createPortal(
     <div className="drawer-backdrop" onClick={onClose}>
       <div
         className="product-drawer"
@@ -237,6 +248,7 @@ export function CustomerDetailDrawer({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

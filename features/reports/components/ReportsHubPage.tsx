@@ -1,7 +1,6 @@
 'use client'
 
 import React from 'react'
-import Link from 'next/link'
 import { useReports } from '../hooks/useReports'
 import { ReportType } from '../types'
 import { ReportHeader } from './ReportHeader'
@@ -9,7 +8,6 @@ import { ReportFilterBar } from './ReportFilterBar'
 import { ReportSkeleton } from './ReportSkeleton'
 import { ReportToast } from './ReportToast'
 import { ReportItemDetailDrawer } from './drawers/ReportItemDetailDrawer'
-import { Footer } from '@/components/Footer'
 
 // Vistas individuales
 import { ReportDashboardView } from './views/ReportDashboardView'
@@ -145,9 +143,8 @@ export function ReportsHubPage({ initialReportType = 'OVERVIEW' }: ReportsHubPag
   const currentMeta = REPORT_TITLES[reportType] || REPORT_TITLES.OVERVIEW
 
   return (
-    <div className="min-h-screen bg-slate-50/50 text-slate-900 flex flex-col justify-between">
-      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
-        {/* Header con migas de pan y filtros globales */}
+    <>
+      {/* Header con migas de pan y filtros globales */}
         <ReportHeader
           title={currentMeta.title}
           description={currentMeta.desc}
@@ -410,21 +407,17 @@ export function ReportsHubPage({ initialReportType = 'OVERVIEW' }: ReportsHubPag
           </main>
         )}
 
-        {/* Drawer de Detalle Analítico */}
-        <ReportItemDetailDrawer
-          item={detailItem}
-          onClose={() => setDetailItem(null)}
-        />
+      {/* Drawer de Detalle Analítico */}
+      <ReportItemDetailDrawer
+        item={detailItem}
+        onClose={() => setDetailItem(null)}
+      />
 
-        {/* Notificaciones flotantes */}
-        <ReportToast
-          message={toastMessage}
-          onClose={() => showToast('', 'info')}
-        />
-      </div>
-
-      {/* Footer Reglamentario Oficial (Reglas 29-32) */}
-      <Footer isDark={false} />
-    </div>
+      {/* Notificaciones flotantes */}
+      <ReportToast
+        message={toastMessage}
+        onClose={() => showToast('', 'info')}
+      />
+    </>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import {
@@ -52,6 +53,7 @@ export function CustomerFormDrawer({
   const isEditing = Boolean(customerToEdit)
   const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'commercial'>('basic')
 
+  const [mounted, setMounted] = useState(false)
   // Form States
   const [customerType, setCustomerType] = useState<CustomerType>('NATURAL')
   const [documentType, setDocumentType] = useState<CustomerDocumentType>('CC')
@@ -77,6 +79,8 @@ export function CustomerFormDrawer({
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
     if (customerToEdit) {
@@ -128,7 +132,7 @@ export function CustomerFormDrawer({
     setError(null)
   }, [customerToEdit, isOpen])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   const locationOptions = locations.map((l) => ({
     value: l.id,
@@ -213,7 +217,7 @@ export function CustomerFormDrawer({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop" onClick={onClose}>
       <div
         className="product-drawer"
@@ -726,6 +730,7 @@ export function CustomerFormDrawer({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

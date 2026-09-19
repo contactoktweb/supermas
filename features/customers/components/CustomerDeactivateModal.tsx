@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Customer } from '../types'
 
@@ -28,8 +29,18 @@ export function CustomerDeactivateModal({
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen || !customer) return null
+  useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !customer || !mounted) return null
 
   const hasPendingBalance = customer.currentBalance > 0
 
@@ -58,7 +69,7 @@ export function CustomerDeactivateModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="warehouse-card page-enter"
@@ -180,6 +191,7 @@ export function CustomerDeactivateModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

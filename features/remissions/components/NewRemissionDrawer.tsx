@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { CreateRemissionPayload } from '../types'
@@ -17,6 +18,9 @@ export function NewRemissionDrawer({
   onClose,
   onSubmit,
 }: NewRemissionDrawerProps) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
 
   // Step 1: Customer
@@ -248,7 +252,9 @@ export function NewRemissionDrawer({
     }
   }
 
-  return (
+  if (!mounted || !isOpen) return null
+
+  return createPortal(
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
         className="product-drawer page-enter"
@@ -758,6 +764,7 @@ export function NewRemissionDrawer({
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Remission, DispatchRemissionPayload } from '../types'
 
@@ -56,7 +57,7 @@ export function DispatchModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="modal-card animate-scale-up"
@@ -261,6 +262,7 @@ export function DispatchModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

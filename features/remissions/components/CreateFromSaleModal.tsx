@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { CreateFromSalePayload } from '../types'
@@ -76,7 +77,7 @@ export function CreateFromSaleModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="modal-card animate-scale-up"
@@ -339,6 +340,7 @@ export function CreateFromSaleModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

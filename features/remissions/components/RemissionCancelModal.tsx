@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Remission } from '../types'
 
@@ -43,7 +44,7 @@ export function RemissionCancelModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="modal-card animate-scale-up"
@@ -221,6 +222,7 @@ export function RemissionCancelModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { RemissionStatusBadge } from './RemissionStatusBadge'
 import { Remission } from '../types'
@@ -22,7 +23,10 @@ export function RemissionDetailDrawer({
   onOpenDeliver,
   onOpenCancel,
 }: RemissionDetailDrawerProps) {
-  if (!isOpen || !remission) return null
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
+
+  if (!mounted || !isOpen || !remission) return null
 
   const handlePrint = () => {
     window.print()
@@ -34,7 +38,7 @@ export function RemissionDetailDrawer({
   const isDelivered = remission.status === 'DELIVERED'
   const isCancelled = remission.status === 'CANCELLED'
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
         className="product-drawer page-enter"
@@ -581,6 +585,7 @@ export function RemissionDetailDrawer({
           </button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   )
 }

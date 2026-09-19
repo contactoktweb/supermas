@@ -1,6 +1,30 @@
 # CHANGELOG AI — Super Más ERP/POS
 
-## [2026-09-19] — Estandarización Visual y Estructural del Módulo de Reportes
+## [2026-09-19] — Corrección de Drawers Deslizantes en Contabilidad y Unificación de Navegación
+
+### Fixed & Refactored
+- **Drawers Deslizantes del Módulo de Contabilidad**:
+  - `NewAccountDrawer.tsx` (Nueva Cuenta PUC): Se corrigió el problema de renderizado estático al final de la página sustituyendo `.drawer-overlay`/`.drawer-panel` por `.drawer-backdrop` y `.product-drawer.page-enter` montados directamente en `document.body` mediante `createPortal`.
+  - `NewManualEntryDrawer.tsx` (Nuevo Asiento Manual): Adaptado a `.drawer-backdrop` y `.product-drawer` con portal al DOM raíz (`document.body`), asegurando que deslice fluidamente desde el lateral derecho (`animation: slide .3s ease`) y soporte cierre por tecla `Escape` o backdrop.
+  - `AccountingEntryDetailDrawer.tsx` (Ficha Detallada de Asiento Contable): Migrado a `createPortal` con ancho responsivo (`min(100%, 720px)`) y modal de reversión integrado con prevención de propagación.
+- **Unificación de Navegación Global y Conexión de Módulos**:
+  - `components/navigation/modules.ts`: Creado como fuente única de verdad para los 21 módulos del ERP, unificando labels, iconos, rutas (`/path`) y claves de vista (`viewKey`).
+  - `app/page.tsx`: Conexión de los 10 módulos que faltaban en el switch SPA (`catalogo-supermas`, `catalogo-distribuidora`, `pedidos-web`, `reportes`, `alertas`, `auditoria`, `usuarios`, `roles`, `configuracion`, `contabilidad`).
+  - Actualización de los 21 archivos de ruta en `app/` para importar `APP_MODULES`, eliminando fallbacks con enlaces rotos `'/'`.
+- **Módulo de Roles (`features/roles/` y `app/roles/page.tsx`)**:
+  - Implementación de la vista completa de consulta de roles y matriz de permisos por sede para el rol `SUPERADMIN`.
+
+### Added & Tested
+- **Suite de Pruebas Automatizadas de Contabilidad (`features/accounting/tests/accounting.test.ts`)**:
+  - 21 pruebas automatizadas ejecutadas con `npx tsx` cubriendo:
+    1. Matriz de permisos por rol (`SUPERADMIN`, `ACCOUNTANT`, `CASHIER`).
+    2. Creación y validación de cuentas contables PUC.
+    3. Validación estricta de partida doble (`SUM(debit) == SUM(credit)`).
+    4. Creación exitosa de comprobantes de diario (`POSTED`).
+    5. Reversión contable con inmutabilidad y generación de comprobante inverso (`REVERSED`).
+    6. Reportes financieros (Balance de prueba y Estado de Resultados integral).
+  - Resultado: 21 pasaron exitosamente (0 errores). Verificación completa de tipos con `npx tsc --noEmit` limpia.
+
 
 ### Changed & Improved
 - **Encabezado Unificado (`ReportHeader.tsx`)**:

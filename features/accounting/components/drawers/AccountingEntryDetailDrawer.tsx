@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry } from '../../types'
 
@@ -19,11 +20,30 @@ export function AccountingEntryDetailDrawer({
   onReverse,
   canCancelEntry,
 }: AccountingEntryDetailDrawerProps) {
+  const [mounted, setMounted] = useState(false)
   const [isReversing, setIsReversing] = useState(false)
   const [reversalReason, setReversalReason] = useState('')
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
-  if (!isOpen || !entry) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (isConfirmOpen) {
+          setIsConfirmOpen(false)
+        } else {
+          onClose()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isConfirmOpen, onClose])
+
+  if (!isOpen || !entry || !mounted) return null
 
   const handleConfirmReversal = async () => {
     if (!reversalReason.trim()) return
@@ -51,9 +71,22 @@ export function AccountingEntryDetailDrawer({
     }
   }
 
-  return (
-    <div className="drawer-overlay" onClick={onClose} aria-modal="true" role="dialog">
-      <div className="drawer-panel max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+  return createPortal(
+    <div className="drawer-backdrop" onClick={onClose} aria-modal="true" role="dialog">
+      <div
+        className="product-drawer page-enter"
+        style={{
+          width: 'min(100%, 720px)',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxHeight: '100vh',
+          background: '#ffffff',
+          padding: '24px 28px',
+          overflowY: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Cabecera del Drawer */}
         <div className="drawer-header border-b pb-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -222,8 +255,14 @@ export function AccountingEntryDetailDrawer({
 
       {/* Modal de Confirmación de Reversión */}
       {isConfirmOpen && (
-        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4">
+        <div
+          className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setIsConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center gap-2 text-rose-600 font-bold text-sm">
               <AppIcon name="warning" size={20} />
               <span>Confirmar Reversión Contable</span>
@@ -268,6 +307,7 @@ export function AccountingEntryDetailDrawer({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   )
 }

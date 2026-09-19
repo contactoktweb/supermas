@@ -4,37 +4,11 @@ import React, { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { InventoryPage } from '@/features/inventory/components/InventoryPage'
 import { Footer } from '@/components/Footer'
-import { AppIcon, LightIconName } from '@/components/ui/Icon'
+import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
+import { APP_MODULES } from '@/components/navigation/modules'
 
-const modules: [string, LightIconName, string][] = [
-  ['Dashboard', 'dashboard', '/'],
-  ['Bodegas', 'warehouse', '/bodegas'],
-  ['Productos', 'products', '/'],
-  ['Inventario', 'inventory', '/inventario'],
-  ['Kardex', 'kardex', '/kardex'],
-  ['Transferencias', 'transfers', '/transferencias'],
-  ['Compras', 'purchases', '/compras'],
-  ['Proveedores', 'suppliers', '/proveedores'],
-  ['Clientes', 'customers', '/clientes'],
-  ['Ventas', 'sales', '/'],
-  ['POS', 'pos', '/'],
-  ['Facturación', 'invoices', '/'],
-  ['Remisiones', 'remisiones', '/'],
-  ['Cajas', 'cashRegisters', '/'],
-  ['Contabilidad', 'accounting', '/'],
-  ['Impuestos', 'taxes', '/impuestos'],
-  ['Exógena', 'exogena', '/'],
-  ['Pedidos Web', 'webOrders', '/'],
-  ['Catálogo Super Más', 'ecommerceSM', '/'],
-  ['Catálogo Distribuidora', 'ecommerceDist', '/'],
-  ['Reportes', 'reports', '/'],
-  ['Alertas', 'alerts', '/'],
-  ['Auditoría', 'audit', '/'],
-  ['Usuarios', 'users', '/'],
-  ['Roles', 'roles', '/'],
-  ['Configuración', 'settings', '/'],
-]
+const modules = APP_MODULES
 
 function InventoryRouteContent() {
   const searchParams = useSearchParams()

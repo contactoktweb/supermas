@@ -1,15 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
-import { TaxPage } from '@/features/taxes/components/TaxPage'
-import { Footer } from '@/components/Footer'
-import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
+import { AppIcon } from '@/components/ui/Icon'
+import { RolesView } from '@/features/roles/components/RolesView'
+import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
 
-const modules = APP_MODULES
-
-export default function ImpuestosRoutePage() {
+export default function RolesRoutePage() {
   const [menu, setMenu] = useState(false)
 
   return (
@@ -30,31 +28,33 @@ export default function ImpuestosRoutePage() {
           </button>
         </div>
 
-
         <nav>
           <p className="nav-caption">Menú principal</p>
-          {modules.map(([label, iconName, path]) => (
-            <Link
-              key={label}
-              href={path}
-              className={`nav-item ${label === 'Impuestos' ? 'active' : ''}`}
-              onClick={() => setMenu(false)}
-            >
-              <AppIcon name={iconName} size={18} />
-              <span>{label}</span>
-              {label === 'Alertas' && <b>3</b>}
-            </Link>
-          ))}
+          {APP_MODULES.map(([label, iconName, href]) => {
+            const isActive = label === 'Roles'
+            return (
+              <Link
+                key={label}
+                href={href}
+                className={`nav-item ${isActive ? 'active' : ''}`}
+                onClick={() => setMenu(false)}
+              >
+                <AppIcon name={iconName} size={18} />
+                <span>{label}</span>
+                {label === 'Alertas' && <b>3</b>}
+              </Link>
+            )
+          })}
         </nav>
 
-        <div className="user-mini">
+        <button className="user-mini" onClick={() => (window.location.href = '/')}>
           <div className="avatar">AM</div>
           <div>
             <strong>Admin Mauricio</strong>
-            <span>Administrador</span>
+            <span>Superadministrador</span>
           </div>
           <AppIcon name="logout" size={18} />
-        </div>
+        </button>
       </aside>
 
       <div className="main-area">
@@ -69,12 +69,15 @@ export default function ImpuestosRoutePage() {
           <div className="breadcrumbs">
             <span>Inicio</span>
             <AppIcon name="chevronRight" size={14} />
-            <strong>Impuestos</strong>
+            <span>Seguridad</span>
+            <AppIcon name="chevronRight" size={14} />
+            <strong>Roles y Permisos</strong>
           </div>
+
           <div className="top-actions">
             <div className="search-box">
               <AppIcon name="search" size={16} />
-              <input placeholder="Buscar en el sistema..." />
+              <input placeholder="Buscar roles o permisos..." />
             </div>
             <button className="notification icon-button" aria-label="Notificaciones">
               <AppIcon name="alerts" size={18} />
@@ -85,7 +88,7 @@ export default function ImpuestosRoutePage() {
         </header>
 
         <main className="dashboard-content">
-          <TaxPage />
+          <RolesView />
           <Footer isDark={false} />
         </main>
       </div>

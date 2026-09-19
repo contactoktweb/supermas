@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
 import { DashboardView } from '@/features/dashboard/components/DashboardView'
@@ -17,37 +17,21 @@ import { InvoicesPage } from '@/features/invoices'
 import { RemissionsPage } from '@/features/remissions'
 import { TaxPage } from '@/features/taxes/components/TaxPage'
 import { ExogenaPage } from '@/features/exogena/components/ExogenaPage'
+import { AccountingPage } from '@/features/accounting/components/AccountingPage'
+import { WebOrdersPage } from '@/features/web-orders/components/WebOrdersPage'
+import { SuperCatalogPage } from '@/features/super-catalog/components/SuperCatalogPage'
+import { DistributorCatalogPage } from '@/features/distributor-catalog/components/DistributorCatalogPage'
+import { ReportsHubPage } from '@/features/reports/components/ReportsHubPage'
+import { AlertsPage } from '@/features/alerts/components/AlertsPage'
+import { AuditPage } from '@/features/audit/components/AuditPage'
+import { UsersPage } from '@/features/users/components/UsersPage'
+import { RolesView } from '@/features/roles/components/RolesView'
+import { SettingsPage } from '@/features/settings/components/SettingsPage'
 import { Footer } from '@/components/Footer'
+import { APP_MODULES } from '@/components/navigation/modules'
 import { db } from '@/lib/supabase'
 
-const modules: [string, LightIconName][] = [
-  ['Dashboard', 'dashboard'],
-  ['Bodegas', 'warehouse'],
-  ['Productos', 'products'],
-  ['Inventario', 'inventory'],
-  ['Kardex', 'kardex'],
-  ['Transferencias', 'transfers'],
-  ['Compras', 'purchases'],
-  ['Proveedores', 'suppliers'],
-  ['Clientes', 'customers'],
-  ['Ventas', 'sales'],
-  ['POS', 'pos'],
-  ['Facturación', 'invoices'],
-  ['Remisiones', 'remisiones'],
-  ['Cajas', 'cashRegisters'],
-  ['Contabilidad', 'accounting'],
-  ['Impuestos', 'taxes'],
-  ['Exógena', 'exogena'],
-  ['Pedidos Web', 'webOrders'],
-  ['Catálogo Super Más', 'ecommerceSM'],
-  ['Catálogo Distribuidora', 'ecommerceDist'],
-  ['Reportes', 'reports'],
-  ['Alertas', 'alerts'],
-  ['Auditoría', 'audit'],
-  ['Usuarios', 'users'],
-  ['Roles', 'roles'],
-  ['Configuración', 'settings'],
-]
+const modules = APP_MODULES
 
 const movements = [
   {type:'Compra',product:'Arroz Diana 500g',sku:'SKU-001842',warehouse:'Bodega Principal',doc:'FV-1542',in:'+120',out:'—',balance:'482',user:'Laura Gómez',time:'Hoy, 10:32 AM'},
@@ -81,7 +65,7 @@ function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string
       </nav>
       <button className="user-mini" onClick={logout}>
         <div className="avatar">AM</div>
-        <div><strong>Admin Mauricio</strong><span>Administrador</span></div>
+        <div><strong>Admin Mauricio</strong><span>Superadministrador</span></div>
         <AppIcon name="logout" size={18}/>
       </button>
     </aside>
@@ -383,57 +367,101 @@ function App(){
   const [view,setView]=useState('Dashboard');
   const [menu,setMenu]=useState(false);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const v = params.get('view');
+      if (v) {
+        const found = APP_MODULES.find(([m]) => m.toLowerCase() === v.toLowerCase());
+        if (found) {
+          setView(found[0]);
+        }
+      }
+    }
+  }, []);
+
+  const handleSetView = (targetView: string) => {
+    setView(targetView);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (targetView === 'Dashboard') {
+        url.searchParams.delete('view');
+      } else {
+        url.searchParams.set('view', targetView);
+      }
+      window.history.replaceState(null, '', url.toString());
+    }
+  };
+
   if(!auth)return <Login onLogin={()=>setAuth(true)}/>;
 
   if (view === 'POS') {
-    return <POSView onExit={() => setView('Dashboard')} />;
+    return <POSView onExit={() => handleSetView('Dashboard')} />;
   }
 
   const content = view === 'Dashboard' ? (
-    <DashboardView onNavigate={(targetView) => setView(targetView)} />
+    <DashboardView onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Bodegas' ? (
     <WarehousePage />
   ) : view === 'Productos' ? (
-    <Products onNavigate={(targetView) => setView(targetView)} />
+    <Products onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Inventario' ? (
-    <InventoryPage onNavigate={(targetView) => setView(targetView)} />
+    <InventoryPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Kardex' ? (
-    <KardexPage onNavigate={(targetView) => setView(targetView)} />
+    <KardexPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Transferencias' ? (
-    <TransferPage onNavigate={(targetView) => setView(targetView)} />
+    <TransferPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Compras' ? (
-    <PurchasesPage onNavigate={(targetView) => setView(targetView)} />
+    <PurchasesPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Proveedores' ? (
-    <SuppliersPage onNavigate={(targetView) => setView(targetView)} />
+    <SuppliersPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Clientes' ? (
-    <CustomersPage onNavigate={(targetView) => setView(targetView)} />
+    <CustomersPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Ventas' ? (
-    <SalesPage onNavigate={(targetView) => setView(targetView)} />
-  ) : view === 'POS' ? (
-    <POSView onExit={() => setView('Dashboard')} />
+    <SalesPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Facturación' ? (
-    <InvoicesPage onNavigate={(targetView) => setView(targetView)} />
+    <InvoicesPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Remisiones' ? (
-    <RemissionsPage onNavigate={(targetView) => setView(targetView)} />
+    <RemissionsPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Cajas' ? (
     <Cajas />
+  ) : view === 'Contabilidad' ? (
+    <AccountingPage />
   ) : view === 'Impuestos' ? (
     <TaxPage />
   ) : view === 'Exógena' ? (
     <ExogenaPage />
+  ) : view === 'Pedidos Web' ? (
+    <WebOrdersPage />
+  ) : view === 'Catálogo Super Más' ? (
+    <SuperCatalogPage />
+  ) : view === 'Catálogo Distribuidora' ? (
+    <DistributorCatalogPage />
+  ) : view === 'Reportes' ? (
+    <ReportsHubPage initialReportType="OVERVIEW" />
+  ) : view === 'Alertas' ? (
+    <AlertsPage />
+  ) : view === 'Auditoría' ? (
+    <AuditPage />
+  ) : view === 'Usuarios' ? (
+    <UsersPage currentRole="SUPERADMIN" />
+  ) : view === 'Roles' ? (
+    <RolesView />
+  ) : view === 'Configuración' ? (
+    <SettingsPage />
   ) : adminConfigs[view] ? (
     <AdminModule name={view} />
   ) : moduleMeta[view] ? (
     <ModulePage name={view} />
   ) : (
-    <DashboardView onNavigate={(targetView) => setView(targetView)} />
+    <DashboardView onNavigate={(targetView) => handleSetView(targetView)} />
   );
 
   return (
     <div className="app-shell">
       <Sidebar
         view={view}
-        setView={setView}
+        setView={handleSetView}
         open={menu}
         close={()=>setMenu(false)}
         logout={()=>setAuth(false)}

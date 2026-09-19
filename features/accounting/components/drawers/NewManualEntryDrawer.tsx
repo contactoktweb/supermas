@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount } from '../../types'
 import { ManualEntryFormData } from '../../schemas/accounting.schema'
@@ -29,6 +30,7 @@ export function NewManualEntryDrawer({
   accounts,
   onSubmit,
 }: NewManualEntryDrawerProps) {
+  const [mounted, setMounted] = useState(false)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [description, setDescription] = useState('')
   const [locationId, setLocationId] = useState('loc-001')
@@ -37,6 +39,20 @@ export function NewManualEntryDrawer({
   const [observation, setObservation] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
 
   const [lines, setLines] = useState<TempLine[]>([
     {
@@ -59,7 +75,7 @@ export function NewManualEntryDrawer({
     },
   ])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   const locations = db.locations || []
 
@@ -148,9 +164,22 @@ export function NewManualEntryDrawer({
     }
   }
 
-  return (
-    <div className="drawer-overlay" onClick={onClose} aria-modal="true" role="dialog">
-      <div className="drawer-panel max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+  return createPortal(
+    <div className="drawer-backdrop" onClick={onClose} aria-modal="true" role="dialog">
+      <div
+        className="product-drawer page-enter"
+        style={{
+          width: 'min(100%, 820px)',
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          maxHeight: '100vh',
+          background: '#ffffff',
+          padding: '24px 28px',
+          overflowY: 'auto',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Cabecera */}
         <div className="drawer-header border-b pb-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -397,6 +426,7 @@ export function NewManualEntryDrawer({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

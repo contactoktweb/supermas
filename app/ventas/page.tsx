@@ -3,37 +3,11 @@
 import React, { useState, Suspense } from 'react'
 import { SalesPage } from '@/features/sales/components/SalesPage'
 import { Footer } from '@/components/Footer'
-import { AppIcon, LightIconName } from '@/components/ui/Icon'
+import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
+import { APP_MODULES } from '@/components/navigation/modules'
 
-const modules: [string, LightIconName, string][] = [
-  ['Dashboard', 'dashboard', '/'],
-  ['Bodegas', 'warehouse', '/bodegas'],
-  ['Productos', 'products', '/'],
-  ['Inventario', 'inventory', '/inventario'],
-  ['Kardex', 'kardex', '/kardex'],
-  ['Transferencias', 'transfers', '/transferencias'],
-  ['Compras', 'purchases', '/compras'],
-  ['Proveedores', 'suppliers', '/proveedores'],
-  ['Clientes', 'customers', '/clientes'],
-  ['Ventas', 'sales', '/ventas'],
-  ['POS', 'pos', '/'],
-  ['Facturación', 'invoices', '/'],
-  ['Remisiones', 'remisiones', '/'],
-  ['Cajas', 'cashRegisters', '/'],
-  ['Contabilidad', 'accounting', '/'],
-  ['Impuestos', 'taxes', '/impuestos'],
-  ['Exógena', 'exogena', '/'],
-  ['Pedidos Web', 'webOrders', '/'],
-  ['Catálogo Super Más', 'ecommerceSM', '/'],
-  ['Catálogo Distribuidora', 'ecommerceDist', '/'],
-  ['Reportes', 'reports', '/'],
-  ['Alertas', 'alerts', '/'],
-  ['Auditoría', 'audit', '/'],
-  ['Usuarios', 'users', '/'],
-  ['Roles', 'roles', '/'],
-  ['Configuración', 'settings', '/'],
-]
+const modules = APP_MODULES
 
 function SalesContent() {
   return (
@@ -42,7 +16,7 @@ function SalesContent() {
         if (targetView === 'Kardex') {
           window.location.href = '/kardex'
         } else if (targetView === 'Facturación') {
-          window.location.href = '/'
+          window.location.href = '/facturacion'
         } else if (targetView === 'Clientes') {
           window.location.href = '/clientes'
         } else if (targetView === 'Compras') {

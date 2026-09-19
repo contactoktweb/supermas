@@ -3,36 +3,11 @@
 import React, { useState } from 'react'
 import { WebOrdersPage } from '@/features/web-orders/components/WebOrdersPage'
 import { Footer } from '@/components/Footer'
-import { AppIcon, LightIconName } from '@/components/ui/Icon'
+import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
+import { APP_MODULES } from '@/components/navigation/modules'
 
-const modules: [string, LightIconName, string][] = [
-  ['Dashboard', 'dashboard', '/'],
-  ['Bodegas', 'warehouse', '/bodegas'],
-  ['Productos', 'products', '/'],
-  ['Inventario', 'inventory', '/inventario'],
-  ['Kardex', 'kardex', '/kardex'],
-  ['Transferencias', 'transfers', '/transferencias'],
-  ['Compras', 'purchases', '/compras'],
-  ['Proveedores', 'suppliers', '/proveedores'],
-  ['Clientes', 'customers', '/clientes'],
-  ['Ventas', 'sales', '/ventas'],
-  ['POS', 'pos', '/pos'],
-  ['Facturación', 'invoices', '/facturacion'],
-  ['Remisiones', 'remisiones', '/remisiones'],
-  ['Cajas', 'cashRegisters', '/'],
-  ['Contabilidad', 'accounting', '/contabilidad'],
-  ['Impuestos', 'taxes', '/impuestos'],
-  ['Exógena', 'exogena', '/exogena'],
-  ['Pedidos Web', 'webOrders', '/pedidos-web'],
-  ['Catálogo Super Más', 'ecommerceSM', '/catalogo-supermas'],
-  ['Catálogo Distribuidora', 'ecommerceDist', '/catalogo-distribuidora'],
-  ['Reportes', 'reports', '/reportes'],
-  ['Alertas', 'alerts', '/alertas'],
-  ['Auditoría', 'audit', '/auditoria'],
-  ['Usuarios', 'users', '/usuarios'],
-  ['Configuración', 'settings', '/configuracion'],
-]
+const modules = APP_MODULES
 
 export default function PedidosWebRoutePage() {
   const [menu, setMenu] = useState(false)

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { ConsolidatedProductStock, QuickTransferInput } from '../types'
@@ -26,6 +27,7 @@ export function InventoryQuickTransferModal({
   onClose,
   onSubmit,
 }: InventoryQuickTransferModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState<string>(productId || '')
   const [originId, setOriginId] = useState<string>(originLocationId || 'loc-01')
   const [destinationId, setDestinationId] = useState<string>('loc-02')
@@ -35,11 +37,35 @@ export function InventoryQuickTransferModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
     if (productId) setSelectedProductId(productId)
     if (originLocationId) setOriginId(originLocationId)
   }, [productId, originLocationId])
 
-  if (!isOpen) return null
+  // Escape key support
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  if (!isOpen || !mounted) return null
 
   const selectedProduct = consolidatedProducts.find((p) => p.productId === selectedProductId)
 
@@ -98,16 +124,20 @@ export function InventoryQuickTransferModal({
     }
   }
 
-  return (
-    <div className="drawer-backdrop modal-center" onClick={onClose}>
+  return createPortal(
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-quick-transfer-title"
+    >
       <div
         className="modal-card quick-transfer-modal animate-scale-up"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Nueva transferencia de inventario"
       >
         <div className="modal-header">
-          <div className="modal-header-title">
+          <div className="modal-header-title" id="modal-quick-transfer-title">
             <div className="modal-icon-badge">
               <AppIcon name="transfers" size={18} color="var(--navy)" />
             </div>
@@ -116,112 +146,119 @@ export function InventoryQuickTransferModal({
               <p>Traslada existencias manteniendo el saldo y la trazabilidad.</p>
             </div>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">
+          <button
+            type="button"
+            className="modal-close-btn"
+            onClick={onClose}
+            aria-label="Cerrar modal"
+          >
             <AppIcon name="close" size={16} />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-form">
-          {errorMsg && (
-            <div className="form-error-banner">
-              <AppIcon name="warning" size={16} />
-              <span>{errorMsg}</span>
+          <div className="modal-body-scroll">
+            {errorMsg && (
+              <div className="form-error-banner">
+                <AppIcon name="warning" size={16} />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* 1. Seleccionar Producto */}
+            <div className="input-field-block">
+              <label>
+                Producto a transferir <span className="req">*</span>
+              </label>
+              <CustomSelect
+                value={selectedProductId}
+                onChange={(val) => setSelectedProductId(val)}
+                options={productOptions}
+                placeholder="Seleccionar producto..."
+                size="md"
+              />
             </div>
-          )}
 
-          {/* 1. Seleccionar Producto */}
-          <div className="input-field-block">
-            <label>
-              Producto a transferir <span className="req">*</span>
-            </label>
-            <CustomSelect
-              value={selectedProductId}
-              onChange={(val) => setSelectedProductId(val)}
-              options={productOptions}
-              placeholder="Seleccionar producto..."
-              size="md"
-            />
-          </div>
+            {/* Real Availability Distribution Card */}
+            {selectedProduct && (
+              <div className="transfer-availability-banner">
+                <span className="banner-title">Disponibilidad en bodegas:</span>
+                <div className="banner-locations-row">
+                  {selectedProduct.locationBreakdown.map((l) => (
+                    <div
+                      key={l.locationId}
+                      className={`loc-stock-chip ${
+                        l.locationId === originId ? 'selected-origin' : ''
+                      }`}
+                    >
+                      <span>{l.locationName}:</span>
+                      <strong>{l.stock} uds</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-          {/* Real Availability Distribution Card */}
-          {selectedProduct && (
-            <div className="transfer-availability-banner">
-              <span className="banner-title">Disponibilidad en bodegas:</span>
-              <div className="banner-locations-row">
-                {selectedProduct.locationBreakdown.map((l) => (
-                  <div
-                    key={l.locationId}
-                    className={`loc-stock-chip ${
-                      l.locationId === originId ? 'selected-origin' : ''
-                    }`}
-                  >
-                    <span>{l.locationName}:</span>
-                    <strong>{l.stock} uds</strong>
-                  </div>
-                ))}
+            {/* 2. Origen y Destino */}
+            <div className="form-grid-2">
+              <div className="input-field-block">
+                <label>
+                  Bodega Origen <span className="req">*</span>
+                </label>
+                <CustomSelect
+                  value={originId}
+                  onChange={(val) => setOriginId(val)}
+                  options={LOCATION_OPTIONS}
+                  size="md"
+                />
+                <span className="field-helper">
+                  Disponible en origen: <b>{originLocationStock} uds</b>
+                </span>
+              </div>
+
+              <div className="input-field-block">
+                <label>
+                  Bodega Destino <span className="req">*</span>
+                </label>
+                <CustomSelect
+                  value={destinationId}
+                  onChange={(val) => setDestinationId(val)}
+                  options={LOCATION_OPTIONS}
+                  size="md"
+                />
+                <span className="field-helper">
+                  Actual en destino: <b>{destinationLocationStock} uds</b>
+                </span>
               </div>
             </div>
-          )}
 
-          {/* 2. Origen y Destino */}
-          <div className="form-grid-2">
+            {/* 3. Cantidad a transferir */}
             <div className="input-field-block">
               <label>
-                Bodega Origen <span className="req">*</span>
+                Cantidad de unidades a transferir <span className="req">*</span>
               </label>
-              <CustomSelect
-                value={originId}
-                onChange={(val) => setOriginId(val)}
-                options={LOCATION_OPTIONS}
-                size="md"
+              <input
+                type="number"
+                min="1"
+                max={originLocationStock}
+                className="custom-form-input"
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                required
               />
-              <span className="field-helper">
-                Disponible en origen: <b>{originLocationStock} uds</b>
-              </span>
             </div>
 
+            {/* 4. Notas */}
             <div className="input-field-block">
-              <label>
-                Bodega Destino <span className="req">*</span>
-              </label>
-              <CustomSelect
-                value={destinationId}
-                onChange={(val) => setDestinationId(val)}
-                options={LOCATION_OPTIONS}
-                size="md"
+              <label>Instrucciones de traslado / Notas</label>
+              <input
+                type="text"
+                className="custom-form-input"
+                placeholder="Ej: Traslado urgente por desabastecimiento en punto de venta..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
               />
-              <span className="field-helper">
-                Actual en destino: <b>{destinationLocationStock} uds</b>
-              </span>
             </div>
-          </div>
-
-          {/* 3. Cantidad a transferir */}
-          <div className="input-field-block">
-            <label>
-              Cantidad de unidades a transferir <span className="req">*</span>
-            </label>
-            <input
-              type="number"
-              min="1"
-              max={originLocationStock}
-              className="custom-form-input"
-              value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-              required
-            />
-          </div>
-
-          {/* 4. Notas */}
-          <div className="input-field-block">
-            <label>Instrucciones de traslado / Notas</label>
-            <input
-              type="text"
-              className="custom-form-input"
-              placeholder="Ej: Traslado urgente por desabastecimiento en punto de venta..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
           </div>
 
           {/* Modal Footer */}
@@ -240,6 +277,7 @@ export function InventoryQuickTransferModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

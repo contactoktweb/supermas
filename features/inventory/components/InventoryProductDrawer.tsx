@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import Image from 'next/image'
 import { AppIcon } from '@/components/ui/Icon'
 import { ConsolidatedProductStock } from '../types'
@@ -25,15 +26,45 @@ export function InventoryProductDrawer({
   onOpenTransfer,
   onOpenKardex,
 }: InventoryProductDrawerProps) {
-  if (!isOpen || !product) return null
+  const [mounted, setMounted] = useState(false)
 
-  return (
-    <div className="drawer-backdrop" onClick={onClose}>
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Escape key support
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Prevent background scroll when drawer is open
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  if (!isOpen || !product || !mounted) return null
+
+  return createPortal(
+    <div
+      className="drawer-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Detalle de existencias del producto"
+    >
       <aside
         className="product-drawer inventory-detail-drawer"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Detalle de existencias del producto"
       >
         {/* Drawer Header */}
         <div className="drawer-header">
@@ -210,6 +241,7 @@ export function InventoryProductDrawer({
           </button>
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -4223,22 +4223,33 @@ textarea:disabled {
   overflow-y: auto;
 }
 
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .modal-header-title {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 1;
 }
 
 .modal-header-title h3 {
   margin: 0 0 2px;
   font-size: 16px;
   color: var(--navy);
+  line-height: 1.25;
 }
 
 .modal-header-title p {
   margin: 0;
   font-size: 11px;
   color: #64748b;
+  line-height: 1.35;
 }
 
 .modal-icon-badge {
@@ -4248,6 +4259,97 @@ textarea:disabled {
   height: 40px;
   border-radius: 10px;
   background: #edf2fa;
+  flex-shrink: 0;
+}
+
+.modal-close-btn,
+.modal-header .icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: #64748b;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.modal-close-btn:hover,
+.modal-header .icon-button:hover {
+  background: #f1f5f9;
+  color: var(--navy);
+  border-color: var(--line);
+}
+
+/* Inventory Adjust & Transfer Modal Layout */
+.inventory-adjust-modal,
+.quick-transfer-modal {
+  width: min(94vw, 560px);
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 25px 60px -10px rgba(10, 24, 48, 0.35);
+  display: flex;
+  flex-direction: column;
+  max-height: min(90vh, 800px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.inventory-adjust-modal .modal-header,
+.quick-transfer-modal .modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+  background: #ffffff;
+  flex-shrink: 0;
+}
+
+.inventory-adjust-modal .modal-form,
+.quick-transfer-modal .modal-form {
+  padding: 0;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-body-scroll {
+  padding: 20px 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(10, 24, 48, 0.15) transparent;
+}
+
+.modal-body-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body-scroll::-webkit-scrollbar-thumb {
+  background: rgba(10, 24, 48, 0.15);
+  border-radius: 4px;
+}
+
+.inventory-adjust-modal .modal-footer,
+.quick-transfer-modal .modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  background: #f8fafc;
+  margin-top: 0;
   flex-shrink: 0;
 }
 
@@ -5352,6 +5454,36 @@ html, body {
     margin: 10px !important;
     max-height: 92vh !important;
     border-radius: 14px !important;
+  }
+
+  .inventory-adjust-modal,
+  .quick-transfer-modal,
+  .physical-count-modal,
+  .inventory-export-modal {
+    padding: 0 !important;
+    margin: 10px !important;
+    max-height: 92vh !important;
+  }
+
+  .inventory-adjust-modal .modal-header,
+  .quick-transfer-modal .modal-header,
+  .physical-count-modal .modal-header,
+  .inventory-export-modal .modal-header {
+    padding: 14px 16px !important;
+  }
+
+  .inventory-adjust-modal .modal-body-scroll,
+  .quick-transfer-modal .modal-body-scroll,
+  .physical-count-modal .physical-count-body,
+  .inventory-export-modal .modal-body {
+    padding: 16px !important;
+  }
+
+  .inventory-adjust-modal .modal-footer,
+  .quick-transfer-modal .modal-footer,
+  .physical-count-modal .modal-footer,
+  .inventory-export-modal .modal-footer {
+    padding: 14px 16px !important;
   }
 
   .modal-footer {

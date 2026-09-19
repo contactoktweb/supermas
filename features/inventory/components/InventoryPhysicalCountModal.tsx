@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { PhysicalCountSession, PhysicalCountItem } from '../types'
@@ -20,6 +21,7 @@ export function InventoryPhysicalCountModal({
   onClose,
   onApplyDiscrepancies,
 }: InventoryPhysicalCountModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [selectedLocationId, setSelectedLocationId] = useState<string>('loc-01')
   const [session, setSession] = useState<PhysicalCountSession | null>(null)
   const [notes, setNotes] = useState<string>('')
@@ -27,6 +29,30 @@ export function InventoryPhysicalCountModal({
   const [isApplying, setIsApplying] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Escape key support
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
 
   // Initialize count session when location changes or modal opens
   useEffect(() => {
@@ -62,7 +88,7 @@ export function InventoryPhysicalCountModal({
     }
   }, [isOpen, selectedLocationId])
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
   const handlePhysicalStockChange = (productId: string, valStr: string) => {
     if (!session) return
@@ -115,16 +141,20 @@ export function InventoryPhysicalCountModal({
       )
     : []
 
-  return (
-    <div className="drawer-backdrop modal-center" onClick={onClose}>
+  return createPortal(
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-count-title"
+    >
       <div
         className="modal-card physical-count-modal animate-scale-up"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Sesión de conteo físico de inventario"
       >
         <div className="modal-header">
-          <div className="modal-header-title">
+          <div className="modal-header-title" id="modal-count-title">
             <div className="modal-icon-badge">
               <AppIcon name="audit" size={18} color="var(--navy)" />
             </div>
@@ -135,7 +165,12 @@ export function InventoryPhysicalCountModal({
               </p>
             </div>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">
+          <button
+            type="button"
+            className="modal-close-btn"
+            onClick={onClose}
+            aria-label="Cerrar modal"
+          >
             <AppIcon name="close" size={16} />
           </button>
         </div>
@@ -302,6 +337,7 @@ export function InventoryPhysicalCountModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

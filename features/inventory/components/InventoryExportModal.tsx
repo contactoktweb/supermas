@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { ConsolidatedProductStock, InventoryStockLevel, InventoryViewMode } from '../types'
 import { inventoryService } from '../services/inventory.service'
@@ -20,10 +21,35 @@ export function InventoryExportModal({
   canSeeCost,
   onClose,
 }: InventoryExportModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [format, setFormat] = useState<'CSV' | 'JSON'>('CSV')
   const [isExporting, setIsExporting] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Escape key support
+  useEffect(() => {
+    if (!isOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  // Prevent background scroll when modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  if (!isOpen || !mounted) return null
 
   const handleDownload = () => {
     setIsExporting(true)
@@ -63,16 +89,20 @@ export function InventoryExportModal({
     }
   }
 
-  return (
-    <div className="drawer-backdrop modal-center" onClick={onClose}>
+  return createPortal(
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-export-title"
+    >
       <div
         className="modal-card inventory-export-modal animate-scale-up"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label="Exportar existencias de inventario"
       >
         <div className="modal-header">
-          <div className="modal-header-title">
+          <div className="modal-header-title" id="modal-export-title">
             <div className="modal-icon-badge">
               <AppIcon name="download" size={18} color="var(--navy)" />
             </div>
@@ -81,7 +111,12 @@ export function InventoryExportModal({
               <p>Descarga los registros filtrados en tu formato de preferencia.</p>
             </div>
           </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar">
+          <button
+            type="button"
+            className="modal-close-btn"
+            onClick={onClose}
+            aria-label="Cerrar modal"
+          >
             <AppIcon name="close" size={16} />
           </button>
         </div>
@@ -132,7 +167,7 @@ export function InventoryExportModal({
             Cancelar
           </button>
           <button
-            type="button"
+            type="submit"
             className="primary-button compact"
             onClick={handleDownload}
             disabled={isExporting}
@@ -142,6 +177,7 @@ export function InventoryExportModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

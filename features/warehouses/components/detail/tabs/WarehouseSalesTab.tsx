@@ -13,18 +13,25 @@ interface WarehouseSalesTabProps {
 export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps) {
   const [query, setQuery] = useState('')
 
-  const totalSales = sales.reduce((acc, s) => acc + s.totalAmount, 0)
-  const totalProfit = sales.reduce((acc, s) => acc + s.profitAmount, 0)
+  const totalSales = sales.reduce((acc, s) => acc + (s.totalAmount || 0), 0)
+  const totalProfit = sales.reduce((acc, s) => acc + (s.profitAmount || 0), 0)
   const ticketsCount = sales.length
   const avgTicket = ticketsCount > 0 ? Math.round(totalSales / ticketsCount) : 0
 
-  const filtered = sales.filter(
-    (s) =>
-      s.saleCode.toLowerCase().includes(query.toLowerCase()) ||
-      s.customerName.toLowerCase().includes(query.toLowerCase()) ||
-      s.sellerName.toLowerCase().includes(query.toLowerCase()) ||
-      s.customerDoc.includes(query)
-  )
+  const filtered = sales.filter((s) => {
+    const q = query.toLowerCase().trim()
+    if (!q) return true
+    const code = s.saleCode || (s as any).saleNumber || ''
+    const customer = s.customerName || ''
+    const seller = s.sellerName || ''
+    const doc = s.customerDoc || ''
+    return (
+      code.toLowerCase().includes(q) ||
+      customer.toLowerCase().includes(q) ||
+      seller.toLowerCase().includes(q) ||
+      doc.toLowerCase().includes(q)
+    )
+  })
 
   return (
     <div className="warehouse-sales-tab page-enter">
@@ -118,7 +125,7 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
                 {filtered.map((s) => (
                   <tr key={s.id}>
                     <td>
-                      <strong className="mono">{s.saleCode}</strong>
+                      <strong className="mono">{s.saleCode || (s as any).saleNumber || s.id}</strong>
                     </td>
                     <td>
                       <span className="time-muted">{s.date}</span>

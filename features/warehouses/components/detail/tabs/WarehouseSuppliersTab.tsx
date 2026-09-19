@@ -16,13 +16,20 @@ export function WarehouseSuppliersTab({
 }: WarehouseSuppliersTabProps) {
   const [query, setQuery] = useState('')
 
-  const filtered = suppliers.filter(
-    (s) =>
-      s.supplierName.toLowerCase().includes(query.toLowerCase()) ||
-      s.nit.includes(query) ||
-      s.contactName.toLowerCase().includes(query.toLowerCase()) ||
-      s.email.toLowerCase().includes(query.toLowerCase())
-  )
+  const filtered = suppliers.filter((s) => {
+    const q = query.toLowerCase().trim()
+    if (!q) return true
+    const name = s.supplierName || (s as any).businessName || (s as any).commercialName || ''
+    const nit = s.nit || (s as any).documentNumber || ''
+    const contact = s.contactName || ''
+    const email = s.email || ''
+    return (
+      name.toLowerCase().includes(q) ||
+      nit.includes(q) ||
+      contact.toLowerCase().includes(q) ||
+      email.toLowerCase().includes(q)
+    )
+  })
 
   return (
     <div className="warehouse-suppliers-tab page-enter">

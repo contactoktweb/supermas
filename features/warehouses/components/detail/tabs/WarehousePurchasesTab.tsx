@@ -13,14 +13,20 @@ interface WarehousePurchasesTabProps {
 export function WarehousePurchasesTab({ purchases, canReadCost }: WarehousePurchasesTabProps) {
   const [query, setQuery] = useState('')
 
-  const totalPurchases = purchases.reduce((acc, p) => acc + p.totalCost, 0)
+  const totalPurchases = purchases.reduce((acc, p) => acc + (p.totalCost || 0), 0)
 
-  const filtered = purchases.filter(
-    (p) =>
-      p.invoiceNumber.toLowerCase().includes(query.toLowerCase()) ||
-      p.supplierName.toLowerCase().includes(query.toLowerCase()) ||
-      p.supplierNit.includes(query)
-  )
+  const filtered = purchases.filter((p) => {
+    const q = query.toLowerCase().trim()
+    if (!q) return true
+    const inv = p.invoiceNumber || (p as any).purchaseNumber || ''
+    const sup = p.supplierName || ''
+    const nit = p.supplierNit || ''
+    return (
+      inv.toLowerCase().includes(q) ||
+      sup.toLowerCase().includes(q) ||
+      nit.includes(q)
+    )
+  })
 
   return (
     <div className="warehouse-purchases-tab page-enter">

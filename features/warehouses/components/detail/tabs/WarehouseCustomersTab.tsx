@@ -12,13 +12,20 @@ interface WarehouseCustomersTabProps {
 export function WarehouseCustomersTab({ customers }: WarehouseCustomersTabProps) {
   const [query, setQuery] = useState('')
 
-  const filtered = customers.filter(
-    (c) =>
-      c.customerName.toLowerCase().includes(query.toLowerCase()) ||
-      c.documentNumber.includes(query) ||
-      c.email.toLowerCase().includes(query.toLowerCase()) ||
-      c.phone.includes(query)
-  )
+  const filtered = customers.filter((c) => {
+    const q = query.toLowerCase().trim()
+    if (!q) return true
+    const name = c.customerName || (c as any).displayName || (c as any).businessName || ''
+    const doc = c.documentNumber || ''
+    const email = c.email || ''
+    const phone = c.phone || (c as any).mobile || ''
+    return (
+      name.toLowerCase().includes(q) ||
+      doc.includes(q) ||
+      email.toLowerCase().includes(q) ||
+      phone.includes(q)
+    )
+  })
 
   return (
     <div className="warehouse-customers-tab page-enter">

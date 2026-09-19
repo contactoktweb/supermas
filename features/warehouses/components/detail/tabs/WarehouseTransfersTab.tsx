@@ -33,12 +33,16 @@ export function WarehouseTransfersTab({
       return false
     }
     if (query) {
-      const q = query.toLowerCase()
+      const q = query.toLowerCase().trim()
+      const code = t.code || ''
+      const orig = t.originLocationName || ''
+      const dest = t.destinationLocationName || ''
+      const req = t.requestedBy || ''
       return (
-        t.code.toLowerCase().includes(q) ||
-        t.originLocationName.toLowerCase().includes(q) ||
-        t.destinationLocationName.toLowerCase().includes(q) ||
-        t.requestedBy.toLowerCase().includes(q)
+        code.toLowerCase().includes(q) ||
+        orig.toLowerCase().includes(q) ||
+        dest.toLowerCase().includes(q) ||
+        req.toLowerCase().includes(q)
       )
     }
     return true

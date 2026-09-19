@@ -15,11 +15,17 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
   const [typeFilter, setTypeFilter] = useState('ALL')
 
   const filtered = movements.filter((m) => {
+    const q = query.toLowerCase().trim()
+    const prod = m.productName || ''
+    const sku = m.sku || ''
+    const doc = m.documentRef || ''
+    const user = m.userName || ''
     const matchQuery =
-      m.productName.toLowerCase().includes(query.toLowerCase()) ||
-      m.sku.toLowerCase().includes(query.toLowerCase()) ||
-      m.documentRef.toLowerCase().includes(query.toLowerCase()) ||
-      m.userName.toLowerCase().includes(query.toLowerCase())
+      !q ||
+      prod.toLowerCase().includes(q) ||
+      sku.toLowerCase().includes(q) ||
+      doc.toLowerCase().includes(q) ||
+      user.toLowerCase().includes(q)
 
     const matchType = typeFilter === 'ALL' || m.type === typeFilter
 

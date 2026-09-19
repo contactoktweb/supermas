@@ -1,5 +1,25 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-19] — Corrección y Modernización de Gráficas de Rendimiento y Stock en Bodegas
+
+### Fixed & Enhanced
+- **Módulo de Bodegas (`features/warehouses/components/detail/tabs/WarehouseOverviewTab.tsx`)**:
+  - **Gráfica de Rendimiento Comercial (Izquierda)**:
+    - Se eliminó el falso trazado estático simulado por CSS (`.line-chart:after` con `skewY(-9deg)` en `globals.css`) que trazaba una línea diagonal recta desconectada de los puntos.
+    - Se implementó una gráfica SVG interactiva y receptiva con curvas de Bézier cúbicas (`M ... C ...`), relleno en degradado según la métrica (`#fe110c` para Ventas y `#159a67` para Utilidad), línea de referencia discontinua para el Promedio Semanal (`#001b5c`), líneas guía horizontales con valores monetarios formateados en COP, etiquetas de días en el eje X y tooltips flotantes al pasar el cursor o pulsar en móviles.
+    - Soporte interactivo para alternar entre "Ventas" y "Utilidad", recalculando la escala, curvas y métricas acumuladas en tiempo real.
+  - **Gráfica de Distribución de Stock por Categoría (Derecha)**:
+    - Se reemplazó el falso borde circular CSS (`border: 17px solid` de 4 esquinas fijas) que mostraba "0 Líneas activas" por un gráfico Donut SVG auténtico.
+    - Cada categoría (`Granos y Abastos`, `Despensa y Aceites`, `Lácteos y Refrigerados`, `Bebidas y Líquidos`, `Enlatados y Otros`) cuenta con su segmento SVG proporcional con color distintivo (`#fe110c`, `#001b5c`, `#159a67`, `#d99117`, `#6366f1`).
+    - Sincronización bidireccional entre los segmentos de la dona y la lista de categorías lateral: al pasar el ratón por un segmento o por una categoría, se resalta la cuña y el centro muestra el porcentaje, nombre y valor.
+    - El centro de la dona ahora muestra dinámicamente el conteo real de líneas activas (`totalActiveLines`) o los detalles de la categoría seleccionada, eliminando el "0 Líneas activas".
+- **Corrección de Mapeo y Null-Safety en Pestañas de Detalle de Bodega**:
+  - **Pestaña de Ventas (`WarehouseSalesTab.tsx`)**: Se corrigió el error en tiempo de ejecución `TypeError: undefined is not an object (evaluating 's.saleCode.toLowerCase')`. El origen se debía a que los datos mock de ventas almacenaban `saleNumber` en lugar de `saleCode`. Se añadió resolución defensiva `s.saleCode || (s as any).saleNumber || ''` y validación contra valores nulos en cliente y búsqueda.
+  - **Mocks de Bodega (`features/warehouses/mocks/warehouses.mock.ts`)**: Se normalizó el mapeo de `MOCK_SALES`, `MOCK_PURCHASES`, `MOCK_CUSTOMERS_RELATION` y `MOCK_SUPPLIERS_RELATION` transformando las propiedades de la base de datos mock (`saleNumber -> saleCode`, `totalProfit -> profitAmount`, `displayName -> customerName`, `deliveriesCount`, `currentBalance`, etc.) para cumplir de forma estricta con las interfaces TypeScript.
+  - **Pestañas de Compras, Clientes, Proveedores, Movimientos y Transferencias (`WarehousePurchasesTab.tsx`, `WarehouseCustomersTab.tsx`, `WarehouseSuppliersTab.tsx`, `WarehouseMovementsTab.tsx`, `WarehouseTransfersTab.tsx`)**: Se blindaron todos los filtros de búsqueda y renderizado de tablas con operadores seguros y fallbacks contra campos no definidos o vacíos.
+- **Repositorio de Bodegas (`features/warehouses/repositories/warehouse.repository.ts`)**:
+  - En `findInventoryByLocationId` y `findMovementsByLocationId`, se incorporó siembra de catálogo para ubicaciones secundarias (`PTO-002`, etc.) para evitar que muestren inventario vacío o ceros cuando se consulta cualquier bodega del sistema.
+
 ## [2026-09-19] — Unificación de Estilos de Pedidos Web, Alertas y Correcciones de Catálogos
 
 ### Fixed & Standardized

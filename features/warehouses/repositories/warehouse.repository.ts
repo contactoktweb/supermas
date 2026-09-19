@@ -176,6 +176,26 @@ class WarehouseRepository {
   ): Promise<WarehouseInventoryItem[]> {
     let items = this.inventory.filter((inv) => inv.locationId === locationId)
 
+    // Si la ubicación no tiene items directos, sembrar desde el catálogo para que ninguna bodega quede vacía
+    if (items.length === 0 && this.inventory.length > 0) {
+      const baseItems = this.inventory.filter((inv) => inv.locationId === 'loc-001')
+      const templateItems = baseItems.length > 0 ? baseItems : this.inventory
+      const seeded: WarehouseInventoryItem[] = templateItems.map((inv, idx) => {
+        const factor = 0.5 + ((idx * 17) % 50) / 100
+        const stock = Math.max(5, Math.round(inv.currentStock * factor))
+        return {
+          ...inv,
+          id: `inv-${locationId}-${idx + 1}`,
+          locationId,
+          currentStock: stock,
+          totalValueAtCost: Math.round(inv.averageCost * stock),
+          status: stock <= inv.minStock ? 'LOW_STOCK' : 'NORMAL',
+        }
+      })
+      this.inventory.push(...seeded)
+      items = seeded
+    }
+
     if (filters?.query) {
       const q = filters.query.toLowerCase()
       items = items.filter(
@@ -202,6 +222,18 @@ class WarehouseRepository {
     filters?: { productId?: string; type?: string; query?: string }
   ): Promise<WarehouseMovement[]> {
     let items = this.movements.filter((m) => m.locationId === locationId)
+
+    if (items.length === 0 && this.movements.length > 0) {
+      const baseMovs = this.movements.filter((m) => m.locationId === 'loc-001')
+      const templateMovs = baseMovs.length > 0 ? baseMovs : this.movements
+      const seeded: WarehouseMovement[] = templateMovs.map((m, idx) => ({
+        ...m,
+        id: `mov-${locationId}-${idx + 1}`,
+        locationId,
+      }))
+      this.movements.push(...seeded)
+      items = seeded
+    }
 
     if (filters?.productId) {
       items = items.filter((m) => m.productId === filters.productId)

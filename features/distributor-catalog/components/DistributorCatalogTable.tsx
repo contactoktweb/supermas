@@ -132,7 +132,7 @@ export function DistributorCatalogTable({
                   className="rounded text-blue-600 cursor-pointer w-4 h-4"
                 />
               </th>
-              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider min-w-[220px] max-w-[280px]">
                 Producto / SKU
               </th>
               <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -188,8 +188,8 @@ export function DistributorCatalogTable({
                   </td>
 
                   {/* Producto & SKU */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
+                  <td className="py-3.5 px-4 max-w-[280px]">
+                    <div className="flex items-center gap-3 min-w-0">
                       {prod.imageUrl ? (
                         <img
                           src={prod.imageUrl}
@@ -201,11 +201,11 @@ export function DistributorCatalogTable({
                           <AppIcon name="products" size={20} />
                         </div>
                       )}
-                      <div className="flex flex-col gap-0.5 max-w-[240px]">
-                        <span className="font-bold text-slate-950 text-[13px] leading-tight line-clamp-2">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <span className="font-bold text-slate-950 text-[13px] leading-tight line-clamp-2 break-words">
                           {prod.name}
                         </span>
-                        <span className="text-xs text-slate-500 font-mono font-medium">
+                        <span className="text-xs text-slate-500 font-mono font-medium truncate">
                           SKU: {prod.sku}
                         </span>
                       </div>

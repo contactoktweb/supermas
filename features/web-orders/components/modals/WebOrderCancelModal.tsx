@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder } from '../../types'
 
@@ -17,11 +18,26 @@ export function WebOrderCancelModal({
   onClose,
   onConfirmCancel,
 }: WebOrderCancelModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!isOpen || !order) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !order || !mounted) return null
 
   const hasReservation = ['CONFIRMED', 'PREPARING', 'READY_TO_DISPATCH'].includes(order.status)
 
@@ -44,35 +60,38 @@ export function WebOrderCancelModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="modal-card animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '100%',
-          maxWidth: 460,
+          width: 'min(100% - 32px, 460px)',
           background: '#ffffff',
           borderRadius: 14,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          boxShadow: '0 20px 60px rgba(10, 24, 48, 0.25)',
           overflow: 'hidden',
+          animation: 'fade .2s ease',
         }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cancel-modal-title"
       >
         {/* Header */}
         <div className="p-5 border-b border-rose-100 bg-rose-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shadow-2xs">
               <AppIcon name="close" size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-rose-950 m-0">Cancelar Pedido Web</h2>
+              <h2 id="cancel-modal-title" className="text-base font-bold text-rose-950 m-0">Cancelar Pedido Web</h2>
               <p className="text-xs text-rose-700 m-0">{order.orderNumber}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-200/50"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-600 hover:bg-rose-200/50 transition-colors"
           >
             <AppIcon name="close" size={16} />
           </button>
@@ -118,7 +137,7 @@ export function WebOrderCancelModal({
             <button
               type="submit"
               disabled={submitting || reason.trim().length < 5}
-              className="px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold text-xs hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+              className="px-4 py-2 rounded-lg bg-rose-600 text-white font-semibold text-xs hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shadow-xs"
             >
               <AppIcon name="close" size={14} />
               <span>{submitting ? 'Cancelando...' : 'Confirmar Cancelación'}</span>
@@ -126,6 +145,7 @@ export function WebOrderCancelModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

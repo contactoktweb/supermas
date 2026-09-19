@@ -5,19 +5,15 @@ import { AppIcon } from '@/components/ui/Icon'
 
 interface DistributorCatalogHeaderProps {
   onRefresh: () => void
-  onOpenPreview: () => void
   onExport: () => void
   canExport: boolean
-  canPreview: boolean
   isRefreshing?: boolean
 }
 
 export function DistributorCatalogHeader({
   onRefresh,
-  onOpenPreview,
   onExport,
   canExport,
-  canPreview,
   isRefreshing = false,
 }: DistributorCatalogHeaderProps) {
   return (
@@ -51,18 +47,6 @@ export function DistributorCatalogHeader({
             className={isRefreshing ? 'animate-spin' : ''}
           />
         </button>
-
-        {canPreview && (
-          <button
-            type="button"
-            className="primary-button text-xs py-2 px-3.5 flex items-center gap-1.5"
-            onClick={onOpenPreview}
-            title="Previsualizar cómo ven los clientes distribuidores el catálogo público"
-          >
-            <AppIcon name="eye" size={15} />
-            <span>Vista Previa Catálogo</span>
-          </button>
-        )}
 
         {canExport && (
           <button

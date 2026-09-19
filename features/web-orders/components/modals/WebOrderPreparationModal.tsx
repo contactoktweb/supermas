@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder, WebOrderChecklist } from '../../types'
 
@@ -19,6 +20,7 @@ export function WebOrderPreparationModal({
   onCompleteChecklist,
   onStartPreparation,
 }: WebOrderPreparationModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [checklist, setChecklist] = useState<WebOrderChecklist>({
     itemsReviewed: false,
     quantitiesVerified: false,
@@ -29,7 +31,21 @@ export function WebOrderPreparationModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!isOpen || !order) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !order || !mounted) return null
 
   const isConfirmedOnly = order.status === 'CONFIRMED'
   const isAllChecked =
@@ -71,35 +87,38 @@ export function WebOrderPreparationModal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
         className="modal-card animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: '100%',
-          maxWidth: 520,
+          width: 'min(100% - 32px, 520px)',
           background: '#ffffff',
           borderRadius: 14,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          boxShadow: '0 20px 60px rgba(10, 24, 48, 0.25)',
           overflow: 'hidden',
+          animation: 'fade .2s ease',
         }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="prep-modal-title"
       >
         {/* Header */}
-        <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 flex items-center justify-between">
+        <div className="p-5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-2xs">
               <AppIcon name="package" size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-slate-900 m-0">Alistamiento & Picking</h2>
+              <h2 id="prep-modal-title" className="text-base font-bold text-slate-900 m-0">Alistamiento y Separación</h2>
               <p className="text-xs text-slate-500 m-0">Pedido {order.orderNumber}</p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-200/50"
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition-colors"
           >
             <AppIcon name="close" size={16} />
           </button>
@@ -117,7 +136,7 @@ export function WebOrderPreparationModal({
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-xs text-blue-900 leading-relaxed">
                 <p className="font-bold mb-1">Paso 1: Iniciar Alistamiento Físico</p>
-                El pedido se encuentra confirmado con reserva de stock en Bodega CEDI. Al iniciar preparación, el estado cambiará a <strong>PREPARING</strong> para que el equipo de bodega inicie el picking de los {order.itemsCount} productos ({order.totalUnits} unidades).
+                El pedido se encuentra confirmado con reserva de stock en Bodega CEDI. Al iniciar preparación, el estado cambiará a <strong>EN PREPARACIÓN</strong> para que el equipo de bodega inicie el alistamiento de los {order.itemsCount} productos ({order.totalUnits} unidades).
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -128,7 +147,7 @@ export function WebOrderPreparationModal({
                   type="button"
                   onClick={handleStart}
                   disabled={submitting}
-                  className="px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold text-xs hover:bg-purple-700 transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold text-xs hover:bg-purple-700 transition-colors flex items-center gap-1.5 shadow-xs"
                 >
                   <AppIcon name="package" size={15} />
                   <span>{submitting ? 'Iniciando...' : 'Iniciar Preparación en Bodega'}</span>
@@ -217,7 +236,7 @@ export function WebOrderPreparationModal({
                 <button
                   type="submit"
                   disabled={!isAllChecked || submitting}
-                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5 shadow-xs"
                 >
                   <AppIcon name="check" size={15} />
                   <span>{submitting ? 'Guardando...' : 'Completar Alistamiento (Listo para Despacho)'}</span>
@@ -227,6 +246,7 @@ export function WebOrderPreparationModal({
           )}
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

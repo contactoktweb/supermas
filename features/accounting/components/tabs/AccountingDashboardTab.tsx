@@ -150,40 +150,62 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
             </div>
           </div>
 
-          <div className="h-64 flex items-end justify-between gap-3 pt-6 px-2">
-            {dashboard.monthlyFinancials.map((pt) => {
-              const maxVal = 260000000
-              const revHeight = Math.max(15, (pt.revenue / maxVal) * 100)
-              const costHeight = Math.max(12, (pt.cost / maxVal) * 100)
-              const expHeight = Math.max(8, (pt.expenses / maxVal) * 100)
+          {/* Contenedor del Gráfico con Escala Dinámica y Líneas Guía */}
+          {(() => {
+            const highestValue = Math.max(
+              ...dashboard.monthlyFinancials.map((pt) => Math.max(pt.revenue, pt.cost, pt.expenses, 0)),
+              1
+            )
+            const maxVal = highestValue * 1.15
 
-              return (
-                <div key={pt.month} className="flex-1 flex flex-col items-center gap-2 group">
-                  <div className="w-full flex items-end justify-center gap-1 h-44">
-                    {/* Barra Ingresos */}
-                    <div
-                      style={{ height: `${revHeight}%` }}
-                      className="w-full max-w-[16px] bg-emerald-500/85 hover:bg-emerald-600 rounded-t transition-all duration-300 relative group/bar"
-                      title={`Ingresos: $${pt.revenue.toLocaleString('es-CO')}`}
-                    />
-                    {/* Barra Costos */}
-                    <div
-                      style={{ height: `${costHeight}%` }}
-                      className="w-full max-w-[16px] bg-rose-500/85 hover:bg-rose-600 rounded-t transition-all duration-300"
-                      title={`Costos: $${pt.cost.toLocaleString('es-CO')}`}
-                    />
-                    {/* Barra Gastos */}
-                    <div
-                      style={{ height: `${expHeight}%` }}
-                      className="w-full max-w-[16px] bg-amber-500/85 hover:bg-amber-600 rounded-t transition-all duration-300"
-                      title={`Gastos: $${pt.expenses.toLocaleString('es-CO')}`}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-gray-500 group-hover:text-gray-900">{pt.label}</span>
+            return (
+              <div className="relative h-64 pt-6 px-2">
+                {/* Líneas guía horizontales de referencia */}
+                <div className="absolute inset-x-2 top-6 bottom-9 flex flex-col justify-between pointer-events-none opacity-40">
+                  <div className="border-b border-dashed border-slate-300 w-full" />
+                  <div className="border-b border-dashed border-slate-300 w-full" />
+                  <div className="border-b border-dashed border-slate-300 w-full" />
+                  <div className="border-b border-slate-300 w-full" />
                 </div>
-              )
-            })}
-          </div>
+
+                <div className="relative z-10 h-full flex items-end justify-between gap-3 pb-1">
+                  {dashboard.monthlyFinancials.map((pt) => {
+                    const revHeight = Math.min(100, Math.max(4, (pt.revenue / maxVal) * 100))
+                    const costHeight = Math.min(100, Math.max(4, (pt.cost / maxVal) * 100))
+                    const expHeight = Math.min(100, Math.max(4, (pt.expenses / maxVal) * 100))
+
+                    return (
+                      <div key={pt.month} className="flex-1 flex flex-col items-center gap-2 group h-full justify-end">
+                        <div className="w-full flex items-end justify-center gap-1.5 h-44">
+                          {/* Barra Ingresos */}
+                          <div
+                            style={{ height: `${revHeight}%`, maxHeight: '100%' }}
+                            className="w-full max-w-[18px] bg-emerald-500 hover:bg-emerald-600 rounded-t transition-all duration-300 relative group/bar shadow-2xs cursor-pointer"
+                            title={`Ingresos (${pt.label}): $${pt.revenue.toLocaleString('es-CO')} COP`}
+                          />
+                          {/* Barra Costos */}
+                          <div
+                            style={{ height: `${costHeight}%`, maxHeight: '100%' }}
+                            className="w-full max-w-[18px] bg-rose-500 hover:bg-rose-600 rounded-t transition-all duration-300 shadow-2xs cursor-pointer"
+                            title={`Costos (${pt.label}): $${pt.cost.toLocaleString('es-CO')} COP`}
+                          />
+                          {/* Barra Gastos */}
+                          <div
+                            style={{ height: `${expHeight}%`, maxHeight: '100%' }}
+                            className="w-full max-w-[18px] bg-amber-500 hover:bg-amber-600 rounded-t transition-all duration-300 shadow-2xs cursor-pointer"
+                            title={`Gastos (${pt.label}): $${pt.expenses.toLocaleString('es-CO')} COP`}
+                          />
+                        </div>
+                        <span className="text-xs font-bold text-slate-500 group-hover:text-slate-900 transition-colors">
+                          {pt.label}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
 
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
             <span>Cálculo automático desde asientos contables POSTED</span>

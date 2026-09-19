@@ -1,5 +1,41 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-19] — Unificación de Estilos de Pedidos Web, Alertas y Correcciones de Catálogos
+
+### Fixed & Standardized
+- **Módulo de Pedidos Web (`features/web-orders`)**:
+  - **Barra de Filtros y Búsqueda (`WebOrderFilters.tsx`)**:
+    - Se eliminaron las clases de modo oscuro (`dark:bg-slate-900`) que producían una barra completamente negra con texto casi invisible al activarse por preferencias del sistema en macOS.
+    - Se migró al contenedor estándar del ERP: `<div className="toolbar inventory-toolbar products-toolbar page-enter">`.
+    - Integración de `<CustomSelect>` oficial del ERP para los 4 selectores (`Estado`, `Canal Web`, `Facturación`, `Método de Pago`) dentro de `.filter-select-group` y `.filter-select-item`.
+    - Input de búsqueda con buscador integrado `.search-box.wide.products-search-box` con botón de limpieza reactivo (`search-clear-btn`).
+  - **Tabla de Pedidos Web (`WebOrderTable.tsx`)**:
+    - Eliminación de todas las clases `dark:*`.
+    - Badges de estado redefinidos con alto contraste y colores corporativos oficiales: Pendiente (`bg-amber-50 text-amber-800 border-amber-300`), Confirmado (`bg-blue-50 text-blue-800 border-blue-300`), En Preparación (`bg-purple-50 text-purple-800 border-purple-300`), Listo Despacho (`bg-indigo-50 text-indigo-800 border-indigo-300`), Enviado (`bg-sky-50 text-sky-800 border-sky-300`), Entregado (`bg-emerald-50 text-emerald-800 border-emerald-300`) y Cancelado (`bg-rose-50 text-rose-800 border-rose-300`).
+    - Badges de canal de venta B2C / B2B limpios (`Super Más` en azul y `Distribuidora` en púrpura).
+  - **Drawer de Detalle (`WebOrderDetailDrawer.tsx`)**:
+    - Migrado a `createPortal(..., document.body)` con verificación de hidratación (`mounted`), cierre por tecla `Escape` y animación fluida `.product-drawer`.
+    - Eliminación de clases `dark:*` en la línea de tiempo (timeline), verificación de inventario, tarjetas de cliente, tabla de snapshot histórico y totales.
+    - **Localización 100% en español**: sustitución de textos en inglés como `CONFIRMED` por `Confirmado`, `PENDING` por `Pendiente`, `PREPARING` por `En Preparación`, `READY_TO_DISPATCH` por `Listo para Despacho`, `SHIPPED` por `Enviado`, `DELIVERED` por `Entregado` y `CANCELLED` por `Cancelado`.
+    - Traducción de validaciones de inventario (`DISPONIBLE`, `POCAS UNIDADES`, `AGOTADO`, `✓ CEDI Disponible`, `⚠ Requiere traslado`) y estados DIAN (`Autorizada y Validada`, `Pendiente de emisión`).
+  - **Modales de Ciclo de Vida (`WebOrderPreparationModal.tsx`, `WebOrderDispatchModal.tsx`, `WebOrderCancelModal.tsx`)**:
+    - Migrados a `createPortal(..., document.body)` con `.drawer-backdrop.modal-center` y soporte para <kbd>Escape</kbd>.
+  - **Skeletons y Header (`WebOrderSkeleton.tsx`, `WebOrderHeader.tsx`)**:
+    - Limpieza de clases oscuras residuales para asegurar consistencia visual con el resto del ERP.
+
+- **Módulo de Contabilidad (`features/accounting`)**:
+  - **Gráfico de Evolución de Ingresos vs. Costos y Gastos (`AccountingDashboardTab.tsx`)**:
+    - Se corrigió el desbordamiento vertical donde las barras del mes más reciente (Septiembre) sobrepasaban el contenedor superior y cubrían la leyenda.
+    - **Causa raíz**: El valor máximo (`maxVal = 260000000`) estaba fijado estáticamente en el código, por lo que cuando los ingresos reales del mes superaban dicho monto, el cálculo superaba el 100% (hasta más de 200%).
+    - **Solución**: Cálculo dinámico del techo de la escala (`Math.max(...) * 1.15`) con un 15% de holgura superior (*headroom*), límite de altura máxima estricto (`maxHeight: '100%'`, acotado con `Math.min(100, ...)`), e incorporación de líneas guía horizontales de referencia.
+
+- **Módulo de Alertas (`features/alerts`)**:
+  - `AlertRulesModal.tsx` y `AlertDetailDrawer.tsx` refactorizados con `createPortal(..., document.body)` y `.drawer-backdrop`, solucionando el problema de renderizado estático o cortado por el scroll del `.main-area`.
+
+- **Módulos de Catálogo (`features/super-catalog`, `features/distributor-catalog`)**:
+  - Eliminación de los botones "Vista Previa Tienda" y "Vista Previa Catálogo" de los encabezados.
+  - Corrección de desbordamiento y sobreposición del nombre de producto en `DistributorCatalogTable.tsx` aplicando `min-w-0`, `line-clamp-2 break-words` y control de anchos de columna en `th` y `td`.
+
 ## [2026-09-19] — Corrección de Drawers Deslizantes en Contabilidad y Unificación de Navegación
 
 ### Fixed & Refactored

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { AlertItem, AlertPriority, AlertStatus, AlertModule } from '../../types'
 import { useRouter } from 'next/navigation'
@@ -50,12 +51,25 @@ export function AlertDetailDrawer({
   onCloseAlert,
 }: AlertDetailDrawerProps) {
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
   const [attendComment, setAttendComment] = useState('')
   const [solutionNotes, setSolutionNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionTab, setActionTab] = useState<'info' | 'attend' | 'resolve'>('info')
 
-  if (!isOpen || !alert) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
+  if (!isOpen || !alert || !mounted) return null
 
   const priorityTheme = PRIORITY_THEMES[alert.priority]
   const statusTheme = STATUS_THEMES[alert.status]
@@ -148,15 +162,16 @@ export function AlertDetailDrawer({
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div
-        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 transition-opacity animate-in fade-in duration-200"
+        className="drawer-backdrop"
         onClick={onClose}
       />
 
       <aside
-        className="fixed inset-y-0 right-0 z-50 w-full max-w-xl bg-white border-l border-slate-200 shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200"
+        className="fixed inset-y-0 right-0 z-[100000] w-full max-w-xl bg-white border-l border-slate-200 shadow-2xl flex flex-col overflow-hidden"
+        style={{ animation: 'slide .3s ease' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="alert-drawer-title"
@@ -447,6 +462,7 @@ export function AlertDetailDrawer({
           </div>
         </div>
       </aside>
-    </>
+    </>,
+    document.body
   )
 }

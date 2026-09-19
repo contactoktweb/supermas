@@ -73,49 +73,49 @@ export function WebOrderTable({
     switch (status) {
       case 'PENDING':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             Pendiente
           </span>
         )
       case 'CONFIRMED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-300">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
             Confirmado
           </span>
         )
       case 'PREPARING':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-300">
             <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
             En Preparación
           </span>
         )
       case 'READY_TO_DISPATCH':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-800 border border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-300">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
             Listo Despacho
           </span>
         )
       case 'SHIPPED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-sky-50 text-sky-800 border border-sky-300">
             <span className="w-1.5 h-1.5 rounded-full bg-sky-600 animate-pulse" />
             Enviado
           </span>
         )
       case 'DELIVERED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
             Entregado
           </span>
         )
       case 'CANCELLED':
         return (
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-300">
             <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
             Cancelado
           </span>
@@ -126,13 +126,13 @@ export function WebOrderTable({
   const getChannelBadge = (channel: WebOrderChannel) => {
     if (channel === 'CATALOGO_DISTRIBUIDORA') {
       return (
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300">
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-purple-50 text-purple-700 border border-purple-200">
           Distribuidora
         </span>
       )
     }
     return (
-      <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300">
+      <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wide uppercase bg-blue-50 text-blue-700 border border-blue-200">
         Super Más
       </span>
     )
@@ -144,28 +144,28 @@ export function WebOrderTable({
 
   if (error) {
     return (
-      <div className="panel-container rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20 p-8 text-center my-4">
-        <div className="w-12 h-12 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-600 flex items-center justify-center mx-auto mb-3">
+      <div className="panel-container rounded-xl border border-rose-200 bg-rose-50/50 p-8 text-center my-4">
+        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
           <AppIcon name="close" size={24} />
         </div>
-        <h3 className="text-base font-semibold text-rose-900 dark:text-rose-200 mb-1">
+        <h3 className="text-base font-semibold text-rose-900 mb-1">
           Error al cargar pedidos web
         </h3>
-        <p className="text-xs text-rose-700 dark:text-rose-400 max-w-md mx-auto">{error}</p>
+        <p className="text-xs text-rose-700 max-w-md mx-auto">{error}</p>
       </div>
     )
   }
 
   if (orders.length === 0) {
     return (
-      <div className="panel-container rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-12 text-center my-4">
-        <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto mb-4 text-slate-400">
+      <div className="panel-container rounded-xl border border-slate-200 bg-white p-12 text-center my-4 shadow-xs">
+        <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 text-slate-400">
           <AppIcon name="webOrders" size={28} />
         </div>
-        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-1">
+        <h3 className="text-base font-bold text-slate-900 mb-1">
           No se encontraron pedidos web
         </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+        <p className="text-xs text-slate-600 max-w-sm mx-auto">
           No hay órdenes que coincidan con los criterios de búsqueda o filtros seleccionados.
         </p>
       </div>
@@ -173,57 +173,57 @@ export function WebOrderTable({
   }
 
   return (
-    <div className="table-panel animated-table page-enter rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+    <div className="table-panel animated-table page-enter rounded-xl border border-slate-200 bg-white shadow-xs overflow-hidden">
       <div className="table-scroll overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+            <tr className="border-b border-slate-200 bg-slate-50">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 N° Pedido / Canal
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Fecha
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Cliente
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Productos
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Total
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Pago
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Estado
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Bodega Salida
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Facturación
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider">
                 Responsable
               </th>
-              <th className="py-3 px-4 text-[11px] font-bold text-slate-500 dark:text-slate-400 text-right">
+              <th className="py-3.5 px-4 text-xs font-bold text-slate-700 uppercase tracking-wider text-right">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+          <tbody className="divide-y divide-slate-100 text-xs">
             {orders.map((ord) => (
               <tr
                 key={ord.id}
                 onClick={() => onViewDetail(ord)}
-                className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 cursor-pointer transition-colors"
+                className="hover:bg-slate-50 cursor-pointer transition-colors"
               >
                 {/* N° Pedido / Canal */}
                 <td className="py-3.5 px-4">
                   <div className="flex flex-col gap-1">
-                    <span className="font-bold text-slate-900 dark:text-slate-100 tracking-tight">
+                    <span className="font-bold text-slate-950 text-[13px] tracking-tight">
                       {ord.orderNumber}
                     </span>
                     <div>{getChannelBadge(ord.channel)}</div>
@@ -231,17 +231,17 @@ export function WebOrderTable({
                 </td>
 
                 {/* Fecha */}
-                <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                   {formatDate(ord.createdAt)}
                 </td>
 
                 {/* Cliente */}
                 <td className="py-3.5 px-4">
                   <div className="flex flex-col gap-0.5 max-w-[200px]">
-                    <span className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                    <span className="font-bold text-slate-800 truncate">
                       {ord.customerName}
                     </span>
-                    <span className="text-[11px] text-slate-400 truncate">
+                    <span className="text-[11px] text-slate-500 font-mono truncate">
                       {ord.customerDoc || ord.customerPhone}
                     </span>
                   </div>
@@ -254,14 +254,14 @@ export function WebOrderTable({
                       <img
                         src={ord.items[0].imageUrl}
                         alt="Producto"
-                        className="w-8 h-8 rounded-lg object-cover border border-slate-200 dark:border-slate-700 shrink-0"
+                        className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50"
                       />
                     )}
                     <div className="flex flex-col">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                      <span className="font-medium text-slate-800">
                         {ord.itemsCount} {ord.itemsCount === 1 ? 'ítem' : 'ítems'}
                       </span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[11px] text-slate-500">
                         ({ord.totalUnits} unids)
                       </span>
                     </div>
@@ -270,7 +270,7 @@ export function WebOrderTable({
 
                 {/* Total */}
                 <td className="py-3.5 px-4 whitespace-nowrap">
-                  <span className="font-bold text-slate-900 dark:text-slate-100">
+                  <span className="font-bold text-slate-950 text-[13px]">
                     {formatMoney(ord.totalAmount)}
                   </span>
                 </td>
@@ -278,14 +278,14 @@ export function WebOrderTable({
                 {/* Pago */}
                 <td className="py-3.5 px-4">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-slate-800 dark:text-slate-200 truncate max-w-[130px]">
+                    <span className="text-slate-800 font-medium truncate max-w-[130px]">
                       {ord.paymentMethod}
                     </span>
                     <span
-                      className={`text-[10px] font-semibold ${
+                      className={`text-[10px] font-bold ${
                         ord.paymentStatus === 'PAID'
-                          ? 'text-emerald-600 dark:text-emerald-400'
-                          : 'text-amber-600 dark:text-amber-400'
+                          ? 'text-emerald-700'
+                          : 'text-amber-700'
                       }`}
                     >
                       {ord.paymentStatus === 'PAID' ? 'PAGADO' : 'PENDIENTE'}
@@ -301,10 +301,10 @@ export function WebOrderTable({
                 {/* Bodega Salida */}
                 <td className="py-3.5 px-4">
                   <div className="flex flex-col">
-                    <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
+                    <span className="font-medium text-slate-700 truncate max-w-[140px]">
                       {ord.assignedLocationName}
                     </span>
-                    <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                    <span className="text-[10px] text-blue-700 font-semibold">
                       Ecommerce CEDI
                     </span>
                   </div>
@@ -314,10 +314,10 @@ export function WebOrderTable({
                 <td className="py-3.5 px-4 whitespace-nowrap">
                   {ord.invoiceNumber ? (
                     <div className="flex flex-col">
-                      <span className="font-semibold text-slate-800 dark:text-slate-200 text-[11px]">
+                      <span className="font-semibold text-slate-800 text-[11px]">
                         {ord.invoiceNumber}
                       </span>
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="text-[10px] text-emerald-700 font-bold">
                         DIAN Validada
                       </span>
                     </div>
@@ -327,7 +327,7 @@ export function WebOrderTable({
                 </td>
 
                 {/* Usuario Responsable */}
-                <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
                   {ord.assignedUserName || 'Por asignar'}
                 </td>
 
@@ -338,7 +338,7 @@ export function WebOrderTable({
                     <button
                       type="button"
                       onClick={() => onViewDetail(ord)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/50 transition-colors"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                       title="Ver detalle del pedido"
                       aria-label="Ver detalle"
                     >
@@ -389,7 +389,7 @@ export function WebOrderTable({
                       <button
                         type="button"
                         onClick={() => onInvoice(ord)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                         title="Generar Factura Electrónica DIAN"
                         aria-label="Facturar"
                       >
@@ -402,7 +402,7 @@ export function WebOrderTable({
                       <button
                         type="button"
                         onClick={() => onCancel(ord)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                         title="Cancelar pedido"
                         aria-label="Cancelar"
                       >
@@ -418,7 +418,7 @@ export function WebOrderTable({
       </div>
 
       {/* Paginación */}
-      <div className="py-3 px-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="py-3 px-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-600 bg-slate-50">
         <div>
           Mostrando <strong>{orders.length}</strong> de <strong>{total}</strong> pedidos
         </div>
@@ -427,18 +427,18 @@ export function WebOrderTable({
             type="button"
             disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
-            className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 transition-colors"
+            className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             Anterior
           </button>
-          <span className="font-medium text-slate-700 dark:text-slate-300">
+          <span className="font-semibold text-slate-800">
             Página {page} de {totalPages}
           </span>
           <button
             type="button"
             disabled={page >= totalPages}
             onClick={() => onPageChange(page + 1)}
-            className="px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed hover:border-slate-300 transition-colors"
+            className="px-2.5 py-1 rounded-md border border-slate-200 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
           >
             Siguiente
           </button>

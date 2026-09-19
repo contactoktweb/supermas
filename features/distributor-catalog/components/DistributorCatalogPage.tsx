@@ -110,10 +110,8 @@ export function DistributorCatalogPage() {
       {/* Header con Semántica H1 y Acciones */}
       <DistributorCatalogHeader
         onRefresh={refresh}
-        onOpenPreview={() => handleOpenPreview()}
         onExport={exportToCsv}
         canExport={permissions.canExport}
-        canPreview={permissions.canPreview}
         isRefreshing={actionLoading}
       />
 

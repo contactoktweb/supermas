@@ -21,7 +21,7 @@ export function WebOrderHeader({
       <div>
         <div className="flex items-center gap-2 mb-1">
           <p className="eyebrow">Ecommerce & Canales Digitales</p>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
             Bodega Despacho: CEDI Principal (BOD-001)
           </span>

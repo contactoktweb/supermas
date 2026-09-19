@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { AlertRule, AlertPriority, AlertModule } from '../../types'
@@ -37,13 +38,32 @@ export function AlertRulesModal({
   onClose,
   onUpdateRule,
 }: AlertRulesModalProps) {
+  const [mounted, setMounted] = useState(false)
   const [editingRule, setEditingRule] = useState<AlertRule | null>(null)
   const [enabled, setEnabled] = useState(true)
   const [priority, setPriority] = useState<AlertPriority>('ALTA')
   const [thresholds, setThresholds] = useState<Record<string, any>>({})
   const [isSaving, setIsSaving] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        if (editingRule) {
+          setEditingRule(null)
+        } else {
+          onClose()
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, editingRule, onClose])
+
+  if (!isOpen || !mounted) return null
 
   const handleStartEdit = (rule: AlertRule) => {
     setEditingRule(rule)
@@ -70,13 +90,27 @@ export function AlertRulesModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rules-modal-title"
+    >
       <div
-        className="bg-white border border-slate-200 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="rules-modal-title"
+        style={{
+          background: '#ffffff',
+          borderRadius: 16,
+          width: 'min(100% - 32px, 780px)',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: '0 20px 60px rgba(10,24,48,0.25)',
+          overflow: 'hidden',
+          animation: 'fade .2s ease',
+        }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
         <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 shrink-0">
@@ -252,6 +286,7 @@ export function AlertRulesModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

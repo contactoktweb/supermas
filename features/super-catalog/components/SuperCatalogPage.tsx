@@ -125,7 +125,6 @@ export function SuperCatalogPage() {
       <SuperCatalogHeader
         onRefresh={refresh}
         onExport={exportCsv}
-        onOpenGeneralPreview={handleOpenGeneralPreview}
         canExport={permissions.canExport}
       />
 

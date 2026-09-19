@@ -6,14 +6,12 @@ import { AppIcon } from '@/components/ui/Icon'
 interface SuperCatalogHeaderProps {
   onRefresh: () => void
   onExport: () => void
-  onOpenGeneralPreview: () => void
   canExport: boolean
 }
 
 export function SuperCatalogHeader({
   onRefresh,
   onExport,
-  onOpenGeneralPreview,
   canExport,
 }: SuperCatalogHeaderProps) {
   return (
@@ -57,15 +55,6 @@ export function SuperCatalogHeader({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={onOpenGeneralPreview}
-          className="primary-button text-xs py-2 px-3.5 flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs transition-colors"
-          title="Vista previa de la tienda online"
-        >
-          <AppIcon name="eye" size={15} />
-          <span>Vista Previa Tienda</span>
-        </button>
       </div>
     </header>
   )

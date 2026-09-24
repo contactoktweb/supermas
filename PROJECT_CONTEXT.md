@@ -25,7 +25,8 @@ Sistema multi-bodega con centro logístico (CEDI Principal) y tiendas/puntos de 
 - **POS** (`/pos`)
 - **Facturación Electrónica** (`/facturacion`)
 - **Remisiones** (`/remisiones`)
-- **Contabilidad** (`/contabilidad`) — *Núcleo Financiero (PUC, partida doble, libros, balances, costos por bodega)*
+- **Contabilidad** (`/contabilidad`) — *Núcleo Financiero (PUC, partida doble, libro diario, libro mayor, libro auxiliar agrupado por cuenta y periodo, balance general, estado de resultados, parametrización de inventarios y costos por bodega)*
+- **Tesorería** (`/tesoreria`) — *Módulo Financiero Operativo Independiente (Cuentas bancarias, cajas, programación y dispersión de pagos a proveedores, recaudación de cartera de clientes, movimientos bancarios y conciliación)*
 - **Impuestos** (`/impuestos`) — *Tarifas DIAN, IVA generado y descontable*
 - **Exógena** (`/exogena`) — *Formatos DIAN 1001, 1007, 1008, 1009*
 - **Pedidos Web** (`/pedidos-web`) — *Gestión de órdenes ecommerce, validación de stock, reserva en CEDI, alistamiento, despacho, ventas y facturación DIAN*
@@ -34,6 +35,55 @@ Sistema multi-bodega con centro logístico (CEDI Principal) y tiendas/puntos de 
 - **Auditoría** (`/auditoria`) — *Trazabilidad e historial de eventos con `auditService.log()`*
 - **Reportes y Analítica** (`/reportes`) — *Centro de inteligencia de negocios, ventas, compras, Kardex, costos CMV, benchmark de bodegas, clientes, proveedores, cajas, facturación DIAN, contabilidad y ecommerce*
 - **Usuarios** (`/usuarios`)
+
+## Arquitectura del Módulo de Contabilidad y Tesorería
+```text
+UI React (/contabilidad, /tesoreria)
+       ↓
+Hooks (useAccounting, useTreasury)
+       ↓
+Services (accountingService, accountingReportService, treasuryService)
+       ↓
+Repositories (accountingRepository, treasuryRepository)
+       ↓
+lib/supabase/db.ts
+(accounting_accounts, accounting_entries, accounting_movements,
+ bank_accounts, treasury_payments, treasury_receipts, dian_resolutions)
+       ↓
+Supabase PostgreSQL (Migraciones 001 - 011)
+```
+
+## Reglas Maestras de Contabilidad y Tesorería
+1. **Separación de Responsabilidades (Tesorería vs. Contabilidad)**:
+   - *Tesorería* gestiona la liquidez, cuentas bancarias, programación y dispersión de egresos a proveedores (CXP), así como el recaudo de clientes (CXC).
+   - *Contabilidad* es el sistema de registro fiduciario: genera inmutablemente asientos con partida doble balanceada (`SUM(debit) === SUM(credit)`), libros contables y estados financieros.
+   - *Flujo canónico de egreso*: Factura de compra proveedor → Tesorería programa desembolso → Pago ejecutado en banco → Contabilidad genera asiento automático (`Débito: 220505 Proveedores, Crédito: 111005 Bancos`).
+2. **Libro Auxiliar Agrupado por Cuenta y Periodo**:
+   - Permite consultar cuentas individuales o globales (Caja, Bancos, Clientes, Inventarios, Proveedores, Ventas, Costos) durante un mes específico, año o rango de fechas.
+   - Presenta un panel resumen financiero con: **Saldo Inicial** (calculado rigurosamente sumando movimientos históricos anteriores a la fecha de corte), **Movimientos Débito (+)**, **Movimientos Crédito (-)** y **Saldo Final**.
+   - Admite filtros cruzados por tercero, centro de costo/bodega y exportación a CSV. Permite drill-down con un clic ("Ver Asiento") para inspeccionar el comprobante en su respectivo Drawer.
+3. **Catálogo PUC Multiclase de Inventarios**:
+   - Soporte nativo para 4 clases de inventario:
+     - *Materias Primas* (`1405` / `140501`) → Consumo / Costo (`7105` / `710501`).
+     - *Productos en Proceso* (`1410` / `141001`) → Costo (`6120` / `612001`).
+     - *Productos Terminados* (`1430` / `143001`) → Costo (`6120` / `612001`).
+     - *Mercancías para la Venta* (`1435` / `143501`) → Costo (`6135` / `613501`).
+   - Relación arquitectónica estricta: `Productos` → `Categoría Contable Inventario` → `Cuenta Contable (PUC)`. Sin datos quemados en componentes.
+4. **Separación Estricta de Prefijos y Numeración (ERP vs. DIAN)**:
+   - Toda factura electrónica (`Invoice`) almacena de forma independiente:
+     - `internalNumber` (`internal_number`): Consecutivo interno de control del ERP (ej: `FAC-00025`, `VENTA-000001`).
+     - `dianPrefix`: Prefijo autorizado en la resolución fiscal DIAN (ej: `FE`, `POS`, `NC`).
+     - `dianNumber`: Número consecutivo oficial autorizado por la DIAN (ej: `1250`).
+     - `dianResolution`: Número de resolución DIAN vigente (ej: `18764000001`).
+     - `dianRange`: Rango autorizado oficial (ej: `1000 - 50000`).
+   - El sistema valida rangos vigentes desde `dian_resolutions.json` / tabla `dian_resolutions`.
+5. **Periodos Contables y Cierres Mensuales (`accounting_periods` / Migración 012)**:
+   - Cada mes contable (`YYYY-MM`) se gestiona con estado `OPEN` o `CLOSED`.
+   - **Bloqueo estricto de meses cerrados**: Si un periodo está cerrado (ej: Enero a Agosto 2026 cerrados), el sistema en TypeScript (`assertPeriodOpen`) y el trigger PostgreSQL (`fn_prevent_entries_on_closed_period`) bloquean tajantemente la inserción, modificación, causación automática o reversión de comprobantes en dicho periodo.
+   - **Reapertura Autorizada**: Solo usuarios con rol `SUPERADMIN` o `ACCOUNTANT` pueden autorizar la reapertura de un mes cerrado, requiriendo un motivo formal justificado registrado inmutablemente en `auditService.log()`.
+6. **Notas Contables y Ajustes Formales**:
+   - Soporte tipado para notas crédito (`CREDIT_NOTE`), notas débito (`DEBIT_NOTE`), ajustes por depreciación / provisión / reclasificación (`ACCOUNTING_ADJUSTMENT`), reversiones oficiales (`REVERSAL`) y comprobante de cierre de ejercicio anual (`CLOSING_ENTRY`).
+   - Todos los comprobantes cumplen con partida doble estricta y trazabilidad a terceros y bodegas.
 
 ## Arquitectura del Módulo Pedidos Web
 ```text
@@ -220,3 +270,14 @@ lib/supabase/db.ts (company_settings.json, inventory_settings.json, pos_settings
 5. **Cero Secretos en Almacén**: Contraseñas, claves de factura electrónica, tokens y llaves privadas residen estrictamente en variables de entorno seguras (`.env.local`), jamás en `settings.json` ni en código cliente.
 6. **Capa Desacoplada y Extensible**: Todo parámetro viaja a través de `settingsService -> settingsRepository -> lib/supabase/db.ts`, permitiendo la migración transparente a PostgreSQL sin alterar componentes visuales.
 7. **Trazabilidad Inmutable**: Toda modificación registra usuario, fecha, valor anterior y nuevo valor en `auditService.log()` y `db.auditLogs`.
+
+## Normalización de Datos y Estado de Preparación Pre-Supabase
+El modelo de datos ha completado la fase integral de auditoría, corrección y normalización relacional:
+1. **Tablas Hijas Normalizadas**: `sale_items`, `purchase_items`, `transfer_items`, `remission_items`, `cash_sessions`, `product_prices`, `accounting_entry_lines`.
+2. **Multiempresa y Multibodega**: Todas las entidades operativas y maestras cuentan con `company_id` (preparado para RLS por inquilino) y `location_id` donde aplica.
+3. **Kardex Atómico e Inmutable**: `inventory_movements` es la fuente única de verdad para el cálculo de existencias en `stock_levels` (`product_id + location_id`). El stock nunca se edita manualmente.
+4. **Partida Doble Estricta**: Cada comprobante contable cumple `SUM(debits) === SUM(credits)` con trigger de bloqueo en PostgreSQL (`fn_enforce_accounting_double_entry`) y bloqueo de meses clausurados (`fn_prevent_entries_on_closed_period`).
+5. **Separación DIAN**: Distinción estricta entre número interno ERP (`internal_number`) y consecutivo oficial DIAN (`dian_number`, `dian_prefix`, `dian_resolution`).
+6. **Migración DDL 013**: Archivo `013_pre_supabase_audit_and_model_fixes.sql` consolida todas las foreign keys, restricciones e índices.
+7. **Integridad Validada**: 39 pruebas de integridad, JOINs relacionales y simulación de ciclo de vida empresarial aprobadas al 100% (`scripts/test-model-integrity.ts`).
+

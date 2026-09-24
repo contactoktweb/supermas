@@ -88,7 +88,8 @@
     "remissionNumber": "REM-2026-00192",
     "notes": "Despacho mayorista con remisión y factura electrónica validada ante DIAN.",
     "createdAt": "2026-09-08T15:42:00Z",
-    "updatedAt": "2026-09-08T15:42:00Z"
+    "updatedAt": "2026-09-08T15:42:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-002",
@@ -161,7 +162,8 @@
     "remissionNumber": "REM-2026-00185",
     "notes": "Venta a crédito 15 días según cupo acordado.",
     "createdAt": "2026-09-09T10:12:00Z",
-    "updatedAt": "2026-09-09T10:12:00Z"
+    "updatedAt": "2026-09-09T10:12:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-003",
@@ -234,7 +236,8 @@
     "remissionNumber": "REM-2026-00170",
     "notes": "Pagado de contado mediante transferencia Bancolombia.",
     "createdAt": "2026-09-05T08:35:00Z",
-    "updatedAt": "2026-09-05T08:35:00Z"
+    "updatedAt": "2026-09-05T08:35:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-004",
@@ -305,7 +308,8 @@
     "invoiceNumber": "FAC-2026-00388",
     "notes": "Venta directa de mostrador en punto de venta.",
     "createdAt": "2026-09-07T17:18:00Z",
-    "updatedAt": "2026-09-07T17:18:00Z"
+    "updatedAt": "2026-09-07T17:18:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-005",
@@ -376,7 +380,8 @@
     "invoiceNumber": "FAC-2026-00360",
     "notes": "Despacho a distribuidor Palmira.",
     "createdAt": "2026-09-06T11:20:00Z",
-    "updatedAt": "2026-09-06T11:20:00Z"
+    "updatedAt": "2026-09-06T11:20:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-006",
@@ -445,7 +450,8 @@
     "documentType": "FACTURA_POS",
     "notes": "Venta mostrador pagada con tarjeta débito.",
     "createdAt": "2026-09-10T14:30:00Z",
-    "updatedAt": "2026-09-10T14:30:00Z"
+    "updatedAt": "2026-09-10T14:30:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-007",
@@ -496,7 +502,8 @@
     "documentType": "REMISION",
     "notes": "Venta confirmada pendiente por generar factura electrónica formal.",
     "createdAt": "2026-09-02T16:00:00Z",
-    "updatedAt": "2026-09-02T16:00:00Z"
+    "updatedAt": "2026-09-02T16:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "sale-008",
@@ -550,6 +557,7 @@
     "cancelledBy": "Admin Mauricio",
     "notes": "Anulada el mismo día. Stock revertido automáticamente en Kardex.",
     "createdAt": "2026-08-28T09:15:00Z",
-    "updatedAt": "2026-08-28T10:00:00Z"
+    "updatedAt": "2026-08-28T10:00:00Z",
+    "companyId": "comp-001"
   }
 ]

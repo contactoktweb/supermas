@@ -131,9 +131,32 @@ export class InvoiceService {
 
     const totals = this.calc.calculateInvoiceTotals(rawItems)
 
-    const prefix = validated.prefix || (validated.type === 'POS' ? 'POS' : 'FAC')
-    const nextNum = Math.floor(1000 + Math.random() * 9000)
-    const invoiceNumber = `${prefix}-${new Date().getFullYear()}-${nextNum}`
+    // 1. Numeración Interna ERP (Identificación administrativa interna)
+    const allInvoices = (await this.repo.findAll({ pageSize: 1000 })).data
+    const internalSeq = allInvoices.length + 1
+    const internalNumber = `FAC-${String(internalSeq).padStart(5, '0')}`
+
+    // 2. Configuración y Rango Autorizado Oficial DIAN
+    const dianResolutions = (db.dianResolutions as any[]) || []
+    const matchingRes = dianResolutions.find(
+      (r) => r.documentType === validated.type && r.isActive
+    ) || {
+      dianPrefix: validated.type === 'POS' ? 'POS' : 'FE',
+      resolutionNumber: '18764000001',
+      resolutionDate: '2026-01-15',
+      validFrom: '2026-01-15',
+      validTo: '2027-01-15',
+      initialRange: 1000,
+      finalRange: 50000,
+      currentNumber: 1250 + internalSeq,
+    }
+
+    const dianPrefix = matchingRes.dianPrefix
+    const dianNumber = matchingRes.currentNumber ? matchingRes.currentNumber + 1 : 1250 + internalSeq
+    matchingRes.currentNumber = dianNumber
+    const dianResolution = matchingRes.resolutionNumber
+    const dianRange = `${matchingRes.initialRange} - ${matchingRes.finalRange}`
+    const invoiceNumber = `${dianPrefix}-${dianNumber}`
     const dateIso = new Date().toISOString()
     const cufe = this.calc.generateCUFE(invoiceNumber, totals.total, dateIso, sale.customerDoc)
 
@@ -187,10 +210,16 @@ export class InvoiceService {
 
     const newInvoice: Invoice = {
       id: `inv-${Date.now().toString().slice(-6)}`,
+      internalNumber,
+      dianPrefix,
+      dianNumber,
+      dianResolution,
+      dianResolutionDate: matchingRes.resolutionDate,
+      dianRange,
       invoiceNumber,
-      prefix,
-      resolutionNumber: validated.resolutionNumber || '18764000001',
-      resolutionDate: '2026-01-01',
+      prefix: dianPrefix,
+      resolutionNumber: dianResolution,
+      resolutionDate: matchingRes.resolutionDate,
       type: validated.type,
       status: sale.status === 'COMPLETED' ? 'PAID' : 'PAYMENT_PENDING',
       dianStatus: initialDianStatus,
@@ -351,8 +380,13 @@ export class InvoiceService {
     const creditNote: Invoice = {
       id: `nc-${Date.now().toString().slice(-6)}`,
       invoiceNumber: ncNumber,
+      internalNumber: `NC-${nextNum.toString().padStart(6, '0')}`,
+      dianPrefix: 'NC',
+      dianNumber: nextNum,
+      dianResolution: '18764000003',
+      dianRange: '1 - 5000',
       prefix: 'NC',
-      resolutionNumber: '18764000001',
+      resolutionNumber: '18764000003',
       resolutionDate: '2026-01-01',
       type: 'NOTA_CREDITO',
       status: 'ISSUED',

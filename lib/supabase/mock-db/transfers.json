@@ -43,7 +43,8 @@
         "unitCost": 19800,
         "totalCost": 495000
       }
-    ]
+    ],
+    "companyId": "comp-001"
   },
   {
     "id": "trans-155",
@@ -102,7 +103,8 @@
         "unitCost": 6000,
         "totalCost": 240000
       }
-    ]
+    ],
+    "companyId": "comp-001"
   },
   {
     "id": "trans-153",
@@ -150,7 +152,8 @@
         "unitCost": 3500,
         "totalCost": 175000
       }
-    ]
+    ],
+    "companyId": "comp-001"
   },
   {
     "id": "trans-152",
@@ -201,7 +204,8 @@
         "hasDiscrepancy": true,
         "discrepancyNote": "Faltante de 1 unidad por rotura en trayecto vehicular."
       }
-    ]
+    ],
+    "companyId": "comp-001"
   },
   {
     "id": "trans-151",
@@ -246,7 +250,8 @@
         "unitCost": 12000,
         "totalCost": 180000
       }
-    ]
+    ],
+    "companyId": "comp-001"
   },
   {
     "id": "trans-150",
@@ -294,6 +299,7 @@
         "unitCost": 1900,
         "totalCost": 190000
       }
-    ]
+    ],
+    "companyId": "comp-001"
   }
 ]

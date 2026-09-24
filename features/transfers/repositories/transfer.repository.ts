@@ -9,9 +9,19 @@ import {
   TransferRejectInput,
 } from '../types'
 import { TRANSFERS_MOCK, AVAILABLE_PRODUCTS_FOR_TRANSFER } from '../mocks/transfers.mock'
+import { supabaseMock } from '@/lib/supabase'
 
 export class TransferRepository {
   private transfers: Transfer[] = [...TRANSFERS_MOCK]
+
+  /**
+   * Obtiene los ítems normalizados relacionales de la transferencia desde transfer_items
+   */
+  async getItems(transferId: string): Promise<any[]> {
+    const { data: rawItems } = await supabaseMock.from('transfer_items').select()
+    const allItems = (rawItems as unknown as Array<{ transferId?: string }>) || []
+    return allItems.filter((i) => i.transferId === transferId)
+  }
 
   async findMany(filters: TransferFilterParams): Promise<TransferPaginationResult> {
     let filtered = [...this.transfers]
@@ -133,7 +143,12 @@ export class TransferRepository {
 
   async findById(id: string): Promise<Transfer | null> {
     const found = this.transfers.find((t) => t.id === id || t.code === id)
-    return found ? { ...found } : null
+    if (!found) return null
+    const items = await this.getItems(found.id)
+    return {
+      ...found,
+      items: items.length > 0 ? items : found.items || [],
+    }
   }
 
   async getGlobalStats(filters?: TransferFilterParams): Promise<GlobalTransferStats> {

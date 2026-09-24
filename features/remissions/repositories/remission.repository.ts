@@ -117,10 +117,25 @@ export class RemissionRepository {
   /**
    * Busca remisión por ID o número
    */
+  /**
+   * Obtiene los ítems normalizados relacionales de la remisión desde remission_items
+   */
+  async getItems(remissionId: string): Promise<RemissionItem[]> {
+    const { data: rawItems } = await supabaseMock.from('remission_items').select()
+    const allItems = (rawItems as unknown as Array<RemissionItem & { remissionId?: string }>) || []
+    return allItems.filter((i) => i.remissionId === remissionId)
+  }
+
   async findById(id: string): Promise<Remission | null> {
     const remissions = (db.remissions as unknown) as Array<Record<string, unknown>>
     const found = remissions.find((r) => r.id === id || r.remissionNumber === id)
-    return found ? this.mapToDomain(found) : null
+    if (!found) return null
+    const domain = this.mapToDomain(found)
+    const items = await this.getItems(domain.id)
+    if (items.length > 0) {
+      domain.items = items
+    }
+    return domain
   }
 
   /**

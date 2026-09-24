@@ -7,12 +7,17 @@
 
 import { accountingRepository } from '../repositories/accounting.repository'
 import { AccountingEntry, AccountingEntryLine } from '../types'
+import { db } from '@/lib/supabase/db'
 
 export class AccountingRulesService {
   /**
-   * Resuelve cuentas contables de inventario, costo e ingreso según la categoría del producto
+   * Resuelve cuentas contables de inventario, costo e ingreso según producto, categoría o tipo
    */
-  async resolveProductAccounts(category?: string): Promise<{
+  async resolveProductAccounts(criteria?: {
+    productId?: string
+    category?: string
+    inventoryType?: string
+  } | string): Promise<{
     inventoryAccountId: string
     inventoryAccountCode: string
     inventoryAccountName: string
@@ -24,9 +29,34 @@ export class AccountingRulesService {
     revenueAccountName: string
   }> {
     const mappings = await accountingRepository.getCategoryMappings()
-    const matched = mappings.find((m) =>
-      category ? m.categoryName.toLowerCase().includes(category.toLowerCase()) : false
-    )
+    let category = typeof criteria === 'string' ? criteria : criteria?.category
+    let inventoryType = typeof criteria === 'object' ? criteria?.inventoryType : undefined
+    const productId = typeof criteria === 'object' ? criteria?.productId : undefined
+
+    if (productId && (!category || !inventoryType)) {
+      const prod = ((db.products as any[]) || []).find((p) => p.id === productId)
+      if (prod) {
+        if (!category) category = prod.category
+        if (!inventoryType) inventoryType = prod.inventoryType
+      }
+    }
+
+    // 1. Prioridad: Buscar por Tipo de Inventario (RAW_MATERIAL, WORK_IN_PROCESS, FINISHED_GOOD, MERCHANDISE)
+    let matched = inventoryType ? mappings.find((m) => m.inventoryType === inventoryType) : undefined
+
+    // 2. Si no hay match por tipo, buscar por coincidencia en categoría
+    if (!matched && category) {
+      const catLower = category.toLowerCase().trim()
+      matched = mappings.find((m) =>
+        m.categoryName.toLowerCase().includes(catLower) ||
+        catLower.includes(m.categoryName.toLowerCase())
+      )
+    }
+
+    // 3. Fallback al mapeo predeterminado de mercancías
+    if (!matched) {
+      matched = mappings.find((m) => m.inventoryType === 'MERCHANDISE') || mappings[0]
+    }
 
     if (matched) {
       return {
@@ -42,7 +72,6 @@ export class AccountingRulesService {
       }
     }
 
-    // Cuenta general por defecto (Abarrotes y consumo masivo)
     return {
       inventoryAccountId: 'acc-143501',
       inventoryAccountCode: '143501',
@@ -64,12 +93,20 @@ export class AccountingRulesService {
   async generatePurchaseEntry(purchase: any, user: { id: string; name: string }): Promise<AccountingEntry> {
     const date = purchase.date || new Date().toISOString()
     const period = date.substring(0, 7)
+    const isPeriodOpen = await accountingRepository.isPeriodOpen(period)
+    if (!isPeriodOpen) {
+      throw new Error(`El periodo contable ${period} se encuentra CERRADO. No es posible generar comprobantes de compra en periodos clausurados.`)
+    }
     const lines: AccountingEntryLine[] = []
 
     // 1. Débito a Inventario por valor antes de impuestos
     const subtotal = purchase.subtotal || purchase.totalCost || (purchase.total - (purchase.taxTotal || 0))
-    const firstCategory = purchase.items?.[0]?.category
-    const accounts = await this.resolveProductAccounts(firstCategory)
+    const firstItem = purchase.items?.[0]
+    const accounts = await this.resolveProductAccounts({
+      productId: firstItem?.productId,
+      category: firstItem?.category,
+      inventoryType: firstItem?.inventoryType,
+    })
 
     lines.push({
       id: `line-pur-inv-${Date.now()}`,
@@ -151,6 +188,10 @@ export class AccountingRulesService {
   async generateSaleEntry(sale: any, user: { id: string; name: string }): Promise<AccountingEntry> {
     const date = sale.date || new Date().toISOString()
     const period = date.substring(0, 7)
+    const isPeriodOpen = await accountingRepository.isPeriodOpen(period)
+    if (!isPeriodOpen) {
+      throw new Error(`El periodo contable ${period} se encuentra CERRADO. No es posible generar comprobantes de venta en periodos clausurados.`)
+    }
     const lines: AccountingEntryLine[] = []
 
     const subtotal = sale.subtotal || sale.totalAmount - (sale.taxTotal || 0)
@@ -183,8 +224,12 @@ export class AccountingRulesService {
     })
 
     // 2. Crédito a Ingresos Operacionales
-    const firstCategory = sale.items?.[0]?.category
-    const accounts = await this.resolveProductAccounts(firstCategory)
+    const firstItem = sale.items?.[0]
+    const accounts = await this.resolveProductAccounts({
+      productId: firstItem?.productId,
+      category: firstItem?.category,
+      inventoryType: firstItem?.inventoryType,
+    })
 
     lines.push({
       id: `line-sale-rev-${Date.now()}`,
@@ -256,8 +301,16 @@ export class AccountingRulesService {
 
     const date = sale.date || new Date().toISOString()
     const period = date.substring(0, 7)
-    const firstCategory = sale.items?.[0]?.category
-    const accounts = await this.resolveProductAccounts(firstCategory)
+    const isPeriodOpen = await accountingRepository.isPeriodOpen(period)
+    if (!isPeriodOpen) {
+      throw new Error(`El periodo contable ${period} se encuentra CERRADO. No es posible causar costo de ventas en periodos clausurados.`)
+    }
+    const firstItem = sale.items?.[0]
+    const accounts = await this.resolveProductAccounts({
+      productId: firstItem?.productId,
+      category: firstItem?.category,
+      inventoryType: firstItem?.inventoryType,
+    })
 
     const lines: AccountingEntryLine[] = [
       {
@@ -328,6 +381,10 @@ export class AccountingRulesService {
     user: { id: string; name: string }
   ): Promise<AccountingEntry> {
     const date = payment.date || new Date().toISOString()
+    const isPeriodOpen = await accountingRepository.isPeriodOpen(date)
+    if (!isPeriodOpen) {
+      throw new Error(`El periodo contable ${date.slice(0, 7)} se encuentra CERRADO. No es posible registrar pagos en periodos clausurados.`)
+    }
     const isBank = payment.paymentMethod === 'TRANSFERENCIA'
 
     const lines: AccountingEntryLine[] = [
@@ -396,6 +453,10 @@ export class AccountingRulesService {
     user: { id: string; name: string }
   ): Promise<AccountingEntry> {
     const date = payment.date || new Date().toISOString()
+    const isPeriodOpen = await accountingRepository.isPeriodOpen(date)
+    if (!isPeriodOpen) {
+      throw new Error(`El periodo contable ${date.slice(0, 7)} se encuentra CERRADO. No es posible registrar recaudos en periodos clausurados.`)
+    }
     const isBank = payment.paymentMethod === 'TRANSFERENCIA'
 
     const lines: AccountingEntryLine[] = [

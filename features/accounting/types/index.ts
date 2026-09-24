@@ -55,6 +55,10 @@ export type AccountingSourceType =
   | 'TRANSFER'
   | 'INVENTORY_ADJUSTMENT'
   | 'REVERSAL'
+  | 'CREDIT_NOTE'
+  | 'DEBIT_NOTE'
+  | 'ACCOUNTING_ADJUSTMENT'
+  | 'CLOSING_ENTRY'
 
 export interface AccountingEntryLine {
   id: string
@@ -125,6 +129,8 @@ export interface AccountingMovement {
   createdAt: string
 }
 
+export type PeriodMode = 'MONTH' | 'YEAR' | 'RANGE'
+
 export interface AccountingFilters {
   query?: string
   accountClass?: AccountClass | 'ALL'
@@ -132,12 +138,49 @@ export interface AccountingFilters {
   status?: AccountStatus | 'ALL'
   sourceType?: AccountingSourceType | 'ALL'
   entryStatus?: AccountingEntryStatus | 'ALL'
+  periodMode?: PeriodMode
+  year?: number
+  month?: string // '01' to '12' or 'YYYY-MM'
   dateFrom?: string
   dateTo?: string
   locationId?: string | 'ALL'
   accountId?: string | 'ALL'
+  thirdPartyId?: string | 'ALL'
+  costCenterId?: string | 'ALL'
   page: number
   pageSize: number
+}
+
+export interface AuxiliaryLedgerMovementItem extends AccountingMovement {
+  runningBalance: number
+  costCenterName?: string
+}
+
+export interface AuxiliaryLedgerAccountSummary {
+  accountId: string
+  accountCode: string
+  accountName: string
+  nature: AccountNature
+  accountClass: AccountClass
+  initialBalance: number
+  totalDebit: number
+  totalCredit: number
+  finalBalance: number
+  movementsCount: number
+}
+
+export interface AuxiliaryLedgerReport {
+  selectedAccount: AccountingAccount | null
+  periodMode: PeriodMode
+  periodLabel: string
+  dateFrom: string
+  dateTo: string
+  initialBalance: number
+  totalDebit: number
+  totalCredit: number
+  finalBalance: number
+  accountSummaries: AuxiliaryLedgerAccountSummary[]
+  movements: AuxiliaryLedgerMovementItem[]
 }
 
 export interface MonthlyFinancialPoint {
@@ -305,9 +348,17 @@ export interface ExogenaPrepItem {
   withholdingTaxAmount: number
 }
 
+export type InventoryType =
+  | 'RAW_MATERIAL' // Materias primas (1405)
+  | 'WORK_IN_PROCESS' // Productos en proceso (1410)
+  | 'FINISHED_GOOD' // Productos terminados (1430)
+  | 'MERCHANDISE' // Mercancías para la venta (1435)
+
 export interface InventoryAccountMapping {
   categoryId: string
   categoryName: string
+  inventoryType: InventoryType
+  inventoryTypeName: string
   inventoryAccountId: string
   inventoryAccountCode: string
   inventoryAccountName: string
@@ -317,6 +368,7 @@ export interface InventoryAccountMapping {
   revenueAccountId: string
   revenueAccountCode: string
   revenueAccountName: string
+  description?: string
 }
 
 export type AccountingPermission =
@@ -328,3 +380,29 @@ export type AccountingPermission =
   | 'accounting.reports'
   | 'accounting.costs'
   | 'accounting.config'
+  | 'accounting.periods'
+
+export type AccountingPeriodStatus = 'OPEN' | 'CLOSED'
+
+export interface AccountingPeriod {
+  id: string
+  companyId?: string
+  periodCode: string // ej: '2026-08', '2026-09'
+  year: number
+  month: number
+  monthName: string
+  startDate: string
+  endDate: string
+  status: AccountingPeriodStatus
+  closedAt?: string | null
+  closedByUserId?: string | null
+  closedByUserName?: string | null
+  reopenedAt?: string | null
+  reopenedByUserId?: string | null
+  reopenedReason?: string | null
+  entriesCount?: number
+  totalDebits?: number
+  totalCredits?: number
+  createdAt?: string
+  updatedAt?: string
+}

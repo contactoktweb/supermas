@@ -21,7 +21,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-18T10:32:18-05:00",
     "lastMovementType": "COMPRA",
-    "lastMovementDoc": "FV-1542"
+    "lastMovementDoc": "FV-1542",
+    "companyId": "comp-001",
+    "quantity": 482,
+    "availableUnits": 482
   },
   {
     "id": "stk-001-loc2",
@@ -45,7 +48,10 @@
     "stockHealth": "LOW_STOCK",
     "lastMovementAt": "2025-02-17T15:20:00-05:00",
     "lastMovementType": "VENTA",
-    "lastMovementDoc": "POS-88301"
+    "lastMovementDoc": "POS-88301",
+    "companyId": "comp-001",
+    "quantity": 45,
+    "availableUnits": 45
   },
   {
     "id": "stk-001-loc3",
@@ -69,7 +75,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-16T11:40:00-05:00",
     "lastMovementType": "TRANSFERENCIA_ENTRADA",
-    "lastMovementDoc": "TR-000150"
+    "lastMovementDoc": "TR-000150",
+    "companyId": "comp-001",
+    "quantity": 220,
+    "availableUnits": 220
   },
   {
     "id": "stk-002-loc1",
@@ -93,7 +102,10 @@
     "stockHealth": "LOW_STOCK",
     "lastMovementAt": "2025-02-18T09:48:42-05:00",
     "lastMovementType": "TRANSFERENCIA_SALIDA",
-    "lastMovementDoc": "TR-000154"
+    "lastMovementDoc": "TR-000154",
+    "companyId": "comp-001",
+    "quantity": 38,
+    "availableUnits": 38
   },
   {
     "id": "stk-002-loc2",
@@ -117,7 +129,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-18T09:55:10-05:00",
     "lastMovementType": "TRANSFERENCIA_ENTRADA",
-    "lastMovementDoc": "TR-000154"
+    "lastMovementDoc": "TR-000154",
+    "companyId": "comp-001",
+    "quantity": 33,
+    "availableUnits": 33
   },
   {
     "id": "stk-003-loc1",
@@ -141,7 +156,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-17T08:15:00-05:00",
     "lastMovementType": "COMPRA",
-    "lastMovementDoc": "FV-1532"
+    "lastMovementDoc": "FV-1532",
+    "companyId": "comp-001",
+    "quantity": 120,
+    "availableUnits": 120
   },
   {
     "id": "stk-003-loc2",
@@ -165,7 +183,10 @@
     "stockHealth": "CRITICAL",
     "lastMovementAt": "2025-02-18T11:05:00-05:00",
     "lastMovementType": "VENTA",
-    "lastMovementDoc": "POS-88432"
+    "lastMovementDoc": "POS-88432",
+    "companyId": "comp-001",
+    "quantity": 4,
+    "availableUnits": 4
   },
   {
     "id": "stk-003-loc3",
@@ -189,7 +210,10 @@
     "stockHealth": "OUT_OF_STOCK",
     "lastMovementAt": "2025-02-17T16:15:30-05:00",
     "lastMovementType": "AJUSTE_SALIDA",
-    "lastMovementDoc": "AJ-00092"
+    "lastMovementDoc": "AJ-00092",
+    "companyId": "comp-001",
+    "quantity": 0,
+    "availableUnits": 0
   },
   {
     "id": "stk-004-loc1",
@@ -213,7 +237,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-17T14:40:12-05:00",
     "lastMovementType": "COMPRA",
-    "lastMovementDoc": "FV-1538"
+    "lastMovementDoc": "FV-1538",
+    "companyId": "comp-001",
+    "quantity": 84,
+    "availableUnits": 84
   },
   {
     "id": "stk-005-loc2",
@@ -237,7 +264,10 @@
     "stockHealth": "LOW_STOCK",
     "lastMovementAt": "2025-02-18T09:21:05-05:00",
     "lastMovementType": "VENTA",
-    "lastMovementDoc": "POS-88421"
+    "lastMovementDoc": "POS-88421",
+    "companyId": "comp-001",
+    "quantity": 12,
+    "availableUnits": 12
   },
   {
     "id": "stk-005-loc1",
@@ -261,7 +291,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-15T10:00:00-05:00",
     "lastMovementType": "COMPRA",
-    "lastMovementDoc": "FV-1510"
+    "lastMovementDoc": "FV-1510",
+    "companyId": "comp-001",
+    "quantity": 150,
+    "availableUnits": 150
   },
   {
     "id": "stk-006-loc1",
@@ -285,7 +318,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-17T11:10:00-05:00",
     "lastMovementType": "VENTA",
-    "lastMovementDoc": "FE-2980"
+    "lastMovementDoc": "FE-2980",
+    "companyId": "comp-001",
+    "quantity": 132,
+    "availableUnits": 132
   },
   {
     "id": "stk-007-loc4",
@@ -309,7 +345,10 @@
     "stockHealth": "LOW_STOCK",
     "lastMovementAt": "2025-02-16T17:22:45-05:00",
     "lastMovementType": "DEVOLUCION",
-    "lastMovementDoc": "DEV-0041"
+    "lastMovementDoc": "DEV-0041",
+    "companyId": "comp-001",
+    "quantity": 16,
+    "availableUnits": 16
   },
   {
     "id": "stk-008-loc1",
@@ -333,7 +372,10 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-16T15:05:18-05:00",
     "lastMovementType": "AJUSTE_ENTRADA",
-    "lastMovementDoc": "AJ-00089"
+    "lastMovementDoc": "AJ-00089",
+    "companyId": "comp-001",
+    "quantity": 140,
+    "availableUnits": 140
   },
   {
     "id": "stk-009-loc2",
@@ -357,7 +399,10 @@
     "stockHealth": "CRITICAL",
     "lastMovementAt": "2025-02-18T10:11:00-05:00",
     "lastMovementType": "VENTA",
-    "lastMovementDoc": "POS-88425"
+    "lastMovementDoc": "POS-88425",
+    "companyId": "comp-001",
+    "quantity": 4,
+    "availableUnits": 4
   },
   {
     "id": "stk-009-loc1",
@@ -381,6 +426,32 @@
     "stockHealth": "AVAILABLE",
     "lastMovementAt": "2025-02-14T09:30:00-05:00",
     "lastMovementType": "COMPRA",
-    "lastMovementDoc": "FV-1502"
+    "lastMovementDoc": "FV-1502",
+    "companyId": "comp-001",
+    "quantity": 65,
+    "availableUnits": 65
+  },
+  {
+    "id": "stk-001-loc001",
+    "productId": "prod-001",
+    "productName": "Arroz Diana Premium Extra 5kg",
+    "sku": "ABA-ARR-001",
+    "barcode": "7702001001234",
+    "category": "Granos y Cereales",
+    "brand": "Diana",
+    "unitOfMeasure": "PAQ",
+    "locationId": "loc-001",
+    "locationName": "Bodega Principal (CEDI)",
+    "locationCode": "BOD-001",
+    "quantity": 482,
+    "availableUnits": 482,
+    "currentStock": 482,
+    "minStock": 100,
+    "criticalStock": 40,
+    "averageCost": 15400,
+    "totalValueAtCost": 7422800,
+    "stockHealth": "AVAILABLE",
+    "lastMovementAt": "2026-09-24T19:35:53.983Z",
+    "companyId": "comp-001"
   }
 ]

@@ -21,6 +21,7 @@ export const APP_MODULES: AppModuleItem[] = [
   ['Facturación', 'invoices', '/facturacion'],
   ['Remisiones', 'remisiones', '/remisiones'],
   ['Cajas', 'cashRegisters', '/reportes/cajas'],
+  ['Tesorería', 'wallet', '/tesoreria'],
   ['Contabilidad', 'accounting', '/contabilidad'],
   ['Impuestos', 'taxes', '/impuestos'],
   ['Exógena', 'exogena', '/exogena'],

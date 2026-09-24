@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import Link from 'next/link'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountsReceivableItem, AccountsPayableItem } from '../../types'
 
@@ -82,6 +83,28 @@ export function AccountingReceivablesPayablesTab({
             <span>Cuentas por Pagar (${totalCxp.toLocaleString('es-CO')})</span>
           </button>
         </div>
+      </div>
+
+      {/* Banner de Integración con Módulo de Tesorería */}
+      <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-white/10 rounded-lg backdrop-blur-xs">
+            <AppIcon name="wallet" size={20} className="text-blue-300" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white">Módulo de Tesorería Integrado</h3>
+            <p className="text-xs text-blue-200 mt-0.5 max-w-2xl">
+              La programación y dispersión de pagos a proveedores (CXP), así como la recaudación de cartera (CXC) y conciliaciones bancarias se gestionan de forma centralizada e independiente en <strong className="text-white">Tesorería</strong>. Cada egreso o ingreso genera automáticamente el asiento contable con su afectación bancaria.
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/tesoreria"
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg bg-white text-blue-900 font-semibold text-xs hover:bg-blue-50 transition-colors shadow-xs"
+        >
+          <AppIcon name="wallet" size={14} />
+          <span>Ir a Tesorería</span>
+        </Link>
       </div>
 
       {/* Barra de Búsqueda */}

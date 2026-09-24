@@ -1,6 +1,7 @@
 import { db, supabaseMock } from '@/lib/supabase'
 import {
   Sale,
+  SaleItem,
   SaleDetail,
   SaleFilterParams,
   SaleStats,
@@ -126,11 +127,26 @@ export class SalesRepository {
   }
 
   /**
-   * Busca venta por ID
+   * Obtiene los ítems normalizados relacionales de la venta desde la tabla sale_items
+   */
+  async getItems(saleId: string): Promise<SaleItem[]> {
+    const { data: rawItems } = await supabaseMock.from('sale_items').select()
+    const allItems = (rawItems as unknown as Array<SaleItem & { saleId?: string }>) || []
+    return allItems.filter((i) => i.saleId === saleId)
+  }
+
+  /**
+   * Busca venta por ID con sus líneas normalizadas
    */
   async findById(id: string): Promise<Sale | null> {
     const sales = await this.findAll()
-    return sales.find((s) => s.id === id) || null
+    const sale = sales.find((s) => s.id === id) || null
+    if (!sale) return null
+    const items = await this.getItems(sale.id)
+    return {
+      ...sale,
+      items: items.length > 0 ? items : sale.items || [],
+    }
   }
 
   /**

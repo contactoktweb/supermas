@@ -49,10 +49,29 @@ import inventorySettingsData from './mock-db/inventory_settings.json'
 import posSettingsData from './mock-db/pos_settings.json'
 import ecommerceSettingsData from './mock-db/ecommerce_settings.json'
 import settingsData from './mock-db/settings.json'
+import bankAccountsData from './mock-db/bank_accounts.json'
+import treasuryPaymentsData from './mock-db/treasury_payments.json'
+import treasuryReceiptsData from './mock-db/treasury_receipts.json'
+import dianResolutionsData from './mock-db/dian_resolutions.json'
+import accountingPeriodsData from './mock-db/accounting_periods.json'
+import saleItemsData from './mock-db/sale_items.json'
+import purchaseItemsData from './mock-db/purchase_items.json'
+import transferItemsData from './mock-db/transfer_items.json'
+import remissionItemsData from './mock-db/remission_items.json'
+import cashSessionsData from './mock-db/cash_sessions.json'
+import productPricesData from './mock-db/product_prices.json'
+import accountingEntryLinesData from './mock-db/accounting_entry_lines.json'
 
 export interface SupabaseMockTableMap {
   locations: typeof locationsData
   products: typeof productsData
+  sale_items: typeof saleItemsData
+  purchase_items: typeof purchaseItemsData
+  transfer_items: typeof transferItemsData
+  remission_items: typeof remissionItemsData
+  cash_sessions: typeof cashSessionsData
+  product_prices: typeof productPricesData
+  accounting_entry_lines: typeof accountingEntryLinesData
   stock_levels: typeof stockLevelsData
   inventory_movements: typeof inventoryMovementsData
   product_movements: typeof productMovementsData
@@ -93,6 +112,11 @@ export interface SupabaseMockTableMap {
   pos_settings: typeof posSettingsData
   ecommerce_settings: typeof ecommerceSettingsData
   settings: typeof settingsData
+  bank_accounts: typeof bankAccountsData
+  treasury_payments: typeof treasuryPaymentsData
+  treasury_receipts: typeof treasuryReceiptsData
+  dian_resolutions: typeof dianResolutionsData
+  accounting_periods: typeof accountingPeriodsData
 }
 
 export const db = {
@@ -138,6 +162,18 @@ export const db = {
   posSettings: posSettingsData,
   ecommerceSettings: ecommerceSettingsData,
   settings: settingsData,
+  bankAccounts: bankAccountsData,
+  treasuryPayments: treasuryPaymentsData,
+  treasuryReceipts: treasuryReceiptsData,
+  dianResolutions: dianResolutionsData,
+  accountingPeriods: accountingPeriodsData,
+  saleItems: saleItemsData,
+  purchaseItems: purchaseItemsData,
+  transferItems: transferItemsData,
+  remissionItems: remissionItemsData,
+  cashSessions: cashSessionsData,
+  productPrices: productPricesData,
+  accountingEntryLines: accountingEntryLinesData,
 }
 
 /**
@@ -151,6 +187,20 @@ export const supabaseMock = {
         ? 'stockLevels'
         : table === 'inventory_movements'
         ? 'inventoryMovements'
+        : table === 'sale_items'
+        ? 'saleItems'
+        : table === 'purchase_items'
+        ? 'purchaseItems'
+        : table === 'transfer_items'
+        ? 'transferItems'
+        : table === 'remission_items'
+        ? 'remissionItems'
+        : table === 'cash_sessions'
+        ? 'cashSessions'
+        : table === 'product_prices'
+        ? 'productPrices'
+        : table === 'accounting_entry_lines'
+        ? 'accountingEntryLines'
         : table === 'product_movements'
         ? 'productMovements'
         : table === 'warehouse_inventory'
@@ -207,6 +257,16 @@ export const supabaseMock = {
         ? 'ecommerceSettings'
         : table === 'settings'
         ? 'settings'
+        : table === 'bank_accounts'
+        ? 'bankAccounts'
+        : table === 'treasury_payments'
+        ? 'treasuryPayments'
+        : table === 'treasury_receipts'
+        ? 'treasuryReceipts'
+        : table === 'dian_resolutions'
+        ? 'dianResolutions'
+        : table === 'accounting_periods'
+        ? 'accountingPeriods'
         : table
     ] as SupabaseMockTableMap[K]
 

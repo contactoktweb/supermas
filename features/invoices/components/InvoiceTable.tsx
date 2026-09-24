@@ -177,21 +177,41 @@ export function InvoiceTable({
                     onClick={() => onViewDetail(inv)}
                     style={{ cursor: 'pointer' }}
                   >
-                    {/* Número Factura */}
+                    {/* Número Factura (DIAN vs Interno ERP) */}
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span
-                          style={{
-                            fontWeight: 700,
-                            color: 'var(--navy)',
-                            fontSize: 13,
-                          }}
-                        >
-                          {inv.invoiceNumber}
-                        </span>
-                        {inv.resolutionNumber && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: 'var(--navy)',
+                              fontSize: 13,
+                              fontFamily: 'monospace',
+                            }}
+                          >
+                            {inv.dianPrefix ? `${inv.dianPrefix}-${inv.dianNumber}` : inv.invoiceNumber}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: '#1e40af',
+                              background: '#eff6ff',
+                              padding: '1px 5px',
+                              borderRadius: 4,
+                            }}
+                          >
+                            DIAN
+                          </span>
+                        </div>
+                        {inv.internalNumber && (
+                          <span style={{ fontSize: 11, color: '#475569', fontWeight: 600, fontFamily: 'monospace' }}>
+                            Int: {inv.internalNumber}
+                          </span>
+                        )}
+                        {(inv.dianResolution || inv.resolutionNumber) && (
                           <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                            Res. {inv.resolutionNumber}
+                            Res. {inv.dianResolution || inv.resolutionNumber}
                           </span>
                         )}
                       </div>

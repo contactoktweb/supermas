@@ -34,7 +34,6 @@
         "sku": "ABA-ARR-001",
         "barcode": "7702001001234",
         "unitOfMeasure": "PAQ",
-        "imageUrl": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80",
         "quantity": 500,
         "receivedQuantity": 500,
         "unitCost": 15400,
@@ -53,17 +52,16 @@
         "sku": "ABA-ACE-002",
         "barcode": "7702001005678",
         "unitOfMeasure": "UND",
-        "imageUrl": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&auto=format&fit=crop&q=80",
         "quantity": 400,
         "receivedQuantity": 400,
-        "unitCost": 21250,
-        "discountPercent": 4.7,
+        "unitCost": 19000,
+        "discountPercent": 5.26,
         "discountAmount": 400000,
         "taxRatePercent": 19,
         "taxCode": "IVA_19",
-        "taxAmount": 1539000,
-        "subtotal": 8500000,
-        "total": 9639000
+        "taxAmount": 1368000,
+        "subtotal": 7600000,
+        "total": 8568000
       },
       {
         "id": "item-003",
@@ -72,17 +70,16 @@
         "sku": "BEB-CAF-004",
         "barcode": "7702001009012",
         "unitOfMeasure": "PAQ",
-        "imageUrl": "https://images.unsplash.com/photo-1559056199-641a0ac8b55e?w=400&auto=format&fit=crop&q=80",
         "quantity": 100,
         "receivedQuantity": 100,
-        "unitCost": 9084,
+        "unitCost": 9000,
         "discountPercent": 0,
         "discountAmount": 0,
         "taxRatePercent": 19,
         "taxCode": "IVA_19",
-        "taxAmount": 172600,
-        "subtotal": 908400,
-        "total": 1081000
+        "taxAmount": 1252000,
+        "subtotal": 900000,
+        "total": 2152000
       }
     ],
     "payments": [
@@ -120,7 +117,8 @@
     "createdByUserName": "Mauricio Andrade",
     "notes": "Compra mayorista pactada a 20 días con descuento por volumen.",
     "createdAt": "2026-09-08T09:15:00.000Z",
-    "updatedAt": "2026-09-09T14:30:00.000Z"
+    "updatedAt": "2026-09-09T14:30:00.000Z",
+    "companyId": "comp-001"
   },
   {
     "id": "pur-002",
@@ -192,7 +190,8 @@
     "createdByUserName": "Mauricio Andrade",
     "notes": "Factura por vencer en 5 días calendario.",
     "createdAt": "2026-09-07T15:40:00.000Z",
-    "updatedAt": "2026-09-07T16:30:00.000Z"
+    "updatedAt": "2026-09-07T16:30:00.000Z",
+    "companyId": "comp-001"
   },
   {
     "id": "pur-003",
@@ -276,7 +275,8 @@
     "createdByUserName": "Mauricio Andrade",
     "notes": "Compra masiva mensual de granos.",
     "createdAt": "2026-08-25T10:00:00.000Z",
-    "updatedAt": "2026-08-25T14:00:00.000Z"
+    "updatedAt": "2026-08-25T14:00:00.000Z",
+    "companyId": "comp-001"
   },
   {
     "id": "pur-004",
@@ -361,7 +361,8 @@
     "createdByUserName": "Mauricio Andrade",
     "notes": "Despacho programado para el día 12 de septiembre en Yumbo.",
     "createdAt": "2026-09-09T11:20:00.000Z",
-    "updatedAt": "2026-09-09T11:20:00.000Z"
+    "updatedAt": "2026-09-09T11:20:00.000Z",
+    "companyId": "comp-001"
   },
   {
     "id": "pur-005",
@@ -416,6 +417,7 @@
     "createdByUserName": "Laura Gómez",
     "notes": "Borrador de pedido de reposición semanal para punto de venta Centro.",
     "createdAt": "2026-09-10T08:30:00.000Z",
-    "updatedAt": "2026-09-10T08:30:00.000Z"
+    "updatedAt": "2026-09-10T08:30:00.000Z",
+    "companyId": "comp-001"
   }
 ]

@@ -1,4 +1,4 @@
-import { db } from '@/lib/supabase'
+import { db, supabaseMock } from '@/lib/supabase'
 import {
   Purchase,
   PurchaseFilterParams,
@@ -87,9 +87,23 @@ export class PurchaseRepository {
     }
   }
 
+  /**
+   * Obtiene las líneas de detalle normalizadas de una compra desde purchase_items
+   */
+  async getItems(purchaseId: string): Promise<any[]> {
+    const { data: rawItems } = await supabaseMock.from('purchase_items').select()
+    const allItems = (rawItems as unknown as Array<{ purchaseId?: string }>) || []
+    return allItems.filter((i) => i.purchaseId === purchaseId)
+  }
+
   async findById(id: string): Promise<Purchase | null> {
     const found = this.purchases.find((p) => p.id === id)
-    return found ? JSON.parse(JSON.stringify(found)) : null
+    if (!found) return null
+    const items = await this.getItems(id)
+    return {
+      ...JSON.parse(JSON.stringify(found)),
+      items: items.length > 0 ? items : found.items || [],
+    }
   }
 
   async create(purchase: Purchase): Promise<Purchase> {

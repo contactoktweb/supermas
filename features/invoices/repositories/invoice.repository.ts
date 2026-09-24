@@ -385,13 +385,26 @@ export class InvoiceRepository {
       dianStatus = 'ACEPTADA'
     }
 
+    const internalNumber = raw.internalNumber || `FAC-${String(raw.id?.replace(/\D/g, '') || '00001').padStart(5, '0')}`
+    const dianPrefix = raw.dianPrefix || (raw.type === 'POS' ? 'POS' : raw.type === 'NOTA_CREDITO' ? 'NC' : 'FE')
+    const dianNumber = Number(raw.dianNumber) || (1250 + (parseInt(raw.id?.replace(/\D/g, '') || '1', 10) - 1))
+    const dianResolution = raw.dianResolution || raw.resolutionNumber || '18764000001'
+    const dianRange = raw.dianRange || '1000 - 50000'
+    const dianResolutionDate = raw.dianResolutionDate || raw.resolutionDate || '2026-01-15'
+
     return {
       id: raw.id,
-      invoiceNumber: raw.invoiceNumber || `FAC-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-      prefix: raw.prefix || (raw.invoiceNumber?.startsWith('POS') ? 'POS' : raw.invoiceNumber?.startsWith('NC') ? 'NC' : 'FAC'),
-      resolutionNumber: raw.resolutionNumber || '18764000001',
-      resolutionDate: raw.resolutionDate || '2026-01-01',
-      type: raw.type || (raw.invoiceNumber?.startsWith('POS') ? 'POS' : raw.invoiceNumber?.startsWith('NC') ? 'NOTA_CREDITO' : 'ELECTRONICA'),
+      internalNumber,
+      dianPrefix,
+      dianNumber,
+      dianResolution,
+      dianResolutionDate,
+      dianRange,
+      invoiceNumber: raw.invoiceNumber || `${dianPrefix}-${dianNumber}`,
+      prefix: dianPrefix,
+      resolutionNumber: dianResolution,
+      resolutionDate: dianResolutionDate,
+      type: raw.type || (dianPrefix === 'POS' ? 'POS' : dianPrefix === 'NC' ? 'NOTA_CREDITO' : 'ELECTRONICA'),
       status: raw.status || 'PAID',
       dianStatus,
       dianCufe: raw.dianCufe,

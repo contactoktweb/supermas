@@ -105,7 +105,8 @@
       }
     ],
     "createdAt": "2026-01-15T08:30:00Z",
-    "updatedAt": "2026-08-30T14:20:00Z"
+    "updatedAt": "2026-08-30T14:20:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-002",
@@ -213,7 +214,8 @@
       }
     ],
     "createdAt": "2026-02-10T10:00:00Z",
-    "updatedAt": "2026-08-29T16:40:00Z"
+    "updatedAt": "2026-08-29T16:40:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-003",
@@ -321,7 +323,8 @@
       }
     ],
     "createdAt": "2026-03-01T09:15:00Z",
-    "updatedAt": "2026-08-31T07:10:00Z"
+    "updatedAt": "2026-08-31T07:10:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-004",
@@ -429,7 +432,8 @@
       }
     ],
     "createdAt": "2026-03-12T11:00:00Z",
-    "updatedAt": "2026-08-30T10:30:00Z"
+    "updatedAt": "2026-08-30T10:30:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-005",
@@ -537,7 +541,8 @@
       }
     ],
     "createdAt": "2026-03-20T14:30:00Z",
-    "updatedAt": "2026-08-30T18:00:00Z"
+    "updatedAt": "2026-08-30T18:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-006",
@@ -645,7 +650,8 @@
       }
     ],
     "createdAt": "2026-04-05T12:00:00Z",
-    "updatedAt": "2026-08-28T09:30:00Z"
+    "updatedAt": "2026-08-28T09:30:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-007",
@@ -740,7 +746,8 @@
       }
     ],
     "createdAt": "2026-04-18T15:20:00Z",
-    "updatedAt": "2026-08-31T06:00:00Z"
+    "updatedAt": "2026-08-31T06:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "prod-008",
@@ -834,7 +841,242 @@
         "percentageOfTotalStock": 40
       }
     ],
+    "inventoryType": "MERCHANDISE",
     "createdAt": "2026-05-02T08:00:00Z",
-    "updatedAt": "2026-08-27T11:15:00Z"
+    "updatedAt": "2026-08-27T11:15:00Z",
+    "companyId": "comp-001"
+  },
+  {
+    "id": "prod-007",
+    "sku": "MP-HAR-001",
+    "barcode": "7709991001011",
+    "name": "Harina de Trigo Fortificada Especial Bulto 50kg",
+    "slug": "harina-de-trigo-fortificada-50kg",
+    "description": "Materia prima seleccionada para panificación industrial y galletería de alto rendimiento.",
+    "category": "Materias Primas e Insumos",
+    "brand": "Harinera del Valle",
+    "unitOfMeasure": "BUL",
+    "imageUrl": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "inventoryType": "RAW_MATERIAL",
+    "accountingCategoryId": "cat-inv-mp",
+    "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Base Insumo",
+        "code": "NORMAL",
+        "price": 145000,
+        "minQuantity": 1,
+        "isDefault": true
+      }
+    ],
+    "normalPrice": 145000,
+    "wholesalePrice": 138000,
+    "distributorPrice": 132000,
+    "averageCost": 118000,
+    "inventoryValueAtCost": 14160000,
+    "profitMarginAmount": 27000,
+    "profitMarginPercent": 18.62,
+    "totalStock": 120,
+    "availableUnits": 120,
+    "minStockThreshold": 30,
+    "criticalStockThreshold": 10,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": false,
+    "webDistribuidora": true,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
+    "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 20,
+    "webViewsCount": 350,
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 120,
+        "minStock": 30,
+        "criticalStock": 10,
+        "averageCost": 118000,
+        "inventoryValueAtCost": 14160000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 100
+      }
+    ],
+    "createdAt": "2026-02-10T09:00:00Z",
+    "updatedAt": "2026-09-01T10:00:00Z",
+    "companyId": "comp-001"
+  },
+  {
+    "id": "prod-008",
+    "sku": "PP-MAS-001",
+    "barcode": "7709991002022",
+    "name": "Masa Preparada Base Panadería y Repostería 25kg",
+    "slug": "masa-preparada-base-panaderia-25kg",
+    "description": "Producto semielaborado en fase de fermentación y formulación para proceso productivo.",
+    "category": "Productos en Proceso",
+    "brand": "Super Más Elaborados",
+    "unitOfMeasure": "BUL",
+    "imageUrl": "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1556910103-1c02745aae4d?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "inventoryType": "WORK_IN_PROCESS",
+    "accountingCategoryId": "cat-inv-pp",
+    "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Costo Interno Estimado",
+        "code": "NORMAL",
+        "price": 82000,
+        "minQuantity": 1,
+        "isDefault": true
+      }
+    ],
+    "normalPrice": 82000,
+    "wholesalePrice": 82000,
+    "distributorPrice": 82000,
+    "averageCost": 68000,
+    "inventoryValueAtCost": 4760000,
+    "profitMarginAmount": 14000,
+    "profitMarginPercent": 17.07,
+    "totalStock": 70,
+    "availableUnits": 70,
+    "minStockThreshold": 20,
+    "criticalStockThreshold": 5,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": false,
+    "webDistribuidora": false,
+    "webDirectPurchaseEnabled": false,
+    "webWhatsAppInquiryEnabled": false,
+    "webWhatsAppPhone": "+573128849021",
+    "webAvailability": "AVAILABLE",
+    "webShowPrice": false,
+    "webLowStockThreshold": 10,
+    "webViewsCount": 45,
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 70,
+        "minStock": 20,
+        "criticalStock": 5,
+        "averageCost": 68000,
+        "inventoryValueAtCost": 4760000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 100
+      }
+    ],
+    "createdAt": "2026-03-01T08:00:00Z",
+    "updatedAt": "2026-09-02T11:30:00Z",
+    "companyId": "comp-001"
+  },
+  {
+    "id": "prod-009",
+    "sku": "PT-PAN-001",
+    "barcode": "7709991003033",
+    "name": "Pan Tajado Blanco Tradicional Super Más 500g",
+    "slug": "pan-tajado-blanco-super-mas-500g",
+    "description": "Producto terminado de elaboración propia listo para venta directa en tienda y distribución.",
+    "category": "Productos Terminados Panadería",
+    "brand": "Super Más Bakery",
+    "unitOfMeasure": "PAQ",
+    "imageUrl": "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=400&auto=format&fit=crop&q=80",
+    "images": [
+      "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=400&auto=format&fit=crop&q=80"
+    ],
+    "status": "ACTIVE",
+    "inventoryType": "FINISHED_GOOD",
+    "accountingCategoryId": "cat-inv-pt",
+    "taxProfile": "EXENTO",
+    "taxConfigId": "tax-exento",
+    "vatRatePercent": 0,
+    "isExempt": true,
+    "prices": [
+      {
+        "id": "p1",
+        "name": "Precio Venta Público",
+        "code": "NORMAL",
+        "price": 5400,
+        "minQuantity": 1,
+        "isDefault": true
+      },
+      {
+        "id": "p2",
+        "name": "Precio Mayorista (x10+)",
+        "code": "MAYORISTA",
+        "price": 4600,
+        "minQuantity": 10
+      }
+    ],
+    "normalPrice": 5400,
+    "wholesalePrice": 4600,
+    "distributorPrice": 4300,
+    "averageCost": 3200,
+    "inventoryValueAtCost": 1280000,
+    "profitMarginAmount": 2200,
+    "profitMarginPercent": 40.74,
+    "totalStock": 400,
+    "availableUnits": 395,
+    "minStockThreshold": 100,
+    "criticalStockThreshold": 30,
+    "stockHealth": "AVAILABLE",
+    "webSuperMas": true,
+    "webDistribuidora": true,
+    "webDirectPurchaseEnabled": true,
+    "webWhatsAppInquiryEnabled": true,
+    "webWhatsAppPhone": "+573128849021",
+    "webAvailability": "AVAILABLE",
+    "webShowPrice": true,
+    "webLowStockThreshold": 80,
+    "webViewsCount": 980,
+    "warehouseStock": [
+      {
+        "locationId": "loc-001",
+        "locationName": "Bodega Principal Cali",
+        "locationCode": "BOD-PRI-01",
+        "locationType": "MAIN_WAREHOUSE",
+        "quantity": 250,
+        "minStock": 60,
+        "criticalStock": 20,
+        "averageCost": 3200,
+        "inventoryValueAtCost": 800000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 62.5
+      },
+      {
+        "locationId": "loc-002",
+        "locationName": "Punto de Venta Centro",
+        "locationCode": "POS-CEN-01",
+        "locationType": "PHYSICAL_STORE",
+        "quantity": 150,
+        "minStock": 40,
+        "criticalStock": 10,
+        "averageCost": 3200,
+        "inventoryValueAtCost": 480000,
+        "stockHealth": "AVAILABLE",
+        "percentageOfTotalStock": 37.5
+      }
+    ],
+    "createdAt": "2026-03-15T08:00:00Z",
+    "updatedAt": "2026-09-03T16:00:00Z",
+    "companyId": "comp-001"
   }
 ]

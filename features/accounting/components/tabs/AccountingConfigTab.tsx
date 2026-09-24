@@ -21,11 +21,16 @@ export function AccountingConfigTab({
   canManageConfig,
 }: AccountingConfigTabProps) {
   const [editingMapping, setEditingMapping] = useState<InventoryAccountMapping | null>(null)
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
   const taxConfigs = db.taxConfigs || []
 
   const inventoryAccounts = accounts.filter((a) => a.code.startsWith('14'))
-  const costAccounts = accounts.filter((a) => a.code.startsWith('61'))
+  const costAccounts = accounts.filter((a) => a.code.startsWith('61') || a.code.startsWith('71'))
   const revenueAccounts = accounts.filter((a) => a.code.startsWith('41'))
+
+  const filteredMappings = selectedTypeFilter === 'ALL'
+    ? categoryMappings
+    : categoryMappings.filter((m) => m.inventoryType === selectedTypeFilter)
 
   const handleSaveEdit = async () => {
     if (!editingMapping) return
@@ -33,52 +38,165 @@ export function AccountingConfigTab({
     setEditingMapping(null)
   }
 
+  const getInventoryTypeBadge = (type: string) => {
+    switch (type) {
+      case 'RAW_MATERIAL':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-900 border border-amber-200">Materia Prima (1405)</span>
+      case 'WORK_IN_PROCESS':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-purple-100 text-purple-900 border border-purple-200">En Proceso (1410)</span>
+      case 'FINISHED_GOOD':
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-900 border border-emerald-200">Prod. Terminado (1430)</span>
+      case 'MERCHANDISE':
+      default:
+        return <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-900 border border-blue-200">Mercancía Venta (1435)</span>
+    }
+  }
+
   return (
     <div className="space-y-6 page-enter">
       {/* 1. Parametrización Contable de Inventarios y Productos */}
       <section className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-        <div className="p-4 bg-gray-50 border-b flex items-center justify-between">
+        <div className="p-4 bg-gray-50 border-b flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Mapeo Contable por Categoría de Inventario</h2>
+            <h2 className="text-sm font-semibold text-gray-900">Mapeo Contable por Tipo y Categoría de Inventario</h2>
             <p className="text-xs text-gray-500">
-              Asignación dinámica de cuentas PUC para el registro automático de inventarios (14), costos (61) e ingresos (41)
+              Relación arquitectónica: <strong className="text-blue-900">Productos</strong> → <strong className="text-blue-900">Categoría Contable Inventario</strong> → <strong className="text-blue-900">Cuenta PUC (14)</strong>. Soporte para Materia Prima, En Proceso, Producto Terminado y Mercancía.
             </p>
           </div>
-          <span className="badge badge-teal">Motor Activo</span>
+          <div className="flex items-center gap-2">
+            <span className="badge badge-teal">PUC Dinámico</span>
+            <span className="badge badge-blue">4 Clases de Inventario</span>
+          </div>
+        </div>
+
+        {/* Explicación de relación y flujo */}
+        <div className="p-4 bg-blue-50/50 border-b border-blue-100 flex flex-wrap items-center gap-4 text-xs">
+          <div className="font-semibold text-blue-950 flex items-center gap-1.5">
+            <AppIcon name="layers" size={14} className="text-blue-700" />
+            <span>Ejemplos de Vinculación Contable:</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
+              🌾 Harina de Trigo → <strong className="text-amber-800">Materia Prima</strong> → <code className="text-blue-800 font-bold">140501</code>
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
+              🥣 Masa Preparada → <strong className="text-purple-800">En Proceso</strong> → <code className="text-blue-800 font-bold">141001</code>
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
+              🍞 Pan Tajado → <strong className="text-emerald-800">Prod. Terminado</strong> → <code className="text-blue-800 font-bold">143001</code>
+            </span>
+            <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
+              🥫 Abarrotes / Granos → <strong className="text-blue-800">Mercancía Venta</strong> → <code className="text-blue-800 font-bold">143501</code>
+            </span>
+          </div>
+        </div>
+
+        {/* Filtro por tipo de inventario */}
+        <div className="p-3 bg-white border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                selectedTypeFilter === 'ALL'
+                  ? 'bg-blue-900 text-white shadow-xs'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+              onClick={() => setSelectedTypeFilter('ALL')}
+            >
+              Todos ({categoryMappings.length})
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                selectedTypeFilter === 'RAW_MATERIAL'
+                  ? 'bg-amber-800 text-white shadow-xs'
+                  : 'bg-amber-50 text-amber-900 hover:bg-amber-100'
+              }`}
+              onClick={() => setSelectedTypeFilter('RAW_MATERIAL')}
+            >
+              Materias Primas (1405)
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                selectedTypeFilter === 'WORK_IN_PROCESS'
+                  ? 'bg-purple-800 text-white shadow-xs'
+                  : 'bg-purple-50 text-purple-900 hover:bg-purple-100'
+              }`}
+              onClick={() => setSelectedTypeFilter('WORK_IN_PROCESS')}
+            >
+              En Proceso (1410)
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                selectedTypeFilter === 'FINISHED_GOOD'
+                  ? 'bg-emerald-800 text-white shadow-xs'
+                  : 'bg-emerald-50 text-emerald-900 hover:bg-emerald-100'
+              }`}
+              onClick={() => setSelectedTypeFilter('FINISHED_GOOD')}
+            >
+              Prod. Terminados (1430)
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all ${
+                selectedTypeFilter === 'MERCHANDISE'
+                  ? 'bg-blue-800 text-white shadow-xs'
+                  : 'bg-blue-50 text-blue-900 hover:bg-blue-100'
+              }`}
+              onClick={() => setSelectedTypeFilter('MERCHANDISE')}
+            >
+              Mercancías Venta (1435)
+            </button>
+          </div>
+          <span className="text-xs text-gray-400">
+            Mostrando {filteredMappings.length} mapeos
+          </span>
         </div>
 
         <div className="table-scroll">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b bg-gray-50/50 text-gray-600 text-left">
-                <th className="py-2.5 px-4 font-semibold">Categoría de Producto</th>
+                <th className="py-2.5 px-4 font-semibold">Categoría / Tipo de Inventario</th>
                 <th className="py-2.5 px-4 font-semibold">Cuenta Inventario (Clase 14)</th>
-                <th className="py-2.5 px-4 font-semibold">Cuenta Costo Venta (Clase 6)</th>
+                <th className="py-2.5 px-4 font-semibold">Costo / Consumo (Clase 6/7)</th>
                 <th className="py-2.5 px-4 font-semibold">Cuenta Ingresos (Clase 4)</th>
                 <th className="py-2.5 px-4 font-semibold text-right">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {categoryMappings.map((map) => (
+              {filteredMappings.map((map) => (
                 <tr key={map.categoryId} className="hover:bg-blue-50/30">
-                  <td className="py-3 px-4 font-semibold text-gray-900">{map.categoryName}</td>
+                  <td className="py-3 px-4">
+                    <div className="font-semibold text-gray-900 flex items-center gap-2">
+                      <span>{map.categoryName}</span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      {getInventoryTypeBadge(map.inventoryType)}
+                    </div>
+                    {map.description && (
+                      <p className="text-[11px] text-gray-500 mt-1 max-w-sm">{map.description}</p>
+                    )}
+                  </td>
                   <td className="py-3 px-4 font-mono">
                     <span className="text-blue-900 font-bold bg-blue-50 px-2 py-0.5 rounded">
                       {map.inventoryAccountCode}
                     </span>{' '}
-                    <span className="text-gray-600 text-[11px] font-sans">{map.inventoryAccountName}</span>
+                    <span className="text-gray-600 text-[11px] font-sans block mt-0.5">{map.inventoryAccountName}</span>
                   </td>
                   <td className="py-3 px-4 font-mono">
                     <span className="text-rose-900 font-bold bg-rose-50 px-2 py-0.5 rounded">
                       {map.costAccountCode}
                     </span>{' '}
-                    <span className="text-gray-600 text-[11px] font-sans">{map.costAccountName}</span>
+                    <span className="text-gray-600 text-[11px] font-sans block mt-0.5">{map.costAccountName}</span>
                   </td>
                   <td className="py-3 px-4 font-mono">
                     <span className="text-emerald-900 font-bold bg-emerald-50 px-2 py-0.5 rounded">
                       {map.revenueAccountCode}
                     </span>{' '}
-                    <span className="text-gray-600 text-[11px] font-sans">{map.revenueAccountName}</span>
+                    <span className="text-gray-600 text-[11px] font-sans block mt-0.5">{map.revenueAccountName}</span>
                   </td>
                   <td className="py-3 px-4 text-right">
                     {canManageConfig && (
@@ -104,9 +222,14 @@ export function AccountingConfigTab({
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5 space-y-4">
             <div className="flex items-center justify-between border-b pb-3">
-              <h3 className="text-sm font-bold text-gray-900">
-                Editar Cuentas Contables: {editingMapping.categoryName}
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">
+                  Editar Cuentas Contables: {editingMapping.categoryName}
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Configuración de cuentas en el catálogo PUC para este grupo de inventario
+                </p>
+              </div>
               <button
                 type="button"
                 className="icon-button"
@@ -118,7 +241,34 @@ export function AccountingConfigTab({
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Cuenta de Inventario (Activo):</label>
+                <label className="block font-semibold text-gray-700 mb-1">Tipo de Inventario:</label>
+                <select
+                  className="filter-select w-full"
+                  value={editingMapping.inventoryType}
+                  onChange={(e) => {
+                    const newType = e.target.value as any
+                    const typeNames: Record<string, string> = {
+                      RAW_MATERIAL: 'Materia Prima (Clase 1405)',
+                      WORK_IN_PROCESS: 'Producto en Proceso (Clase 1410)',
+                      FINISHED_GOOD: 'Producto Terminado (Clase 1430)',
+                      MERCHANDISE: 'Mercancía para la Venta (Clase 1435)',
+                    }
+                    setEditingMapping({
+                      ...editingMapping,
+                      inventoryType: newType,
+                      inventoryTypeName: typeNames[newType] || 'Mercancía (1435)',
+                    })
+                  }}
+                >
+                  <option value="RAW_MATERIAL">Materia Prima (Harinas, insumos, empaques) — 1405</option>
+                  <option value="WORK_IN_PROCESS">Producto en Proceso (Masas, lotes semielaborados) — 1410</option>
+                  <option value="FINISHED_GOOD">Producto Terminado (Pan tajado, producción propia) — 1430</option>
+                  <option value="MERCHANDISE">Mercancías para la Venta (Abarrotes comercializados) — 1435</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Cuenta de Inventario (Activo - Clase 14):</label>
                 <select
                   className="filter-select w-full"
                   value={editingMapping.inventoryAccountId}
@@ -143,7 +293,7 @@ export function AccountingConfigTab({
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Cuenta de Costo de Ventas:</label>
+                <label className="block font-semibold text-gray-700 mb-1">Cuenta de Costo / Consumo (Clase 6 / 7):</label>
                 <select
                   className="filter-select w-full"
                   value={editingMapping.costAccountId}
@@ -166,6 +316,8 @@ export function AccountingConfigTab({
                   ))}
                 </select>
               </div>
+
+
 
               <div>
                 <label className="block font-semibold text-gray-700 mb-1">Cuenta de Ingreso Operacional:</label>

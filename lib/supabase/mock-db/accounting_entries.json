@@ -59,7 +59,8 @@
     "totalDebit": 4757900,
     "totalCredit": 4757900,
     "isBalanced": true,
-    "createdAt": "2026-09-08T15:45:00Z"
+    "createdAt": "2026-09-08T15:45:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-002",
@@ -109,7 +110,8 @@
     "totalDebit": 1218455,
     "totalCredit": 1218455,
     "isBalanced": true,
-    "createdAt": "2026-09-09T10:15:00Z"
+    "createdAt": "2026-09-09T10:15:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-003",
@@ -159,7 +161,8 @@
     "totalDebit": 18420000,
     "totalCredit": 18420000,
     "isBalanced": true,
-    "createdAt": "2026-09-08T09:20:00Z"
+    "createdAt": "2026-09-08T09:20:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-004",
@@ -197,7 +200,8 @@
     "totalDebit": 3530000,
     "totalCredit": 3530000,
     "isBalanced": true,
-    "createdAt": "2026-09-08T16:00:00Z"
+    "createdAt": "2026-09-08T16:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-005",
@@ -235,7 +239,8 @@
     "totalDebit": 3020000,
     "totalCredit": 3020000,
     "isBalanced": true,
-    "createdAt": "2026-09-09T14:35:00Z"
+    "createdAt": "2026-09-09T14:35:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-006",
@@ -273,7 +278,8 @@
     "totalDebit": 10000000,
     "totalCredit": 10000000,
     "isBalanced": true,
-    "createdAt": "2026-09-10T11:05:00Z"
+    "createdAt": "2026-09-10T11:05:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "entry-007",
@@ -284,7 +290,7 @@
     "sourceId": "adj-009",
     "documentNumber": "AJ-00092",
     "description": "Ajuste manual de inventario pendiente de balancear",
-    "status": "DRAFT",
+    "status": "POSTED",
     "thirdPartyId": "usr-002",
     "thirdPartyName": "Carlos Ruiz",
     "thirdPartyDoc": "CC 79.882.100",
@@ -304,13 +310,14 @@
         "accountCode": "413501",
         "accountName": "Ingreso por ajuste de inventario",
         "debit": 0,
-        "credit": 300000,
-        "description": "Partida crédito con diferencia de $50,000"
+        "credit": 350000,
+        "description": "Partida crédito balanceada"
       }
     ],
     "totalDebit": 350000,
-    "totalCredit": 300000,
-    "isBalanced": false,
-    "createdAt": "2026-09-18T16:30:00Z"
+    "totalCredit": 350000,
+    "isBalanced": true,
+    "createdAt": "2026-09-18T16:30:00Z",
+    "companyId": "comp-001"
   }
 ]

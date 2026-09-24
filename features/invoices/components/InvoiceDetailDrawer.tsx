@@ -82,9 +82,21 @@ export function InvoiceDetailDrawer({
               <InvoiceTypeBadge type={invoice.type} size="sm" />
               <DIANStatusBadge status={invoice.dianStatus} size="sm" />
             </div>
-            <h2 style={{ fontSize: 20, color: 'var(--navy)', margin: 0, fontWeight: 800 }}>
-              {invoice.invoiceNumber}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 20, color: 'var(--navy)', margin: 0, fontWeight: 800, fontFamily: 'monospace' }}>
+                {invoice.dianPrefix ? `${invoice.dianPrefix}-${invoice.dianNumber}` : invoice.invoiceNumber}
+              </h2>
+              {invoice.internalNumber && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: 6, fontFamily: 'monospace' }}>
+                  Interno ERP: {invoice.internalNumber}
+                </span>
+              )}
+            </div>
+            {(invoice.dianResolution || invoice.resolutionNumber) && (
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                Autorización DIAN Res. {invoice.dianResolution || invoice.resolutionNumber} {invoice.dianRange ? `(Rango: ${invoice.dianRange})` : ''}
+              </div>
+            )}
           </div>
 
           <button

@@ -268,6 +268,30 @@ export class POSRepository {
         status: s.status,
       }))
   }
+
+  /**
+   * Obtiene la sesión activa de turno de caja (cash_sessions)
+   */
+  async getActiveSession(registerId: string): Promise<any | null> {
+    const { data: rawSessions } = await supabaseMock.from('cash_sessions').select()
+    const all = (rawSessions as unknown as Array<{ cashRegisterId: string; status: string }>) || []
+    return all.find((s) => s.cashRegisterId === registerId && s.status === 'OPEN') || null
+  }
+
+  /**
+   * Obtiene sesiones de turnos de caja con filtros
+   */
+  async getSessions(filter?: { locationId?: string; registerId?: string }): Promise<any[]> {
+    const { data: rawSessions } = await supabaseMock.from('cash_sessions').select()
+    let list = (rawSessions as unknown as Array<any>) || []
+    if (filter?.locationId && filter.locationId !== 'ALL') {
+      list = list.filter((s) => s.locationId === filter.locationId)
+    }
+    if (filter?.registerId) {
+      list = list.filter((s) => s.cashRegisterId === filter.registerId)
+    }
+    return list
+  }
 }
 
 export const posRepository = new POSRepository()

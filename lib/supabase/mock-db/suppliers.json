@@ -27,7 +27,10 @@
     "lastPurchaseDate": "2026-09-08T09:15:00.000Z",
     "notes": "Distribuidor mayorista preferente de abarrotes y productos de consumo masivo. Descuento del 3% por pronto pago en 10 días.",
     "createdAt": "2025-01-10T08:00:00.000Z",
-    "updatedAt": "2026-09-08T09:15:00.000Z"
+    "updatedAt": "2026-09-08T09:15:00.000Z",
+    "companyId": "comp-001",
+    "name": "Distribuciones La 14 S.A.S.",
+    "legalName": "Distribuciones La 14 S.A.S."
   },
   {
     "id": "sup-002",
@@ -57,7 +60,10 @@
     "lastPurchaseDate": "2026-08-25T14:30:00.000Z",
     "notes": "Productor directo de arroz Diana, aceites y granos seleccionados. Entrega en muelle propio con cita programada.",
     "createdAt": "2025-01-12T09:30:00.000Z",
-    "updatedAt": "2026-08-25T14:30:00.000Z"
+    "updatedAt": "2026-08-25T14:30:00.000Z",
+    "companyId": "comp-001",
+    "name": "Alimentos Diana S.A.",
+    "legalName": "Alimentos Diana S.A."
   },
   {
     "id": "sup-003",
@@ -87,7 +93,10 @@
     "lastPurchaseDate": "2026-09-09T15:40:00.000Z",
     "notes": "Líneas de bebidas carbonatadas, jugos y aguas embotelladas. Despacho directo a puntos de venta y bodega central.",
     "createdAt": "2025-01-15T11:00:00.000Z",
-    "updatedAt": "2026-09-09T15:40:00.000Z"
+    "updatedAt": "2026-09-09T15:40:00.000Z",
+    "companyId": "comp-001",
+    "name": "Bebidas Nacionales de Colombia S.A.",
+    "legalName": "Bebidas Nacionales de Colombia S.A."
   },
   {
     "id": "sup-004",
@@ -117,7 +126,10 @@
     "lastPurchaseDate": "2026-09-02T10:15:00.000Z",
     "notes": "Cadena de frío certificada. Leche entera, quesos frescos y mantequilla. Devolución de canastillas los días viernes.",
     "createdAt": "2025-02-01T10:00:00.000Z",
-    "updatedAt": "2026-09-02T10:15:00.000Z"
+    "updatedAt": "2026-09-02T10:15:00.000Z",
+    "companyId": "comp-001",
+    "name": "Lácteos de Antioquia S.A.S.",
+    "legalName": "Lácteos de Antioquia S.A.S."
   },
   {
     "id": "sup-005",
@@ -147,7 +159,10 @@
     "lastPurchaseDate": "2026-08-20T11:20:00.000Z",
     "notes": "Harinas de trigo, mezclas para panadería y granos secos. Despacho en bultos de 50kg paletizados.",
     "createdAt": "2025-02-10T14:00:00.000Z",
-    "updatedAt": "2026-08-20T11:20:00.000Z"
+    "updatedAt": "2026-08-20T11:20:00.000Z",
+    "companyId": "comp-001",
+    "name": "Molinos del Valle Central S.A.",
+    "legalName": "Molinos del Valle Central S.A."
   },
   {
     "id": "sup-006",
@@ -177,6 +192,9 @@
     "lastPurchaseDate": "2026-05-15T08:30:00.000Z",
     "notes": "Proveedor temporalmente inactivo por cambio de razón social. Cuenta comercial al día sin saldos pendientes.",
     "createdAt": "2025-03-01T08:00:00.000Z",
-    "updatedAt": "2026-05-15T08:30:00.000Z"
+    "updatedAt": "2026-05-15T08:30:00.000Z",
+    "companyId": "comp-001",
+    "name": "Avícola del Sol S.A.",
+    "legalName": "Avícola del Sol S.A."
   }
 ]

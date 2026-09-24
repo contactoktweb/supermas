@@ -18,12 +18,14 @@ import {
   BalanceSheetReport,
   IncomeStatementReport,
   GeneralLedgerReport,
+  AuxiliaryLedgerReport,
   AccountsReceivableItem,
   AccountsPayableItem,
   CostAnalysisItem,
   InventoryAccountMapping,
   ExogenaPrepItem,
   AccountingPermission,
+  AccountingPeriod,
 } from '../types'
 import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
 
@@ -37,6 +39,7 @@ const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
     'accounting.reports',
     'accounting.costs',
     'accounting.config',
+    'accounting.periods',
   ],
   ACCOUNTANT: [
     'accounting.read',
@@ -47,6 +50,7 @@ const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
     'accounting.reports',
     'accounting.costs',
     'accounting.config',
+    'accounting.periods',
   ],
   WAREHOUSE_ADMIN: ['accounting.read', 'accounting.costs'],
   POINT_ADMIN: ['accounting.read', 'accounting.costs'],
@@ -165,6 +169,7 @@ export class AccountingService {
     user: { id: string; name: string; role: string }
   ): Promise<AccountingEntry> {
     this.assertPermission('accounting.entries', user.role)
+    await this.assertPeriodOpen(data.date)
     const entry = await accountingRepository.createManualEntry(data, user)
 
     await auditService.log({
@@ -195,6 +200,7 @@ export class AccountingService {
     user: { id: string; name: string; role: string }
   ): Promise<{ original: AccountingEntry; reversal: AccountingEntry }> {
     this.assertPermission('accounting.cancel', user.role)
+    await this.assertPeriodOpen(new Date().toISOString())
     const result = await accountingRepository.reverseEntry(entryId, reason, user)
 
     await auditService.log({
@@ -226,6 +232,14 @@ export class AccountingService {
   ): Promise<{ data: AccountingMovement[]; total: number }> {
     this.assertPermission('accounting.read', userRole)
     return accountingRepository.getMovements(filters)
+  }
+
+  async getAuxiliaryLedgerReport(
+    filters?: AccountingFilters,
+    userRole: string = 'SUPERADMIN'
+  ): Promise<AuxiliaryLedgerReport> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingReportService.getAuxiliaryLedgerReport(filters)
   }
 
   // --- REPORTES FINANCIEROS Y DASHBOARD ---
@@ -315,6 +329,86 @@ export class AccountingService {
     })
 
     return updated
+  }
+
+  // --- VALIDACIÓN Y GESTIÓN DE PERIODOS CONTABLES ---
+
+  /**
+   * Verifica que el periodo contable correspondiente a la fecha esté ABIERTO.
+   * Si el mes está CERRADO, bloquea la mutación para preservar la integridad fiduciaria.
+   */
+  async assertPeriodOpen(dateOrPeriod: string): Promise<void> {
+    const isOpen = await accountingRepository.isPeriodOpen(dateOrPeriod)
+    if (!isOpen) {
+      const periodCode = dateOrPeriod.includes('T') || dateOrPeriod.length === 10
+        ? dateOrPeriod.slice(0, 7)
+        : dateOrPeriod
+      throw new Error(
+        `El periodo contable ${periodCode} se encuentra CERRADO. Operación bloqueada: no es posible crear, modificar ni anular comprobantes en meses clausurados. Se requiere reapertura autorizada por el Contador General.`
+      )
+    }
+  }
+
+  async getPeriods(year?: number, userRole: string = 'SUPERADMIN'): Promise<AccountingPeriod[]> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getPeriods(year)
+  }
+
+  async closePeriod(
+    periodCode: string,
+    user: { id: string; name: string; role: string }
+  ): Promise<AccountingPeriod> {
+    this.assertPermission('accounting.periods', user.role)
+    const closed = await accountingRepository.closePeriod(periodCode, user)
+
+    await auditService.log({
+      action: 'ACCOUNTING_PERIOD_CLOSED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'ACCOUNTING_PERIOD',
+      entityId: closed.id,
+      entityReference: closed.periodCode,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'WARNING',
+      result: 'SUCCESS',
+      details: `Cierre contable mensual definitivo ${closed.periodCode} (${closed.monthName} ${closed.year}). Comprobantes clausurados: ${closed.entriesCount}. Total débitos: $${(closed.totalDebits || 0).toLocaleString()} COP`,
+      changes: [
+        { field: 'status', label: 'Estado Periodo', previousValue: 'OPEN', newValue: 'CLOSED' },
+        { field: 'closedAt', label: 'Fecha Cierre', previousValue: '—', newValue: closed.closedAt || '' },
+      ],
+    })
+
+    return closed
+  }
+
+  async reopenPeriod(
+    periodCode: string,
+    reason: string,
+    user: { id: string; name: string; role: string }
+  ): Promise<AccountingPeriod> {
+    this.assertPermission('accounting.periods', user.role)
+    const reopened = await accountingRepository.reopenPeriod(periodCode, reason, user)
+
+    await auditService.log({
+      action: 'ACCOUNTING_PERIOD_REOPENED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'ACCOUNTING_PERIOD',
+      entityId: reopened.id,
+      entityReference: reopened.periodCode,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'CRITICAL',
+      result: 'SUCCESS',
+      details: `Reapertura formal autorizada para periodo contable cerrado ${reopened.periodCode}. Justificación del contador: ${reason}`,
+      changes: [
+        { field: 'status', label: 'Estado Periodo', previousValue: 'CLOSED', newValue: 'OPEN' },
+        { field: 'reopenedReason', label: 'Motivo Reapertura', previousValue: '—', newValue: reason },
+      ],
+    })
+
+    return reopened
   }
 }
 

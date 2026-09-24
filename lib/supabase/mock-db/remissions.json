@@ -65,7 +65,8 @@
     "notes": "Entrega completa en punto de descarga San Fernando.",
     "createdBy": "Admin Mauricio",
     "createdAt": "2026-09-08T10:00:00Z",
-    "updatedAt": "2026-09-08T16:00:00Z"
+    "updatedAt": "2026-09-08T16:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "rem-002",
@@ -131,7 +132,8 @@
     "notes": "Revisado contra factura por chef ejecutivo.",
     "createdBy": "Admin Mauricio",
     "createdAt": "2026-09-09T08:30:00Z",
-    "updatedAt": "2026-09-09T11:30:00Z"
+    "updatedAt": "2026-09-09T11:30:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "rem-003",
@@ -195,7 +197,8 @@
     "notes": "Despacho en tránsito hacia sede Norte Cali.",
     "createdBy": "Admin Mauricio",
     "createdAt": "2026-09-10T11:00:00Z",
-    "updatedAt": "2026-09-10T14:00:00Z"
+    "updatedAt": "2026-09-10T14:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "rem-004",
@@ -247,6 +250,7 @@
     "notes": "Remisión creada pendiente de asignación de vehículo para despacho.",
     "createdBy": "Admin Mauricio",
     "createdAt": "2026-09-10T16:30:00Z",
-    "updatedAt": "2026-09-10T16:30:00Z"
+    "updatedAt": "2026-09-10T16:30:00Z",
+    "companyId": "comp-001"
   }
 ]

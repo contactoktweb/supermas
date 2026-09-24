@@ -56,6 +56,7 @@ export function AccountingPage() {
     accounts,
     entries,
     movements,
+    auxiliaryReport,
     balanceSheet,
     incomeStatement,
     selectedLedger,
@@ -259,8 +260,12 @@ export function AccountingPage() {
             <AccountingMovementsTab
               movements={movements}
               accounts={accounts}
+              entries={entries}
+              auxiliaryReport={auxiliaryReport}
               filters={filters}
               onFilterChange={updateFilters}
+              onSelectEntry={(e) => setSelectedEntry(e)}
+              onExportAuxiliary={() => exportCSV('auxiliary')}
             />
           )}
 

@@ -10,6 +10,7 @@ import {
   BalanceSheetReport,
   IncomeStatementReport,
   GeneralLedgerReport,
+  AuxiliaryLedgerReport,
   AccountsReceivableItem,
   AccountsPayableItem,
   CostAnalysisItem,
@@ -45,6 +46,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
   const [totalEntries, setTotalEntries] = useState(0)
   const [movements, setMovements] = useState<AccountingMovement[]>([])
   const [totalMovements, setTotalMovements] = useState(0)
+  const [auxiliaryReport, setAuxiliaryReport] = useState<AuxiliaryLedgerReport | null>(null)
 
   // Reportes y sub-vistas
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetReport | null>(null)
@@ -64,8 +66,13 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     status: 'ALL',
     sourceType: 'ALL',
     entryStatus: 'ALL',
+    periodMode: 'MONTH',
+    year: 2026,
+    month: '09',
     locationId: 'ALL',
     accountId: 'ALL',
+    thirdPartyId: 'ALL',
+    costCenterId: 'ALL',
     page: 1,
     pageSize: 25,
   })
@@ -76,12 +83,13 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       setIsLoading(true)
       setError(null)
 
-      const [dashRes, accsRes, entriesRes, movsRes, bsRes, isRes, cxcRes, cxpRes, costsRes, mapRes, exoRes] =
+      const [dashRes, accsRes, entriesRes, movsRes, auxRes, bsRes, isRes, cxcRes, cxpRes, costsRes, mapRes, exoRes] =
         await Promise.all([
           accountingService.getDashboard(userRole),
           accountingService.getAccounts(filters, userRole),
           accountingService.getEntries(filters, userRole),
           accountingService.getMovements(filters, userRole),
+          accountingService.getAuxiliaryLedgerReport(filters, userRole),
           accountingService.getBalanceSheet('2026-09', filters.locationId, userRole),
           accountingService.getIncomeStatement('2026-09', filters.locationId, userRole),
           accountingService.getAccountsReceivable(userRole),
@@ -98,6 +106,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       setTotalEntries(entriesRes.total)
       setMovements(movsRes.data)
       setTotalMovements(movsRes.total)
+      setAuxiliaryReport(auxRes)
       setBalanceSheet(bsRes)
       setIncomeStatement(isRes)
       setAccountsReceivable(cxcRes)
@@ -204,11 +213,26 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     return updated
   }
 
-  const exportCSV = async (type: 'entries' | 'accounts' | 'journal' | 'ledger' | 'balance' | 'exogena') => {
+  const exportCSV = async (type: 'entries' | 'accounts' | 'journal' | 'ledger' | 'balance' | 'exogena' | 'auxiliary') => {
     let filename = `supermas-${type}-${new Date().toISOString().split('T')[0]}.csv`
     let csvContent = ''
 
-    if (type === 'entries' || type === 'journal') {
+    if (type === 'auxiliary') {
+      const headers = ['Fecha', 'Doc Origen', 'Cuenta', 'Nombre Cuenta', 'Descripcion', 'Tercero', 'Centro Costo / Bodega', 'Debito', 'Credito', 'Saldo Acumulado']
+      const rows = (auxiliaryReport?.movements || []).map((m) => [
+        m.date.slice(0, 10),
+        m.sourceDocumentNumber || m.entryNumber,
+        m.accountCode,
+        `"${m.accountName.replace(/"/g, '""')}"`,
+        `"${m.description.replace(/"/g, '""')}"`,
+        `"${(m.thirdPartyName || '').replace(/"/g, '""')}"`,
+        `"${(m.costCenterName || '').replace(/"/g, '""')}"`,
+        m.debit,
+        m.credit,
+        m.runningBalance,
+      ])
+      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    } else if (type === 'entries' || type === 'journal') {
       const headers = ['Numero', 'Fecha', 'Tipo', 'Documento', 'Descripcion', 'Tercero', 'Debito', 'Credito', 'Estado']
       const rows = entries.map((e) => [
         e.entryNumber,
@@ -262,6 +286,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     totalEntries,
     movements,
     totalMovements,
+    auxiliaryReport,
     balanceSheet,
     incomeStatement,
     selectedLedger,

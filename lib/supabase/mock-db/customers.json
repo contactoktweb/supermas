@@ -28,7 +28,8 @@
     "status": "ACTIVE",
     "notes": "Cliente mayorista con entrega prioritaria en CEDI Cali. Descuento por volumen pactado.",
     "createdAt": "2024-03-15T09:00:00Z",
-    "updatedAt": "2026-09-08T15:42:00Z"
+    "updatedAt": "2026-09-08T15:42:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-002",
@@ -59,7 +60,8 @@
     "status": "ACTIVE",
     "notes": "Pedidos quincenales de abarrotes y aceites premium.",
     "createdAt": "2024-07-20T11:30:00Z",
-    "updatedAt": "2026-09-09T10:12:00Z"
+    "updatedAt": "2026-09-09T10:12:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-003",
@@ -90,7 +92,8 @@
     "status": "ACTIVE",
     "notes": "Cuentas al día. Despachos directamente a sede Yumbo.",
     "createdAt": "2024-11-02T14:15:00Z",
-    "updatedAt": "2026-09-05T08:35:00Z"
+    "updatedAt": "2026-09-05T08:35:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-004",
@@ -122,7 +125,8 @@
     "status": "ACTIVE",
     "notes": "Cliente tradicional de mostrador en punto centro. Compras de contado.",
     "createdAt": "2025-01-10T16:00:00Z",
-    "updatedAt": "2026-09-07T17:18:00Z"
+    "updatedAt": "2026-09-07T17:18:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-005",
@@ -154,7 +158,8 @@
     "status": "ACTIVE",
     "notes": "Distribuidor mayorista en zona Palmira y Pradera.",
     "createdAt": "2025-02-18T10:00:00Z",
-    "updatedAt": "2026-09-06T11:20:00Z"
+    "updatedAt": "2026-09-06T11:20:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-006",
@@ -186,7 +191,8 @@
     "status": "ACTIVE",
     "notes": "Cliente genérico institucional para facturación rápida POS en mostrador.",
     "createdAt": "2024-01-01T08:00:00Z",
-    "updatedAt": "2026-09-10T14:30:00Z"
+    "updatedAt": "2026-09-10T14:30:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-007",
@@ -217,7 +223,8 @@
     "status": "ACTIVE",
     "notes": "Atención a eventos y catering institucional.",
     "createdAt": "2025-05-14T09:30:00Z",
-    "updatedAt": "2026-08-22T16:00:00Z"
+    "updatedAt": "2026-08-22T16:00:00Z",
+    "companyId": "comp-001"
   },
   {
     "id": "cust-008",
@@ -249,6 +256,7 @@
     "status": "INACTIVE",
     "notes": "Inactivo temporal por traslado de local comercial. Sin saldos pendientes.",
     "createdAt": "2025-01-20T14:00:00Z",
-    "updatedAt": "2026-06-01T10:00:00Z"
+    "updatedAt": "2026-06-01T10:00:00Z",
+    "companyId": "comp-001"
   }
 ]

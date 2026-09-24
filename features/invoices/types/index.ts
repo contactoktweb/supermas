@@ -75,11 +75,45 @@ export interface DIANTransmissionLog {
   responseTimeMs?: number
 }
 
+export interface DianResolutionConfig {
+  id: string
+  companyId?: string
+  dianPrefix: string // ej: 'FE', 'POS', 'NC'
+  resolutionNumber: string // ej: '18764000001'
+  resolutionDate: string // ej: '2026-01-15'
+  validFrom: string
+  validTo: string
+  initialRange: number
+  finalRange: number
+  currentNumber: number
+  documentType: InvoiceType
+  locationId?: string
+  locationName?: string
+  technicalKey?: string
+  isActive: boolean
+  createdById?: string
+  updatedById?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface Invoice {
   id: string
-  invoiceNumber: string // e.g. FAC-2026-00481, POS-2026-1024, NC-2026-0012
-  prefix: string // e.g. FAC, POS, NC, ND
-  resolutionNumber?: string // e.g. 18764000001
+  
+  // Numeración Interna ERP (Consecutivo administrativo del sistema)
+  internalNumber: string // e.g. FAC-00025, VENTA-000001
+  
+  // Autorización y Numeración Oficial Fiscal DIAN
+  dianPrefix: string // e.g. FE, POS, NC
+  dianNumber: number // e.g. 1250
+  dianResolution: string // e.g. 18764000001
+  dianResolutionDate?: string // e.g. 2026-01-15
+  dianRange?: string // e.g. 1000 - 50000
+  
+  // Identificador compuesto (FE-1250)
+  invoiceNumber: string
+  prefix: string // Retrocompatibilidad
+  resolutionNumber?: string // Retrocompatibilidad
   resolutionDate?: string
   type: InvoiceType
   status: InvoiceStatus

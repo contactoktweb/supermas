@@ -1,5 +1,91 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-24] — Corrección Final Modelo de Datos, Normalización Relacional y Certificación Pre-Supabase
+
+### Added & Normalized
+- **Normalización de Tablas Hijas**:
+  - `sale_items.json` desacoplada formalmente de `sales.json` (15 registros relacionales con `saleId`, `productId`, `unitPrice`, `unitCost`, `discountAmount`, `taxAmount`, `subtotal`, `total`).
+  - `purchase_items.json` desacoplada de `purchases.json` (8 registros con `purchaseId`, `productId`, `unitCost`, `taxAmount`, `subtotal`, `total`).
+  - `transfer_items.json` desacoplada de `transfers.json` (7 registros con `requestedQuantity`, `sentQuantity`, `receivedQuantity`, `unitCost`).
+  - `remission_items.json` desacoplada de `remissions.json` (7 registros con `quantityRequested`, `quantityDelivered`, `unitCost`, `unitPrice`).
+  - `cash_sessions.json` desacoplada de cajas físicas `cash_registers.json` (turnos de caja con arqueo, faltantes/sobrantes, ventas en efectivo y medios electrónicos).
+  - `product_prices.json` creada como matriz multitarifa normalizada (44 registros: Público, Mayorista, Distribuidor, Institucional y Promocional).
+  - `accounting_entry_lines.json` desacoplada de `accounting_entries.json` (18 líneas con códigos PUC, débitos, créditos y terceros).
+- **Multiempresa y Multibodega**:
+  - Incorporado `company_id` / `companyId` (`comp-001`) transversalmente en todas las tablas maestras y transaccionales para soporte directo de Row Level Security (RLS).
+  - Verificado `locationId` en inventario, ventas, compras, transferencias, cajas y tesorería.
+  - El stock físico reside estrictamente en `stock_levels` (`productId + locationId`) con Kardex inmutable en `inventory_movements`.
+- **Servicios y Repositorios**:
+  - `SalesRepository.getItems(saleId)`: consulta relacional de líneas de venta.
+  - `PurchaseRepository.getItems(purchaseId)`: consulta relacional de detalle de compra.
+  - `TransferRepository.getItems(transferId)`: consulta relacional de líneas de traslado.
+  - `RemissionRepository.getItems(remissionId)`: consulta relacional de líneas de remisión.
+  - `ProductRepository.getPrices(productId)` y `ProductRepository.getStockLevels(productId)`: consultas desacopladas de listas de precios y existencias.
+  - `POSRepository.getActiveSession(registerId)` y `POSRepository.getSessions(filter)`: gestión relacional de turnos.
+- **Migración DDL PostgreSQL 013**:
+  - `supabase/migrations/013_pre_supabase_audit_and_model_fixes.sql`:
+    - Foreign keys multiempresa `company_id` con índices dedicados.
+    - DDL de tabla `product_prices`.
+    - Trigger PL/pgSQL `fn_enforce_accounting_double_entry()` que bloquea comprobantes descuadrados al asentar.
+    - Políticas RLS para aislamiento estricto de empresas.
+- **Suite de Pruebas de Integridad Pre-Supabase (`scripts/test-model-integrity.ts`)**:
+  - 39 pruebas automáticas ejecutadas al 100% de éxito cubriendo Fase 10 (Integridad), Fase 11 (JOINs) y Fase 13 (Simulación de día completo).
+
+---
+
+## [2026-09-24] — Reestructuración y Corrección Funcional del Módulo Contable, Tesorería y Facturación DIAN
+
+### Added & Enhanced
+- **1. Libro Auxiliar Contable por Cuenta y Periodo (`features/accounting/`)**:
+  - **Consulta Práctica por Periodo**: Se modificó la vista del Libro Auxiliar para superar la limitación de visualización por asiento aislado. Permite seleccionar modo de periodo (Mes, Año, Rango libre de fechas) y consultar el comportamiento consolidado de cualquier cuenta (Caja `1105`, Bancos `1110`, Clientes `1305`, Materias Primas `1405`, Prod. en Proceso `1410`, Prod. Terminados `1430`, Mercancías `1435`, Proveedores `2205`, Ventas `4135`, Costos `6135`).
+  - **Panel Financiero Resumen Agrupado**: Muestra en tiempo real:
+    - *Saldo Inicial*: Calculado sumando el saldo de apertura más todos los movimientos débitos/créditos netos anteriores a la fecha de inicio del periodo.
+    - *Movimientos Débito (+)*: Total cargado a la cuenta en el periodo.
+    - *Movimientos Crédito (-)*: Total abonado a la cuenta en el periodo.
+    - *Saldo Final*: Resultado balanceado según la naturaleza de la cuenta (Débito: Saldo Inicial + Débito - Crédito; Crédito: Saldo Inicial + Crédito - Débito).
+  - **Filtros Avanzados y Drill-Down**: Filtros por Cuenta PUC, Rango de Fecha, Tercero (Clientes y Proveedores) y Centro de Costo / Bodega. Botón "Ver Asiento" que abre el drawer con el comprobante completo. Exportación a CSV oficial del libro auxiliar.
+
+- **2. Plan de Cuentas PUC Multiclase de Inventarios**:
+  - Se extendió el catálogo contable en `accounting_accounts.json` para soportar las 4 clases de inventarios:
+    - *Materias Primas* (`1405`, cuentas `140501`, `140502`) con contrapartida de consumo en `710501`.
+    - *Productos en Proceso* (`1410`, cuenta `141001`) con contrapartida de costo en `612001`.
+    - *Productos Terminados* (`1430`, cuenta `143001`) con contrapartida de costo en `612001`.
+    - *Mercancías para la Venta* (`1435`, cuenta `143501`) con contrapartida de costo en `613501`.
+  - **Relación Productos → Categoría Contable Inventario → Cuenta Contable**: Modelado en `products.json` (`inventoryType`), `accounting.repository.ts` (`categoryMappings`) y `AccountingConfigTab.tsx` con selector de tipo de inventario, badges visuales y configuración dinámica en base de datos sin datos quemados en componentes.
+
+- **3. Módulo Independiente de Tesorería (`features/treasury/`, `/tesoreria`)**:
+  - Se desacopló la gestión operativa de pagos y recaudos del módulo contable, creando el módulo de **Tesorería**.
+  - **Responsabilidades de Tesorería**: Cuentas bancarias y saldos disponibles, programación de desembolsos a proveedores (CXP), recibos de caja y recaudos de clientes (CXC), conciliación bancaria.
+  - **Flujo Canónico con Contabilidad**: Factura Compra Proveedor → Tesorería programa pago → Desembolso ejecutado en banco → Contabilidad genera automáticamente el asiento oficial con partida doble (`Débito: 220505 Proveedores, Crédito: 111005 Bancos`).
+  - Registro de Tesorería en navegación global (`components/navigation/modules.ts`) y banner bidireccional en la pestaña de Cartera de Contabilidad (`AccountingReceivablesPayablesTab.tsx`).
+
+- **4. Separación Estricta de Prefijos y Numeración (ERP vs. DIAN)**:
+  - Se eliminó la ambigüedad entre el consecutivo interno del ERP y la autorización fiscal DIAN.
+  - **Campos en Entidad Invoice y Base de Datos**:
+    - `internalNumber` (`internal_number`): Identificador único interno del ERP (ej: `FAC-00025`, `VENTA-000001`, `NC-000100`).
+    - `dianPrefix`: Prefijo autorizado por la DIAN (ej: `FE`, `POS`, `NC`).
+    - `dianNumber`: Número consecutivo autorizado por la DIAN (ej: `1250`).
+    - `dianResolution`: Número de resolución DIAN vigente (ej: `18764000001`).
+    - `dianRange`: Rango autorizado oficial (ej: `1000 - 50000`).
+  - Tabla relacional y mock `dian_resolutions.json` / `dian_resolutions` para controlar rangos autorizados y vigencia de resoluciones. Visualización clara en tablas y cajones de detalle de facturación.
+
+- **5. Persistencia y Migraciones PostgreSQL Multi-Bodega con Auditoría**:
+  - Actualizada migración DDL en `supabase/migrations/011_accounting_treasury_and_dian_separation.sql` con las tablas `dian_resolutions`, `bank_accounts`, `treasury_payments`, `treasury_receipts`, `bank_movements`, incorporando en todas: `company_id`, `location_id`, `created_by_user_id`, `updated_by_user_id`, `created_at`, `updated_at`, índices dedicados y políticas Row Level Security (RLS) integradas con `has_location_access(location_id)`.
+
+- **6. Periodos Contables, Cierres Mensuales y Bloqueo de Meses Cerrados (`accounting_periods` / Migración 012)**:
+  - Creada tabla y migración PostgreSQL `supabase/migrations/012_accounting_periods_and_notes.sql` junto con el almacén mock `accounting_periods.json`.
+  - **Bloqueo Estricto de Meses Clausurados**: En `accounting.service.ts` (`assertPeriodOpen`), `accounting-rules.service.ts` y mediante el trigger PL/pgSQL `fn_prevent_entries_on_closed_period()`, el sistema bloquea tajantemente la creación, modificación, causación o reversión de comprobantes en periodos con estado `CLOSED` (ej: Enero a Agosto 2026).
+  - **Reapertura Autorizada y Auditada**: Métodos `closePeriod` y `reopenPeriod` con validación de permiso `accounting.periods`, justificación formal obligatoria y registro inmutable en `auditService.log()`.
+
+- **7. Soporte para Notas Contables y Ajustes Formales**:
+  - Se extendió el tipo `AccountingSourceType` para soportar:
+    - *Nota Crédito (`CREDIT_NOTE`)*: Devoluciones y rebajas comerciales.
+    - *Nota Débito (`DEBIT_NOTE`)*: Gastos financieros, intereses y cargos suplementarios.
+    - *Ajuste Contable (`ACCOUNTING_ADJUSTMENT`)*: Depreciaciones, provisiones, reclasificaciones de activos y pasivos.
+    - *Cierre Anual (`CLOSING_ENTRY`)*: Cancelación de cuentas de resultados contra la 5905 Pérdidas y Ganancias.
+
+---
+
 ## [2026-09-19] — Corrección y Modernización de Gráficas de Rendimiento y Stock en Bodegas
 
 ### Fixed & Enhanced

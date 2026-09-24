@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { InventoryAccountMapping, ExogenaPrepItem, AccountingAccount } from '../../types'
 import { db } from '@/lib/supabase/db'
@@ -22,6 +23,12 @@ export function AccountingConfigTab({
 }: AccountingConfigTabProps) {
   const [editingMapping, setEditingMapping] = useState<InventoryAccountMapping | null>(null)
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
   const taxConfigs = db.taxConfigs || []
 
   const inventoryAccounts = accounts.filter((a) => a.code.startsWith('14'))
@@ -218,9 +225,9 @@ export function AccountingConfigTab({
       </section>
 
       {/* Modal de Edición de Mapeo */}
-      {editingMapping && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5 space-y-4">
+      {editingMapping && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5 space-y-4 relative">
             <div className="flex items-center justify-between border-b pb-3">
               <div>
                 <h3 className="text-sm font-bold text-gray-900">
@@ -362,7 +369,8 @@ export function AccountingConfigTab({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 2. Integración con el Módulo de Impuestos (tax_configs.json) */}

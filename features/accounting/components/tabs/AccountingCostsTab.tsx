@@ -37,10 +37,20 @@ export function AccountingCostsTab({
     )
   }
 
-  const totalValuedStock = filtered.reduce((acc, c) => acc + c.totalValuedCost, 0)
+  const totalValuedStock = filtered.reduce((acc, c) => {
+    const cost = costMethod === 'FIFO' ? c.lastPurchaseCost : c.averageCost
+    return acc + (c.stockQuantity * cost)
+  }, 0)
+
   const averageMargin =
     filtered.length > 0
-      ? (filtered.reduce((acc, c) => acc + c.profitMarginPercent, 0) / filtered.length).toFixed(1)
+      ? (
+          filtered.reduce((acc, c) => {
+            const cost = costMethod === 'FIFO' ? c.lastPurchaseCost : c.averageCost
+            const margin = c.normalPrice > 0 ? ((c.normalPrice - cost) / c.normalPrice) * 100 : 100
+            return acc + margin
+          }, 0) / filtered.length
+        ).toFixed(1)
       : '0'
 
   return (
@@ -90,9 +100,11 @@ export function AccountingCostsTab({
             Valoración Total del Inventario a Costo
           </span>
           <strong className="text-xl font-mono text-blue-950">
-            ${totalValuedStock.toLocaleString('es-CO')}
+            ${totalValuedStock.toLocaleString('es-CO', { maximumFractionDigits: 0 })}
           </strong>
-          <span className="text-[11px] text-blue-600 block mt-1">Costo medio ponderado en libros</span>
+          <span className="text-[11px] text-blue-600 block mt-1">
+            {costMethod === 'FIFO' ? 'Valorado según PEPS' : 'Costo medio ponderado en libros'}
+          </span>
         </div>
 
         <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100">
@@ -160,7 +172,9 @@ export function AccountingCostsTab({
               <tr>
                 <th>Producto y SKU</th>
                 <th style={{ width: 130 }}>Categoría</th>
-                <th style={{ width: 110, textAlign: 'right' }}>Costo Promedio</th>
+                <th style={{ width: 110, textAlign: 'right' }}>
+                  {costMethod === 'FIFO' ? 'Costo Lote (PEPS)' : 'Costo Promedio'}
+                </th>
                 <th style={{ width: 110, textAlign: 'right' }}>Última Compra</th>
                 <th style={{ width: 110, textAlign: 'right' }}>Precio Normal</th>
                 <th style={{ width: 110, textAlign: 'right' }}>Precio Mayorista</th>
@@ -177,69 +191,76 @@ export function AccountingCostsTab({
                   </td>
                 </tr>
               ) : (
-                filtered.map((item) => (
-                  <tr key={item.productId} className="hover:bg-blue-50/40 transition-colors">
-                    <td>
-                      <div className="flex flex-col">
-                        <strong className="text-xs text-gray-900 font-semibold">{item.name}</strong>
-                        <span className="font-mono text-[11px] text-gray-500">
-                          {item.sku} | Barcode: {item.barcode}
+                filtered.map((item) => {
+                  const displayCost = costMethod === 'FIFO' ? item.lastPurchaseCost : item.averageCost
+                  const displayMarginCOP = item.normalPrice - displayCost
+                  const displayMarginPercent = item.normalPrice > 0 ? (displayMarginCOP / item.normalPrice) * 100 : 0
+                  const displayTotalValuedCost = item.stockQuantity * displayCost
+
+                  return (
+                    <tr key={item.productId} className="hover:bg-blue-50/40 transition-colors">
+                      <td>
+                        <div className="flex flex-col">
+                          <strong className="text-xs text-gray-900 font-semibold">{item.name}</strong>
+                          <span className="font-mono text-[11px] text-gray-500">
+                            {item.sku} | Barcode: {item.barcode}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge badge-gray text-[11px]">{item.category}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-xs font-semibold text-rose-900">
+                          ${Math.round(displayCost).toLocaleString('es-CO')}
                         </span>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="badge badge-gray text-[11px]">{item.category}</span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="font-mono text-xs font-semibold text-rose-900">
-                        ${Math.round(item.averageCost).toLocaleString('es-CO')}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="font-mono text-xs text-gray-600">
-                        ${Math.round(item.lastPurchaseCost).toLocaleString('es-CO')}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="font-mono text-xs font-semibold text-gray-900">
-                        ${item.normalPrice.toLocaleString('es-CO')}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="font-mono text-xs text-blue-800">
-                        ${item.wholesalePrice.toLocaleString('es-CO')}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="font-mono text-xs font-semibold text-emerald-700">
-                        +${Math.round(item.profitMarginCOP).toLocaleString('es-CO')}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span
-                        className={`badge text-[11px] font-bold ${
-                          item.profitMarginPercent >= 25
-                            ? 'badge-teal'
-                            : item.profitMarginPercent >= 15
-                            ? 'badge-blue'
-                            : 'badge-amber'
-                        }`}
-                      >
-                        {item.profitMarginPercent}%
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div className="flex flex-col items-end">
-                        <span className="font-mono text-xs font-bold text-gray-900">
-                          ${Math.round(item.totalValuedCost).toLocaleString('es-CO')}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-xs text-gray-600">
+                          ${Math.round(item.lastPurchaseCost).toLocaleString('es-CO')}
                         </span>
-                        <span className="text-[10px] text-gray-400">
-                          {item.stockQuantity} {item.unitOfMeasure}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-xs font-semibold text-gray-900">
+                          ${item.normalPrice.toLocaleString('es-CO')}
                         </span>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-xs text-blue-800">
+                          ${item.wholesalePrice.toLocaleString('es-CO')}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span className="font-mono text-xs font-semibold text-emerald-700">
+                          +${Math.round(displayMarginCOP).toLocaleString('es-CO')}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span
+                          className={`badge text-[11px] font-bold ${
+                            displayMarginPercent >= 25
+                              ? 'badge-teal'
+                              : displayMarginPercent >= 15
+                              ? 'badge-blue'
+                              : 'badge-amber'
+                          }`}
+                        >
+                          {displayMarginPercent.toFixed(1)}%
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono text-xs font-bold text-gray-900">
+                            ${Math.round(displayTotalValuedCost).toLocaleString('es-CO')}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {item.stockQuantity} {item.unitOfMeasure}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

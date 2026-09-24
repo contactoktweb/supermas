@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import {
   AccountingMovement,
   AccountingFilters,
@@ -99,7 +100,47 @@ export function AccountingMovementsTab({
   const isSpecificAccount = Boolean(selectedAccount)
 
   const handlePeriodModeChange = (mode: PeriodMode) => {
-    onFilterChange({ periodMode: mode })
+    if (mode === 'RANGE') {
+      onFilterChange({
+        periodMode: 'RANGE',
+        dateFrom: filters.dateFrom || '2026-09-01',
+        dateTo: filters.dateTo || '2026-09-30',
+      })
+    } else if (mode === 'MONTH') {
+      onFilterChange({
+        periodMode: 'MONTH',
+        month: currentMonth,
+        year: currentYear,
+      })
+    } else if (mode === 'YEAR') {
+      onFilterChange({
+        periodMode: 'YEAR',
+        year: currentYear,
+      })
+    }
+  }
+
+  const hasActiveFilters =
+    Boolean(filters.thirdPartyId && filters.thirdPartyId !== 'ALL') ||
+    Boolean(filters.locationId && filters.locationId !== 'ALL') ||
+    Boolean(filters.accountId && filters.accountId !== 'ALL') ||
+    currentPeriodMode !== 'MONTH' ||
+    currentMonth !== '09' ||
+    currentYear !== 2026
+
+  const handleResetFilters = () => {
+    onFilterChange({
+      periodMode: 'MONTH',
+      month: '09',
+      year: 2026,
+      dateFrom: '2026-09-01',
+      dateTo: '2026-09-30',
+      thirdPartyId: 'ALL',
+      locationId: 'ALL',
+      costCenterId: 'ALL',
+      accountId: 'ALL',
+      query: '',
+    })
   }
 
   const handleViewEntry = (entryId: string, entryNumber: string) => {
@@ -113,7 +154,7 @@ export function AccountingMovementsTab({
   return (
     <div className="space-y-5 page-enter">
       {/* 1. Barra Superior de Control y Periodo */}
-      <div className="p-4 bg-white rounded-xl border border-gray-200 shadow-xs space-y-4">
+      <div className="p-4 bg-white rounded-xl border border-gray-100 shadow-sm space-y-4">
         {/* Fila 1: Título, Atajos Rápidos de Periodo y Exportación */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3">
           <div>
@@ -126,35 +167,43 @@ export function AccountingMovementsTab({
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Selector de Modo de Periodo */}
-            <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Selector de Modo de Periodo usando los estilos estándar period-segmented-tabs */}
+            <div className="period-segmented-tabs" role="tablist" aria-label="Modo de consulta de periodo">
               <button
                 type="button"
-                className={`text-xs px-3 py-1 font-semibold rounded-md transition-all ${
-                  currentPeriodMode === 'MONTH' ? 'bg-white text-blue-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
-                }`}
+                role="tab"
+                aria-selected={currentPeriodMode === 'MONTH'}
+                className={`period-tab-btn ${currentPeriodMode === 'MONTH' ? 'selected' : ''}`}
                 onClick={() => handlePeriodModeChange('MONTH')}
               >
-                Por Mes
+                <AppIcon name="calendar" size={13} />
+                <span>Por Mes</span>
               </button>
               <button
                 type="button"
-                className={`text-xs px-3 py-1 font-semibold rounded-md transition-all ${
-                  currentPeriodMode === 'YEAR' ? 'bg-white text-blue-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
-                }`}
+                role="tab"
+                aria-selected={currentPeriodMode === 'YEAR'}
+                className={`period-tab-btn ${currentPeriodMode === 'YEAR' ? 'selected' : ''}`}
                 onClick={() => handlePeriodModeChange('YEAR')}
               >
-                Por Año
+                <AppIcon name="clock" size={13} />
+                <span>Por Año</span>
               </button>
               <button
                 type="button"
-                className={`text-xs px-3 py-1 font-semibold rounded-md transition-all ${
-                  currentPeriodMode === 'RANGE' ? 'bg-white text-blue-900 shadow-xs' : 'text-gray-600 hover:text-gray-900'
-                }`}
+                role="tab"
+                aria-selected={currentPeriodMode === 'RANGE'}
+                className={`period-tab-btn ${currentPeriodMode === 'RANGE' ? 'selected' : ''}`}
                 onClick={() => handlePeriodModeChange('RANGE')}
               >
-                Rango de Fechas
+                <AppIcon name="calendar" size={13} />
+                <span>Rango de Fechas</span>
+                {currentPeriodMode === 'RANGE' && filters.dateFrom && filters.dateTo && (
+                  <small className="custom-dates-pill">
+                    {filters.dateFrom.substring(5).replace('-', '/')} - {filters.dateTo.substring(5).replace('-', '/')}
+                  </small>
+                )}
               </button>
             </div>
 
@@ -162,7 +211,7 @@ export function AccountingMovementsTab({
             {onExportAuxiliary && (
               <button
                 type="button"
-                className="outline-button text-xs py-1 px-3 flex items-center gap-1.5"
+                className="outline-button text-xs py-1.5 px-3 flex items-center gap-1.5"
                 onClick={onExportAuxiliary}
               >
                 <AppIcon name="download" size={13} />
@@ -172,40 +221,50 @@ export function AccountingMovementsTab({
           </div>
         </div>
 
-        {/* Fila 2: Selectores de Fecha según el Modo */}
-        <div className="flex flex-wrap items-center gap-3 text-xs">
+        {/* Fila 2: Selectores de Fecha según el Modo y Filtros de Tercero / Bodega */}
+        <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          {/* Si es Por Mes */}
           {currentPeriodMode === 'MONTH' && (
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-600">Periodo:</span>
-              <select
-                className="filter-select text-xs font-semibold"
-                value={currentMonth}
-                onChange={(e) => onFilterChange({ month: e.target.value })}
-              >
-                {MONTH_NAMES.map((m) => (
-                  <option key={m.value} value={m.value}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
+                <AppIcon name="calendar" size={14} color="var(--navy)" />
+                <span className="text-slate-500 font-medium">Mes:</span>
+                <select
+                  className="filter-select font-semibold text-slate-800 cursor-pointer"
+                  value={currentMonth}
+                  onChange={(e) => onFilterChange({ month: e.target.value })}
+                >
+                  {MONTH_NAMES.map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <select
-                className="filter-select text-xs font-semibold"
-                value={currentYear}
-                onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
-              >
-                <option value={2026}>2026</option>
-                <option value={2025}>2025</option>
-                <option value={2024}>2024</option>
-              </select>
+              <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
+                <AppIcon name="clock" size={14} color="#64748b" />
+                <span className="text-slate-500 font-medium">Año:</span>
+                <select
+                  className="filter-select font-semibold text-slate-800 cursor-pointer"
+                  value={currentYear}
+                  onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
+                >
+                  <option value={2026}>2026</option>
+                  <option value={2025}>2025</option>
+                  <option value={2024}>2024</option>
+                </select>
+              </div>
             </div>
           )}
 
+          {/* Si es Por Año */}
           {currentPeriodMode === 'YEAR' && (
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-gray-600">Año Fiscal:</span>
+            <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
+              <AppIcon name="calendar" size={14} color="var(--navy)" />
+              <span className="text-slate-500 font-medium">Año Fiscal:</span>
               <select
-                className="filter-select text-xs font-semibold"
+                className="filter-select font-semibold text-slate-800 cursor-pointer"
                 value={currentYear}
                 onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
               >
@@ -216,30 +275,31 @@ export function AccountingMovementsTab({
             </div>
           )}
 
+          {/* Si es Rango de Fechas - Usamos el DateRangeFilter oficial del ERP */}
           {currentPeriodMode === 'RANGE' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-gray-600">Desde:</span>
-              <input
-                type="date"
-                className="filter-select text-xs"
-                value={filters.dateFrom || '2026-09-01'}
-                onChange={(e) => onFilterChange({ dateFrom: e.target.value })}
-              />
-              <span className="font-semibold text-gray-600">Hasta:</span>
-              <input
-                type="date"
-                className="filter-select text-xs"
-                value={filters.dateTo || '2026-09-30'}
-                onChange={(e) => onFilterChange({ dateTo: e.target.value })}
+            <div className="flex items-center gap-2">
+              <DateRangeFilter
+                startDate={filters.dateFrom || '2026-09-01'}
+                endDate={filters.dateTo || '2026-09-30'}
+                onChange={({ startDate, endDate }) => {
+                  onFilterChange({
+                    dateFrom: startDate || '2026-09-01',
+                    dateTo: endDate || '2026-09-30',
+                    periodMode: 'RANGE',
+                  })
+                }}
+                placeholder="Rango de fechas"
+                size="sm"
               />
             </div>
           )}
 
           {/* Filtro por Tercero */}
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-600">Tercero:</span>
+          <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
+            <AppIcon name="users" size={14} color="var(--navy)" />
+            <span className="text-slate-500 font-medium whitespace-nowrap">Tercero:</span>
             <select
-              className="filter-select text-xs max-w-[200px]"
+              className="filter-select font-semibold text-slate-800 cursor-pointer max-w-[200px]"
               value={filters.thirdPartyId || 'ALL'}
               onChange={(e) => onFilterChange({ thirdPartyId: e.target.value })}
             >
@@ -253,10 +313,11 @@ export function AccountingMovementsTab({
           </div>
 
           {/* Filtro por Centro de Costo / Bodega */}
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-gray-600">Centro / Bodega:</span>
+          <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
+            <AppIcon name="warehouse" size={14} color="#64748b" />
+            <span className="text-slate-500 font-medium whitespace-nowrap">Bodega / Centro:</span>
             <select
-              className="filter-select text-xs max-w-[180px]"
+              className="filter-select font-semibold text-slate-800 cursor-pointer max-w-[180px]"
               value={filters.locationId || 'ALL'}
               onChange={(e) => onFilterChange({ locationId: e.target.value, costCenterId: e.target.value })}
             >
@@ -268,26 +329,45 @@ export function AccountingMovementsTab({
               ))}
             </select>
           </div>
+
+          {/* Botón de limpiar filtros si hay alguno activo */}
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="outline-button compact text-xs h-[38px] px-2.5 flex items-center gap-1.5 text-slate-600 hover:text-red-600 hover:border-red-200 ml-auto transition-colors"
+              onClick={handleResetFilters}
+              title="Restablecer todos los filtros"
+            >
+              <AppIcon name="close" size={12} />
+              <span>Limpiar filtros</span>
+            </button>
+          )}
         </div>
 
         {/* Fila 3: Selección de Cuenta y Atajos Rápidos */}
-        <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-gray-700 min-w-max">Cuenta Contable:</span>
-          <select
-            className="filter-select text-xs font-bold text-blue-900 bg-blue-50/50 max-w-sm flex-1"
-            value={filters.accountId || 'ALL'}
-            onChange={(e) => onFilterChange({ accountId: e.target.value })}
-          >
-            <option value="ALL">Todas las cuentas (Resumen Consolidado)</option>
-            {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id}>
-                {acc.code} — {acc.name} ({acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'})
-              </option>
-            ))}
-          </select>
+        <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-[280px] max-w-md">
+            <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-blue-50/50 border border-blue-200 rounded-lg text-xs w-full">
+              <AppIcon name="table" size={14} color="var(--navy)" />
+              <span className="text-blue-900 font-bold whitespace-nowrap">Cuenta PUC:</span>
+              <select
+                className="filter-select font-bold text-blue-950 cursor-pointer w-full"
+                value={filters.accountId || 'ALL'}
+                onChange={(e) => onFilterChange({ accountId: e.target.value })}
+              >
+                <option value="ALL">Todas las cuentas (Resumen Consolidado)</option>
+                {accounts.map((acc) => (
+                  <option key={acc.id} value={acc.id}>
+                    {acc.code} — {acc.name} ({acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {/* Botones de acceso rápido a cuentas comunes */}
-          <div className="flex flex-wrap items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-slate-400 mr-1 hidden sm:inline">Accesos:</span>
             {QUICK_ACCOUNT_SHORTCUTS.map((sc) => {
               const isSelected =
                 (sc.code === 'ALL' && (!filters.accountId || filters.accountId === 'ALL')) ||
@@ -298,10 +378,10 @@ export function AccountingMovementsTab({
                 <button
                   key={sc.code}
                   type="button"
-                  className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
+                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-all ${
                     isSelected
-                      ? 'bg-blue-900 text-white font-bold'
-                      : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                      ? 'bg-blue-900 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
                   onClick={() => {
                     if (sc.code === 'ALL') {

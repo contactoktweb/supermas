@@ -119,7 +119,7 @@ console.log('\n[1.5] Integridad Facturación DIAN: Número Interno ≠ Número D
 const invoicesWithDian = db.invoices.filter((inv) => inv.dianStatus === 'ACCEPTED' || inv.cufe)
 assert(invoicesWithDian.length > 0, 'Existen facturas validadas con resolución DIAN')
 invoicesWithDian.forEach((inv) => {
-  const hasPrefix = Boolean(inv.dianPrefix || inv.prefix || inv.invoiceNumber.startsWith('FAC') || inv.invoiceNumber.startsWith('SETP'))
+  const hasPrefix = Boolean(inv.dianPrefix || (inv as any).prefix || inv.invoiceNumber.startsWith('FAC') || inv.invoiceNumber.startsWith('SETP'))
   const hasCufe = Boolean(inv.dianCufe || inv.cufe)
   assert(hasPrefix && hasCufe, `Factura ${inv.invoiceNumber} cumple separación DIAN y CUFE criptográfico`)
 })
@@ -175,10 +175,11 @@ function getSupplierComplete(supplierId: string) {
   const supp = db.suppliers.find((s) => s.id === supplierId)
   if (!supp) return null
   const suppPurchases = db.purchases.filter((p) => p.supplierId === supplierId)
-  const suppPayments = db.treasuryPayments.filter((tp) => tp.thirdPartyDoc === supp.taxId || tp.thirdPartyName?.includes(supp.name))
+  const suppDoc = supp.documentNumber || supp.nit || (supp as any).taxId
+  const suppPayments = db.treasuryPayments.filter((tp) => tp.thirdPartyDoc === suppDoc || tp.thirdPartyName?.includes(supp.name))
   return {
     supplier: supp.name,
-    nit: supp.taxId,
+    nit: suppDoc,
     purchasesCount: suppPurchases.length,
     paymentsCount: suppPayments.length,
   }

@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useTreasury, TreasuryTab } from '../hooks/useTreasury'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
@@ -34,6 +35,11 @@ export function TreasuryPage() {
   const [refNumber, setRefNumber] = useState<string>('')
   const [successToast, setSuccessToast] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleExecutePayment = async (paymentId: string) => {
     try {
@@ -92,34 +98,33 @@ export function TreasuryPage() {
       )}
 
       {/* Header Principal */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 bg-white rounded-2xl border border-gray-100 shadow-sm">
+      <header className="page-heading">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-gray-900">Módulo de Tesorería</h1>
-            <span className="badge badge-blue">ERP Financiero</span>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="eyebrow">ERP Financiero</p>
+          <h1>Tesorería</h1>
+          <p className="welcome-subtitle">
             Gestión independiente de pagos a proveedores, recaudos, cuentas bancarias y flujo de caja con contabilización automática.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="heading-actions">
           <button
             type="button"
-            className="outline-button text-xs py-2 px-3"
+            className="outline-button"
             onClick={loadData}
           >
-            <AppIcon name="refresh" size={14} />
+            <AppIcon name="refresh" size={16} />
             <span>Actualizar Saldos</span>
           </button>
           <Link
             href="/contabilidad"
-            className="primary-button text-xs py-2 px-3 flex items-center gap-1.5"
+            className="primary-button"
           >
-            <AppIcon name="accounting" size={14} />
+            <AppIcon name="accounting" size={16} />
             <span>Ir a Contabilidad</span>
           </Link>
         </div>
-      </div>
+      </header>
 
       {/* Tarjetas KPI de Tesorería */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -467,9 +472,9 @@ export function TreasuryPage() {
       )}
 
       {/* Modal de Ejecución de Pago */}
-      {executingPaymentId && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 animate-scale-up">
+      {executingPaymentId && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 animate-scale-up relative">
             <div className="flex items-center justify-between border-b pb-3">
               <h3 className="text-sm font-bold text-gray-900">Ejecutar Pago en Tesorería</h3>
               <button
@@ -534,7 +539,8 @@ export function TreasuryPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

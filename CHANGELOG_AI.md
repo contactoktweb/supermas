@@ -1,5 +1,16 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-24] — Estandarización Visual y Filtro de Periodo en Libro Auxiliar Contable
+
+### Enhanced UI/UX
+- **Filtros Libro Auxiliar Contable (`AccountingMovementsTab.tsx`)**:
+  - Se homogeneizó el selector de periodo (`Por Mes`, `Por Año`, `Rango de Fechas`) implementando el estándar visual de la aplicación con `.period-segmented-tabs` y `.period-tab-btn`.
+  - Integración nativa del componente `<DateRangeFilter>` del ERP para selección de rangos con atajos rápidos y selector emergente en modo `RANGE`.
+  - Estilos consistentes con `.filter-select-wrap` con iconos temáticos (`calendar`, `clock`, `users`, `warehouse`, `table`) para los selectores de Mes, Año, Tercero, Bodega y Cuenta PUC.
+  - Accesos rápidos en píldoras con feedback interactivo y botón de limpieza de filtros.
+
+---
+
 ## [2026-09-24] — Corrección Final Modelo de Datos, Normalización Relacional y Certificación Pre-Supabase
 
 ### Added & Normalized

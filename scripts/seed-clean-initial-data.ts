@@ -1,16 +1,21 @@
 /**
  * ==============================================================================
- * SCRIPT DE INSTALACIÓN LIMPIA: CONFIGURACIÓN INICIAL DEL SISTEMA
- * ERP SUPER MÁS S.A.S.
+ * SCRIPT DE INICIALIZACIÓN BASE: PARÁMETROS TRIBUTARIOS Y CONTABLES
+ * ERP SUPER MÁS S.A.S. — Supabase PostgreSQL
  * ==============================================================================
  *
  * Objetivo:
- * Inicializar en Supabase PostgreSQL ÚNICAMENTE las tablas de configuración,
- * perfiles tributarios DIAN, estructura PUC base y usuario administrador inicial.
+ * Cargar ÚNICAMENTE los catálogos regulatorios y estructurales en Supabase:
+ * - Tarifas e impuestos oficiales DIAN (tax_configs)
+ * - Plan Único de Cuentas PUC (accounting_accounts)
+ * - Periodo contable fiscal inicial (accounting_periods)
+ * - Parámetros técnicos del sistema (settings)
  *
- * PROHIBIDO:
- * NO crea productos, ni clientes, ni proveedores, ni ventas, ni compras,
- * ni inventario, ni movimientos de Kardex.
+ * REGLAS DE SEGURIDAD Y PUREZA:
+ * 1. NO crea credenciales de usuario ni toca public.users (el primer usuario
+ *    se registra directamente en Supabase Auth y el trigger le asigna SUPERADMIN).
+ * 2. NO crea empresas (se configura por el administrador desde la UI /configuracion).
+ * 3. NO crea bodegas, ni productos, ni clientes, ni proveedores, ni inventario, ni ventas.
  *
  * Ejecución:
  * npx tsx scripts/seed-clean-initial-data.ts
@@ -24,8 +29,8 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseKey) {
-  console.log('ℹ️ Para ejecutar este script contra Supabase en producción:')
-  console.log('   Configura NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en tu entorno.')
+  console.log('ℹ️ Para ejecutar este script contra Supabase:')
+  console.log('   Configura NEXT_PUBLIC_SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en tu .env.local.')
   console.log('   Si estás operando en desarrollo con base vacía simulada, la app ya está lista.')
   process.exit(0)
 }
@@ -46,54 +51,16 @@ function readJson<T = any>(filename: string): T {
 
 async function seedCleanBootstrap() {
   console.log('====================================================================')
-  console.log('🚀 INICIALIZACIÓN LIMPIA DE SUPABASE POSTGRESQL — ERP SUPER MÁS')
+  console.log('🚀 INICIALIZACIÓN BASE REGULATORIA — ERP SUPER MÁS')
   console.log('====================================================================')
-  console.log('🔒 REGLA: Cero datos comerciales (0 productos, 0 clientes, 0 inventario)')
+  console.log('🔒 REGLAS ACTIVAS:')
+  console.log('   - CERO usuarios creados por seed (Autenticación exclusiva vía Supabase Auth)')
+  console.log('   - CERO empresas creadas por seed (Configuración en UI por el usuario)')
+  console.log('   - CERO datos comerciales (0 productos, 0 bodegas, 0 clientes, 0 stock)')
 
   try {
-    // 1. Configuración de Empresa Matriz
-    console.log('\n[1/6] Configurando empresa principal (company_settings)...')
-    const compData = readJson('company_settings.json')
-    const { error: compErr } = await supabase.from('company_settings').upsert({
-      id: compData.id || 'comp-supermas-001',
-      business_name: compData.businessName || 'Distribuidora Super Más S.A.S.',
-      trade_name: compData.tradeName || 'Super Más',
-      tax_id: compData.nit || '900.842.109-4',
-      verification_digit: compData.dv || '4',
-      tax_regime: compData.taxRegime || 'RESPONSABLE_DE_IVA',
-      economic_activity_code: compData.economicActivityCode || '4711',
-      legal_representative_name: compData.legalRepresentative || 'Mauricio Andrade',
-      legal_representative_doc: compData.legalRepresentativeDoc || '71.284.920',
-      address: compData.address || 'Calle 50 # 45-28',
-      city: compData.city || 'Medellín',
-      department: compData.department || 'Antioquia',
-      phone: compData.phone || '+57 (604) 448-9200',
-      email: compData.email || 'contacto@supermas.com.co',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    if (compErr) console.warn('   ⚠️ Error o tabla omitida en company_settings:', compErr.message)
-    else console.log('   ✅ Empresa principal configurada.')
-
-    // 2. Parámetros Generales del Sistema
-    console.log('\n[2/6] Configurando parámetros operativos y reglas del ERP...')
-    const settingsList = readJson('settings.json')
-    if (Array.isArray(settingsList) && settingsList.length > 0) {
-      const { error: settErr } = await supabase.from('settings').upsert(
-        settingsList.map((s: any) => ({
-          key: s.key,
-          value: s.value,
-          description: s.description,
-          category: s.category,
-          updated_at: new Date().toISOString(),
-        }))
-      )
-      if (settErr) console.warn('   ⚠️ Error o tabla omitida en settings:', settErr.message)
-      else console.log(`   ✅ ${settingsList.length} parámetros del sistema registrados.`)
-    }
-
-    // 3. Tarifas e Impuestos DIAN
-    console.log('\n[3/6] Configurando estructura tributaria DIAN (tax_configs)...')
+    // 1. Tarifas e Impuestos DIAN
+    console.log('\n[1/4] Configurando estructura tributaria DIAN (tax_configs)...')
     const taxList = readJson('tax_configs.json')
     if (Array.isArray(taxList) && taxList.length > 0) {
       const { error: taxErr } = await supabase.from('tax_configs').upsert(
@@ -111,8 +78,8 @@ async function seedCleanBootstrap() {
       else console.log(`   ✅ ${taxList.length} configuraciones impositivas DIAN creadas.`)
     }
 
-    // 4. Estructura PUC Base (Plan Único de Cuentas)
-    console.log('\n[4/6] Configurando estructura de cuentas contables PUC...')
+    // 2. Estructura PUC Base (Plan Único de Cuentas)
+    console.log('\n[2/4] Configurando estructura de cuentas contables PUC...')
     const pucs = readJson('accounting_accounts.json')
     if (Array.isArray(pucs) && pucs.length > 0) {
       const { error: pucErr } = await supabase.from('accounting_accounts').upsert(
@@ -133,8 +100,8 @@ async function seedCleanBootstrap() {
       else console.log(`   ✅ ${pucs.length} cuentas PUC creadas.`)
     }
 
-    // 5. Período Contable Inicial
-    console.log('\n[5/6] Configurando período fiscal vigente...')
+    // 3. Período Contable Inicial
+    console.log('\n[3/4] Configurando período fiscal inicial (accounting_periods)...')
     const periods = readJson('accounting_periods.json')
     if (Array.isArray(periods) && periods.length > 0) {
       const { error: perErr } = await supabase.from('accounting_periods').upsert(
@@ -152,33 +119,30 @@ async function seedCleanBootstrap() {
       else console.log(`   ✅ ${periods.length} períodos contables inicializados.`)
     }
 
-    // 6. Usuario Administrador Inicial
-    console.log('\n[6/6] Creando usuario administrador inicial...')
-    const users = readJson('users.json')
-    const admin = users.find((u: any) => u.role === 'SUPERADMIN') || {
-      id: 'usr-admin-001',
-      name: 'Mauricio Andrade',
-      email: 'admin@supermas.com.co',
-      role: 'SUPERADMIN',
-      status: 'ACTIVE',
+    // 4. Parámetros Técnicos del Sistema
+    console.log('\n[4/4] Configurando parámetros operativos y reglas del ERP (settings)...')
+    const settingsList = readJson('settings.json')
+    if (Array.isArray(settingsList) && settingsList.length > 0) {
+      const { error: settErr } = await supabase.from('settings').upsert(
+        settingsList.map((s: any) => ({
+          key: s.key,
+          value: s.value,
+          description: s.description,
+          category: s.category,
+          updated_at: new Date().toISOString(),
+        }))
+      )
+      if (settErr) console.warn('   ⚠️ Error o tabla omitida en settings:', settErr.message)
+      else console.log(`   ✅ ${settingsList.length} parámetros técnicos registrados.`)
     }
-    const { error: usrErr } = await supabase.from('users').upsert({
-      id: admin.id,
-      name: admin.name,
-      email: admin.email,
-      role: admin.role,
-      status: admin.status,
-      created_at: new Date().toISOString(),
-    })
-    if (usrErr) console.warn('   ⚠️ Error o tabla omitida en users:', usrErr.message)
-    else console.log(`   ✅ Administrador inicial listo: ${admin.email}`)
 
     console.log('\n====================================================================')
-    console.log('✅ INSTALACIÓN LIMPIA Y CONFIGURACIÓN INICIAL DE SISTEMA COMPLETADA.')
-    console.log('🚫 NO SE INSERTARON PRODUCTOS, CLIENTES, PROVEEDORES, VENTAS, COMPRAS NI STOCK.')
+    console.log('✅ CARGA DE PARÁMETROS REGULATORIOS COMPLETADA.')
+    console.log('🔒 CERO CREDENCIALES, CERO EMPRESAS Y CERO DATOS COMERCIALES INSERTADOS.')
+    console.log('👉 Siguiente paso: Registrar el primer administrador vía Supabase Auth.')
     console.log('====================================================================')
   } catch (err: any) {
-    console.error('❌ Error general durante el inicio limpio:', err.message)
+    console.error('❌ Error general durante la inicialización:', err.message)
   }
 }
 

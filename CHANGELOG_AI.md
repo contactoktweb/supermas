@@ -1,6 +1,19 @@
 # CHANGELOG AI — Super Más ERP/POS
 
-## [2026-09-24] — Desacoplamiento de Mock Data y Certificación de Base Supabase Vacía
+## [2026-09-24] — Arquitectura de Autenticación Pura, Migración 014 y Flujo de Primer Administrador
+
+### Pure Supabase Auth & Zero-Credential Bootstrap
+- **Migración PostgreSQL DDL 014 (`supabase/migrations/014_system_roles_and_first_admin_flow.sql`)**:
+  - Inserción idempotente de los 6 roles inmutables del sistema en `public.roles`: `SUPERADMIN`, `ADMIN`, `WAREHOUSE_ADMIN`, `POINT_ADMIN`, `ACCOUNTANT`, `SELLER` y `CASHIER`.
+  - Inserción de la matriz completa de permisos atómicos en `public.permissions` y asignación al rol `SUPERADMIN` en `public.role_permissions`.
+  - Actualización del trigger `public.handle_new_auth_user()`: Si `public.users` está vacía (`COUNT(*) = 0`), el primer usuario que se registre en Supabase Auth es promovido automáticamente a `SUPERADMIN`. Los usuarios subsiguientes reciben el rol asignado o `SELLER`.
+- **Eliminación Total de Usuarios en Seeds y Scripts**:
+  - `scripts/seed-clean-initial-data.ts`: Eliminado cualquier insert a `public.users` o `company_settings`.
+  - La autenticación depende al 100% de `auth.users` de Supabase Auth (hashing criptográfico, JWT, sesiones).
+  - La empresa, bodegas, productos, clientes y proveedores se crean fiduciariamente por el usuario administrador desde la interfaz web tras su primer inicio de sesión.
+
+---
+
 
 ### Core Architectural Decoupling & Clean Supabase Readiness
 - **Supabase Clients & Safe Fallback Query Builder (`lib/supabase/client.ts`, `server.ts`, `admin.ts`)**:

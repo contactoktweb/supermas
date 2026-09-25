@@ -230,10 +230,10 @@ export function SalesTable({
                       <AppIcon name="sales" size={24} />
                     </div>
                     <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
-                      No se encontraron ventas
+                      No hay ventas registradas
                     </strong>
                     <p style={{ margin: '4px 0 0', fontSize: 13 }}>
-                      Intenta ajustar los filtros de búsqueda o registra una nueva venta en el sistema.
+                      No hay ventas que coincidan con los filtros o aún no se han registrado ventas en el sistema.
                     </p>
                   </div>
                 </td>

@@ -3,17 +3,17 @@ import {
   ProductFilterParams,
   GlobalProductsStats,
 } from '../types'
-import { INITIAL_PRODUCTS_MOCK } from '../mocks/product.mock'
-import { supabaseMock } from '@/lib/supabase'
+import { supabaseClient, supabaseMock } from '@/lib/supabase'
 
 export class ProductRepository {
-  private products: Product[] = [...INITIAL_PRODUCTS_MOCK]
+  private products: Product[] = []
 
   /**
    * Obtiene la matriz de listas de precios normalizadas desde product_prices
    */
   async getPrices(productId: string): Promise<any[]> {
-    const { data: rawPrices } = await supabaseMock.from('product_prices').select()
+    const client = supabaseClient || supabaseMock
+    const { data: rawPrices } = await client.from('product_prices').select()
     const allPrices = (rawPrices as unknown as Array<{ productId: string }>) || []
     return allPrices.filter((p) => p.productId === productId)
   }
@@ -22,9 +22,14 @@ export class ProductRepository {
    * Obtiene el desglose real de existencias multibodega desde stock_levels
    */
   async getStockLevels(productId: string): Promise<any[]> {
-    const { data: rawStock } = await supabaseMock.from('stock_levels').select()
+    const client = supabaseClient || supabaseMock
+    const { data: rawStock } = await client.from('stock_levels').select()
     const allStock = (rawStock as unknown as Array<{ productId: string }>) || []
     return allStock.filter((s) => s.productId === productId)
+  }
+
+  async resetMocks(): Promise<void> {
+    this.products = []
   }
 
   async findAll(params: ProductFilterParams): Promise<{
@@ -196,8 +201,8 @@ export class ProductRepository {
     }
   }
 
-  async resetMocks(): Promise<void> {
-    this.products = [...INITIAL_PRODUCTS_MOCK]
+  async resetProducts(): Promise<void> {
+    this.products = []
   }
 }
 

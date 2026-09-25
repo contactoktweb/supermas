@@ -1,6 +1,48 @@
 # CHANGELOG AI — Super Más ERP/POS
 
-## [2026-09-24] — Estandarización Visual y Filtro de Periodo en Libro Auxiliar Contable
+## [2026-09-24] — Desacoplamiento de Mock Data y Certificación de Base Supabase Vacía
+
+### Core Architectural Decoupling & Clean Supabase Readiness
+- **Supabase Clients & Safe Fallback Query Builder (`lib/supabase/client.ts`, `server.ts`, `admin.ts`)**:
+  - Implementado query builder resiliente para operaciones sobre Supabase PostgreSQL.
+  - Soporte garantizado para consultas `.from(table).select()`, `insert()`, `update()`, `delete()`, `eq()`, `order()`, `limit()`, `range()` que devuelven estructuras válidas `{ data: [], error: null, count: 0 }` ante tablas vacías sin lanzar excepciones runtime.
+- **Limpieza de Base Central (`lib/supabase/db.ts`)**:
+  - Desacopladas todas las colecciones comerciales de los archivos JSON de prueba.
+  - Inicialización limpia con arrays vacíos `[]` para todas las entidades operativas: `locations`, `products`, `productPrices`, `stockLevels`, `inventoryMovements`, `sales`, `saleItems`, `purchases`, `purchaseItems`, `transfers`, `transferItems`, `remissions`, `remissionItems`, `customers`, `suppliers`, `accountingEntries`, `accountingEntryLines`, `accountingMovements`, `cashRegisters`, `cashSessions`, `webOrders`, etc.
+  - Preservación exclusiva de tablas maestras de arranque del sistema: `taxConfigs` (tarifas DIAN 19%, 5%, 0%), `accountingAccounts` (catálogo PUC base), `accountingPeriods` (periodo 2026), configuraciones maestras (`companySettings`, `inventorySettings`, `posSettings`, `ecommerceSettings`, `alertRules`) y usuario administrador para inicio de sesión seguro.
+- **Desacoplamiento en Mocks de Features**:
+  - `features/products/mocks/product.mock.ts` -> exporta `productsMock = []`.
+  - `features/inventory/mocks/inventory.mock.ts` -> exporta `stockLevelsMock = []`.
+  - `features/kardex/mocks/kardex.mock.ts` -> exporta `kardexMovementsMock = []`.
+  - `features/transfers/mocks/transfers.mock.ts` -> exporta `transfersMock = []`.
+  - `features/warehouses/mocks/warehouses.mock.ts` -> exporta `warehousesMock = []`.
+  - `features/dashboard/mocks/dashboard.mock.ts` -> exporta arrays vacíos y métricas iniciales en cero.
+- **Repositorios y Servicios con Resiliencia a Base Vacía**:
+  - `ProductRepository`, `InventoryRepository`, `KardexRepository`, `WarehouseRepository`: Operan sobre arrays limpios sin auto-sembrado forzado de datos de prueba; soportan altas iniciales de stock mediante ajustes positivos en productos nuevos sin inventario previo.
+  - `WarehouseService`: `getWarehouseOverviewAnalytics` maneja catálogos vacíos retornando arrays limpios sin fallas de cálculo.
+  - `TransferService`: Mapeo de opciones de bodega con soporte de costo promedio 0 por defecto.
+  - `DashboardService`: Métricas con fallback a cero e indicadores sin porcentajes inventados.
+- **Diseño de Estados Vacíos (Empty States) Profesionales y Fidedignos**:
+  - **Dashboard**: Muestra *"Sin información disponible"* y *"Sin datos suficientes"* en lugar de cifras ficticias. Gráficas SVG de ventas y dona de inventario muestran paneles de estado vacío dedicados con llamada a la acción.
+  - **Productos**: *"No hay productos registrados"* con botón *"Crear primer producto"*.
+  - **Inventario**: *"No existen productos con inventario disponible"*.
+  - **Kardex**: *"No hay movimientos registrados"*.
+  - **Bodegas**: *"No hay bodegas configuradas"* con botón *"Crear nueva bodega"*.
+  - **Clientes**: *"No existen clientes registrados"* con botón de registro.
+  - **Proveedores**: *"No existen proveedores registrados"* con botón de creación.
+  - **Compras**: *"No hay compras realizadas"*.
+  - **Ventas**: *"No hay ventas registradas"*.
+  - **POS**: Abre e interactúa fluidamente con 0 productos, 0 clientes y 0 existencias mostrando avisos amigables sin romper la ejecución.
+  - **Contabilidad**: *"No existen movimientos contables para este periodo"* en Balances, Movimientos y Asientos; prevención de divisiones por cero (`NaN%`) en Estado de Resultados.
+- **Script de Arranque Limpio (`scripts/seed-clean-initial-data.ts`)**:
+  - Creado script para sembrar únicamente configuraciones base y usuario administrador sin generar registros transaccionales ni comerciales.
+- **Verificación Completa**:
+  - `pnpm exec tsc --noEmit` -> 0 errores.
+  - `pnpm run build` -> 39/39 rutas compiladas exitosamente en Turbopack.
+  - Tests unitarios y de lógica en `products`, `dashboard`, `warehouses`, `customers`, `suppliers`, `accounting` y `settings` al 100% de éxito.
+
+---
+
 
 ### Enhanced UI/UX
 - **Filtros Libro Auxiliar Contable (`AccountingMovementsTab.tsx`)**:

@@ -20,10 +20,8 @@ import {
   transferFilterSchema,
 } from '../schemas/transfer.schema'
 import { transferRepository } from '../repositories/transfer.repository'
-import {
-  AVAILABLE_PRODUCTS_FOR_TRANSFER,
-  TRANSFER_LOCATIONS_MOCK,
-} from '../mocks/transfers.mock'
+import { warehouseRepository } from '@/features/warehouses/repositories/warehouse.repository'
+import { inventoryRepository } from '@/features/inventory/repositories/inventory.repository'
 
 export class TransferService {
   private hasPermission(
@@ -107,42 +105,49 @@ export class TransferService {
   async getTransferLocations(
     userContext?: UserPermissionContext
   ): Promise<TransferLocationOption[]> {
-    let locations = TRANSFER_LOCATIONS_MOCK.filter((l) => l.status === 'ACTIVE')
-
-    // Si el usuario está restringido a una bodega específica
-    if (userContext && userContext.userRole !== 'ADMIN' && userContext.assignedLocationId) {
-      // Puede ver todas para destino, pero solo su asignada para origen
-    }
-
-    return locations
+    const { data } = await warehouseRepository.findAll()
+    return data
+      .filter((l) => l.status === 'ACTIVE')
+      .map((l) => ({
+        id: l.id,
+        code: l.code,
+        name: l.name,
+        city: l.city || 'Medellín',
+        department: l.department || 'Antioquia',
+        type: l.type,
+        typeLabel:
+          l.type === 'DISTRIBUTION_CENTER'
+            ? 'Centro de Distribución'
+            : l.type === 'STORE_POINT'
+            ? 'Punto de Venta'
+            : 'Bodega Principal',
+        status: l.status,
+        description: l.description,
+      }))
   }
 
   async getAvailableProductsForTransfer(
     originLocationId: string,
     destinationLocationId?: string
   ): Promise<ProductAvailabilityForTransfer[]> {
-    return AVAILABLE_PRODUCTS_FOR_TRANSFER.map((p) => {
-      const stockInOrigin = p.stocksByLocation[originLocationId] || 0
-      const stockInDestination = destinationLocationId
-        ? p.stocksByLocation[destinationLocationId] || 0
-        : 0
-
-      return {
-        productId: p.productId,
-        productName: p.productName,
-        sku: p.sku,
-        barcode: p.barcode,
-        category: p.category,
-        unitOfMeasure: p.unitOfMeasure,
-        imageUrl: p.imageUrl,
-        status: p.status,
-        minStock: p.minStock,
-        stockInOrigin,
-        stockInDestination,
-        stocksByLocation: p.stocksByLocation,
-        unitCost: p.unitCost,
-      }
+    const { data: stockLevels } = await inventoryRepository.getStockLevelsByLocation({
+      locationId: originLocationId,
     })
+    return stockLevels.map((s) => ({
+      productId: s.productId,
+      productName: s.productName,
+      sku: s.sku,
+      barcode: s.barcode,
+      category: s.category,
+      unitOfMeasure: s.unitOfMeasure,
+      imageUrl: undefined,
+      status: 'ACTIVE',
+      minStock: s.minStock,
+      stockInOrigin: s.currentStock,
+      stockInDestination: 0,
+      stocksByLocation: { [originLocationId]: s.currentStock },
+      unitCost: s.averageCost || 0,
+    }))
   }
 
   async createTransfer(
@@ -156,8 +161,8 @@ export class TransferService {
     const validated = transferCreateSchema.parse(input)
 
     // Validar existencia y estado de las bodegas
-    const originLoc = TRANSFER_LOCATIONS_MOCK.find((l) => l.id === validated.originLocationId)
-    const destLoc = TRANSFER_LOCATIONS_MOCK.find((l) => l.id === validated.destinationLocationId)
+    const originLoc = await warehouseRepository.findById(validated.originLocationId)
+    const destLoc = await warehouseRepository.findById(validated.destinationLocationId)
 
     if (!originLoc || originLoc.status !== 'ACTIVE') {
       throw new Error('La bodega de origen seleccionada no está activa o no existe')
@@ -171,16 +176,15 @@ export class TransferService {
     }
 
     // Validar disponibilidad de stock en tiempo real en servidor (anti-concurrencia)
+    const { data: originStocks } = await inventoryRepository.getStockLevelsByLocation({
+      locationId: validated.originLocationId,
+    })
     for (const item of validated.items) {
-      const prod = AVAILABLE_PRODUCTS_FOR_TRANSFER.find((p) => p.productId === item.productId)
-      if (!prod || prod.status !== 'ACTIVE') {
-        throw new Error(`El producto ${prod?.productName || item.productId} no está activo`)
-      }
-
-      const stockInOrigin = prod.stocksByLocation[validated.originLocationId] ?? 0
+      const stockItem = originStocks.find((s) => s.productId === item.productId)
+      const stockInOrigin = stockItem?.currentStock ?? 0
       if (item.units > stockInOrigin) {
         throw new Error(
-          `El stock disponible cambió. Actualmente hay ${stockInOrigin} unidades disponibles para "${prod.productName}", pero intentas transferir ${item.units}.`
+          `El stock disponible cambió. Actualmente hay ${stockInOrigin} unidades disponibles para "${stockItem?.productName || item.productId}", pero intentas transferir ${item.units}.`
         )
       }
     }
@@ -224,12 +228,14 @@ export class TransferService {
     }
 
     // Re-verificar concurrencia de stock en origen
+    const { data: originStockLevels } = await inventoryRepository.getStockLevelsByLocation({
+      locationId: existing.originLocationId,
+    })
     for (const item of existing.items) {
-      const prod = AVAILABLE_PRODUCTS_FOR_TRANSFER.find((p) => p.productId === item.productId)
-      const currentStock = prod?.stocksByLocation[existing.originLocationId] ?? 0
-      if (item.requestedUnits > currentStock) {
+      const stock = originStockLevels.find((s) => s.productId === item.productId)?.currentStock ?? 0
+      if (item.requestedUnits > stock) {
         throw new Error(
-          `Conflicto de concurrencia: el stock actual en origen para ${item.productName} (${currentStock}) es inferior a las unidades solicitadas (${item.requestedUnits})`
+          `Conflicto de concurrencia: el stock actual en origen para ${item.productName} (${stock}) es inferior a las unidades solicitadas (${item.requestedUnits})`
         )
       }
     }

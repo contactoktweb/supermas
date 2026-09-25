@@ -37,7 +37,7 @@ export function WarehouseStats({ stats, canReadCost }: WarehouseStatsProps) {
         title="Ventas de hoy"
         value={stats.totalTodaySales}
         isCurrency
-        note="+12.4% vs ayer"
+        note={stats.totalTodaySales > 0 ? 'Facturación hoy' : 'Sin datos suficientes'}
         iconName="sales"
         tone="blue"
         tooltip="Ventas emitidas hoy en la totalidad de puntos y despachos de bodegas."

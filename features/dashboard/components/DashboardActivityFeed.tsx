@@ -43,48 +43,84 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
         
       </div>
 
-      <div className="activity-feed-list">
-        {items.map((item, index) => {
-          const iconName = typeIconMap[item.type] || 'dashboard'
-          const tone = typeToneMap[item.type] || 'blue'
-          const timeFormatted = dashboardService.formatDateTime(item.timestamp)
+      {items.length === 0 ? (
+        <div
+          className="empty-state-card"
+          style={{
+            minHeight: 180,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            padding: '2.5rem 1rem',
+          }}
+        >
+          <div
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: '50%',
+              background: 'var(--blue-50, #eff6ff)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <AppIcon name="dashboard" size={20} color="var(--muted, #64748b)" />
+          </div>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)', margin: '0 0 4px 0' }}>
+            No hay movimientos disponibles
+          </h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--muted, #64748b)', margin: 0, maxWidth: 300 }}>
+            Las transacciones, ventas, traslados y ajustes del sistema aparecerán reflejados aquí en tiempo real.
+          </p>
+        </div>
+      ) : (
+        <div className="activity-feed-list">
+          {items.map((item, index) => {
+            const iconName = typeIconMap[item.type] || 'dashboard'
+            const tone = typeToneMap[item.type] || 'blue'
+            const timeFormatted = dashboardService.formatDateTime(item.timestamp)
 
-          return (
-            <article
-              key={item.id}
-              className="activity-feed-row"
-              style={{ animationDelay: `${index * 0.04}s` }}
-            >
-              <div className={`activity-feed-icon ${tone}`}>
-                <AppIcon name={iconName} size={16} />
-              </div>
-
-              <div className="activity-feed-content">
-                <div className="activity-feed-main-line">
-                  <strong className="activity-user">{item.userName}</strong>
-                  <span className="activity-action">{item.action}</span>
+            return (
+              <article
+                key={item.id}
+                className="activity-feed-row"
+                style={{ animationDelay: `${index * 0.04}s` }}
+              >
+                <div className={`activity-feed-icon ${tone}`}>
+                  <AppIcon name={iconName} size={16} />
                 </div>
 
-                <div className="activity-feed-meta">
-                  <span className="activity-location">{item.locationName}</span>
-                  <span className="meta-dot">·</span>
-                  <span className="activity-module">{item.module}</span>
-                  <span className="meta-dot">·</span>
-                  <time className="activity-time">{timeFormatted}</time>
+                <div className="activity-feed-content">
+                  <div className="activity-feed-main-line">
+                    <strong className="activity-user">{item.userName}</strong>
+                    <span className="activity-action">{item.action}</span>
+                  </div>
+
+                  <div className="activity-feed-meta">
+                    <span className="activity-location">{item.locationName}</span>
+                    <span className="meta-dot">·</span>
+                    <span className="activity-module">{item.module}</span>
+                    <span className="meta-dot">·</span>
+                    <time className="activity-time">{timeFormatted}</time>
+                  </div>
+
+                  <p className="activity-detail">{item.detail}</p>
                 </div>
 
-                <p className="activity-detail">{item.detail}</p>
-              </div>
-
-              {item.amount && (
-                <div className="activity-amount">
-                  <b>{dashboardService.formatCOP(item.amount, true)}</b>
-                </div>
-              )}
-            </article>
-          )
-        })}
-      </div>
+                {item.amount && (
+                  <div className="activity-amount">
+                    <b>{dashboardService.formatCOP(item.amount, true)}</b>
+                  </div>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }

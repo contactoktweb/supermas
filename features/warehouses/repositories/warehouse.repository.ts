@@ -11,30 +11,19 @@ import {
   WarehouseUserAssignment,
   WarehouseAuditLog,
 } from '../types'
-import {
-  INITIAL_LOCATIONS,
-  MOCK_INVENTORY_ITEMS,
-  MOCK_MOVEMENTS,
-  MOCK_SALES,
-  MOCK_PURCHASES,
-  MOCK_CUSTOMERS_RELATION,
-  MOCK_SUPPLIERS_RELATION,
-  MOCK_TRANSFERS,
-  MOCK_USER_ASSIGNMENTS,
-  MOCK_AUDIT_LOGS,
-} from '../mocks/warehouses.mock'
+import { supabaseClient, supabaseMock } from '@/lib/supabase'
 
 class WarehouseRepository {
-  private locations: LocationWithMetrics[] = [...INITIAL_LOCATIONS]
-  private inventory: WarehouseInventoryItem[] = [...MOCK_INVENTORY_ITEMS]
-  private movements: WarehouseMovement[] = [...MOCK_MOVEMENTS]
-  private sales: WarehouseSaleRecord[] = [...MOCK_SALES]
-  private purchases: WarehousePurchaseRecord[] = [...MOCK_PURCHASES]
-  private customers: CustomerLocationRelation[] = [...MOCK_CUSTOMERS_RELATION]
-  private suppliers: SupplierLocationRelation[] = [...MOCK_SUPPLIERS_RELATION]
-  private transfers: WarehouseTransfer[] = [...MOCK_TRANSFERS]
-  private users: WarehouseUserAssignment[] = [...MOCK_USER_ASSIGNMENTS]
-  private auditLogs: WarehouseAuditLog[] = [...MOCK_AUDIT_LOGS]
+  private locations: LocationWithMetrics[] = []
+  private inventory: WarehouseInventoryItem[] = []
+  private movements: WarehouseMovement[] = []
+  private sales: WarehouseSaleRecord[] = []
+  private purchases: WarehousePurchaseRecord[] = []
+  private customers: CustomerLocationRelation[] = []
+  private suppliers: SupplierLocationRelation[] = []
+  private transfers: WarehouseTransfer[] = []
+  private users: WarehouseUserAssignment[] = []
+  private auditLogs: WarehouseAuditLog[] = []
 
   async findAll(filters?: WarehouseFilters): Promise<{ data: LocationWithMetrics[]; total: number }> {
     let result = [...this.locations]
@@ -176,26 +165,6 @@ class WarehouseRepository {
   ): Promise<WarehouseInventoryItem[]> {
     let items = this.inventory.filter((inv) => inv.locationId === locationId)
 
-    // Si la ubicación no tiene items directos, sembrar desde el catálogo para que ninguna bodega quede vacía
-    if (items.length === 0 && this.inventory.length > 0) {
-      const baseItems = this.inventory.filter((inv) => inv.locationId === 'loc-001')
-      const templateItems = baseItems.length > 0 ? baseItems : this.inventory
-      const seeded: WarehouseInventoryItem[] = templateItems.map((inv, idx) => {
-        const factor = 0.5 + ((idx * 17) % 50) / 100
-        const stock = Math.max(5, Math.round(inv.currentStock * factor))
-        return {
-          ...inv,
-          id: `inv-${locationId}-${idx + 1}`,
-          locationId,
-          currentStock: stock,
-          totalValueAtCost: Math.round(inv.averageCost * stock),
-          status: stock <= inv.minStock ? 'LOW_STOCK' : 'NORMAL',
-        }
-      })
-      this.inventory.push(...seeded)
-      items = seeded
-    }
-
     if (filters?.query) {
       const q = filters.query.toLowerCase()
       items = items.filter(
@@ -303,7 +272,31 @@ class WarehouseRepository {
     )
 
     if (itemIndex === -1) {
-      throw new Error(`Producto ${productId} no encontrado en bodega ${locationId}`)
+      if (delta <= 0) {
+        throw new Error(`Producto ${productId} no encontrado en bodega ${locationId}`)
+      }
+      const newItem: WarehouseInventoryItem = {
+        id: `wh-inv-${Date.now()}`,
+        locationId,
+        productId,
+        productName: 'Producto en Bodega',
+        sku: 'SKU-000',
+        barcode: '',
+        category: 'General',
+        brand: 'Genérico',
+        unit: 'UND',
+        currentStock: delta,
+        minStock: 5,
+        maxStock: 100,
+        averageCost: newAverageCost || 0,
+        totalValueAtCost: (newAverageCost || 0) * delta,
+        normalSalePrice: 0,
+        status: delta === 0 ? 'OUT_OF_STOCK' : 'NORMAL',
+        lastMovementAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      this.inventory.push(newItem)
+      return newItem
     }
 
     const currentItem = this.inventory[itemIndex]

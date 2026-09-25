@@ -47,6 +47,18 @@ export function AccountingIncomeStatementTab({
         </div>
       </div>
 
+      {/* Estado vacío si no hay movimientos */}
+      {incomeStatement.totalRevenues === 0 && incomeStatement.totalCosts === 0 && incomeStatement.totalOperatingExpenses === 0 && (
+        <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
+          <p className="text-sm font-semibold text-blue-950 mb-1">
+            No existen movimientos contables para este periodo
+          </p>
+          <p className="text-xs text-blue-700">
+            Los ingresos operacionales, costos de ventas y márgenes se consolidarán automáticamente con los movimientos del periodo.
+          </p>
+        </div>
+      )}
+
       {/* Tarjetas Resumen de Márgenes */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100">
@@ -59,7 +71,9 @@ export function AccountingIncomeStatementTab({
           <span className="text-[11px] font-semibold text-rose-700 uppercase block mb-1">Costo de Mercancías</span>
           <strong className="text-lg font-mono text-rose-950">${incomeStatement.totalCosts.toLocaleString('es-CO')}</strong>
           <span className="text-[11px] text-rose-600 block mt-1">
-            {((incomeStatement.totalCosts / incomeStatement.totalRevenues) * 100).toFixed(1)}% de los ingresos
+            {incomeStatement.totalRevenues > 0
+              ? `${((incomeStatement.totalCosts / incomeStatement.totalRevenues) * 100).toFixed(1)}% de los ingresos`
+              : 'Sin datos suficientes'}
           </span>
         </div>
 
@@ -72,7 +86,11 @@ export function AccountingIncomeStatementTab({
         <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100">
           <span className="text-[11px] font-semibold text-emerald-700 uppercase block mb-1">Utilidad Neta</span>
           <strong className="text-lg font-mono text-emerald-950">${incomeStatement.netProfit.toLocaleString('es-CO')}</strong>
-          <span className="text-[11px] text-emerald-600 block mt-1">Margen Neto: {incomeStatement.netMarginPercent}%</span>
+          <span className="text-[11px] text-emerald-600 block mt-1">
+            {incomeStatement.totalRevenues > 0
+              ? `Margen Neto: ${incomeStatement.netMarginPercent}%`
+              : 'Sin datos suficientes'}
+          </span>
         </div>
       </div>
 

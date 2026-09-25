@@ -72,7 +72,7 @@ export function CustomerStats({ stats, loading }: CustomerStatsProps) {
     {
       title: 'Total Vendido',
       value: formatCOP(stats.totalSalesAmount),
-      subtext: `Ticket prom: ${formatCOP(stats.averageTicket)}`,
+      subtext: stats.totalSalesAmount > 0 ? `Ticket prom: ${formatCOP(stats.averageTicket)}` : 'Sin datos suficientes',
       icon: 'wallet',
       tone: 'purple',
       scope: 'Ventas acumuladas',

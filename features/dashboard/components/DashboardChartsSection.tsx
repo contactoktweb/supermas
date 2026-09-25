@@ -136,8 +136,43 @@ export function DashboardChartsSection({
           )}
         </div>
 
-        {/* SVG Interactive Chart */}
-        <div className="interactive-svg-chart-wrap">
+        {/* SVG Interactive Chart or Empty State */}
+        {chartPoints.length === 0 || (totalSalesInView === 0 && totalPurchasesInView === 0) ? (
+          <div
+            className="chart-empty-state"
+            style={{
+              minHeight: 240,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '2.5rem 1rem',
+            }}
+          >
+            <div
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: '50%',
+                background: 'var(--blue-50, #eff6ff)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 12,
+              }}
+            >
+              <AppIcon name="reports" size={22} color="var(--navy, #001b5c)" />
+            </div>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)', margin: '0 0 4px 0' }}>
+              Sin datos suficientes
+            </h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--muted, #64748b)', margin: 0, maxWidth: 320 }}>
+              Aún no se registran movimientos de ventas o compras en este período para graficar la tendencia.
+            </p>
+          </div>
+        ) : (
+          <div className="interactive-svg-chart-wrap">
           <svg
             className="main-svg-chart"
             viewBox={`0 0 ${chartWidth} ${chartHeight}`}
@@ -311,23 +346,26 @@ export function DashboardChartsSection({
             </div>
           )}
         </div>
+      )}
 
-        {/* Chart Legend */}
-        <div className="chart-legend">
-          <span>
-            <i className="legend-blue" /> Ventas facturadas
-          </span>
-          {canSeeFinancials && activeChartMode === 'SALES_PURCHASES' && (
+        {/* Chart Legend (only when there is chart data) */}
+        {chartPoints.length > 0 && (totalSalesInView > 0 || totalPurchasesInView > 0) && (
+          <div className="chart-legend">
             <span>
-              <i className="legend-red" /> Compras / Abastecimiento
+              <i className="legend-blue" /> Ventas facturadas
             </span>
-          )}
-          {canSeeFinancials && activeChartMode === 'PROFIT' && (
-            <span>
-              <i className="teal-bg" /> Utilidad neta estimada
-            </span>
-          )}
-        </div>
+            {canSeeFinancials && activeChartMode === 'SALES_PURCHASES' && (
+              <span>
+                <i className="legend-red" /> Compras / Abastecimiento
+              </span>
+            )}
+            {canSeeFinancials && activeChartMode === 'PROFIT' && (
+              <span>
+                <i className="teal-bg" /> Utilidad neta estimada
+              </span>
+            )}
+          </div>
+        )}
       </section>
 
       {/* 2. Inventory Distribution Donut Panel */}
@@ -343,7 +381,43 @@ export function DashboardChartsSection({
         </div>
 
         <div className="donut-distribution-body">
-          <div className="donut-wrap">
+          {distribution.length === 0 || distribution.every((d) => (d.units || 0) === 0) ? (
+            <div
+              className="donut-empty-state"
+              style={{
+                minHeight: 220,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '2.5rem 1rem',
+                width: '100%',
+              }}
+            >
+              <div
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: '50%',
+                  background: 'var(--blue-50, #eff6ff)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 12,
+                }}
+              >
+                <AppIcon name="pieChart" size={22} color="var(--navy, #001b5c)" />
+              </div>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--foreground)', margin: '0 0 4px 0' }}>
+                Sin inventario registrado
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--muted, #64748b)', margin: 0, maxWidth: 280 }}>
+                No existen existencias registradas en bodegas para calcular la distribución.
+              </p>
+            </div>
+          ) : (
+            <div className="donut-wrap">
             {/* Dynamic SVG Donut Chart */}
             <div className="donut-chart-container">
               {(() => {
@@ -467,7 +541,8 @@ export function DashboardChartsSection({
               ))}
             </div>
           </div>
-        </div>
+        )}
+      </div>
       </section>
     </div>
   )

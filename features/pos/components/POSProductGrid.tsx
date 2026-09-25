@@ -254,10 +254,14 @@ export function POSProductGrid({
               <AppIcon name="products" size={28} color="var(--navy)" />
             </div>
             <strong style={{ fontSize: 15, color: 'var(--navy)', marginBottom: 4 }}>
-              No se encontraron productos
+              {!searchQuery && selectedCategory === 'ALL'
+                ? 'No hay productos registrados'
+                : 'No se encontraron productos'}
             </strong>
-            <p style={{ fontSize: 13, maxWidth: 300, margin: 0 }}>
-              Verifica el nombre, SKU, código de barras o la categoría seleccionada.
+            <p style={{ fontSize: 13, maxWidth: 320, margin: 0 }}>
+              {!searchQuery && selectedCategory === 'ALL'
+                ? 'No existen productos con inventario disponible en el catálogo. Registra productos en el sistema para comenzar a facturar.'
+                : 'Verifica el nombre, SKU, código de barras o la categoría seleccionada.'}
             </p>
           </div>
         ) : (

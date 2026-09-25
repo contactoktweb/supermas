@@ -5,10 +5,10 @@ import {
   KardexPaginationResult,
   ProductKardexSummary,
 } from '../types'
-import { INVENTORY_MOVEMENTS_MOCK } from '../mocks/kardex.mock'
+import { supabaseClient, supabaseMock } from '@/lib/supabase'
 
 export class KardexRepository {
-  private movements: InventoryMovement[] = [...INVENTORY_MOVEMENTS_MOCK]
+  private movements: InventoryMovement[] = []
 
   /**
    * Consulta paginada y filtrada de movimientos de inventario (Kardex).

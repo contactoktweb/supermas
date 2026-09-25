@@ -153,7 +153,7 @@ export function AccountingEntriesTab({
               {entries.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-8 text-gray-500">
-                    No se encontraron comprobantes contables con los filtros seleccionados.
+                    No existen comprobantes o movimientos contables para este periodo.
                   </td>
                 </tr>
               ) : (

@@ -8,13 +8,13 @@ import {
   StockHealthStatus,
   LocationStockBreakdown,
 } from '../types'
-import { INVENTORY_STOCK_LEVELS_MOCK } from '../mocks/inventory.mock'
+import { supabaseClient, supabaseMock } from '@/lib/supabase'
 
 export class InventoryRepository {
-  private stockLevels: InventoryStockLevel[]
+  private stockLevels: InventoryStockLevel[] = []
 
   constructor() {
-    this.stockLevels = JSON.parse(JSON.stringify(INVENTORY_STOCK_LEVELS_MOCK))
+    this.stockLevels = []
   }
 
   /**

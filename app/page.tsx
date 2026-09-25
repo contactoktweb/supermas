@@ -33,14 +33,6 @@ import { db } from '@/lib/supabase'
 
 const modules = APP_MODULES
 
-const movements = [
-  {type:'Compra',product:'Arroz Diana 500g',sku:'SKU-001842',warehouse:'Bodega Principal',doc:'FV-1542',in:'+120',out:'—',balance:'482',user:'Laura Gómez',time:'Hoy, 10:32 AM'},
-  {type:'Transferencia salida',product:'Aceite Premier 900ml',sku:'SKU-002107',warehouse:'Bodega Principal',doc:'TR-000154',in:'—',out:'25',balance:'38',user:'Mauricio A.',time:'Hoy, 9:48 AM'},
-  {type:'Venta',product:'Gaseosa Coca-Cola 1.5L',sku:'SKU-005882',warehouse:'Punto Centro',doc:'POS-88421',in:'—',out:'3',balance:'12',user:'Caja Centro',time:'Hoy, 9:21 AM'},
-  {type:'Ajuste',product:'Leche Entera Alquería 1L',sku:'SKU-003501',warehouse:'Bodega Norte',doc:'AJ-00092',in:'—',out:'12',balance:'0',user:'Carlos Ruiz',time:'Ayer, 4:15 PM'}
-]
-const transfers = db.transfers
-
 function Brand({compact=false}:{compact?:boolean}){return <div className={`brand ${compact?'brand-compact':''}`}><img src="/super-mas-logo.svg" alt="Super Más"/><span>ERP / POS</span></div>}
 
 function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string)=>void;open:boolean;close:()=>void;logout:()=>void}){
@@ -135,34 +127,7 @@ function Products({ onNavigate }: { onNavigate?: (view: string) => void }) {
   return <ProductsPage onNavigate={onNavigate} />
 }
 
-function Kardex(){
-  const [mode,setMode]=useState('Tabla');
-  return <>
-    <PageHead eyebrow="Trazabilidad de inventario" title="Kardex" sub="Consulta y rastrea cada movimiento del inventario de Super Más." action="Exportar Kardex"/>
-    <section className="stats-grid products-stats">
-      {[
-        ['Entradas del periodo','12,480','arrowDownRight','teal'],
-        ['Salidas del periodo','9,842','arrowUpRight','red'],
-        ['Movimientos totales','22,322','kardex','blue'],
-        ['Valor de entradas','$86.4M','sales','teal'],
-        ['Valor de salidas','$71.8M','sales','amber'],
-        ['Productos movimentados','4,208','products','blue']
-      ].map(([t,v,icon,tone])=><Stat key={t as string} title={t as string} value={v as string} iconName={icon as LightIconName} tone={tone as string}/>)}
-    </section>
-    <div className="toolbar">
-      <div className="search-box wide">
-        <AppIcon name="search" size={16}/>
-        <input placeholder="Producto, SKU o documento..."/>
-      </div>
-      {['Producto','Bodega','Movimiento','Fecha'].map(x=><button className="filter-button" key={x}>{x} <AppIcon name="chevronDown" size={13}/></button>)}
-      <div className="segmented">
-        <button className={mode==='Tabla'?'selected':''} onClick={()=>setMode('Tabla')}>Tabla</button>
-        <button className={mode==='Línea de tiempo'?'selected':''} onClick={()=>setMode('Línea de tiempo')}>Línea de tiempo</button>
-      </div>
-    </div>
-    {mode==='Tabla'?<div className="table-panel animated-table"><div className="table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Producto</th><th>Bodega</th><th>Movimiento</th><th>Documento</th><th>Entrada</th><th>Salida</th><th>Saldo</th><th>Usuario</th></tr></thead><tbody>{movements.map(m=><tr key={m.doc}><td>{m.time}</td><td><strong>{m.product}</strong><small>{m.sku}</small></td><td>{m.warehouse}</td><td><span className={`movement-badge ${m.type.toLowerCase().replace(' ','-')}`}>{m.type}</span></td><td>{m.doc}</td><td className="positive-text">{m.in}</td><td className="negative-text">{m.out}</td><td><b>{m.balance}</b></td><td>{m.user}</td></tr>)}</tbody></table></div></div>:<div className="timeline">{movements.map((m)=><div className="timeline-item" key={m.doc}><div className="timeline-node"/><div className="timeline-content"><div><span className={`movement-badge ${m.type.toLowerCase().replace(' ','-')}`}>{m.type}</span><time>{m.time}</time></div><h3>{m.product}</h3><p>{m.in!=='—'?`+${m.in} unidades`:`-${m.out} unidades`} · {m.doc} · {m.warehouse}</p><small>Usuario: {m.user} · Saldo posterior: {m.balance}</small></div></div>)}</div>}
-  </>
-}
+
 
 
 
@@ -279,24 +244,47 @@ function ModulePage({name}:{name:string}){
 }
 
 function Cajas(){
+  const cashRegisters = (db.cashRegisters || []) as any[]
+  const openCount = cashRegisters.filter((c) => c.status === 'OPEN').length
+  const closedCount = cashRegisters.filter((c) => c.status === 'CLOSED').length
+
   return <>
     <PageHead eyebrow="Control de efectivo" title="Cajas" sub="Controla aperturas, ventas, arqueos y cierres por punto de venta." action="Abrir caja"/>
     <section className="stats-grid products-stats">
-      {['Cajas abiertas','Cajas cerradas','Efectivo actual','Ventas del turno','Diferencias pendientes'].map((s,i)=><Stat key={s} title={s} value={['3','12','$8.42M','$18.6M','2'][i]} iconName={['check','close','sales','cashRegisters','warning'][i] as LightIconName} tone={['teal','blue','amber','blue','red'][i]} note={i===4?'Revisar':'+6.2%'}/>)}
+      {[
+        { title: 'Cajas abiertas', value: String(openCount), icon: 'check', tone: 'teal', note: openCount > 0 ? 'En operación' : 'Sin datos suficientes' },
+        { title: 'Cajas cerradas', value: String(closedCount), icon: 'close', tone: 'blue', note: 'Registradas' },
+        { title: 'Efectivo actual', value: '$0', icon: 'sales', tone: 'amber', note: 'Sin datos suficientes' },
+        { title: 'Ventas del turno', value: '$0', icon: 'cashRegisters', tone: 'blue', note: 'Sin datos suficientes' },
+        { title: 'Diferencias pendientes', value: '0', icon: 'warning', tone: 'red', note: 'Al día' },
+      ].map((s) => (
+        <Stat key={s.title} title={s.title} value={s.value} iconName={s.icon as LightIconName} tone={s.tone} note={s.note} />
+      ))}
     </section>
-    <div className="flow-grid">
-      {['Punto Centro · Caja 01','Punto Sur · Caja 02','Punto Norte · Caja 01'].map((c,i)=><article className="flow-card" key={c}>
-        <span className="state disponible">{i===2?'Cerrada':'Abierta'}</span>
-        <h3>{c}</h3>
-        <p>Cajero: {['Laura Gómez','Carlos Ruiz','Andrés M.'][i]}</p>
-        <div className="distribution">
-          <div><span>Base inicial</span><b>$500K</b></div>
-          <div><span>Ventas del turno</span><b>${['8.42M','6.18M','3.96M'][i]}</b></div>
+    {cashRegisters.length === 0 ? (
+      <div className="table-panel animated-table" style={{ padding: '48px 24px', textAlign: 'center' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 12, background: '#eff6ff', color: 'var(--navy)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
+          <AppIcon name="cashRegisters" size={24} />
         </div>
-        <div className="stepper"><span className="done">✓</span><i className="done"/><span className="done">✓</span><i className={i===2?'done':''}/><span>{i===2?'✓':'○'}</span></div>
-        <small>Apertura → Operación → Arqueo → Cierre</small>
-      </article>)}
-    </div>
+        <strong style={{ fontSize: 16, color: 'var(--navy)' }}>No hay cajas registradas</strong>
+        <p style={{ margin: '6px 0 16px', fontSize: 13, color: 'var(--muted)' }}>
+          Configura puntos de venta y cajas registradoras para controlar turnos y arqueos de efectivo.
+        </p>
+      </div>
+    ) : (
+      <div className="flow-grid">
+        {cashRegisters.map((c) => (
+          <article className="flow-card" key={c.id}>
+            <span className="state disponible">{c.status === 'OPEN' ? 'Abierta' : 'Cerrada'}</span>
+            <h3>{c.name}</h3>
+            <p>Ubicación: {c.locationId || 'Sede Principal'}</p>
+            <div className="distribution">
+              <div><span>Base inicial</span><b>${(c.currentBalance || 0).toLocaleString('es-CO')}</b></div>
+            </div>
+          </article>
+        ))}
+      </div>
+    )}
   </>
 }
 
@@ -311,7 +299,7 @@ function AdminModule({name}:{name:string}){
   return <>
     <PageHead eyebrow={c.eyebrow} title={name} sub={c.sub} action={name==='Configuración'?'Guardar cambios':'Nuevo registro'}/>
     <section className="stats-grid products-stats">
-      {c.stats.map((s,i)=><Stat key={s} title={s} value={c.values[i]} iconName={c.iconName} tone={['blue','teal','amber','red'][i%4]} note={i===c.stats.length-1&&['Alertas','Auditoría'].includes(name)?'Revisar':'+8.4%'}/>)}
+      {c.stats.map((s,i)=><Stat key={s} title={s} value={c.values[i]} iconName={c.iconName} tone={['blue','teal','amber','red'][i%4]} note={i===c.stats.length-1&&['Alertas','Auditoría'].includes(name)?'Revisar':'Estable'}/>)}
     </section>
     <div className="segmented module-tabs">
       {c.tabs.map(t=><button className={tab===t?'selected':''} onClick={()=>setTab(t)} key={t}>{t}</button>)}

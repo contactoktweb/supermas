@@ -312,10 +312,32 @@ export class WarehouseService {
     const validated = stockAdjustmentSchema.parse(rawInput)
 
     const inventory = await warehouseRepository.findInventoryByLocationId(validated.locationId)
-    const currentItem = inventory.find((i) => i.productId === validated.productId)
+    let currentItem = inventory.find((i) => i.productId === validated.productId)
 
     if (!currentItem) {
-      throw new Error('El producto no existe en el inventario de esta bodega.')
+      if (validated.type === 'AJUSTE_NEGATIVO') {
+        throw new Error('No puedes realizar un ajuste negativo de un producto sin existencias en esta bodega.')
+      }
+      currentItem = {
+        id: `wh-inv-${Date.now()}`,
+        locationId: validated.locationId,
+        productId: validated.productId,
+        productName: 'Producto Ajustado',
+        sku: 'SKU-AJUSTE',
+        barcode: '',
+        category: 'General',
+        brand: 'Genérico',
+        unit: 'UND',
+        currentStock: 0,
+        minStock: 5,
+        maxStock: 100,
+        averageCost: 0,
+        totalValueAtCost: 0,
+        normalSalePrice: 0,
+        status: 'OUT_OF_STOCK',
+        lastMovementAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
     }
 
     const delta = validated.type === 'AJUSTE_POSITIVO' ? validated.quantity : -validated.quantity
@@ -576,8 +598,10 @@ export class WarehouseService {
     topSelling: { name: string; sku: string; sales: string; units: number }[]
     categoriesDistribution: { name: string; pct: string; value: string }[]
   }> {
-    const { db } = await import('@/lib/supabase')
-    return db.warehouseOverviewAnalytics
+    return {
+      topSelling: [],
+      categoriesDistribution: [],
+    }
   }
 }
 

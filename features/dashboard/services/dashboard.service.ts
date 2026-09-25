@@ -46,6 +46,8 @@ export class DashboardService {
     switch (role) {
       case 'SUPERADMIN':
       case 'ADMIN':
+        permissions.add('*')
+        permissions.add('pos.sell')
         permissions.add('sale.create')
         permissions.add('purchase.create')
         permissions.add('purchase.read')
@@ -53,6 +55,7 @@ export class DashboardService {
         permissions.add('inventory.adjust')
         permissions.add('product.create')
         permissions.add('product.write')
+        permissions.add('report.view')
         permissions.add('cost.read')
         permissions.add('financial.read')
         permissions.add('invoice.read')
@@ -76,6 +79,7 @@ export class DashboardService {
         break
 
       case 'POINT_ADMIN':
+        permissions.add('pos.sell')
         permissions.add('sale.create')
         permissions.add('inventory.transfer')
         permissions.add('customer.create')
@@ -85,6 +89,7 @@ export class DashboardService {
         break
 
       case 'SELLER':
+        permissions.add('pos.sell')
         permissions.add('sale.create')
         permissions.add('customer.create')
         permissions.add('customer.read')
@@ -107,10 +112,10 @@ export class DashboardService {
    */
   async getDashboardMetrics(
     period: PeriodType,
-    user: UserProfile
+    user?: UserProfile
   ): Promise<DashboardMetrics> {
-    const rawMetrics = await dashboardRepository.getMetrics(period, user.locationId)
-    const canSeeFinancials = this.hasFinancialAccess(user.role)
+    const rawMetrics = await dashboardRepository.getMetrics(period, user?.locationId)
+    const canSeeFinancials = user ? this.hasFinancialAccess(user.role) : false
 
     if (!canSeeFinancials) {
       return {
@@ -214,8 +219,50 @@ export class DashboardService {
    */
   getQuickActions(user: UserProfile): QuickActionItem[] {
     const perms = this.getUserPermissions(user.role)
-    const quickActions = db.dashboardMetrics.quickActions as unknown as QuickActionItem[]
-    return quickActions.filter((qa) => perms.has(qa.requiredPermission))
+    const quickActions = ((db.dashboardMetrics as any)?.quickActions || [
+      {
+        id: 'qa-pos',
+        title: 'Nueva Venta POS',
+        subtitle: 'Abrir terminal de caja y facturación rápida',
+        icon: 'pos',
+        targetView: 'POS',
+        requiredPermission: 'pos.sell',
+        highlight: true,
+      },
+      {
+        id: 'qa-purchase',
+        title: 'Nueva Compra',
+        subtitle: 'Registrar factura de proveedor y entrada de mercancía',
+        icon: 'purchases',
+        targetView: 'Compras',
+        requiredPermission: 'purchase.create',
+      },
+      {
+        id: 'qa-transfer',
+        title: 'Traslado de Mercancía',
+        subtitle: 'Mover existencias entre sedes y bodegas',
+        icon: 'transfers',
+        targetView: 'Transferencias',
+        requiredPermission: 'inventory.transfer',
+      },
+      {
+        id: 'qa-product',
+        title: 'Nuevo Producto',
+        subtitle: 'Crear referencia con precios e impuestos',
+        icon: 'products',
+        targetView: 'Productos',
+        requiredPermission: 'product.create',
+      },
+      {
+        id: 'qa-reports',
+        title: 'Centro de Reportes',
+        subtitle: 'Informes de ventas, inventario y finanzas',
+        icon: 'reports',
+        targetView: 'Reportes',
+        requiredPermission: 'report.view',
+      },
+    ]) as QuickActionItem[]
+    return quickActions.filter((qa) => perms.has('*') || perms.has(qa.requiredPermission))
   }
 
   /**

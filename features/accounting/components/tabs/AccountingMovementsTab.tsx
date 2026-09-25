@@ -573,7 +573,7 @@ export function AccountingMovementsTab({
               {(auxiliaryReport?.movements || []).length === 0 ? (
                 <tr>
                   <td colSpan={10} className="text-center py-8 text-gray-500">
-                    No se encontraron movimientos contables registrados para los filtros seleccionados en este periodo.
+                    No existen movimientos contables para este periodo.
                   </td>
                 </tr>
               ) : (

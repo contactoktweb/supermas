@@ -22,7 +22,7 @@ export function SupplierEmptyState({
       <h3>
         {hasFilters
           ? 'No se encontraron proveedores con los criterios aplicados'
-          : 'No hay proveedores registrados en el sistema'}
+          : 'No existen proveedores registrados'}
       </h3>
       <p>
         {hasFilters

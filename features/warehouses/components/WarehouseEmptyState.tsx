@@ -24,9 +24,9 @@ export function WarehouseEmptyState({
   let iconName: LightIconName = 'search'
 
   if (type === 'NO_WAREHOUSES') {
-    title = 'Aún no existen bodegas configuradas'
+    title = 'No hay bodegas configuradas'
     description = 'Comienza agregando la bodega principal o punto de venta para gestionar el inventario y operaciones de Super Más.'
-    defaultAction = 'Crear primera bodega'
+    defaultAction = 'Crear nueva bodega'
     iconName = 'warehouse'
   } else if (type === 'NO_MOVEMENTS') {
     title = 'Esta bodega todavía no tiene movimientos de inventario'

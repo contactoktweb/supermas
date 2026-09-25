@@ -1,184 +1,243 @@
 /**
- * SUPER MÁS ERP/POS - Capa de Simulación de Base de Datos Supabase / PostgreSQL
+ * SUPER MÁS ERP/POS - Capa de Simulación y Acceso de Base de Datos Supabase / PostgreSQL
  *
- * Este módulo centraliza todos los datos simulados en formato JSON estructurado
- * como tablas relacionales. Cuando se conecte el cliente oficial de Supabase
- * (@supabase/supabase-js o Prisma), la aplicación solo interactuará con esta
- * interfaz sin que los componentes UI contengan datos de prueba "hardcodeados".
+ * Configuración para INSTALACIÓN LIMPIA Y CONEXIÓN SUPABASE VACÍA:
+ * - Tablas comerciales (productos, clientes, proveedores, ventas, compras, inventario,
+ *   kardex, facturas, remisiones, cajas, pedidos web) inician con CERO REGISTROS ([]).
+ * - No se cargan datos ficticios ni mocks de prueba en producción.
+ * - Solo se preservan tablas de configuración inicial del sistema (roles/permisos,
+ *   perfiles tributarios DIAN, estructura PUC base, reglas de alertas y usuario administrador inicial).
  */
 
-import locationsData from './mock-db/locations.json'
-import productsData from './mock-db/products.json'
-import stockLevelsData from './mock-db/stock_levels.json'
-import inventoryMovementsData from './mock-db/inventory_movements.json'
-import productMovementsData from './mock-db/product_movements.json'
-import warehouseInventoryData from './mock-db/warehouse_inventory.json'
-import warehouseMovementsData from './mock-db/warehouse_movements.json'
-import transfersData from './mock-db/transfers.json'
-import transferLocationsData from './mock-db/transfer_locations.json'
-import transferAvailabilityData from './mock-db/transfer_availability.json'
-import salesData from './mock-db/sales.json'
-import purchasesData from './mock-db/purchases.json'
-import customersData from './mock-db/customers.json'
-import invoicesData from './mock-db/invoices.json'
-import remissionsData from './mock-db/remissions.json'
-import webOrdersData from './mock-db/web_orders.json'
-import customerPaymentsData from './mock-db/customer_payments.json'
-import customerDocumentsData from './mock-db/customer_documents.json'
-import suppliersData from './mock-db/suppliers.json'
-import usersData from './mock-db/users.json'
-import userAssignmentsData from './mock-db/user_assignments.json'
 import taxConfigsData from './mock-db/tax_configs.json'
-import accountingEntriesData from './mock-db/accounting_entries.json'
 import accountingAccountsData from './mock-db/accounting_accounts.json'
-import accountingMovementsData from './mock-db/accounting_movements.json'
+import accountingPeriodsData from './mock-db/accounting_periods.json'
 import exogenaNormativaData from './mock-db/exogena_normativa.json'
-import exogenaGenerationsData from './mock-db/exogena_generations.json'
-import categoriesData from './mock-db/categories.json'
-import brandsData from './mock-db/brands.json'
-import dashboardMetricsData from './mock-db/dashboard_metrics.json'
-import auditLogsData from './mock-db/audit_logs.json'
-import warehouseOverviewAnalyticsData from './mock-db/warehouse_overview_analytics.json'
 import operationalModulesData from './mock-db/operational_modules.json'
-import cashRegistersData from './mock-db/cash_registers.json'
-import cashMovementsData from './mock-db/cash_movements.json'
-import alertsData from './mock-db/alerts.json'
 import alertRulesData from './mock-db/alert_rules.json'
 import companySettingsData from './mock-db/company_settings.json'
 import inventorySettingsData from './mock-db/inventory_settings.json'
 import posSettingsData from './mock-db/pos_settings.json'
 import ecommerceSettingsData from './mock-db/ecommerce_settings.json'
 import settingsData from './mock-db/settings.json'
-import bankAccountsData from './mock-db/bank_accounts.json'
-import treasuryPaymentsData from './mock-db/treasury_payments.json'
-import treasuryReceiptsData from './mock-db/treasury_receipts.json'
-import dianResolutionsData from './mock-db/dian_resolutions.json'
-import accountingPeriodsData from './mock-db/accounting_periods.json'
-import saleItemsData from './mock-db/sale_items.json'
-import purchaseItemsData from './mock-db/purchase_items.json'
-import transferItemsData from './mock-db/transfer_items.json'
-import remissionItemsData from './mock-db/remission_items.json'
-import cashSessionsData from './mock-db/cash_sessions.json'
-import productPricesData from './mock-db/product_prices.json'
-import accountingEntryLinesData from './mock-db/accounting_entry_lines.json'
+import usersData from './mock-db/users.json'
+
+// Usuario administrador inicial para permitir el acceso y configuración del sistema
+const initialAdminUser = usersData.find((u) => u.role === 'SUPERADMIN') || {
+  id: 'usr-001',
+  name: 'Mauricio Andrade',
+  firstName: 'Mauricio',
+  lastName: 'Andrade',
+  email: 'admin@supermas.com.co',
+  username: 'mandrade',
+  phone: '+57 310 445 8821',
+  role: 'SUPERADMIN',
+  status: 'ACTIVE',
+  locationIds: [],
+  locationName: 'Administración Central',
+  avatar: 'MA',
+  createdAt: new Date().toISOString(),
+  lastLoginAt: new Date().toISOString(),
+}
+
+// Métricas de dashboard en ceros absolutos (sin datos simulados)
+const emptyDashboardMetrics = {
+  metricsByPeriod: {
+    TODAY: {
+      todaySales: { value: 0, deltaYesterdayPct: 0, count: 0 },
+      periodSales: { value: 0, deltaPct: 0, count: 0 },
+      grossProfit: { value: 0, marginPct: 0, deltaPct: 0 },
+      inventoryAtCost: { value: 0, deltaPct: 0 },
+      purchases: { value: 0, count: 0 },
+      accountsPayable: { value: 0, pendingInvoices: 0 },
+      productsCount: { total: 0, active: 0, lowStock: 0, critical: 0, outOfStock: 0 },
+      pendingTransfers: { total: 0, inTransit: 0, pending: 0 },
+      webOrders: { totalToday: 0, newOrders: 0, preparing: 0 },
+    },
+    THIS_WEEK: {
+      todaySales: { value: 0, deltaYesterdayPct: 0, count: 0 },
+      periodSales: { value: 0, deltaPct: 0, count: 0 },
+      grossProfit: { value: 0, marginPct: 0, deltaPct: 0 },
+      inventoryAtCost: { value: 0, deltaPct: 0 },
+      purchases: { value: 0, count: 0 },
+      accountsPayable: { value: 0, pendingInvoices: 0 },
+      productsCount: { total: 0, active: 0, lowStock: 0, critical: 0, outOfStock: 0 },
+      pendingTransfers: { total: 0, inTransit: 0, pending: 0 },
+      webOrders: { totalToday: 0, newOrders: 0, preparing: 0 },
+    },
+    THIS_MONTH: {
+      todaySales: { value: 0, deltaYesterdayPct: 0, count: 0 },
+      periodSales: { value: 0, deltaPct: 0, count: 0 },
+      grossProfit: { value: 0, marginPct: 0, deltaPct: 0 },
+      inventoryAtCost: { value: 0, deltaPct: 0 },
+      purchases: { value: 0, count: 0 },
+      accountsPayable: { value: 0, pendingInvoices: 0 },
+      productsCount: { total: 0, active: 0, lowStock: 0, critical: 0, outOfStock: 0 },
+      pendingTransfers: { total: 0, inTransit: 0, pending: 0 },
+      webOrders: { totalToday: 0, newOrders: 0, preparing: 0 },
+    },
+    THIS_YEAR: {
+      todaySales: { value: 0, deltaYesterdayPct: 0, count: 0 },
+      periodSales: { value: 0, deltaPct: 0, count: 0 },
+      grossProfit: { value: 0, marginPct: 0, deltaPct: 0 },
+      inventoryAtCost: { value: 0, deltaPct: 0 },
+      purchases: { value: 0, count: 0 },
+      accountsPayable: { value: 0, pendingInvoices: 0 },
+      productsCount: { total: 0, active: 0, lowStock: 0, critical: 0, outOfStock: 0 },
+      pendingTransfers: { total: 0, inTransit: 0, pending: 0 },
+      webOrders: { totalToday: 0, newOrders: 0, preparing: 0 },
+    },
+  },
+  salesChartByPeriod: {
+    TODAY: [],
+    THIS_WEEK: [],
+    THIS_MONTH: [],
+    THIS_YEAR: [],
+  },
+  warehouseCards: [],
+  topProducts: [],
+  inventoryDistribution: [],
+  quickActions: [
+    { id: 'qa-1', title: 'Nueva Venta POS', subtitle: 'Facturación directa en caja', icon: 'pos', targetView: 'POS', requiredPermission: 'pos.sell', highlight: true },
+    { id: 'qa-2', title: 'Nuevo Producto', subtitle: 'Registrar producto en catálogo', icon: 'products', targetView: 'Productos', requiredPermission: 'product.create' },
+    { id: 'qa-3', title: 'Nueva Compra', subtitle: 'Orden de compra a proveedor', icon: 'purchases', targetView: 'Compras', requiredPermission: 'purchase.create' },
+    { id: 'qa-4', title: 'Configurar Bodega', subtitle: 'Registrar sede o bodega', icon: 'warehouse', targetView: 'Bodegas', requiredPermission: 'warehouse.write' },
+  ],
+  activityFeed: [],
+  loginAudits: [],
+  pendingAttention: [],
+}
 
 export interface SupabaseMockTableMap {
-  locations: typeof locationsData
-  products: typeof productsData
-  sale_items: typeof saleItemsData
-  purchase_items: typeof purchaseItemsData
-  transfer_items: typeof transferItemsData
-  remission_items: typeof remissionItemsData
-  cash_sessions: typeof cashSessionsData
-  product_prices: typeof productPricesData
-  accounting_entry_lines: typeof accountingEntryLinesData
-  stock_levels: typeof stockLevelsData
-  inventory_movements: typeof inventoryMovementsData
-  product_movements: typeof productMovementsData
-  warehouse_inventory: typeof warehouseInventoryData
-  warehouse_movements: typeof warehouseMovementsData
-  transfers: typeof transfersData
-  transfer_locations: typeof transferLocationsData
-  transfer_availability: typeof transferAvailabilityData
-  sales: typeof salesData
-  invoices: typeof invoicesData
-  remissions: typeof remissionsData
-  web_orders: typeof webOrdersData
-  customer_payments: typeof customerPaymentsData
-  customer_documents: typeof customerDocumentsData
-  purchases: typeof purchasesData
-  customers: typeof customersData
-  suppliers: typeof suppliersData
+  locations: any[]
+  products: any[]
+  sale_items: any[]
+  purchase_items: any[]
+  transfer_items: any[]
+  remission_items: any[]
+  cash_sessions: any[]
+  product_prices: any[]
+  accounting_entry_lines: any[]
+  stock_levels: any[]
+  inventory_movements: any[]
+  product_movements: Record<string, any[]>
+  warehouse_inventory: any[]
+  warehouse_movements: any[]
+  transfers: any[]
+  transfer_locations: any[]
+  transfer_availability: any[]
+  sales: any[]
+  invoices: any[]
+  remissions: any[]
+  web_orders: any[]
+  customer_payments: any[]
+  customer_documents: any[]
+  purchases: any[]
+  customers: any[]
+  suppliers: any[]
   users: typeof usersData
-  user_assignments: typeof userAssignmentsData
+  user_assignments: any[]
   tax_configs: typeof taxConfigsData
-  accounting_entries: typeof accountingEntriesData
+  accounting_entries: any[]
   accounting_accounts: typeof accountingAccountsData
-  accounting_movements: typeof accountingMovementsData
+  accounting_movements: any[]
   exogena_normativa: typeof exogenaNormativaData
-  exogena_generations: typeof exogenaGenerationsData
-  categories: typeof categoriesData
-  brands: typeof brandsData
-  dashboard_metrics: typeof dashboardMetricsData
-  audit_logs: typeof auditLogsData
-  warehouse_overview_analytics: typeof warehouseOverviewAnalyticsData
+  exogena_generations: any[]
+  categories: string[]
+  brands: string[]
+  dashboard_metrics: typeof emptyDashboardMetrics
+  audit_logs: any[]
+  warehouse_overview_analytics: {
+    totalLocations: number
+    totalCapacity: number
+    totalCurrentStock: number
+    averageOccupancyPct: number
+  }
   operational_modules: typeof operationalModulesData
-  cash_registers: typeof cashRegistersData
-  cash_movements: typeof cashMovementsData
-  alerts: typeof alertsData
+  cash_registers: any[]
+  cash_movements: any[]
+  alerts: any[]
   alert_rules: typeof alertRulesData
   company_settings: typeof companySettingsData
   inventory_settings: typeof inventorySettingsData
   pos_settings: typeof posSettingsData
   ecommerce_settings: typeof ecommerceSettingsData
   settings: typeof settingsData
-  bank_accounts: typeof bankAccountsData
-  treasury_payments: typeof treasuryPaymentsData
-  treasury_receipts: typeof treasuryReceiptsData
-  dian_resolutions: typeof dianResolutionsData
+  bank_accounts: any[]
+  treasury_payments: any[]
+  treasury_receipts: any[]
+  dian_resolutions: any[]
   accounting_periods: typeof accountingPeriodsData
 }
 
 export const db = {
-  locations: locationsData,
-  products: productsData,
-  stockLevels: stockLevelsData,
-  inventoryMovements: inventoryMovementsData,
-  productMovements: productMovementsData,
-  warehouseInventory: warehouseInventoryData,
-  warehouseMovements: warehouseMovementsData,
-  transfers: transfersData,
-  transferLocations: transferLocationsData,
-  transferAvailability: transferAvailabilityData,
-  sales: salesData,
-  invoices: invoicesData,
-  remissions: remissionsData,
-  webOrders: webOrdersData,
-  customerPayments: customerPaymentsData,
-  customerDocuments: customerDocumentsData,
-  purchases: purchasesData,
-  customers: customersData,
-  suppliers: suppliersData,
-  users: usersData,
-  userAssignments: userAssignmentsData,
+  // Tablas comerciales: TOTALMENTE VACÍAS
+  locations: [] as any[],
+  products: [] as any[],
+  stockLevels: [] as any[],
+  inventoryMovements: [] as any[],
+  productMovements: {} as Record<string, any[]>,
+  warehouseInventory: [] as any[],
+  warehouseMovements: [] as any[],
+  transfers: [] as any[],
+  transferLocations: [] as any[],
+  transferAvailability: [] as any[],
+  sales: [] as any[],
+  invoices: [] as any[],
+  remissions: [] as any[],
+  webOrders: [] as any[],
+  customerPayments: [] as any[],
+  customerDocuments: [] as any[],
+  purchases: [] as any[],
+  customers: [] as any[],
+  suppliers: [] as any[],
+  accountingEntries: [] as any[],
+  accountingMovements: [] as any[],
+  exogenaGenerations: [] as any[],
+  categories: [] as string[],
+  brands: [] as string[],
+  auditLogs: [] as any[],
+  warehouseOverviewAnalytics: {
+    totalLocations: 0,
+    totalCapacity: 0,
+    totalCurrentStock: 0,
+    averageOccupancyPct: 0,
+  },
+  cashRegisters: [] as any[],
+  cashMovements: [] as any[],
+  alerts: [] as any[],
+  bankAccounts: [] as any[],
+  treasuryPayments: [] as any[],
+  treasuryReceipts: [] as any[],
+  dianResolutions: [] as any[],
+  saleItems: [] as any[],
+  purchaseItems: [] as any[],
+  transferItems: [] as any[],
+  remissionItems: [] as any[],
+  cashSessions: [] as any[],
+  productPrices: [] as any[],
+  accountingEntryLines: [] as any[],
+  userAssignments: [] as any[],
+
+  // Tablas de configuración inicial del sistema (Fase 6: Permitidas sin datos comerciales)
+  users: [initialAdminUser] as typeof usersData,
   taxConfigs: taxConfigsData,
-  accountingEntries: accountingEntriesData,
   accountingAccounts: accountingAccountsData,
-  accountingMovements: accountingMovementsData,
+  accountingPeriods: accountingPeriodsData,
   exogenaNormativa: exogenaNormativaData,
-  exogenaGenerations: exogenaGenerationsData,
-  categories: categoriesData,
-  brands: brandsData,
-  dashboardMetrics: dashboardMetricsData,
-  auditLogs: auditLogsData,
-  warehouseOverviewAnalytics: warehouseOverviewAnalyticsData,
   operationalModules: operationalModulesData,
-  cashRegisters: cashRegistersData,
-  cashMovements: cashMovementsData,
-  alerts: alertsData,
   alertRules: alertRulesData,
   companySettings: companySettingsData,
   inventorySettings: inventorySettingsData,
   posSettings: posSettingsData,
   ecommerceSettings: ecommerceSettingsData,
   settings: settingsData,
-  bankAccounts: bankAccountsData,
-  treasuryPayments: treasuryPaymentsData,
-  treasuryReceipts: treasuryReceiptsData,
-  dianResolutions: dianResolutionsData,
-  accountingPeriods: accountingPeriodsData,
-  saleItems: saleItemsData,
-  purchaseItems: purchaseItemsData,
-  transferItems: transferItemsData,
-  remissionItems: remissionItemsData,
-  cashSessions: cashSessionsData,
-  productPrices: productPricesData,
-  accountingEntryLines: accountingEntryLinesData,
+  dashboardMetrics: emptyDashboardMetrics,
 }
 
 /**
- * Cliente que emula la API fluida de consultas de Supabase:
- * e.g. supabaseMock.from('products').select()
+ * Cliente seguro de simulación de consultas compatible con Supabase.
+ * Para toda entidad comercial devuelve arreglos vacíos data: [].
  */
 export const supabaseMock = {
   from<K extends keyof SupabaseMockTableMap>(table: K) {
@@ -272,9 +331,8 @@ export const supabaseMock = {
 
     return {
       async select(): Promise<{ data: SupabaseMockTableMap[K]; error: null }> {
-        // Retorna copia para evitar mutaciones accidentales del store JSON base
         return {
-          data: JSON.parse(JSON.stringify(rawData)),
+          data: Array.isArray(rawData) ? JSON.parse(JSON.stringify(rawData)) : (rawData as any),
           error: null,
         }
       },
@@ -283,11 +341,11 @@ export const supabaseMock = {
 }
 
 /**
- * Helpers dinámicos para selectores y filtros que los componentes pueden consultar
- * en lugar de tener listas fijas en el código UI.
+ * Helpers dinámicos para selectores y filtros.
+ * Cuando no hay datos registrados retornan arreglos vacíos o con la opción por defecto.
  */
 export function getDbLocationOptions() {
-  return db.transferLocations.map((l) => ({
+  return db.locations.map((l: any) => ({
     value: l.id,
     label: l.name,
     badge: l.code,
@@ -311,6 +369,6 @@ export function getDbBrandOptions() {
 export function getDbUserOptions() {
   return [
     { value: 'ALL', label: 'Todos los responsables' },
-    ...db.users.map((u) => ({ value: u.name, label: `${u.name} (${u.role})` })),
+    ...db.users.map((u: any) => ({ value: u.name, label: `${u.name} (${u.role})` })),
   ]
 }

@@ -203,10 +203,10 @@ export function CustomerTable({
                       <AppIcon name="customers" size={28} />
                     </div>
                     <strong style={{ fontSize: 16, color: 'var(--foreground)' }}>
-                      No se encontraron clientes
+                      No existen clientes registrados
                     </strong>
                     <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-                      No hay clientes que coincidan con los criterios de búsqueda o filtros seleccionados.
+                      No hay clientes que coincidan con los filtros o aún no se han registrado clientes en el sistema.
                     </p>
                   </div>
                 </td>

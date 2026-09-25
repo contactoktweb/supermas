@@ -8,17 +8,17 @@ import {
   TransferReceiveInput,
   TransferRejectInput,
 } from '../types'
-import { TRANSFERS_MOCK, AVAILABLE_PRODUCTS_FOR_TRANSFER } from '../mocks/transfers.mock'
-import { supabaseMock } from '@/lib/supabase'
+import { supabaseClient, supabaseMock } from '@/lib/supabase'
 
 export class TransferRepository {
-  private transfers: Transfer[] = [...TRANSFERS_MOCK]
+  private transfers: Transfer[] = []
 
   /**
    * Obtiene los ítems normalizados relacionales de la transferencia desde transfer_items
    */
   async getItems(transferId: string): Promise<any[]> {
-    const { data: rawItems } = await supabaseMock.from('transfer_items').select()
+    const client = supabaseClient || supabaseMock
+    const { data: rawItems } = await client.from('transfer_items').select()
     const allItems = (rawItems as unknown as Array<{ transferId?: string }>) || []
     return allItems.filter((i) => i.transferId === transferId)
   }
@@ -208,20 +208,19 @@ export class TransferRepository {
     const now = new Date().toISOString()
 
     const items = input.items.map((item, index) => {
-      const prodMeta = AVAILABLE_PRODUCTS_FOR_TRANSFER.find((p) => p.productId === item.productId)
-      const unitCost = prodMeta ? prodMeta.unitCost : 5000
+      const unitCost = 0
       const totalCost = unitCost * item.units
-      const availableStock = prodMeta?.stocksByLocation[input.originLocationId] ?? 100
+      const availableStock = 0
 
       return {
         id: `item-${newCodeNumber}-${index + 1}`,
         productId: item.productId,
-        productName: prodMeta ? prodMeta.productName : 'Producto Transferido',
-        sku: prodMeta ? prodMeta.sku : `SKU-${item.productId}`,
-        barcode: prodMeta?.barcode,
-        category: prodMeta ? prodMeta.category : 'General',
-        unitOfMeasure: prodMeta ? prodMeta.unitOfMeasure : 'UND',
-        imageUrl: prodMeta?.imageUrl,
+        productName: 'Producto Transferido',
+        sku: `SKU-${item.productId}`,
+        barcode: undefined,
+        category: 'General',
+        unitOfMeasure: 'UND',
+        imageUrl: undefined,
         availableStockAtOrigin: availableStock,
         requestedUnits: item.units,
         dispatchedUnits: 0,

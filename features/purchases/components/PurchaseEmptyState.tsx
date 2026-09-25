@@ -22,7 +22,7 @@ export function PurchaseEmptyState({
       <h3>
         {hasFilters
           ? 'No se encontraron compras con los filtros aplicados'
-          : 'No hay órdenes de compra registradas'}
+          : 'No hay compras realizadas'}
       </h3>
       <p>
         {hasFilters

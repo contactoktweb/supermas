@@ -151,8 +151,14 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
               <div style={{ width: 44, height: 44, borderRadius: 12, background: '#f1f5f9', display: 'grid', placeItems: 'center', margin: '0 auto 8px' }}>
                 <AppIcon name="users" size={22} color="#94a3b8" />
               </div>
-              <strong style={{ fontSize: 13, color: 'var(--navy)', display: 'block' }}>No se encontraron clientes</strong>
-              <span style={{ fontSize: 12 }}>Prueba con otro número de documento o nombre</span>
+              <strong style={{ fontSize: 13, color: 'var(--navy)', display: 'block' }}>
+                {!searchTerm ? 'No existen clientes registrados' : 'No se encontraron clientes'}
+              </strong>
+              <span style={{ fontSize: 12 }}>
+                {!searchTerm
+                  ? 'Registra un cliente nuevo con el botón inferior o continúa con consumidor final.'
+                  : 'Prueba con otro número de documento o nombre'}
+              </span>
             </div>
           ) : (
             searchResults.map((customer) => {

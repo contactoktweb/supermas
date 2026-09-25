@@ -8,7 +8,7 @@ Sistema multi-bodega con centro logístico (CEDI Principal) y tiendas/puntos de 
 - **Frontend / Framework**: Next.js 16 (Turbopack, App Router) + React 19 + TypeScript.
 - **Estilos**: Vanilla CSS moderno con tokens de diseño, CSS variables y micro-animaciones.
 - **Iconografía**: `@iconify/react` con `solar-linear` y `phosphor-light`.
-- **Capa de Datos**: Centralizada en `lib/supabase/` con clientes oficiales (`client.ts`, `server.ts`, `admin.ts`), soporte dual con fallback relacional (`lib/supabase/mock-db/`) y suite completa de migraciones PostgreSQL DDL en `supabase/migrations/`.
+- **Capa de Datos**: Centralizada en `lib/supabase/` con clientes oficiales (`client.ts`, `server.ts`, `admin.ts`) y resiliencia para base de datos Supabase limpia/vacía (cero registros de prueba). Suite completa de migraciones PostgreSQL DDL en `supabase/migrations/` y script de inicialización limpia `scripts/seed-clean-initial-data.ts`.
 - **Base de Datos Destino**: Supabase PostgreSQL con RLS, Auth, Storage (6 buckets) y Kardex atómico.
 - **Zona Horaria**: `America/Bogota`. Moneda: Peso Colombiano (`COP`).
 

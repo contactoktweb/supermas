@@ -48,6 +48,18 @@ export function AccountingBalanceSheetTab({
         </div>
       </div>
 
+      {/* Estado vacío si no hay movimientos */}
+      {balanceSheet.totalAssets === 0 && balanceSheet.totalLiabilities === 0 && balanceSheet.totalEquity === 0 && (
+        <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
+          <p className="text-sm font-semibold text-blue-950 mb-1">
+            No existen movimientos contables para este periodo
+          </p>
+          <p className="text-xs text-blue-700">
+            Los saldos de activos, pasivos y patrimonio se calcularán automáticamente a medida que se asienten comprobantes de diario.
+          </p>
+        </div>
+      )}
+
       {/* Comprobación de la Ecuación Contable */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">

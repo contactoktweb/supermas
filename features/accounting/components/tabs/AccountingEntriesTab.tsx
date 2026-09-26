@@ -152,8 +152,13 @@ export function AccountingEntriesTab({
             <tbody>
               {entries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-8 text-gray-500">
-                    No existen comprobantes o movimientos contables para este periodo.
+                  <td colSpan={10} className="text-center py-12 text-gray-500">
+                    <div className="font-bold text-sm text-gray-700 mb-1">
+                      No existen movimientos contables
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Los comprobantes de diario se listarán aquí una vez generadas transacciones en el sistema.
+                    </div>
                   </td>
                 </tr>
               ) : (

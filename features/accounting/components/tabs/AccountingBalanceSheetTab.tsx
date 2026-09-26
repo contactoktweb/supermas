@@ -49,19 +49,33 @@ export function AccountingBalanceSheetTab({
       </div>
 
       {/* Estado vacío si no hay movimientos */}
-      {balanceSheet.totalAssets === 0 && balanceSheet.totalLiabilities === 0 && balanceSheet.totalEquity === 0 && (
-        <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
-          <p className="text-sm font-semibold text-blue-950 mb-1">
-            No existen movimientos contables para este periodo
-          </p>
-          <p className="text-xs text-blue-700">
-            Los saldos de activos, pasivos y patrimonio se calcularán automáticamente a medida que se asienten comprobantes de diario.
+      {balanceSheet.totalAssets === 0 && balanceSheet.totalLiabilities === 0 && balanceSheet.totalEquity === 0 ? (
+        <div className="p-8 text-center bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              width: 52,
+              height: 52,
+              borderRadius: 12,
+              background: '#eff6ff',
+              color: 'var(--navy)',
+              margin: '0 auto 14px',
+            }}
+          >
+            <AppIcon name="accounting" size={26} />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 mb-1">
+            Sin información financiera disponible
+          </h3>
+          <p className="text-xs text-gray-500 max-w-md mx-auto">
+            No se registran movimientos contables en el catálogo de cuentas para el corte seleccionado. El balance se generará automáticamente a partir de los comprobantes asentados.
           </p>
         </div>
-      )}
-
-      {/* Comprobación de la Ecuación Contable */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      ) : (
+        <>
+          {/* Comprobación de la Ecuación Contable */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
           <span className="text-xs font-semibold text-blue-700 uppercase block mb-1">Total Activos</span>
           <strong className="text-xl font-mono text-blue-950">${balanceSheet.totalAssets.toLocaleString('es-CO')}</strong>
@@ -203,6 +217,8 @@ export function AccountingBalanceSheetTab({
           </div>
         </section>
       </div>
-    </div>
+    </>
+  )}
+</div>
   )
 }

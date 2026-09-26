@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { SaleDetail, SaleStatus } from '../types'
 
@@ -58,8 +59,22 @@ export function SaleDetailDrawer({
   onViewKardex,
 }: SaleDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
+
+  if (!isOpen || !mounted) return null
 
   const getStatusBadge = (status: SaleStatus) => {
     switch (status) {
@@ -78,20 +93,46 @@ export function SaleDetailDrawer({
     }
   }
 
-  return (
-    <>
-      <div className="drawer-backdrop" onClick={onClose} />
+  return createPortal(
+    <div
+      className="drawer-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Detalle de Venta Comercial"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
+        background: 'rgba(10, 24, 48, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'stretch',
+      }}
+    >
       <div
-        className="drawer-panel page-enter"
+        className="product-drawer page-enter"
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: 750,
+          height: '100vh',
           display: 'flex',
           flexDirection: 'column',
+          background: '#ffffff',
+          boxShadow: '-15px 0 45px rgba(0, 27, 92, 0.35)',
+          overflowY: 'hidden',
+          padding: 0,
+          position: 'relative',
+          zIndex: 1000000,
         }}
       >
         {/* Header */}
-        <div className="drawer-header" style={{ paddingBottom: 14 }}>
+        <div className="drawer-header" style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--line)', flexShrink: 0, background: '#fff' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span
@@ -663,6 +704,7 @@ export function SaleDetailDrawer({
           </button>
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   )
 }

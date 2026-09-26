@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Sale } from '../types'
 
@@ -23,8 +24,13 @@ export function SaleRemissionModal({
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
 
-  if (!isOpen || !sale) return null
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!isOpen || !sale || !mounted) return null
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,23 +52,38 @@ export function SaleRemissionModal({
     }
   }
 
-  return (
-    <>
-      <div className="drawer-backdrop" onClick={onClose} />
+  return createPortal(
+    <div
+      className="drawer-backdrop modal-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
+        background: 'rgba(10, 24, 48, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+    >
       <div
         className="modal-card page-enter"
+        onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: '90%',
+          width: '100%',
           maxWidth: 480,
           background: '#ffffff',
           borderRadius: 16,
           padding: 24,
-          boxShadow: '0 20px 40px rgba(0, 27, 92, 0.2)',
-          zIndex: 100000,
+          boxShadow: '0 25px 50px -12px rgba(0, 27, 92, 0.35)',
+          zIndex: 1000000,
           border: '1.5px solid #cbd5e1',
         }}
       >
@@ -211,6 +232,7 @@ export function SaleRemissionModal({
           </div>
         </form>
       </div>
-    </>
+    </div>,
+    document.body
   )
 }

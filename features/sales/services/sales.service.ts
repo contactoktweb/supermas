@@ -108,6 +108,17 @@ export class SalesService {
   ): Promise<Sale> {
     this.checkPermission(user, 'sales.create')
 
+    // 0. Validar existencia de empresa configurada
+    const { data: rawCompany } = await supabaseMock.from('company_settings').select()
+    const company = Array.isArray(rawCompany) && rawCompany.length > 0 ? rawCompany[0] : (db.companySettings || null)
+    const hasCompany =
+      company &&
+      company.nit &&
+      (company.companyName || company.legalName || company.businessName)
+    if (!hasCompany) {
+      throw new Error('Configure la empresa antes de operar.')
+    }
+
     // 1. Validación de esquema con Zod
     const validated = createSaleSchema.parse(dto)
 

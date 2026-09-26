@@ -180,8 +180,47 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
     document.body.removeChild(link)
   }
 
+  const isCompanyConfigured = Boolean(
+    db.companySettings?.nit &&
+      (db.companySettings?.companyName || db.companySettings?.legalName)
+  )
+
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Alerta si la empresa no ha sido configurada */}
+      {!isCompanyConfigured && (
+        <div
+          className="alert-banner warning"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderRadius: 8,
+            background: '#fffbeb',
+            border: '1px solid #fde68a',
+            color: '#92400e',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <AppIcon name="warning" size={22} />
+            <div>
+              <strong style={{ fontSize: 14 }}>Configure la empresa antes de operar</strong>
+              <p style={{ margin: 0, fontSize: 13, color: '#b45309' }}>
+                Debes registrar la información legal y tributaria de tu empresa para habilitar la facturación y ventas.
+              </p>
+            </div>
+          </div>
+          <a
+            href="/configuracion"
+            className="primary-button compact"
+            style={{ textDecoration: 'none', whiteSpace: 'nowrap' }}
+          >
+            Configurar Empresa
+          </a>
+        </div>
+      )}
+
       {/* 1. Page Header */}
       <div className="page-heading">
         <div>
@@ -206,6 +245,8 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
             type="button"
             className="primary-button compact"
             onClick={handleOpenNewSale}
+            disabled={!isCompanyConfigured}
+            title={!isCompanyConfigured ? 'Configure la empresa antes de operar' : undefined}
           >
             <AppIcon name="plus" size={15} /> Nueva Venta
           </button>

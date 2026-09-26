@@ -173,3 +173,58 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 5. Función de Seguridad para Obtener Empresa del Usuario Actual
+CREATE OR REPLACE FUNCTION public.get_auth_company_id()
+RETURNS UUID AS $$
+    SELECT u.company_id
+    FROM public.users u
+    WHERE u.id = auth.uid();
+$$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- 6. Políticas de Aislamiento Estricto Multiempresa (Multi-Tenant RLS)
+-- Regla: Un usuario perteneciente a Empresa A NO PUEDE VER datos de Empresa B.
+-- El SUPERADMIN con alcance global puede auditar según permisos.
+
+DROP POLICY IF EXISTS "Tenant isolation for sales" ON public.sales;
+CREATE POLICY "Tenant isolation for sales" ON public.sales
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Tenant isolation for products" ON public.products;
+CREATE POLICY "Tenant isolation for products" ON public.products
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Tenant isolation for customers" ON public.customers;
+CREATE POLICY "Tenant isolation for customers" ON public.customers
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Tenant isolation for suppliers" ON public.suppliers;
+CREATE POLICY "Tenant isolation for suppliers" ON public.suppliers
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Tenant isolation for purchases" ON public.purchases;
+CREATE POLICY "Tenant isolation for purchases" ON public.purchases
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+
+DROP POLICY IF EXISTS "Tenant isolation for stock" ON public.stock_levels;
+CREATE POLICY "Tenant isolation for stock" ON public.stock_levels
+FOR ALL TO authenticated
+USING (
+    company_id = public.get_auth_company_id() OR public.is_admin()
+);
+

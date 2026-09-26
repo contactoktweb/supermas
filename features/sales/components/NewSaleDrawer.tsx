@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { salesCalculationService } from '../services/sales-calculation.service'
@@ -58,6 +59,20 @@ export function NewSaleDrawer({
   const [customerSearch, setCustomerSearch] = useState('')
   const [productSearch, setProductSearch] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const originalOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = originalOverflow
+    }
+  }, [isOpen])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   // Data from mock-db
@@ -288,22 +303,59 @@ export function NewSaleDrawer({
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || !mounted) return null
 
-  return (
-    <>
-      <div className="drawer-backdrop" onClick={onClose} />
+  return createPortal(
+    <div
+      className="drawer-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nueva Venta Comercial"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 999999,
+        background: 'rgba(10, 24, 48, 0.65)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'stretch',
+      }}
+    >
       <div
-        className="drawer-panel page-enter"
+        className="product-drawer page-enter"
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: 680,
+          height: '100vh',
           display: 'flex',
           flexDirection: 'column',
+          background: '#ffffff',
+          boxShadow: '-15px 0 45px rgba(0, 27, 92, 0.35)',
+          overflowY: 'hidden',
+          padding: 0,
+          position: 'relative',
+          zIndex: 1000000,
         }}
       >
         {/* Header */}
-        <div className="drawer-header">
+        <div
+          className="drawer-header"
+          style={{
+            padding: '18px 24px',
+            borderBottom: '1px solid var(--line)',
+            background: '#ffffff',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexShrink: 0,
+          }}
+        >
           <div>
             <span
               style={{
@@ -1009,6 +1061,7 @@ export function NewSaleDrawer({
           )}
         </div>
       </div>
-    </>
+    </div>,
+    document.body
   )
 }

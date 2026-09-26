@@ -25,14 +25,14 @@ Sistema multi-bodega con centro logístico (CEDI Principal) y tiendas/puntos de 
 - **POS** (`/pos`)
 - **Facturación Electrónica** (`/facturacion`)
 - **Remisiones** (`/remisiones`)
-- **Contabilidad** (`/contabilidad`) — *Núcleo Financiero (PUC, partida doble, libro diario, libro mayor, libro auxiliar agrupado por cuenta y periodo, balance general, estado de resultados, parametrización de inventarios y costos por bodega)*
-- **Tesorería** (`/tesoreria`) — *Módulo Financiero Operativo Independiente (Cuentas bancarias, cajas, programación y dispersión de pagos a proveedores, recaudación de cartera de clientes, movimientos bancarios y conciliación)*
+- **Contabilidad** (`/contabilidad`) — *Núcleo Financiero (Catálogo PUC colombiano base con saldo $0, estricta partida doble, libro diario, libro mayor, libro auxiliar dinámico, balance general, estado de resultados y costos por bodega; 100% libre de datos mock y fallbacks ficticios).*
+- **Tesorería** (`/tesoreria`) — *Módulo Financiero Operativo Independiente (Cuentas bancarias, cajas, programación y dispersión de pagos a proveedores, recaudación de cartera de clientes, movimientos bancarios y conciliación).*
 - **Impuestos** (`/impuestos`) — *Tarifas DIAN, IVA generado y descontable*
 - **Exógena** (`/exogena`) — *Formatos DIAN 1001, 1007, 1008, 1009*
 - **Pedidos Web** (`/pedidos-web`) — *Gestión de órdenes ecommerce, validación de stock, reserva en CEDI, alistamiento, despacho, ventas y facturación DIAN*
 - **Catálogo Super Más** (`/catalogo-supermas`) — *Administración de productos para venta directa B2C en la tienda web, precios públicos, fotos, disponibilidad multi-bodega y carrito*
 - **Catálogo Distribuidora** (`/catalogo-distribuidora`) — *Administración de visibilidad comercial B2B, cotizaciones vía WhatsApp, vinculación con Catálogo Super Más y compra directa web*
-- **Auditoría** (`/auditoria`) — *Trazabilidad e historial de eventos con `auditService.log()`*
+- **Auditoría** (`/auditoria`) — *Trazabilidad e historial de eventos con `auditService.log()` y persistencia inmutable; sin eventos ni contadores ficticios.*
 - **Reportes y Analítica** (`/reportes`) — *Centro de inteligencia de negocios, ventas, compras, Kardex, costos CMV, benchmark de bodegas, clientes, proveedores, cajas, facturación DIAN, contabilidad y ecommerce*
 - **Usuarios** (`/usuarios`)
 

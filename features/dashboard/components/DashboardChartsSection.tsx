@@ -49,38 +49,49 @@ export function DashboardChartsSection({
 
   // Generate SVG Path for Sales
   const salesPoints = chartPoints.map((p, i) => getCoordinates(i, p.sales))
-  const salesPath = salesPoints.reduce(
-    (acc, pt, i, arr) => {
-      if (i === 0) return `M ${pt.x} ${pt.y}`
-      const prev = arr[i - 1]
-      const cpX = (prev.x + pt.x) / 2
-      return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
-    },
-    ''
-  )
-  const salesAreaPath = `${salesPath} L ${salesPoints[salesPoints.length - 1].x} ${chartHeight - paddingY} L ${salesPoints[0].x} ${chartHeight - paddingY} Z`
+  const hasSalesPoints = salesPoints.length > 0
+  const salesPath = hasSalesPoints
+    ? salesPoints.reduce(
+        (acc, pt, i, arr) => {
+          if (i === 0) return `M ${pt.x} ${pt.y}`
+          const prev = arr[i - 1]
+          const cpX = (prev.x + pt.x) / 2
+          return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+        },
+        ''
+      )
+    : ''
+  const salesAreaPath = hasSalesPoints
+    ? `${salesPath} L ${salesPoints[salesPoints.length - 1].x} ${chartHeight - paddingY} L ${salesPoints[0].x} ${chartHeight - paddingY} Z`
+    : ''
 
   // Generate SVG Path for Purchases (if allowed)
   const purchasesPoints = chartPoints.map((p, i) =>
     getCoordinates(i, p.purchases || 0)
   )
-  const purchasesPath = purchasesPoints.reduce((acc, pt, i, arr) => {
-    if (i === 0) return `M ${pt.x} ${pt.y}`
-    const prev = arr[i - 1]
-    const cpX = (prev.x + pt.x) / 2
-    return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
-  }, '')
+  const hasPurchasesPoints = purchasesPoints.length > 0
+  const purchasesPath = hasPurchasesPoints
+    ? purchasesPoints.reduce((acc, pt, i, arr) => {
+        if (i === 0) return `M ${pt.x} ${pt.y}`
+        const prev = arr[i - 1]
+        const cpX = (prev.x + pt.x) / 2
+        return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+      }, '')
+    : ''
 
   // Generate SVG Path for Profit
   const profitPoints = chartPoints.map((p, i) =>
     getCoordinates(i, p.profit || 0)
   )
-  const profitPath = profitPoints.reduce((acc, pt, i, arr) => {
-    if (i === 0) return `M ${pt.x} ${pt.y}`
-    const prev = arr[i - 1]
-    const cpX = (prev.x + pt.x) / 2
-    return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
-  }, '')
+  const hasProfitPoints = profitPoints.length > 0
+  const profitPath = hasProfitPoints
+    ? profitPoints.reduce((acc, pt, i, arr) => {
+        if (i === 0) return `M ${pt.x} ${pt.y}`
+        const prev = arr[i - 1]
+        const cpX = (prev.x + pt.x) / 2
+        return `${acc} C ${cpX} ${prev.y}, ${cpX} ${pt.y}, ${pt.x} ${pt.y}`
+      }, '')
+    : ''
 
   const totalSalesInView = chartPoints.reduce((a, b) => a + b.sales, 0)
   const totalPurchasesInView = chartPoints.reduce((a, b) => a + (b.purchases || 0), 0)

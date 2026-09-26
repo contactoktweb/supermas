@@ -36,20 +36,48 @@ export function AccountingGeneralJournalTab({ entries, onExport }: AccountingGen
             Registro cronológico obligatorio de todas las transacciones comerciales de Super Más S.A.S.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="outline-button text-xs py-1.5"
-            onClick={onExport}
-          >
-            <AppIcon name="download" size={14} />
-            <span>Descargar Libro Diario (CSV)</span>
-          </button>
-        </div>
+        {entries.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="outline-button text-xs py-1.5"
+              onClick={onExport}
+            >
+              <AppIcon name="download" size={14} />
+              <span>Descargar Libro Diario (CSV)</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Comprobantes Desglosados en el Libro Diario */}
-      <div className="space-y-4">
+      {/* Estado vacío obligatorio cuando no hay asientos */}
+      {entries.length === 0 ? (
+        <div className="p-8 text-center bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              width: 52,
+              height: 52,
+              borderRadius: 12,
+              background: '#eff6ff',
+              color: 'var(--navy)',
+              margin: '0 auto 14px',
+            }}
+          >
+            <AppIcon name="fileText" size={26} />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 mb-1">
+            No existen movimientos contables
+          </h3>
+          <p className="text-xs text-gray-500 max-w-md mx-auto">
+            El libro diario se actualizará automáticamente a medida que se registren transacciones comerciales, compras o asientos manuales.
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Comprobantes Desglosados en el Libro Diario */}
+          <div className="space-y-4">
         {entries.map((entry) => (
           <div key={entry.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
             {/* Cabecera del comprobante */}
@@ -117,28 +145,30 @@ export function AccountingGeneralJournalTab({ entries, onExport }: AccountingGen
         ))}
       </div>
 
-      {/* Resumen Global del Libro Diario */}
-      <div className="p-4 rounded-xl bg-blue-900 text-white flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <strong className="block text-sm font-semibold">Total Movimientos Libro Diario</strong>
-          <span className="text-xs text-blue-200">Balance global acumulado de comprobantes registrados</span>
-        </div>
-        <div className="flex items-center gap-6 font-mono text-sm">
-          <div>
-            <span className="block text-[11px] text-blue-200 uppercase font-sans">Total Débitos:</span>
-            <b>${grandTotalDebit.toLocaleString('es-CO')}</b>
+          {/* Resumen Global del Libro Diario */}
+          <div className="p-4 rounded-xl bg-blue-900 text-white flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <strong className="block text-sm font-semibold">Total Movimientos Libro Diario</strong>
+              <span className="text-xs text-blue-200">Balance global acumulado de comprobantes registrados</span>
+            </div>
+            <div className="flex items-center gap-6 font-mono text-sm">
+              <div>
+                <span className="block text-[11px] text-blue-200 uppercase font-sans">Total Débitos:</span>
+                <b>${grandTotalDebit.toLocaleString('es-CO')}</b>
+              </div>
+              <div>
+                <span className="block text-[11px] text-blue-200 uppercase font-sans">Total Créditos:</span>
+                <b>${grandTotalCredit.toLocaleString('es-CO')}</b>
+              </div>
+              <div className="pl-4 border-l border-blue-700 text-xs">
+                <span className="flex items-center gap-1 text-emerald-300 font-sans font-semibold">
+                  <AppIcon name="check" size={16} /> Balance Cuadrado
+                </span>
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="block text-[11px] text-blue-200 uppercase font-sans">Total Créditos:</span>
-            <b>${grandTotalCredit.toLocaleString('es-CO')}</b>
-          </div>
-          <div className="pl-4 border-l border-blue-700 text-xs">
-            <span className="flex items-center gap-1 text-emerald-300 font-sans font-semibold">
-              <AppIcon name="check" size={16} /> Balance Cuadrado
-            </span>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

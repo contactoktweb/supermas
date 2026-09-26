@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { AppIcon } from '@/components/ui/Icon'
 import { IncomeStatementReport } from '../../types'
 import { db } from '@/lib/supabase/db'
 
@@ -48,18 +49,32 @@ export function AccountingIncomeStatementTab({
       </div>
 
       {/* Estado vacío si no hay movimientos */}
-      {incomeStatement.totalRevenues === 0 && incomeStatement.totalCosts === 0 && incomeStatement.totalOperatingExpenses === 0 && (
-        <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 text-center">
-          <p className="text-sm font-semibold text-blue-950 mb-1">
-            No existen movimientos contables para este periodo
-          </p>
-          <p className="text-xs text-blue-700">
-            Los ingresos operacionales, costos de ventas y márgenes se consolidarán automáticamente con los movimientos del periodo.
+      {incomeStatement.totalRevenues === 0 && incomeStatement.totalCosts === 0 && incomeStatement.totalOperatingExpenses === 0 ? (
+        <div className="p-8 text-center bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+              width: 52,
+              height: 52,
+              borderRadius: 12,
+              background: '#eff6ff',
+              color: 'var(--navy)',
+              margin: '0 auto 14px',
+            }}
+          >
+            <AppIcon name="accounting" size={26} />
+          </div>
+          <h3 className="text-base font-bold text-gray-900 mb-1">
+            Sin información financiera disponible
+          </h3>
+          <p className="text-xs text-gray-500 max-w-md mx-auto">
+            No se registran operaciones contables de ingresos, costos o gastos en el periodo seleccionado. El estado de resultados se generará automáticamente cuando existan operaciones comerciales reales.
           </p>
         </div>
-      )}
-
-      {/* Tarjetas Resumen de Márgenes */}
+      ) : (
+        <>
+          {/* Tarjetas Resumen de Márgenes */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100">
           <span className="text-[11px] font-semibold text-blue-700 uppercase block mb-1">Ingresos Operacionales</span>
@@ -194,6 +209,8 @@ export function AccountingIncomeStatementTab({
           </div>
         </div>
       </section>
-    </div>
-  )
+    </>
+  )}
+</div>
+)
 }

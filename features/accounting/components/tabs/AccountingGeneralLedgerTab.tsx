@@ -70,7 +70,7 @@ export function AccountingGeneralLedgerTab({
           </select>
         </div>
 
-        {selectedLedger && (
+        {selectedLedger && (hasMovements || selectedLedger.initialBalance !== 0) && (
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-100">
               <span className="text-[11px] block text-slate-500 font-medium mb-0.5">Saldo Inicial</span>
@@ -148,12 +148,11 @@ export function AccountingGeneralLedgerTab({
                         <AppIcon name="fileText" size={24} />
                       </div>
                       <strong style={{ fontSize: 14 }}>
-                        Sin movimientos en el período
+                        Sin movimientos para el periodo seleccionado
                       </strong>
                       <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
                         La cuenta <strong>{selectedLedger.accountCode} — {selectedLedger.accountName}</strong>{' '}
                         no registra movimientos en el período <strong>{selectedLedger.period}</strong>.
-                        Selecciona otra cuenta o revisa el filtro de período.
                       </p>
                     </div>
                   </td>

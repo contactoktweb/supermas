@@ -59,9 +59,11 @@ export function AuditStats({ stats, isLoading, onFilterCritical }: AuditStatsPro
         <div className="stat-text">
           <span className="stat-title">Módulo principal</span>
           <strong style={{ fontSize: 18, color: 'var(--text)', display: 'block', marginTop: 2 }}>
-            {stats.topActiveModule !== 'N/A' ? stats.topActiveModule : 'Consolidado'}
+            {stats.topActiveModule !== 'N/A' && stats.periodEventsCount > 0 ? stats.topActiveModule : 'Sin actividad'}
           </strong>
-          <span className="stat-note">Mayor volumen de registros</span>
+          <span className="stat-note">
+            {stats.periodEventsCount > 0 ? 'Mayor volumen de registros' : 'Esperando operaciones'}
+          </span>
         </div>
       </div>
 

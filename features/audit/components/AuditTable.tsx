@@ -124,11 +124,11 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
         <div style={{ color: 'var(--muted)', marginBottom: 12 }}>
           <AppIcon name="audit" size={40} />
         </div>
-        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 4px', color: 'var(--text)' }}>
-          No se encontraron eventos de auditoría
+        <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px', color: 'var(--text)' }}>
+          No existen eventos de auditoría
         </h3>
-        <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>
-          Intenta ajustar los criterios de búsqueda o el rango de fechas seleccionado.
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', maxWidth: 440, marginLeft: 'auto', marginRight: 'auto' }}>
+          El sistema registrará automáticamente las operaciones sensibles, inicios de sesión y modificaciones de registros en tiempo real.
         </p>
       </div>
     )

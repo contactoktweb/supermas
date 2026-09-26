@@ -19,10 +19,50 @@ import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.sche
 
 class AccountingRepository {
   /**
+   * Calcula los saldos de cada cuenta contable en tiempo real a partir
+   * de los movimientos oficiales del libro auxiliar (Kardex / partida doble).
+   */
+  private withDynamicBalances(accounts: AccountingAccount[]): AccountingAccount[] {
+    const movements = (db.accountingMovements as unknown as AccountingMovement[]) || []
+    if (movements.length === 0) {
+      return accounts.map((a) => ({ ...a, balance: 0 }))
+    }
+
+    const balanceMap = new Map<string, { debits: number; credits: number }>()
+    for (const m of movements) {
+      const d = Number(m.debit) || 0
+      const c = Number(m.credit) || 0
+      if (m.accountId) {
+        const cur = balanceMap.get(m.accountId) || { debits: 0, credits: 0 }
+        cur.debits += d
+        cur.credits += c
+        balanceMap.set(m.accountId, cur)
+      }
+      if (m.accountCode && m.accountCode !== m.accountId) {
+        const cur = balanceMap.get(m.accountCode) || { debits: 0, credits: 0 }
+        cur.debits += d
+        cur.credits += c
+        balanceMap.set(m.accountCode, cur)
+      }
+    }
+
+    return accounts.map((acc) => {
+      const stats = balanceMap.get(acc.id) || balanceMap.get(acc.code) || { debits: 0, credits: 0 }
+      const isDebit = acc.nature === 'DEBIT'
+      const dynamicBalance = isDebit ? stats.debits - stats.credits : stats.credits - stats.debits
+      return {
+        ...acc,
+        balance: dynamicBalance,
+      }
+    })
+  }
+
+  /**
    * Consulta el catálogo de cuentas PUC con filtros y paginación
    */
   async getAccounts(filters?: AccountingFilters): Promise<{ data: AccountingAccount[]; total: number }> {
     let list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
+    list = this.withDynamicBalances(list)
 
     if (filters?.query) {
       const q = filters.query.toLowerCase().trim()
@@ -60,17 +100,17 @@ class AccountingRepository {
 
   async getAllAccounts(): Promise<AccountingAccount[]> {
     const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
-    return JSON.parse(JSON.stringify(list))
+    return JSON.parse(JSON.stringify(this.withDynamicBalances(list)))
   }
 
   async getAccountById(id: string): Promise<AccountingAccount | null> {
-    const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
+    const list = this.withDynamicBalances((db.accountingAccounts as unknown as AccountingAccount[]) || [])
     const acc = list.find((a) => a.id === id)
     return acc ? JSON.parse(JSON.stringify(acc)) : null
   }
 
   async getAccountByCode(code: string): Promise<AccountingAccount | null> {
-    const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
+    const list = this.withDynamicBalances((db.accountingAccounts as unknown as AccountingAccount[]) || [])
     const acc = list.find((a) => a.code === code)
     return acc ? JSON.parse(JSON.stringify(acc)) : null
   }
@@ -599,10 +639,22 @@ class AccountingRepository {
 
   async getPeriods(year?: number): Promise<AccountingPeriod[]> {
     let list = (db.accountingPeriods as unknown as AccountingPeriod[]) || []
+    const entries = (db.accountingEntries as unknown as AccountingEntry[]) || []
     if (year) {
       list = list.filter((p) => p.year === year)
     }
-    return JSON.parse(JSON.stringify(list))
+    const computed = list.map((p) => {
+      const pEntries = entries.filter((e) => e.period === p.periodCode || e.date.startsWith(p.periodCode))
+      const debits = pEntries.reduce((sum, e) => sum + (Number(e.totalDebit) || 0), 0)
+      const credits = pEntries.reduce((sum, e) => sum + (Number(e.totalCredit) || 0), 0)
+      return {
+        ...p,
+        entriesCount: pEntries.length,
+        totalDebits: debits,
+        totalCredits: credits,
+      }
+    })
+    return JSON.parse(JSON.stringify(computed))
   }
 
   async getPeriodByCode(periodCode: string): Promise<AccountingPeriod | null> {

@@ -76,19 +76,52 @@ export class AccountingReportService {
     const netProfit = totalRevenues - totalCosts - totalExpenses
     const profitMarginPercent = totalRevenues > 0 ? Number(((netProfit / totalRevenues) * 100).toFixed(1)) : 0
 
-    // Conteo de comprobantes
+    // Conteo de comprobantes reales
     const postedEntriesCount = entries.filter((e) => e.status === 'POSTED').length
     const pendingDraftEntriesCount = entries.filter((e) => e.status === 'DRAFT').length
 
-    // Puntos mensuales simulados pero basados en magnitudes del ERP
-    const monthlyFinancials = [
-      { month: '2026-04', label: 'Abr', revenue: 198000000, cost: 144000000, expenses: 38000000, profit: 16000000 },
-      { month: '2026-05', label: 'May', revenue: 215000000, cost: 156000000, expenses: 41000000, profit: 18000000 },
-      { month: '2026-06', label: 'Jun', revenue: 232000000, cost: 168000000, expenses: 43500000, profit: 20500000 },
-      { month: '2026-07', label: 'Jul', revenue: 228000000, cost: 165000000, expenses: 42000000, profit: 21000000 },
-      { month: '2026-08', label: 'Ago', revenue: 242000000, cost: 175000000, expenses: 45000000, profit: 22000000 },
-      { month: '2026-09', label: 'Sep', revenue: totalRevenues, cost: totalCosts, expenses: totalExpenses, profit: netProfit },
-    ]
+    // Puntos mensuales calculados a partir de movimientos contables reales
+    const allMovements = await accountingRepository.getAllMovements()
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth()
+
+    const monthlyFinancials = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1)
+      const yr = d.getFullYear()
+      const mo = String(d.getMonth() + 1).padStart(2, '0')
+      const periodKey = `${yr}-${mo}`
+      const label = monthNames[d.getMonth()]
+
+      const monthMovements = allMovements.filter((m) => m.period === periodKey || m.date.startsWith(periodKey))
+      let rev = 0
+      let cst = 0
+      let exp = 0
+
+      for (const m of monthMovements) {
+        const code = m.accountCode || ''
+        const debit = Number(m.debit) || 0
+        const credit = Number(m.credit) || 0
+        if (code.startsWith('4')) {
+          rev += (credit - debit)
+        } else if (code.startsWith('6') || code.startsWith('7')) {
+          cst += (debit - credit)
+        } else if (code.startsWith('5')) {
+          exp += (debit - credit)
+        }
+      }
+
+      monthlyFinancials.push({
+        month: periodKey,
+        label,
+        revenue: Math.max(0, rev),
+        cost: Math.max(0, cst),
+        expenses: Math.max(0, exp),
+        profit: rev - cst - exp,
+      })
+    }
 
     // Resumen financiero por bodega
     const warehouseBreakdown = await this.getWarehouseFinancials()
@@ -210,7 +243,7 @@ export class AccountingReportService {
     const operatingProfit = grossProfit - totalOperatingExpenses
 
     const nonOpRevAcc = accounts.find((a) => a.code === '4210')
-    const nonOperatingIncome = nonOpRevAcc ? nonOpRevAcc.balance : 1250000
+    const nonOperatingIncome = nonOpRevAcc ? (Number(nonOpRevAcc.balance) || 0) : 0
     const nonOperatingExpenses = 0
 
     const netProfit = operatingProfit + nonOperatingIncome - nonOperatingExpenses
@@ -291,7 +324,7 @@ export class AccountingReportService {
       movements,
       totalDebit,
       totalCredit,
-      finalBalance: Math.max(finalBalance, account.balance),
+      finalBalance,
     }
   }
 
@@ -354,11 +387,10 @@ export class AccountingReportService {
       const priorDebits = priorMovements.reduce((acc, m) => acc + (Number(m.debit) || 0), 0)
       const priorCredits = priorMovements.reduce((acc, m) => acc + (Number(m.credit) || 0), 0)
 
-      // Base histórica inicial para cuentas con balance registrado
-      const baseOpening = selectedAccount.balance > 0 ? Math.round(selectedAccount.balance * 0.75) : 0
+      // Saldo inicial real basado estrictamente en movimientos previos a dateFrom
       initialBalance = isDebitNature
-        ? baseOpening + priorDebits - priorCredits
-        : baseOpening + priorCredits - priorDebits
+        ? priorDebits - priorCredits
+        : priorCredits - priorDebits
     }
 
     // 4. Movimientos dentro del periodo seleccionado
@@ -451,7 +483,10 @@ export class AccountingReportService {
         const dSum = accMovements.reduce((sum, m) => sum + (Number(m.debit) || 0), 0)
         const cSum = accMovements.reduce((sum, m) => sum + (Number(m.credit) || 0), 0)
         const isAccDebit = acc.nature === 'DEBIT'
-        const accInitial = Math.round(acc.balance * 0.75)
+        const priorAccMovements = allMovements.filter((m) => isMatchAccount(m, acc.id) && m.date < dateFrom)
+        const priorD = priorAccMovements.reduce((s, m) => s + (Number(m.debit) || 0), 0)
+        const priorC = priorAccMovements.reduce((s, m) => s + (Number(m.credit) || 0), 0)
+        const accInitial = isAccDebit ? priorD - priorC : priorC - priorD
         const accFinal = isAccDebit ? accInitial + dSum - cSum : accInitial + cSum - dSum
 
         return {
@@ -588,8 +623,9 @@ export class AccountingReportService {
       const wholesalePrice = Number(prod.wholesalePrice) || 0
       const marginCOP = normalPrice - cost
       const marginPercent = normalPrice > 0 ? Number(((marginCOP / normalPrice) * 100).toFixed(1)) : 0
-      const stock = Number((prod as any).totalStock) || 120
+      const stock = Number((prod as any).totalStock) || 0
       const totalValuedCost = stock * cost
+      const lastCost = Number((prod as any).lastPurchaseCost) || cost
 
       results.push({
         productId: prod.id,
@@ -601,7 +637,7 @@ export class AccountingReportService {
         locationId: 'loc-001',
         locationName: locMap.get('loc-001') || 'Bodega Principal',
         averageCost: cost,
-        lastPurchaseCost: cost * 1.02,
+        lastPurchaseCost: lastCost,
         normalPrice,
         wholesalePrice,
         profitMarginCOP: marginCOP,
@@ -620,13 +656,28 @@ export class AccountingReportService {
   async getWarehouseFinancials(): Promise<WarehouseFinancialSummary[]> {
     const locations = db.locations || []
     const movements = await accountingRepository.getAllMovements()
+    const sales = db.sales || []
+    const purchases = db.purchases || []
+    const stockLevels = db.stockLevels || []
+    const invoices = db.invoices || []
 
     return locations.map((loc) => {
       const locMovements = movements.filter((m) => m.locationId === loc.id)
-      const salesTotal = Number(loc.monthSalesAmount) || 84200000
-      const costsTotal = Number(loc.monthPurchasesAmount) || 62500000
+      const locSales = sales.filter((s) => s.locationId === loc.id && s.status !== 'CANCELLED')
+      const salesTotal = locSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0)
+
+      const locPurchases = purchases.filter((p) => (p.destinationLocationId === loc.id || p.locationId === loc.id) && p.status !== 'CANCELLED')
+      const costsTotal = locPurchases.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
+
       const grossProfit = salesTotal - costsTotal
-      const marginPercent = salesTotal > 0 ? Number(((grossProfit / salesTotal) * 100).toFixed(1)) : 25.8
+      const marginPercent = salesTotal > 0 ? Number(((grossProfit / salesTotal) * 100).toFixed(1)) : 0
+
+      const locStock = stockLevels.filter((st) => st.locationId === loc.id)
+      const inventoryValued = locStock.reduce((acc, st) => acc + ((Number(st.quantity) || 0) * (Number(st.cost) || 0)), 0)
+
+      const locInvoices = invoices.filter((i) => i.locationId === loc.id)
+      const pendingReceivables = locInvoices.reduce((acc, i) => acc + (Number(i.pendingBalance) || 0), 0)
+      const pendingPayables = locPurchases.reduce((acc, p) => acc + (Number(p.pendingBalance) || 0), 0)
 
       return {
         locationId: loc.id,
@@ -637,10 +688,10 @@ export class AccountingReportService {
         costsTotal,
         grossProfit,
         marginPercent,
-        inventoryValued: Number(loc.inventoryValueAtCost) || 124500000,
-        pendingReceivables: 18450000,
-        pendingPayables: 24200000,
-        movementsCount: Math.max(locMovements.length, 18),
+        inventoryValued,
+        pendingReceivables,
+        pendingPayables,
+        movementsCount: locMovements.length,
       }
     })
   }

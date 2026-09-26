@@ -15,6 +15,19 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
 
   return (
     <div className="accounting-dashboard-view space-y-6 page-enter">
+      {/* Banner Informativo si no existen comprobantes registrados */}
+      {dashboard.postedEntriesCount === 0 && dashboard.totalAssets === 0 && (
+        <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center gap-3 text-xs text-blue-900">
+          <AppIcon name="accounting" size={18} className="text-blue-700 shrink-0" />
+          <div>
+            <strong className="font-semibold block">Módulo Contable Inicializado — Base Limpia</strong>
+            <span className="text-blue-700 text-[11px]">
+              El catálogo PUC base está configurado con saldo inicial $0. Todos los indicadores, libros y reportes se calcularán en tiempo real a partir de comprobantes de diario reales.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Grid principal de 9 indicadores financieros */}
       <section className="stats-grid products-stats" aria-label="Indicadores financieros principales">
         <StatCard
@@ -154,8 +167,21 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
           {(() => {
             const highestValue = Math.max(
               ...dashboard.monthlyFinancials.map((pt) => Math.max(pt.revenue, pt.cost, pt.expenses, 0)),
-              1
+              0
             )
+            if (highestValue === 0) {
+              return (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 rounded-lg border border-dashed border-slate-200">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mb-2">
+                    <AppIcon name="reports" size={20} />
+                  </div>
+                  <strong className="text-xs font-semibold text-slate-700">Sin movimientos financieros registrados</strong>
+                  <p className="text-[11px] text-slate-400 mt-1 max-w-xs">
+                    La comparativa mensual de ingresos, costos y gastos se construirá automáticamente al asentar comprobantes en el ejercicio.
+                  </p>
+                </div>
+              )
+            }
             const maxVal = highestValue * 1.15
 
             return (
@@ -300,9 +326,16 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {dashboard.warehouseBreakdown.map((wh) => (
-            <WarehouseCard key={wh.locationId} summary={wh} onInspect={() => onNavigateToTab('costs')} />
-          ))}
+          {dashboard.warehouseBreakdown.length === 0 ? (
+            <div className="col-span-full p-8 text-center bg-gray-50/70 rounded-xl border border-dashed border-gray-200">
+              <p className="text-xs font-semibold text-gray-700 mb-0.5">No hay sedes o bodegas registradas</p>
+              <p className="text-[11px] text-gray-400">Configure sedes operativas en el módulo de Bodegas para desglosar la contabilidad por centro de costos.</p>
+            </div>
+          ) : (
+            dashboard.warehouseBreakdown.map((wh) => (
+              <WarehouseCard key={wh.locationId} summary={wh} onInspect={() => onNavigateToTab('costs')} />
+            ))
+          )}
         </div>
       </section>
     </div>

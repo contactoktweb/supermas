@@ -1,6 +1,63 @@
 # CHANGELOG AI — Super Más ERP/POS
 
-## [2026-09-24] — Arquitectura de Autenticación Pura, Migración 014 y Flujo de Primer Administrador
+## [2026-09-25] — Auditoría Profunda: Módulos de Contabilidad y Auditoría Sin Datos Mock
+
+### Desacoplamiento Total de Datos Ficticios y Purificación
+- **Limpieza de Catálogos y Registros Ficticios (`lib/supabase/mock-db/`)**:
+  - `accounting_accounts.json`: 55 cuentas del catálogo PUC colombiano purificadas a `balance: 0`. Se preservan códigos, nombres, clases, naturalezas y niveles; se elimina cualquier saldo monetario previo.
+  - `accounting_periods.json`: 12 periodos contables reiniciados con `entriesCount: 0`, `totalDebits: 0`, `totalCredits: 0` y `status: OPEN`.
+  - `audit_logs.json`: Reiniciado a colección vacía `[]`. Se eliminan logs falsos, usuarios simulados e IPs de prueba.
+  - `accounting_entries.json`, `accounting_entry_lines.json`, `accounting_movements.json`: Reiniciados a colecciones vacías `[]`.
+- **Servicio de Reportes Contables (`accounting-report.service.ts`)**:
+  - `getDashboard()`: Eliminado arreglo de puntos mensuales hardcodeados (`198M`, `215M`, `232M`, `242M`). Implementado cálculo dinámico agrupando movimientos contables reales por mes. Si no hay movimientos, retorna ceros reales.
+  - `getIncomeStatement()`: Eliminado fallback hardcodeado `1250000` de ingresos no operacionales; se utiliza `0`.
+  - `getGeneralLedger()`: Eliminado `Math.max(finalBalance, account.balance)`. El saldo final se calcula estrictamente como `Saldo Inicial + Débitos - Créditos` (o viceversa según naturaleza).
+  - `getAuxiliaryLedgerReport()`: Eliminado factor ficticio de apertura `* 0.75`. El saldo inicial se deriva exclusivamente de movimientos anteriores al corte.
+  - `getWarehouseFinancials()`: Eliminados fallbacks hardcodeados (`84200000`, `62500000`, `25.8%`, `124500000`, `18450000`, `24200000`, `18`). Ahora calcula ventas, costos, inventario valorizado y carteras reales desde las entidades correspondientes.
+  - `getCostAnalysis()`: Eliminado fallback de stock `|| 120` y sobrecosto artificial `* 1.02`.
+- **Repositorio Contable (`accounting.repository.ts`)**:
+  - Implementado método `withDynamicBalances()`: Calcula el saldo de cada cuenta en tiempo real desde `db.accountingMovements`. Si no hay movimientos, todas las cuentas reportan $0.
+  - `getPeriods()`: Calcula dinámicamente `entriesCount`, `totalDebits` y `totalCredits` agrupando los comprobantes reales de cada periodo.
+- **Estados Vacíos Formales en la Interfaz UI**:
+  - `AccountingGeneralJournalTab.tsx` (Libro Diario): Si `entries.length === 0`, muestra *"No existen movimientos contables"* y oculta contadores, fechas y totales en cero.
+  - `AccountingGeneralLedgerTab.tsx` (Libro Mayor): Si una cuenta no tiene movimientos, muestra *"Sin movimientos para el periodo seleccionado"* y oculta tarjetas de saldos generadas manualmente.
+  - `AccountingBalanceSheetTab.tsx` (Balance General): Si los saldos son 0, muestra *"Sin información financiera disponible"* y oculta tablas y tarjetas vacías.
+  - `AccountingIncomeStatementTab.tsx` (Estado de Resultados): Si ingresos, costos y gastos son 0, muestra *"Sin información financiera disponible"*.
+  - `AccountingDashboardTab.tsx`: Banner informativo cuando no existen comprobantes, empty state para gráfica mensual y mensaje de sin bodegas.
+  - `AuditStats.tsx` & `AuditTable.tsx`: Muestra *"Sin actividad"* en lugar de *"Consolidado"*, y *"No existen eventos de auditoría"* cuando no hay registros.
+- **Validación Fases 8 y 9**:
+  - Fase 8: Verificada base vacía (0 asientos, 0 líneas, 0 movimientos, 0 auditorías, 0 ventas, 0 compras).
+  - Fase 9: Prueba transitoria con 1 asiento ($100.000 Débito / $100.000 Crédito), 1 venta ($100.000) y 1 log de auditoría. Los reportes calcularon exactamente $100.000 y se revirtieron completamente a estado limpio.
+
+---
+
+## [2026-09-24] — Verificación Final de Seguridad: Onboarding, Guardas de Empresa y Aislamiento RLS
+
+### Security & Multi-Tenant Enforcement
+- **Prueba 1: Asignación de Roles en Primer Arranque**:
+  - Validada regla del trigger `handle_new_auth_user()`:
+    - Primer usuario en Supabase Auth (`count = 0`) -> `SUPERADMIN` automático.
+    - Segundo usuario y subsiguientes -> Reciben `SELLER` por defecto o el rol explícito asignado.
+    - Bloqueo de auto-asignación de privilegios de superadministrador en registros abiertos.
+- **Prueba 2: Guardas Operativas sin Empresa Configurada**:
+  - `sales.service.ts`: Bloqueo a nivel de backend al crear ventas si la empresa no cuenta con NIT y Razón Social configurados, arrojando el mensaje: *"Configure la empresa antes de operar."*.
+  - `SalesPage.tsx`: Renderizado de banner informativo de alerta y deshabilitación del botón *"Nueva Venta"* hasta completar la configuración legal.
+  - `POSView.tsx`: Banner de advertencia en caja registradora y bloqueo de cobro/checkout ante empresa no configurada con enlace directo a `/configuracion`.
+- **Prueba 3: Aislamiento Multiempresa Row Level Security (RLS)**:
+  - Migración 014 enriquecida con la función `public.get_auth_company_id()`.
+  - Políticas RLS aplicadas sobre `sales`, `products`, `customers`, `suppliers`, `purchases` y `stock_levels` condicionadas a `company_id = public.get_auth_company_id()`.
+  - Verificado aislamiento total: El Usuario A (Empresa A) no puede acceder ni visualizar ningún registro perteneciente al Usuario B (Empresa B).
+- **Suite de Pruebas Automatizadas (`scripts/test-security-onboarding.ts`)**:
+  - Ejecutada con 100% de éxito cubriendo las 3 pruebas de seguridad solicitadas.
+- **Corrección en Renderizado de Gráficas de Dashboard (`DashboardChartsSection.tsx`)**:
+  - Solucionado error `TypeError: undefined is not an object (evaluating 'salesPoints[salesPoints.length - 1].x')` al iniciar con base de datos limpia con 0 ventas.
+  - Implementadas guardas `hasSalesPoints`, `hasPurchasesPoints` y `hasProfitPoints` para que los cálculos de trayectorias SVG sólo se ejecuten cuando existen puntos en el periodo.
+- **Estandarización de Modales y Drawers de Ventas (`features/sales/components/`)**:
+  - `NewSaleDrawer.tsx`: Implementado `createPortal(..., document.body)` con montaje dinámico y bloqueo de scroll de fondo (`overflow: hidden`). El panel del drawer ahora se renderiza anidado dentro del backdrop con `z-index: 1000000`, sobreponiéndose por completo a la barra de navegación, barra lateral y cualquier contenedor relativo.
+  - Actualizados igualmente con `createPortal`: `SaleDetailDrawer.tsx`, `SaleCancelModal.tsx`, `SaleInvoiceModal.tsx` y `SaleRemissionModal.tsx`.
+
+---
+
 
 ### Pure Supabase Auth & Zero-Credential Bootstrap
 - **Migración PostgreSQL DDL 014 (`supabase/migrations/014_system_roles_and_first_admin_flow.sql`)**:

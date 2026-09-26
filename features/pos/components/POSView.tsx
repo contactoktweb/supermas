@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { db } from '@/lib/supabase'
 import { usePOS } from '../hooks/usePOS'
 import { POSHeader } from './POSHeader'
 import { POSProductGrid } from './POSProductGrid'
@@ -16,6 +17,8 @@ interface POSViewProps {
 }
 
 export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
+  const isCompanyConfigured = Boolean(db.companySettings?.nit && (db.companySettings?.companyName || db.companySettings?.legalName))
+
   const {
     // User / Context
     userContext,
@@ -153,6 +156,43 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
         onExit={onExit}
       />
 
+      {/* Alerta si la empresa no está configurada */}
+      {!isCompanyConfigured && (
+        <div style={{
+          background: '#fffbeb',
+          borderBottom: '1px solid #fde68a',
+          padding: '10px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          color: '#92400e',
+          fontSize: '13px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <strong>Configure la empresa antes de operar</strong>
+            <span style={{ color: '#b45309' }}>
+              — Debes registrar la información legal y tributaria de tu empresa para habilitar la facturación y ventas en caja.
+            </span>
+          </div>
+          <a
+            href="/configuracion"
+            style={{
+              padding: '6px 14px',
+              background: '#d97706',
+              color: '#fff',
+              borderRadius: 6,
+              textDecoration: 'none',
+              fontSize: 12,
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Configurar Empresa
+          </a>
+        </div>
+      )}
+
       {/* 2. Main POS Workspace: Split Screen */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {/* Left Side: Product Catalog, Search & Quick Filters */}
@@ -186,7 +226,13 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
             onUpdateQuantity={updateQuantity}
             onRemoveItem={removeFromCart}
             onOpenDiscountModal={handleOpenDiscountModal}
-            onCheckout={() => setIsPaymentModalOpen(true)}
+            onCheckout={() => {
+              if (!isCompanyConfigured) {
+                alert('Configure la empresa antes de operar.')
+                return
+              }
+              setIsPaymentModalOpen(true)
+            }}
             onClearCart={clearCart}
           />
         </aside>

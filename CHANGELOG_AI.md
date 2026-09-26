@@ -1,5 +1,25 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-26] — Validación de Seguridad Paso 0: RLS Estricto, Bootstrap Inexpugnable e Inmutabilidad Fiduciaria
+
+### Blindaje de Seguridad y Eliminación de Brechas
+- **Reestructuración de Bootstrap del SUPERADMIN (supabase/migrations/014_system_roles_and_first_admin_flow.sql, scripts/bootstrap-first-admin.ts)**:
+  - Eliminada la dependencia de raw_user_meta_data para autorización de superadministrador. Se utiliza exclusivamente raw_app_meta_data administrada server-side mediante service_role.
+  - Implementado bloqueo transaccional con advisory lock de PostgreSQL (pg_advisory_xact_lock) para serializar peticiones de creación y neutralizar condiciones de carrera en registros concurrentes (solo 1 SUPERADMIN puede ser creado).
+  - El registro público abierto permanece estrictamente deshabilitado.
+- **Matriz RLS Definitiva por Operación (Tenant + Location + Rol + Permisos)**:
+  - Desacopladas todas las políticas FOR ALL en directivas granulares por operación (SELECT, INSERT, UPDATE, DELETE).
+  - products: SELLER y CASHIER solo poseen permiso de lectura (products.read). Se les deniega INSERT/UPDATE/DELETE.
+  - stock_levels: Prohibido INSERT, UPDATE y DELETE para clientes normales (solo SELECT autorizado). La modificación de stock reside exclusivamente en el trigger process_inventory_movement() con privilegios SECURITY DEFINER originado desde Kardex.
+  - inventory_movements: Inmutable. Permitido SELECT e INSERT autorizado. Triggers bloqueadores para UPDATE y DELETE (fn_prevent_kardex_mutation).
+  - sales y purchases: Ventas emitidas y compras recibidas inmutables contra DELETE (fn_prevent_sale_deletion, fn_prevent_received_purchase_deletion). Las anulaciones requieren flujo de negocio y notas contables.
+  - accounting_entries y accounting_entry_lines: Asientos en DRAFT editables por usuarios autorizados; asientos en POSTED inmutables contra edición y eliminación (fn_prevent_posted_accounting_mutation).
+  - audit_logs: Solo lectura para roles autorizados (audit.read). UPDATE y DELETE prohibidos con trigger de inmutabilidad (fn_prevent_audit_log_mutation).
+- **Aislamiento de Service Role en Frontend (lib/supabase/index.ts)**:
+  - Eliminado export * from "./admin" del barrel central @/lib/supabase para garantizar que SUPABASE_SERVICE_ROLE_KEY jamás sea importada ni empaquetada en bundles cliente.
+- **Suite de Pruebas de Seguridad A-J (scripts/test-security-onboarding.ts)**:
+  - 10 pruebas obligatorias (A a J) implementadas y ejecutadas con 100% de éxito: CASHIER no edita productos, SELLER no edita stock_levels, WAREHOUSE_ADMIN opera Kardex y actualiza stock vía trigger, aislamiento multi-tenant, inmutabilidad de Kardex, asientos POSTED, neutralización de metadata maliciosa y control de concurrencia en bootstrap.
+
 ## [2026-09-25] — Auditoría Profunda: Módulos de Contabilidad y Auditoría Sin Datos Mock
 
 ### Desacoplamiento Total de Datos Ficticios y Purificación

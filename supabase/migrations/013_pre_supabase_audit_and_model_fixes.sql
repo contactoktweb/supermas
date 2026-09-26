@@ -184,8 +184,10 @@ CREATE TRIGGER trg_enforce_double_entry
     FOR EACH ROW
     EXECUTE FUNCTION public.fn_enforce_accounting_double_entry();
 
--- 4. POLÍTICAS RLS MULTIEMPRESA PRE-CONFIGURADAS
--- Preparación formal de Row Level Security para Supabase Auth
+-- 4. HABILITACIÓN DE ROW LEVEL SECURITY (RLS) MULTIEMPRESA
+-- La definición y aplicación de políticas estrictas de aislamiento por company_id 
+-- se consolida de forma definitiva y centralizada en 014_SYSTEM_ROLES_AND_FIRST_ADMIN_FLOW.sql
+-- para evitar solapamientos permisivos (OR) o dependencias en custom claims.
 
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sales ENABLE ROW LEVEL SECURITY;
@@ -196,21 +198,7 @@ ALTER TABLE public.accounting_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_registers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cash_sessions ENABLE ROW LEVEL SECURITY;
 
--- Política de aislamiento de inquilino por defecto (aplica cuando auth.uid() está configurado)
+-- Limpieza preventiva de políticas temporales
 DROP POLICY IF EXISTS p_isolate_products_by_company ON public.products;
-CREATE POLICY p_isolate_products_by_company ON public.products
-    FOR ALL
-    USING (
-        company_id IS NULL OR 
-        company_id = (auth.jwt()->>'company_id')::uuid OR 
-        auth.role() = 'service_role'
-    );
-
 DROP POLICY IF EXISTS p_isolate_sales_by_company ON public.sales;
-CREATE POLICY p_isolate_sales_by_company ON public.sales
-    FOR ALL
-    USING (
-        company_id IS NULL OR 
-        company_id = (auth.jwt()->>'company_id')::uuid OR 
-        auth.role() = 'service_role'
-    );
+

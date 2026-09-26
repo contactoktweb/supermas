@@ -23,6 +23,11 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'inventory.adjust',
       'inventory.transfer',
       'kardex.read',
+      // Productos y Catálogo
+      'products.read',
+      'products.create',
+      'products.update',
+      'products.delete',
       // Compras y Proveedores
       'purchases.read',
       'purchases.create',
@@ -81,6 +86,9 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'inventory.adjust',
       'inventory.transfer',
       'kardex.read',
+      'products.read',
+      'products.create',
+      'products.update',
       'purchases.read',
       'purchases.create',
       'suppliers.read',
@@ -109,6 +117,7 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'remissions.read',
       'remissions.create',
       'inventory.read',
+      'products.read',
       'reports.read',
       'audit.read',
     ],
@@ -136,6 +145,7 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'audit.read',
       'audit.export',
       'audit.critical',
+      'products.read',
     ],
   },
   SELLER: {
@@ -151,6 +161,7 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'customers.read',
       'customers.write',
       'inventory.read',
+      'products.read',
       'remissions.read',
     ],
   },
@@ -166,6 +177,7 @@ export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
       'sales.create',
       'pos.cash_register',
       'customers.read',
+      'products.read',
     ],
   },
 }

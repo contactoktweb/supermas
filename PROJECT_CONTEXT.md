@@ -280,4 +280,5 @@ El modelo de datos ha completado la fase integral de auditoría, corrección y n
 5. **Separación DIAN**: Distinción estricta entre número interno ERP (`internal_number`) y consecutivo oficial DIAN (`dian_number`, `dian_prefix`, `dian_resolution`).
 6. **Migración DDL 013**: Archivo `013_pre_supabase_audit_and_model_fixes.sql` consolida todas las foreign keys, restricciones e índices.
 7. **Integridad Validada**: 39 pruebas de integridad, JOINs relacionales y simulación de ciclo de vida empresarial aprobadas al 100% (`scripts/test-model-integrity.ts`).
+8. **Validación de Seguridad Paso 0 Completada**: Migración 014 con matriz RLS granular por operación, protección contra elevación de privilegios en bootstrap (raw_app_meta_data + pg_advisory_xact_lock), inmutabilidad de Kardex y asientos contables, stock_levels de solo lectura cliente y service_role blindado fuera de los bundles del navegador. Suite de pruebas A-J 100% aprobada (`scripts/test-security-onboarding.ts`).
 

@@ -396,61 +396,37 @@ export function InventoryPage({
         )}
       </div>
 
-      {/* 6. Main Table or Empty State */}
-      {!isLoading && totalRecords === 0 ? (
-        <InventoryEmptyState
-          hasFilters={hasActiveFilters}
-          activeTab={activeTab}
-          query={filters.query}
-          locationId={filters.locationId}
-          category={filters.category}
-          brand={filters.brand}
-          onResetFilters={handleResetFilters}
-          onSelectTab={(tab) => {
-            setActiveTab(tab)
-            setFilters((f) => ({ ...f, page: 1 }))
-          }}
-          onOpenAdjustModal={() => {
-            setAdjustTargetProduct({})
-            setIsAdjustModalOpen(true)
-          }}
-          onOpenTransferModal={() => {
-            setTransferTargetProduct({})
-            setIsTransferModalOpen(true)
-          }}
-        />
-      ) : (
-        <InventoryTable
-          viewMode={viewMode}
-          consolidatedData={consolidatedData}
-          byLocationData={byLocationData}
-          totalRecords={totalRecords}
-          page={filters.page || 1}
-          pageSize={filters.pageSize || 10}
-          sortField={filters.sortField || 'productName'}
-          sortDirection={filters.sortDirection || 'asc'}
-          visibility={colVisibility}
-          canSeeCost={canSeeCost}
-          isLoading={isLoading}
-          onPageChange={(p) => setFilters((f) => ({ ...f, page: p }))}
-          onPageSizeChange={(s) => setFilters((f) => ({ ...f, pageSize: s, page: 1 }))}
-          onSortChange={(field) => {
-            const nextDir =
-              filters.sortField === field && filters.sortDirection === 'asc' ? 'desc' : 'asc'
-            setFilters((f) => ({ ...f, sortField: field, sortDirection: nextDir, page: 1 }))
-          }}
-          onSelectProduct={(pId) => setSelectedProductId(pId)}
-          onOpenAdjust={(pId, locId) => {
-            setAdjustTargetProduct({ productId: pId, locationId: locId })
-            setIsAdjustModalOpen(true)
-          }}
-          onOpenTransfer={(pId, locId) => {
-            setTransferTargetProduct({ productId: pId, originLocationId: locId })
-            setIsTransferModalOpen(true)
-          }}
-          onOpenKardex={(pId, locId) => handleGoToKardex(pId, locId)}
-        />
-      )}
+      {/* 6. Main Table */}
+      <InventoryTable
+        viewMode={viewMode}
+        consolidatedData={consolidatedData}
+        byLocationData={byLocationData}
+        totalRecords={totalRecords}
+        page={filters.page || 1}
+        pageSize={filters.pageSize || 10}
+        sortField={filters.sortField || 'productName'}
+        sortDirection={filters.sortDirection || 'asc'}
+        visibility={colVisibility}
+        canSeeCost={canSeeCost}
+        isLoading={isLoading}
+        onPageChange={(p) => setFilters((f) => ({ ...f, page: p }))}
+        onPageSizeChange={(s) => setFilters((f) => ({ ...f, pageSize: s, page: 1 }))}
+        onSortChange={(field) => {
+          const nextDir =
+            filters.sortField === field && filters.sortDirection === 'asc' ? 'desc' : 'asc'
+          setFilters((f) => ({ ...f, sortField: field, sortDirection: nextDir, page: 1 }))
+        }}
+        onSelectProduct={(pId) => setSelectedProductId(pId)}
+        onOpenAdjust={(pId, locId) => {
+          setAdjustTargetProduct({ productId: pId, locationId: locId })
+          setIsAdjustModalOpen(true)
+        }}
+        onOpenTransfer={(pId, locId) => {
+          setTransferTargetProduct({ productId: pId, originLocationId: locId })
+          setIsTransferModalOpen(true)
+        }}
+        onOpenKardex={(pId, locId) => handleGoToKardex(pId, locId)}
+      />
 
       {/* 7. Product Detail Quick Drawer */}
       <InventoryProductDrawer

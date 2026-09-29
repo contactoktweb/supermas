@@ -7,6 +7,8 @@ import { Footer } from '@/components/Footer'
 import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 
 const modules = APP_MODULES
 
@@ -72,11 +74,8 @@ export default function AlertasRoutePage() {
             <strong>Alertas</strong>
           </div>
           <div className="top-actions">
-            <div className="search-box">
-              <AppIcon name="search" size={16} />
-              <input placeholder="Buscar en el sistema..." />
-            </div>
-            <NotificationBell />
+            <GlobalSearch />
+            <NotificationButton count={3} />
             <div className="top-avatar">AM</div>
           </div>
         </header>

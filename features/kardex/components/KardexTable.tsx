@@ -310,14 +310,48 @@ export function KardexTable({
           </thead>
 
           <tbody>
-            {movements.map((m) => {
-              const delta = m.quantityIn > 0 ? `+${m.quantityIn}` : `-${m.quantityOut}`
-              const flowHint = `${m.previousStock} → ${delta} → ${m.resultingStock}`
+            {movements.length === 0 ? (
+              <tr>
+                <td colSpan={15}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <AppIcon name="kardex" size={24} />
+                    </div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay movimientos de kardex registrados
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                      No hay movimientos que coincidan con los filtros o aún no se han registrado movimientos en el sistema.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              movements.map((m) => {
+                const delta = m.quantityIn > 0 ? `+${m.quantityIn}` : `-${m.quantityOut}`
+                const flowHint = `${m.previousStock} → ${delta} → ${m.resultingStock}`
 
-              return (
-                <tr
-                  key={m.id}
-                  onClick={() => onSelectMovement(m)}
+                return (
+                  <tr
+                    key={m.id}
+                    onClick={() => onSelectMovement(m)}
                   className="clickable-row"
                 >
                   {/* 1. Fecha y hora */}
@@ -539,77 +573,80 @@ export function KardexTable({
                   )}
                 </tr>
               )
-            })}
-          </tbody>
-        </table>
-      </div>
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
 
       {/* Pagination Footer */}
-      <div className="table-pagination-footer">
-        <div className="pagination-info">
-          <span>
-            Mostrando <strong>{movements.length}</strong> de <strong>{total}</strong> movimientos
-          </span>
-          <div className="page-size-selector">
-            <span>Por página:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Registros por página"
+      {total > 0 && (
+        <div className="table-pagination-footer">
+          <div className="pagination-info">
+            <span>
+              Mostrando <strong>{movements.length}</strong> de <strong>{total}</strong> movimientos
+            </span>
+            <div className="page-size-selector">
+              <span>Por página:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                aria-label="Registros por página"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="outline-button compact"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Página anterior"
             >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
+              <AppIcon name="chevronLeft" size={14} />
+              <span>Anterior</span>
+            </button>
+
+            <div className="page-numbers-cluster">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, arr) => {
+                  const prev = arr[idx - 1]
+                  const hasGap = prev && p - prev > 1
+                  return (
+                    <React.Fragment key={p}>
+                      {hasGap && <span className="pagination-ellipsis">...</span>}
+                      <button
+                        type="button"
+                        className={`page-num-btn ${page === p ? 'active' : ''}`}
+                        onClick={() => onPageChange(p)}
+                        aria-label={`Ir a página ${p}`}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  )
+                })}
+            </div>
+
+            <button
+              type="button"
+              className="outline-button compact"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <AppIcon name="chevronRight" size={14} />
+            </button>
           </div>
         </div>
-
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="outline-button compact"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            aria-label="Página anterior"
-          >
-            <AppIcon name="chevronLeft" size={14} />
-            <span>Anterior</span>
-          </button>
-
-          <div className="page-numbers-cluster">
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .map((p, idx, arr) => {
-                const prev = arr[idx - 1]
-                const hasGap = prev && p - prev > 1
-                return (
-                  <React.Fragment key={p}>
-                    {hasGap && <span className="pagination-ellipsis">...</span>}
-                    <button
-                      type="button"
-                      className={`page-num-btn ${page === p ? 'active' : ''}`}
-                      onClick={() => onPageChange(p)}
-                      aria-label={`Ir a página ${p}`}
-                    >
-                      {p}
-                    </button>
-                  </React.Fragment>
-                )
-              })}
-          </div>
-
-          <button
-            type="button"
-            className="outline-button compact"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            aria-label="Página siguiente"
-          >
-            <span>Siguiente</span>
-            <AppIcon name="chevronRight" size={14} />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

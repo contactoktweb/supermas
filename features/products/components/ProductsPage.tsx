@@ -348,14 +348,6 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
         <ProductSkeleton />
       ) : error ? (
         <ProductErrorState message={error} onRetry={loadData} />
-      ) : products.length === 0 ? (
-        <ProductEmptyState
-          hasFilters={hasActiveFilters}
-          onResetFilters={handleResetFilters}
-          onNewProduct={() =>
-            setFormDrawer({ isOpen: true, mode: 'create', product: null })
-          }
-        />
       ) : viewMode === 'table' ? (
         <ProductTable
           products={products}
@@ -381,6 +373,14 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
           onViewKardex={handleViewKardex}
           onTransferProduct={handleTransfer}
           onAdjustStock={handleAdjustStock}
+        />
+      ) : products.length === 0 ? (
+        <ProductEmptyState
+          hasFilters={hasActiveFilters}
+          onResetFilters={handleResetFilters}
+          onNewProduct={() =>
+            setFormDrawer({ isOpen: true, mode: 'create', product: null })
+          }
         />
       ) : (
         <ProductGrid

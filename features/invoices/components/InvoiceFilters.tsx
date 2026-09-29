@@ -63,7 +63,15 @@ export function InvoiceFilters({
   ].filter(Boolean).length
 
   return (
-    <div className="table-toolbar page-enter" style={{ flexDirection: 'column', gap: 12 }}>
+    <div
+      className="table-toolbar page-enter"
+      style={{
+        flexDirection: 'column',
+        gap: 12,
+        position: 'relative',
+        zIndex: 30,
+      }}
+    >
       {/* Top Filter Row: Search + Status Segmented + Date Range */}
       <div
         style={{
@@ -72,6 +80,8 @@ export function InvoiceFilters({
           gap: 10,
           width: '100%',
           flexWrap: 'wrap',
+          position: 'relative',
+          zIndex: 10,
         }}
       >
         {/* Search input */}
@@ -139,6 +149,8 @@ export function InvoiceFilters({
           gap: 10,
           width: '100%',
           flexWrap: 'wrap',
+          position: 'relative',
+          zIndex: 5,
         }}
       >
         {/* Document Type Select */}

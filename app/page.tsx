@@ -29,6 +29,8 @@ import { RolesView } from '@/features/roles/components/RolesView'
 import { SettingsPage } from '@/features/settings/components/SettingsPage'
 import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 import { db } from '@/lib/supabase'
 
 const modules = APP_MODULES
@@ -64,7 +66,7 @@ function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string
   </>
 }
 
-function Header({view,open}:{view:string;open:()=>void}){
+function Header({view,open,onNavigate}:{view:string;open:()=>void;onNavigate:(v:string)=>void}){
   return <header className="topbar">
     <button className="menu-trigger icon-button" onClick={open} aria-label="Abrir menú">
       <AppIcon name="menu" size={20}/>
@@ -75,14 +77,8 @@ function Header({view,open}:{view:string;open:()=>void}){
       <strong>{view}</strong>
     </div>
     <div className="top-actions">
-      <div className="search-box">
-        <AppIcon name="search" size={16}/>
-        <input placeholder="Buscar en el sistema..."/>
-      </div>
-      <button className="notification icon-button" aria-label="Notificaciones">
-        <AppIcon name="alerts" size={18}/>
-        <i>3</i>
-      </button>
+      <GlobalSearch onNavigate={onNavigate} />
+      <NotificationButton onNavigate={onNavigate} count={3} />
       <div className="top-avatar">AM</div>
     </div>
   </header>
@@ -261,30 +257,95 @@ function Cajas(){
         <Stat key={s.title} title={s.title} value={s.value} iconName={s.icon as LightIconName} tone={s.tone} note={s.note} />
       ))}
     </section>
-    {cashRegisters.length === 0 ? (
-      <div className="table-panel animated-table" style={{ padding: '48px 24px', textAlign: 'center' }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: '#eff6ff', color: 'var(--navy)', display: 'grid', placeItems: 'center', margin: '0 auto 12px' }}>
-          <AppIcon name="cashRegisters" size={24} />
-        </div>
-        <strong style={{ fontSize: 16, color: 'var(--navy)' }}>No hay cajas registradas</strong>
-        <p style={{ margin: '6px 0 16px', fontSize: 13, color: 'var(--muted)' }}>
-          Configura puntos de venta y cajas registradoras para controlar turnos y arqueos de efectivo.
-        </p>
+    <div className="table-panel animated-table page-enter">
+      <div className="table-scroll">
+        <table aria-label="Control de cajas registradoras">
+          <thead>
+            <tr>
+              <th style={{ minWidth: 110 }}>Código</th>
+              <th style={{ minWidth: 180 }}>Caja / Nombre</th>
+              <th style={{ minWidth: 160 }}>Ubicación</th>
+              <th style={{ minWidth: 140 }}>Cajero Asignado</th>
+              <th style={{ minWidth: 130, textAlign: 'right' }}>Base Inicial</th>
+              <th style={{ minWidth: 130, textAlign: 'right' }}>Ventas Efectivo</th>
+              <th style={{ minWidth: 110, textAlign: 'center' }}>Estado</th>
+              <th style={{ minWidth: 90, textAlign: 'center' }}>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cashRegisters.length === 0 ? (
+              <tr>
+                <td colSpan={8}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <AppIcon name="cashRegisters" size={24} />
+                    </div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay cajas registradas
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                      No hay cajas que coincidan con los filtros o aún no se han registrado cajas registradoras en el sistema.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              cashRegisters.map((c) => (
+                <tr key={c.id}>
+                  <td style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--navy)' }}>
+                    {c.code || c.id}
+                  </td>
+                  <td>
+                    <strong>{c.name}</strong>
+                  </td>
+                  <td>{c.locationName || c.locationId || 'Sede Principal'}</td>
+                  <td>{c.cashierName || 'Sin asignar'}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    ${(c.openingBalance || c.currentBalance || 0).toLocaleString('es-CO')}
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 600, color: '#16a34a' }}>
+                    ${(c.cashSales || 0).toLocaleString('es-CO')}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className={`state ${c.status === 'OPEN' ? 'disponible' : 'inactivo'}`}>
+                      {c.status === 'OPEN' ? 'Abierta' : 'Cerrada'}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      style={{ width: 32, height: 32, margin: '0 auto' }}
+                      title="Ver detalles de caja"
+                      aria-label="Ver detalles"
+                    >
+                      <AppIcon name="eye" size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
-    ) : (
-      <div className="flow-grid">
-        {cashRegisters.map((c) => (
-          <article className="flow-card" key={c.id}>
-            <span className="state disponible">{c.status === 'OPEN' ? 'Abierta' : 'Cerrada'}</span>
-            <h3>{c.name}</h3>
-            <p>Ubicación: {c.locationId || 'Sede Principal'}</p>
-            <div className="distribution">
-              <div><span>Base inicial</span><b>${(c.currentBalance || 0).toLocaleString('es-CO')}</b></div>
-            </div>
-          </article>
-        ))}
-      </div>
-    )}
+    </div>
   </>
 }
 
@@ -455,7 +516,7 @@ function App(){
         logout={()=>setAuth(false)}
       />
       <div className="main-area">
-        <Header view={view} open={()=>setMenu(true)}/>
+        <Header view={view} open={()=>setMenu(true)} onNavigate={handleSetView}/>
         <main className="dashboard-content">
           {content}
           <Footer isDark={false}/>

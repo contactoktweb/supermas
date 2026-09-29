@@ -1,5 +1,67 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-29] — Navegación y Búsqueda Global: Redirección de Notificaciones a Alertas y Buscador Universal Multi-Módulo
+
+- **Redirección del Icono de Notificaciones a `/alertas` (`NotificationButton.tsx`)**:
+  - Creado e integrado el componente reutilizable [`NotificationButton.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/components/navigation/NotificationButton.tsx) en la barra superior de todos los módulos y la aplicación principal (`app/page.tsx`).
+  - Al pulsar la campana con el badge rojo de alertas (`3`), redirecciona instantáneamente a `/alertas` (o activa la vista de Alertas en modo SPA sin recargar).
+  - Efectos visuales de microinteracción: hover suave con escala (`scale(1.08)`), cambio a azul institucional (`var(--navy)`), y click activo.
+
+- **Buscador Global del Sistema (`GlobalSearch.tsx`)**:
+  - Implementado el componente [`GlobalSearch.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/components/navigation/GlobalSearch.tsx) con indexación en tiempo real y teclado rápido (`Ctrl+K` / `⌘K`):
+    - **Acceso rápido por defecto**: Si el campo está vacío, despliega accesos directos a los módulos operativos prioritarios (Ventas, Facturación, Inventario, Kardex, Clientes, Compras, Bodegas, Alertas).
+    - **Búsqueda transversal en 8 entidades del ERP**:
+      1. **Módulos del Sistema**: Los 27 módulos con palabras clave y sinónimos (e.g., "despacho" -> Remisiones, "cajero" -> POS, "retenciones" -> Impuestos).
+      2. **Productos**: Búsqueda por nombre, SKU, código de barras, categoría y precio en tiempo real.
+      3. **Clientes**: Búsqueda por razón social, nombre comercial, NIT/cédula, contacto y ciudad.
+      4. **Proveedores**: Búsqueda por razón social, NIT, contacto y teléfono.
+      5. **Facturación**: Búsqueda por número de factura electrónica (`FE-...`), número interno (`FAC-...`) y cliente.
+      6. **Remisiones**: Búsqueda por código de despacho (`REM-...`) y cliente.
+      7. **Bodegas**: Búsqueda por código (`BOD-...`), nombre de sede y ubicación.
+      8. **Alertas**: Búsqueda por código de alerta, título o resumen operativo.
+    - **Navegación Fluida**:
+      - Soporte de teclado: `ArrowDown` / `ArrowUp` para recorrer los resultados, `Enter` para acceder y `Escape` para cerrar.
+      - Al seleccionar cualquier resultado, abre inmediatamente la vista o ruta correspondiente (`/alertas`, `/facturacion`, `/inventario`, `/clientes`, `/bodegas`, etc.).
+  - Integrado de forma homogénea en la barra superior de todas las rutas del App Router (`ventas`, `facturacion`, `remisiones`, `clientes`, `compras`, `proveedores`, `transferencias`, `bodegas`, `alertas`, `usuarios`, `roles`, `configuracion`, `contabilidad`, `impuestos`, `exogena`, `auditoria`, `tesoreria`, `pedidos-web`, `catalogo-supermas`, `catalogo-distribuidora`).
+
+---
+
+
+- **Paridad Idéntica con el Módulo de Ventas (`SalesTable.tsx`) en Todos los Módulos Operativos**:
+  - **Estructura Integrada en Tabla**:
+    - Las vistas de **Clientes**, **Kardex**, **Bodegas**, **Inventario**, **Productos**, **Transferencias**, **Compras** y **Proveedores** ahora conservan siempre visible el encabezado de columnas (`<thead>`) dentro del contenedor de la tabla, exactamente como en Ventas.
+    - Se eliminó el reemplazo de la tabla completa por tarjetas externas aisladas en el modo vista de tabla.
+  - **Estado Vacío en Cuerpo de Tabla (`<tbody>`)**:
+    - Cuando `customers.length === 0`, `movements.length === 0`, `warehouses.length === 0`, `totalRecords === 0`, `products.length === 0`, `transfers.length === 0`, `purchases.length === 0` o `suppliers.length === 0`, se renderiza una fila con `colSpan` que ocupa el ancho completo de la tabla, con el contenedor minimalista centrado:
+      - Caja de ícono con squircle/esquinas redondeadas: `width: 48`, `height: 48`, `borderRadius: 12`, `background: '#e9eef8'`, `color: 'var(--navy)'`.
+      - Íconos semánticos: `solar:users-group-rounded-linear` (Clientes), `solar:clipboard-list-linear` (Kardex), `ph:warehouse-light` (Bodegas), `solar:box-minimalistic-linear` (Inventario), `solar:box-linear` (Productos), `solar:delivery-linear` (Transferencias), `solar:cart-large-2-linear` (Compras) y `solar:buildings-2-linear` (Proveedores).
+      - Título en negrita institucional: `fontSize: 15`, `color: 'var(--navy)'`:
+        - *"No hay clientes registrados"*
+        - *"No hay movimientos de kardex registrados"*
+        - *"No hay bodegas registradas"*
+        - *"No hay existencias de inventario registradas"*
+        - *"No hay productos registrados"*
+        - *"No hay transferencias registradas"*
+        - *"No hay compras registradas"*
+        - *"No hay proveedores registrados"*
+      - Texto descriptivo legible: `fontSize: 13`, `margin: '4px 0 0'`, color muted (`"No hay [entidad] que coincidan con los filtros o aún no se han registrado [entidad] en el sistema."`).
+  - **Paginación Inteligente**:
+    - La barra de paginación inferior (`table-pagination-footer`) se oculta automáticamente cuando `total === 0` (o `totalRecords === 0`), evitando controles vacíos o deshabilitados.
+  - **Componentes de Respaldo**:
+    - Actualizados [`CustomerTable.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/customers/components/CustomerTable.tsx), [`KardexEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/kardex/components/KardexEmptyState.tsx), [`WarehouseEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/warehouses/components/WarehouseEmptyState.tsx), [`InventoryEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/inventory/components/InventoryEmptyState.tsx), [`ProductEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/products/components/ProductEmptyState.tsx), [`TransferEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/transfers/components/TransferEmptyState.tsx), [`PurchaseEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/purchases/components/PurchaseEmptyState.tsx) y [`SupplierEmptyState.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/suppliers/components/SupplierEmptyState.tsx) con las mismas medidas, squircle `48x48` y tipografía para vistas de flujo, cuadrículas o modales secundarios.
+
+---
+
+## [2026-09-29] — Dashboard: Eliminación de Selector Simulado "Vista de rol"
+
+- **Remoción del selector "Vista de rol"**:
+  - Eliminado el selector simulador de perfiles de usuario (`role-simulator-wrap` y `CustomSelect`) en [`DashboardHeader.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/dashboard/components/DashboardHeader.tsx), ya que el rol y sede provienen directamente del contexto de autenticación y asignación del usuario activo.
+  - Limpieza de props en [`DashboardView.tsx`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/features/dashboard/components/DashboardView.tsx) (`availableProfiles` y `onUserChange`).
+  - Depuración de estilos CSS obsoletos en [`app/globals.css`](file:///Users/keynerstebantri/Desktop/Trabajos/Supermas/app/globals.css) correspondientes a `.role-simulator-wrap` y `.simulator-label`.
+  - Corrección del badge de rol en la cabecera: soporte de nombres amigables (`Superadministrador`, `Administrador`, etc.) evitando que muestre `undefined`.
+
+---
+
 ## [2026-09-29] — PASO 13: Validación Integral del Módulo Contable, Periodos, Cierres y Reportes Financieros en PostgreSQL (Staging)
 
 ### Migración Técnica de Hardening Aplicada
@@ -938,3 +1000,20 @@
 - **Ruta de Aplicación**:
   - `app/contabilidad/page.tsx`: Página Next.js con sidebar activo en "Contabilidad", breadcrumb y footer con atribución K&T.
   - Actualización de navegación en las rutas principales del ERP para enlazar directamente a `/contabilidad`.
+
+## [2026-09-29] — Estandarización de Estados Vacíos y Tablas en Facturación, Remisiones y Cajas
+
+### Changed
+- **Módulo de Facturación (`features/invoices/`)**:
+  - `components/InvoiceTable.tsx`: Se eliminó el bloque externo condicional que ocultaba la tabla. Ahora `table-scroll` y `<thead>` permanecen visibles en todo momento con sus 10 columnas fijas. Se integró el estado vacío directamente dentro del `<tbody>` con `<tr><td colSpan={10}>`, contenedor squircle de 48x48px `#e9eef8`, ícono `invoices` en `var(--navy)`, título en negrita y subtítulo muted idéntico a Ventas. El paginador se oculta limpiamente cuando `total === 0`.
+- **Módulo de Remisiones (`features/remissions/`)**:
+  - `components/RemissionTable.tsx`: Se eliminó el contenedor externo condicional. Los encabezados de las 10 columnas se mantienen visibles siempre. Se insertó el estado vacío directamente en `<tbody>` con `<tr><td colSpan={10}>`, contenedor squircle `#e9eef8`, ícono `remisiones`, texto reglamentario y paginación condicionada a `total > 0`.
+- **Módulo y Control de Cajas (`app/page.tsx` & `features/reports/`)**:
+  - `app/page.tsx`: Se refactorizó la vista `Cajas` para reemplazar las tarjetas genéricas vacías por una tabla administrativa estructurada (`table-panel animated-table`) con encabezados visibles (Código, Caja / Nombre, Ubicación, Cajero Asignado, Base Inicial, Ventas Efectivo, Estado y Acciones), con el estado vacío estándar incrustado en `<tbody>` con `<tr><td colSpan={8}>`, squircle `#e9eef8` e ícono `cashRegisters`.
+  - `features/reports/components/views/CashRegistersReportView.tsx`: Se aplicó el estándar visual idéntico para el grid de cajas registradoras y dentro del `<tbody>` de la tabla de movimientos de caja y arqueo cuando no existen registros.
+
+### Fixed
+- **Superposición de Selector de Fechas (`DateRangeFilter` sobre `table-panel`)**:
+  - `app/globals.css`: Se incorporó la clase `.table-toolbar` dentro del grupo de toolbars con `position: relative; z-index: 30;` y elevación a `z-index: 100` con `:has(.is-open)` y `:focus-within`. Se asignó `z-index: 1000` a `.date-range-filter-container.is-open` y `z-index: 60` a las filas con dropdowns abiertos (`div:has(.is-open)`).
+  - `components/ui/DateRangeFilter.tsx`: Se añadió la clase `is-open` y `zIndex: isOpen ? 1000 : undefined` dinámicamente al contenedor relativo para resolver el contexto de apilamiento sobre el encabezado y tarjeta de la tabla.
+  - `features/invoices/components/InvoiceFilters.tsx`, `features/remissions/components/RemissionFilters.tsx`, `features/sales/components/SalesFilters.tsx`: Se especificó `position: 'relative', zIndex: 30` en el contenedor y `zIndex: 10` en la fila superior de filtros, garantizando que el popover flote siempre por encima de la tabla y controles adyacentes.

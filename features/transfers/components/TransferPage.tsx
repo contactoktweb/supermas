@@ -318,12 +318,6 @@ export function TransferPage({
         <TransferSkeleton />
       ) : error ? (
         <TransferErrorState message={error} onRetry={loadData} />
-      ) : transfers.length === 0 ? (
-        <TransferEmptyState
-          hasFilters={hasActiveFilters}
-          onResetFilters={handleResetFilters}
-          onNewTransfer={() => setIsNewDrawerOpen(true)}
-        />
       ) : viewMode === 'table' ? (
         <TransferTable
           transfers={transfers}
@@ -340,6 +334,12 @@ export function TransferPage({
           onSelectTransfer={(t) => setSelectedTransfer(t)}
           onDispatchTransfer={handleDispatch}
           onReceiveTransfer={handleOpenReceive}
+        />
+      ) : transfers.length === 0 ? (
+        <TransferEmptyState
+          hasFilters={hasActiveFilters}
+          onResetFilters={handleResetFilters}
+          onNewTransfer={() => setIsNewDrawerOpen(true)}
         />
       ) : (
         <TransferFlowView

@@ -4,7 +4,6 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { UserProfile, PeriodType, DateRange } from '../types'
 import { dashboardService } from '../services/dashboard.service'
-import { CustomSelect } from '@/components/ui/CustomSelect'
 import { DateRangePicker, DateRangeValue } from '@/components/ui/DateRangePicker'
 
 interface DashboardHeaderProps {
@@ -15,8 +14,6 @@ interface DashboardHeaderProps {
   onCustomRangeChange?: (range: DateRange) => void
   onRefresh: () => void
   isRefreshing: boolean
-  availableProfiles: UserProfile[]
-  onUserChange: (userId: string) => void
 }
 
 const periodLabels: { id: PeriodType; label: string }[] = [
@@ -28,6 +25,16 @@ const periodLabels: { id: PeriodType; label: string }[] = [
   { id: 'CUSTOM', label: 'Personalizado' },
 ]
 
+const ROLE_NAMES: Record<string, string> = {
+  SUPERADMIN: 'Superadministrador',
+  ADMIN: 'Administrador',
+  WAREHOUSE_ADMIN: 'Administrador de Bodega',
+  POINT_ADMIN: 'Administrador de Punto',
+  SELLER: 'Vendedor / Asesor',
+  ACCOUNTANT: 'Contador General',
+  CASHIER: 'Cajero POS',
+}
+
 export function DashboardHeader({
   user,
   period,
@@ -36,12 +43,11 @@ export function DashboardHeader({
   onCustomRangeChange,
   onRefresh,
   isRefreshing,
-  availableProfiles,
-  onUserChange,
 }: DashboardHeaderProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false)
   const greeting = dashboardService.getDynamicGreeting()
   const lastLoginFormatted = dashboardService.formatDateTime(user.lastLoginAt)
+  const roleDisplayName = user.roleName || ROLE_NAMES[user.role] || user.role
 
   const handlePeriodClick = (pId: PeriodType) => {
     if (pId === 'CUSTOM') {
@@ -75,7 +81,7 @@ export function DashboardHeader({
             </h1>
             <div className="hero-meta-row">
               <span className="hero-badge role-badge">
-                <AppIcon name="shield" size={13} /> {user.roleName}
+                <AppIcon name="shield" size={13} /> {roleDisplayName}
               </span>
               <span className="hero-badge location-badge">
                 <AppIcon name="suppliers" size={13} /> {user.locationName}
@@ -89,25 +95,6 @@ export function DashboardHeader({
       </div>
 
       <div className="hero-right-section">
-        {/* Role Simulator Dropdown */}
-        <div className="role-simulator-wrap">
-          <span className="simulator-label">
-            <AppIcon name="users" size={13} /> Vista de rol:
-          </span>
-          <CustomSelect
-            value={user.id}
-            onChange={onUserChange}
-            size="sm"
-            className="role-switcher-select"
-            options={availableProfiles.map((p) => ({
-              value: p.id,
-              label: `${p.name} (${p.roleName})`,
-              description: p.locationName,
-              badge: p.role,
-            }))}
-          />
-        </div>
-
         {/* Period Selector Tabs & Custom Date Picker */}
         <div className="hero-period-controls">
           <div className="period-segmented-tabs" role="tablist">

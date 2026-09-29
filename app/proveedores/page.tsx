@@ -6,6 +6,8 @@ import { Footer } from '@/components/Footer'
 import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 
 const modules = APP_MODULES
 
@@ -82,13 +84,7 @@ export default function SuppliersRoutePage() {
             <AppIcon name="menu" size={20} />
           </button>
 
-          <div className="topbar-search">
-            <AppIcon name="search" size={16} />
-            <input
-              placeholder="Buscar en proveedores, contactos, NIT..."
-              aria-label="Buscar en ERP"
-            />
-          </div>
+          <GlobalSearch />
 
           <div className="topbar-actions">
             <div className="active-tag">
@@ -96,13 +92,7 @@ export default function SuppliersRoutePage() {
               <span>Módulo Proveedores Activo</span>
             </div>
 
-            <button
-              className="icon-button notification-button"
-              aria-label="Alertas del sistema"
-            >
-              <AppIcon name="alerts" size={18} />
-              <span className="notif-badge">3</span>
-            </button>
+            <NotificationButton count={3} />
 
             <div className="avatar-chip">
               <div className="user-avatar-initials">MA</div>

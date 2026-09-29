@@ -261,8 +261,42 @@ export function ProductTable({
             </tr>
           </thead>
           <tbody>
-            {products.map((product) => {
-              const isMenuOpen = activeMenuId === product.id
+            {products.length === 0 ? (
+              <tr>
+                <td colSpan={14}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <AppIcon name="products" size={24} />
+                    </div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay productos registrados
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                      No hay productos que coincidan con los filtros o aún no se han registrado artículos en el catálogo.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              products.map((product) => {
+                const isMenuOpen = activeMenuId === product.id
 
               return (
                 <tr
@@ -547,72 +581,75 @@ export function ProductTable({
                   )}
                 </tr>
               )
-            })}
-          </tbody>
-        </table>
-      </div>
+            })
+          )}
+        </tbody>
+      </table>
+    </div>
 
       {/* Pagination Bar */}
-      <div className="table-pagination-footer">
-        <div className="pagination-info">
-          <span>
-            Mostrando <strong>{total > 0 ? startRecord : 0}</strong> -{' '}
-            <strong>{endRecord}</strong> de <strong>{total}</strong> productos
-          </span>
-          <div className="page-size-selector">
-            <span>Mostrar:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Registros por página"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-              <option value={100}>100</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="pagination-btn"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            aria-label="Página anterior"
-          >
-            <AppIcon name="chevronLeft" size={14} />
-            <span>Anterior</span>
-          </button>
-
-          <div className="pagination-pages">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-              <button
-                key={pNum}
-                type="button"
-                className={`pagination-number-btn ${
-                  pNum === page ? 'active' : ''
-                }`}
-                onClick={() => onPageChange(pNum)}
+      {total > 0 && (
+        <div className="table-pagination-footer">
+          <div className="pagination-info">
+            <span>
+              Mostrando <strong>{startRecord}</strong> -{' '}
+              <strong>{endRecord}</strong> de <strong>{total}</strong> productos
+            </span>
+            <div className="page-size-selector">
+              <span>Mostrar:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                aria-label="Registros por página"
               >
-                {pNum}
-              </button>
-            ))}
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className="pagination-btn"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            aria-label="Página siguiente"
-          >
-            <span>Siguiente</span>
-            <AppIcon name="chevronRight" size={14} />
-          </button>
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Página anterior"
+            >
+              <AppIcon name="chevronLeft" size={14} />
+              <span>Anterior</span>
+            </button>
+
+            <div className="pagination-pages">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                <button
+                  key={pNum}
+                  type="button"
+                  className={`pagination-number-btn ${
+                    pNum === page ? 'active' : ''
+                  }`}
+                  onClick={() => onPageChange(pNum)}
+                >
+                  {pNum}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <AppIcon name="chevronRight" size={14} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

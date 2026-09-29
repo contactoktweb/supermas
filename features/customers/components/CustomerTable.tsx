@@ -187,25 +187,31 @@ export function CustomerTable({
               // Empty State
               <tr>
                 <td colSpan={10}>
-                  <div className="table-empty-state" style={{ padding: '48px 20px', textAlign: 'center' }}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
                     <div
                       style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
                         display: 'grid',
                         placeItems: 'center',
-                        width: 56,
-                        height: 56,
-                        borderRadius: 14,
-                        background: '#eff4fc',
-                        color: 'var(--navy)',
-                        margin: '0 auto 14px',
+                        margin: '0 auto 12px',
                       }}
                     >
-                      <AppIcon name="customers" size={28} />
+                      <AppIcon name="customers" size={24} />
                     </div>
-                    <strong style={{ fontSize: 16, color: 'var(--foreground)' }}>
-                      No existen clientes registrados
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay clientes registrados
                     </strong>
-                    <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--muted)' }}>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
                       No hay clientes que coincidan con los filtros o aún no se han registrado clientes en el sistema.
                     </p>
                   </div>
@@ -477,58 +483,60 @@ export function CustomerTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className="table-pagination-footer">
-        <div className="pagination-info">
-          <span>
-            Mostrando <strong>{customers.length > 0 ? (page - 1) * pageSize + 1 : 0}</strong> a{' '}
-            <strong>{Math.min(page * pageSize, total)}</strong> de <strong>{total}</strong> clientes
-          </span>
-        </div>
-
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="outline-button compact"
-            disabled={page <= 1 || loading}
-            onClick={() => onPageChange(page - 1)}
-            aria-label="Página anterior"
-          >
-            Anterior
-          </button>
-
-          <div className="page-numbers-cluster">
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-              .map((p, idx, arr) => {
-                const prev = arr[idx - 1]
-                const isGap = prev && p - prev > 1
-                return (
-                  <React.Fragment key={p}>
-                    {isGap && <span className="pagination-ellipsis">...</span>}
-                    <button
-                      type="button"
-                      className={`page-num-btn ${page === p ? 'active' : ''}`}
-                      onClick={() => onPageChange(p)}
-                      disabled={loading}
-                    >
-                      {p}
-                    </button>
-                  </React.Fragment>
-                )
-              })}
+      {!loading && total > 0 && (
+        <div className="table-pagination-footer">
+          <div className="pagination-info">
+            <span>
+              Mostrando <strong>{(page - 1) * pageSize + 1}</strong> a{' '}
+              <strong>{Math.min(page * pageSize, total)}</strong> de <strong>{total}</strong> clientes
+            </span>
           </div>
 
-          <button
-            type="button"
-            className="outline-button compact"
-            disabled={page >= totalPages || loading}
-            onClick={() => onPageChange(page + 1)}
-            aria-label="Página siguiente"
-          >
-            Siguiente
-          </button>
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="outline-button compact"
+              disabled={page <= 1 || loading}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Página anterior"
+            >
+              Anterior
+            </button>
+
+            <div className="page-numbers-cluster">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .map((p, idx, arr) => {
+                  const prev = arr[idx - 1]
+                  const isGap = prev && p - prev > 1
+                  return (
+                    <React.Fragment key={p}>
+                      {isGap && <span className="pagination-ellipsis">...</span>}
+                      <button
+                        type="button"
+                        className={`page-num-btn ${page === p ? 'active' : ''}`}
+                        onClick={() => onPageChange(p)}
+                        disabled={loading}
+                      >
+                        {p}
+                      </button>
+                    </React.Fragment>
+                  )
+                })}
+            </div>
+
+            <button
+              type="button"
+              className="outline-button compact"
+              disabled={page >= totalPages || loading}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Página siguiente"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

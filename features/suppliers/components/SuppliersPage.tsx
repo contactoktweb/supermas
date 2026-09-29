@@ -315,16 +315,6 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
         <SupplierTableSkeleton />
       ) : error ? (
         <SupplierErrorState message={error} onRetry={fetchSuppliers} />
-      ) : suppliers.length === 0 ? (
-        <SupplierEmptyState
-          hasFilters={hasActiveFilters}
-          onResetFilters={handleResetFilters}
-          onNewSupplier={() => {
-            setFormDrawerMode('create')
-            setEditingSupplier(null)
-            setIsFormDrawerOpen(true)
-          }}
-        />
       ) : (
         <SupplierTable
           suppliers={suppliers}

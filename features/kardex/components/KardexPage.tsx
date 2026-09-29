@@ -310,11 +310,6 @@ export function KardexPage({
         <KardexSkeleton />
       ) : error ? (
         <KardexErrorState message={error} onRetry={loadData} />
-      ) : movements.length === 0 ? (
-        <KardexEmptyState
-          hasFilters={hasActiveFilters}
-          onResetFilters={handleResetFilters}
-        />
       ) : viewMode === 'table' ? (
         <KardexTable
           movements={movements}
@@ -333,6 +328,11 @@ export function KardexPage({
           onViewDocument={(m) =>
             handleNavigateDocument(m.sourceDocumentType, m.sourceDocumentNumber)
           }
+        />
+      ) : movements.length === 0 ? (
+        <KardexEmptyState
+          hasFilters={hasActiveFilters}
+          onResetFilters={handleResetFilters}
         />
       ) : (
         <KardexTimeline

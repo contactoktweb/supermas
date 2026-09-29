@@ -4,9 +4,9 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 
 interface ProductEmptyStateProps {
-  hasFilters: boolean
-  onResetFilters: () => void
-  onNewProduct: () => void
+  hasFilters?: boolean
+  onResetFilters?: () => void
+  onNewProduct?: () => void
 }
 
 export function ProductEmptyState({
@@ -15,44 +15,33 @@ export function ProductEmptyState({
   onNewProduct,
 }: ProductEmptyStateProps) {
   return (
-    <div className="product-empty-state-panel page-enter">
-      <div className="empty-icon-wrap">
-        <AppIcon name="products" size={42} color="var(--navy)" />
+    <div
+      style={{
+        padding: '48px 24px',
+        textAlign: 'center',
+        color: 'var(--muted)',
+      }}
+    >
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          background: '#e9eef8',
+          color: 'var(--navy)',
+          display: 'grid',
+          placeItems: 'center',
+          margin: '0 auto 12px',
+        }}
+      >
+        <AppIcon name="products" size={24} />
       </div>
-
-      <h3>
-        {hasFilters
-          ? 'No se encontraron productos con los filtros seleccionados'
-          : 'Aún no hay productos registrados en el catálogo'}
-      </h3>
-
-      <p>
-        {hasFilters
-          ? 'Intenta ajustar tus criterios de búsqueda, categoría, marca o disponibilidad de inventario.'
-          : 'Empieza registrando tu primer producto con listas de precios y perfiles de IVA.'}
+      <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+        No hay productos registrados
+      </strong>
+      <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+        No hay productos que coincidan con los filtros o aún no se han registrado artículos en el catálogo.
       </p>
-
-      <div className="empty-actions-row">
-        {hasFilters ? (
-          <button
-            type="button"
-            className="outline-button"
-            onClick={onResetFilters}
-          >
-            <AppIcon name="close" size={14} />
-            <span>Restablecer filtros</span>
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="primary-button"
-            onClick={onNewProduct}
-          >
-            <AppIcon name="plus" size={16} />
-            <span>Crear primer producto</span>
-          </button>
-        )}
-      </div>
     </div>
   )
 }

@@ -6,6 +6,8 @@ import { AppIcon } from '@/components/ui/Icon'
 import { RolesView } from '@/features/roles/components/RolesView'
 import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 
 export default function RolesRoutePage() {
   const [menu, setMenu] = useState(false)
@@ -75,14 +77,8 @@ export default function RolesRoutePage() {
           </div>
 
           <div className="top-actions">
-            <div className="search-box">
-              <AppIcon name="search" size={16} />
-              <input placeholder="Buscar roles o permisos..." />
-            </div>
-            <button className="notification icon-button" aria-label="Notificaciones">
-              <AppIcon name="alerts" size={18} />
-              <i>3</i>
-            </button>
+            <GlobalSearch />
+            <NotificationButton count={3} />
             <div className="top-avatar">AM</div>
           </div>
         </header>

@@ -15,44 +15,52 @@ export function WarehouseEmptyState({
   type = 'NO_FILTER_RESULTS',
   customTitle,
   customDescription,
-  actionLabel,
-  onAction,
 }: WarehouseEmptyStateProps) {
-  let title = 'No encontramos bodegas con estos filtros'
-  let description = 'Intenta modificando los criterios de búsqueda o limpia los filtros para ver todas las ubicaciones.'
-  let defaultAction = 'Limpiar filtros'
-  let iconName: LightIconName = 'search'
+  let title = 'No hay bodegas registradas'
+  let description =
+    'No hay bodegas que coincidan con los filtros o aún no se han configurado ubicaciones en el sistema.'
+  let iconName: LightIconName = 'warehouses'
 
-  if (type === 'NO_WAREHOUSES') {
-    title = 'No hay bodegas configuradas'
-    description = 'Comienza agregando la bodega principal o punto de venta para gestionar el inventario y operaciones de Super Más.'
-    defaultAction = 'Crear nueva bodega'
-    iconName = 'warehouse'
-  } else if (type === 'NO_MOVEMENTS') {
-    title = 'Esta bodega todavía no tiene movimientos de inventario'
-    description = 'Los movimientos de Kardex se registrarán automáticamente cuando se reciban compras, transferencias o ventas.'
-    defaultAction = 'Realizar ajuste de inventario'
+  if (type === 'NO_MOVEMENTS') {
+    title = 'No hay movimientos de inventario'
+    description =
+      'Esta bodega todavía no presenta movimientos registrados en el Kardex.'
     iconName = 'kardex'
   } else if (type === 'NO_ITEMS') {
-    title = 'No hay registros disponibles'
-    description = 'Actualmente no se han encontrado datos asociados para esta sección.'
-    defaultAction = 'Actualizar'
-    iconName = 'inventory'
+    title = 'No hay productos registrados'
+    description =
+      'No hay productos asociados para esta bodega o sección.'
+    iconName = 'products'
   }
 
   return (
-    <div className="drawer-empty warehouse-empty-panel">
-      <div className="empty-icon-bubble">
-        <AppIcon name={iconName} size={28} />
+    <div
+      style={{
+        padding: '48px 24px',
+        textAlign: 'center',
+        color: 'var(--muted)',
+      }}
+    >
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          background: '#e9eef8',
+          color: 'var(--navy)',
+          display: 'grid',
+          placeItems: 'center',
+          margin: '0 auto 12px',
+        }}
+      >
+        <AppIcon name={iconName} size={24} />
       </div>
-      <h3>{customTitle || title}</h3>
-      <p>{customDescription || description}</p>
-      {onAction && (
-        <button className="primary-button compact" onClick={onAction} style={{ marginTop: 14 }}>
-          <AppIcon name={type === 'NO_WAREHOUSES' ? 'plus' : 'refresh'} size={15} />
-          {actionLabel || defaultAction}
-        </button>
-      )}
+      <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+        {customTitle || title}
+      </strong>
+      <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+        {customDescription || description}
+      </p>
     </div>
   )
 }

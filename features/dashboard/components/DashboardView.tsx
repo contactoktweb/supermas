@@ -67,8 +67,6 @@ export function DashboardView({ onNavigate }: DashboardViewProps) {
         onCustomRangeChange={setCustomRange}
         onRefresh={refreshData}
         isRefreshing={isRefreshing}
-        availableProfiles={availableProfiles}
-        onUserChange={changeUser}
       />
 
       {/* 2. Key KPI Statistics Grid (Primary + Collapsible Secondary) */}

@@ -7,6 +7,8 @@ import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 
 const modules = APP_MODULES
 
@@ -83,14 +85,8 @@ export default function WarehouseDetailRoutePage({ params }: PageProps) {
             <strong>Detalle de Sede</strong>
           </div>
           <div className="top-actions">
-            <div className="search-box">
-              <AppIcon name="search" size={16} />
-              <input placeholder="Buscar en el sistema..." />
-            </div>
-            <button className="notification icon-button" aria-label="Notificaciones">
-              <AppIcon name="alerts" size={18} />
-              <i>3</i>
-            </button>
+            <GlobalSearch />
+            <NotificationButton count={3} />
             <div className="top-avatar">AM</div>
           </div>
         </header>

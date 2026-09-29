@@ -364,5 +364,12 @@ El modelo de datos ha completado la fase integral de auditoría, corrección y n
         12. Validación tributaria DIAN: IVA Generado $2.850.000 COP, IVA Descontable $1.900.000 COP, Saldo Neto por pagar $950.000 COP, Retefuente $250.000 COP.
         13. Seguridad RLS: Rol `CASHIER` bloqueado de crear asientos; rol `ACCOUNTANT` Empresa B bloqueado de consultar asientos y periodos de Empresa A.
         14. Rollback total verificado: Cero registros residuales en todas las tablas comerciales, contables y de periodos.
+     - **Estandarización UI/UX de Estados Vacíos y Errores (Transferencias, Compras, Proveedores)**:
+       - Armonización de `TransferEmptyState`, `TransferErrorState`, `PurchaseEmptyState`, `PurchaseErrorState`, `SupplierEmptyState` y `SupplierErrorState`.
+       - Implementación del contenedor de tarjeta SaaS (`.inventory-empty-card`), halo con brillo (`.empty-icon-halo`), tags de estado con indicadores de pulso y botones de acción primarios con microinteracciones.
+       - Declaración de reglas CSS globales para `.table-empty-state` en `app/globals.css`.
 
 
+     - **Navegación y Búsqueda Global del Sistema (NotificationButton y GlobalSearch)**:
+       - Redirección directa del icono de campana/notificaciones con badge (3) hacia /alertas (o vista de alertas en SPA).
+       - Buscador global GlobalSearch.tsx con atajo Ctrl+K / ⌘K accesible desde la barra superior en todos los módulos y rutas del App Router. Búsqueda instantánea y transversal en 8 entidades: Módulos del Sistema, Productos, Clientes, Proveedores, Facturas, Remisiones, Bodegas y Alertas con navegación por teclado y atajos rápidos por defecto.

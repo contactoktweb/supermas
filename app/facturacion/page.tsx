@@ -6,6 +6,8 @@ import { Footer } from '@/components/Footer'
 import { AppIcon } from '@/components/ui/Icon'
 import Link from 'next/link'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { GlobalSearch } from '@/components/navigation/GlobalSearch'
+import { NotificationButton } from '@/components/navigation/NotificationButton'
 
 const modules = APP_MODULES
 
@@ -88,23 +90,10 @@ export default function InvoicesRoutePage() {
             <AppIcon name="menu" size={20} />
           </button>
 
-          <div className="topbar-search">
-            <AppIcon name="search" size={16} />
-            <input
-              type="text"
-              placeholder="Buscar facturas, clientes o resoluciones..."
-              aria-label="Búsqueda global"
-            />
-          </div>
+          <GlobalSearch />
 
           <div className="topbar-actions">
-            <button
-              className="icon-button"
-              aria-label="Notificaciones"
-              title="Notificaciones"
-            >
-              <AppIcon name="alerts" size={18} />
-            </button>
+            <NotificationButton count={3} />
             <div className="topbar-user">
               <div className="topbar-avatar">
                 <span>AM</span>

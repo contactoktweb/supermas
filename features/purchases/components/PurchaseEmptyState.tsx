@@ -4,8 +4,8 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 
 interface PurchaseEmptyStateProps {
-  hasFilters: boolean
-  onResetFilters: () => void
+  hasFilters?: boolean
+  onResetFilters?: () => void
   onNewPurchase?: () => void
 }
 
@@ -15,43 +15,33 @@ export function PurchaseEmptyState({
   onNewPurchase,
 }: PurchaseEmptyStateProps) {
   return (
-    <div className="table-empty-state page-enter">
-      <div className="empty-icon-wrap" style={{ background: '#eff6ff', color: 'var(--navy)' }}>
-        <AppIcon name="purchases" size={28} />
+    <div
+      style={{
+        padding: '48px 24px',
+        textAlign: 'center',
+        color: 'var(--muted)',
+      }}
+    >
+      <div
+        style={{
+          width: 48,
+          height: 48,
+          borderRadius: 12,
+          background: '#e9eef8',
+          color: 'var(--navy)',
+          display: 'grid',
+          placeItems: 'center',
+          margin: '0 auto 12px',
+        }}
+      >
+        <AppIcon name="purchases" size={24} />
       </div>
-      <h3>
-        {hasFilters
-          ? 'No se encontraron compras con los filtros aplicados'
-          : 'No hay compras realizadas'}
-      </h3>
-      <p>
-        {hasFilters
-          ? 'Intente modificar los criterios de búsqueda, cambiar de proveedor, estado o limpiar los filtros seleccionados.'
-          : 'Comience creando una nueva compra a proveedor para registrar recepciones físicas e ingresar inventario al sistema.'}
+      <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+        No hay compras registradas
+      </strong>
+      <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+        No hay compras que coincidan con los filtros o aún no se han registrado compras en el sistema.
       </p>
-      <div className="empty-actions-row">
-        {hasFilters ? (
-          <button
-            type="button"
-            className="outline-button"
-            onClick={onResetFilters}
-          >
-            <AppIcon name="close" size={14} />
-            <span>Limpiar filtros</span>
-          </button>
-        ) : (
-          onNewPurchase && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={onNewPurchase}
-            >
-              <AppIcon name="plus" size={14} />
-              <span>Nueva compra</span>
-            </button>
-          )
-        )}
-      </div>
     </div>
   )
 }

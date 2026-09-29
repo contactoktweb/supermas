@@ -329,12 +329,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         <PurchaseTableSkeleton />
       ) : error ? (
         <PurchaseErrorState message={error} onRetry={fetchPurchases} />
-      ) : purchases.length === 0 ? (
-        <PurchaseEmptyState
-          hasFilters={hasActiveFilters}
-          onResetFilters={handleResetFilters}
-          onNewPurchase={() => setIsNewDrawerOpen(true)}
-        />
       ) : (
         <PurchaseTable
           purchases={purchases}

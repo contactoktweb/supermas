@@ -40,7 +40,15 @@ export function SalesFilters({
   ].filter(Boolean).length
 
   return (
-    <div className="table-toolbar page-enter" style={{ flexDirection: 'column', gap: 12 }}>
+    <div
+      className="table-toolbar page-enter"
+      style={{
+        flexDirection: 'column',
+        gap: 12,
+        position: 'relative',
+        zIndex: 30,
+      }}
+    >
       {/* Top Filter Row */}
       <div
         style={{
@@ -49,6 +57,8 @@ export function SalesFilters({
           gap: 10,
           width: '100%',
           flexWrap: 'wrap',
+          position: 'relative',
+          zIndex: 10,
         }}
       >
         {/* 1. Global Search Box */}
@@ -111,6 +121,8 @@ export function SalesFilters({
           gap: 10,
           width: '100%',
           flexWrap: 'wrap',
+          position: 'relative',
+          zIndex: 5,
         }}
       >
         {/* Location Select */}

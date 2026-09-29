@@ -124,34 +124,8 @@ export function InvoiceTable({
         </div>
       )}
 
-      {/* Empty state */}
-      {!loading && !error && invoices.length === 0 && (
-        <div style={{ padding: '50px 20px', textAlign: 'center' }}>
-          <div
-            style={{
-              width: 52,
-              height: 52,
-              borderRadius: 12,
-              background: '#f1f5f9',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: 14,
-            }}
-          >
-            <AppIcon name="invoices" size={28} color="#94a3b8" />
-          </div>
-          <p style={{ color: 'var(--navy)', fontWeight: 700, fontSize: 16 }}>
-            No se encontraron facturas
-          </p>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4, maxWidth: 360, margin: '4px auto 0' }}>
-            No hay comprobantes que coincidan con los filtros seleccionados o no se han emitido facturas aún.
-          </p>
-        </div>
-      )}
-
       {/* Data Table */}
-      {!loading && !error && invoices.length > 0 && (
+      {!loading && !error && (
         <div className="table-scroll">
           <table>
             <thead>
@@ -169,7 +143,41 @@ export function InvoiceTable({
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => {
+              {invoices.length === 0 ? (
+                <tr>
+                  <td colSpan={10}>
+                    <div
+                      style={{
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                        color: 'var(--muted)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          background: '#e9eef8',
+                          color: 'var(--navy)',
+                          display: 'grid',
+                          placeItems: 'center',
+                          margin: '0 auto 12px',
+                        }}
+                      >
+                        <AppIcon name="invoices" size={24} />
+                      </div>
+                      <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                        No hay facturas registradas
+                      </strong>
+                      <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                        No hay facturas que coincidan con los filtros o aún no se han registrado facturas en el sistema.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                invoices.map((inv) => {
                 const isTransmitting = transmittingId === inv.id
                 return (
                   <tr
@@ -500,14 +508,15 @@ export function InvoiceTable({
                     </td>
                   </tr>
                 )
-              })}
+              })
+            )}
             </tbody>
           </table>
         </div>
       )}
 
       {/* Pagination Footer */}
-      {!loading && !error && invoices.length > 0 && (
+      {!loading && !error && total > 0 && (
         <div
           style={{
             display: 'flex',

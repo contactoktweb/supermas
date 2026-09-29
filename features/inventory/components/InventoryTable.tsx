@@ -291,6 +291,39 @@ export function InventoryTable({
                   </div>
                 </td>
               </tr>
+            ) : totalRecords === 0 || (viewMode === 'CONSOLIDATED' ? consolidatedData.length === 0 : byLocationData.length === 0) ? (
+              <tr>
+                <td colSpan={14}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <AppIcon name="inventory" size={24} />
+                    </div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay existencias de inventario registradas
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                      No hay productos que coincidan con los filtros o aún no se han registrado existencias en el sistema.
+                    </p>
+                  </div>
+                </td>
+              </tr>
             ) : viewMode === 'CONSOLIDATED' ? (
               // ----------------- VISTA CONSOLIDADA -----------------
               consolidatedData.map((product) => {
@@ -810,65 +843,67 @@ export function InventoryTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className="table-pagination-footer">
-        <div className="pagination-info">
-          <span>
-            Mostrando <b>{totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}</b> a{' '}
-            <b>{Math.min(page * pageSize, totalRecords)}</b> de <b>{totalRecords}</b> registros
-          </span>
+      {totalRecords > 0 && (
+        <div className="table-pagination-footer">
+          <div className="pagination-info">
+            <span>
+              Mostrando <b>{(page - 1) * pageSize + 1}</b> a{' '}
+              <b>{Math.min(page * pageSize, totalRecords)}</b> de <b>{totalRecords}</b> registros
+            </span>
 
-          <div className="page-size-selector">
-            <span>Mostrar:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Registros por página"
-            >
-              <option value={10}>10 por pág.</option>
-              <option value={25}>25 por pág.</option>
-              <option value={50}>50 por pág.</option>
-              <option value={100}>100 por pág.</option>
-            </select>
-          </div>
-        </div>
-
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="pagination-btn"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            aria-label="Página anterior"
-          >
-            <AppIcon name="chevronLeft" size={14} />
-            <span>Anterior</span>
-          </button>
-
-          <div className="pagination-pages">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-              <button
-                key={pNum}
-                type="button"
-                className={`pagination-number-btn ${pNum === page ? 'active' : ''}`}
-                onClick={() => onPageChange(pNum)}
+            <div className="page-size-selector">
+              <span>Mostrar:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                aria-label="Registros por página"
               >
-                {pNum}
-              </button>
-            ))}
+                <option value={10}>10 por pág.</option>
+                <option value={25}>25 por pág.</option>
+                <option value={50}>50 por pág.</option>
+                <option value={100}>100 por pág.</option>
+              </select>
+            </div>
           </div>
 
-          <button
-            type="button"
-            className="pagination-btn"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            aria-label="Página siguiente"
-          >
-            <span>Siguiente</span>
-            <AppIcon name="chevronRight" size={14} />
-          </button>
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Página anterior"
+            >
+              <AppIcon name="chevronLeft" size={14} />
+              <span>Anterior</span>
+            </button>
+
+            <div className="pagination-pages">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                <button
+                  key={pNum}
+                  type="button"
+                  className={`pagination-number-btn ${pNum === page ? 'active' : ''}`}
+                  onClick={() => onPageChange(pNum)}
+                >
+                  {pNum}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              className="pagination-btn"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <AppIcon name="chevronRight" size={14} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

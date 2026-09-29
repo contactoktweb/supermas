@@ -263,8 +263,8 @@ export function DateRangeFilter({
   return (
     <div
       ref={containerRef}
-      className={`date-range-filter-container ${className}`}
-      style={{ position: 'relative' }}
+      className={`date-range-filter-container ${className} ${isOpen ? 'is-open' : ''}`}
+      style={{ position: 'relative', zIndex: isOpen ? 1000 : undefined }}
     >
       {/* Trigger Button */}
       <button

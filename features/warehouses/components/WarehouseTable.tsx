@@ -108,9 +108,43 @@ export function WarehouseTable({
             </tr>
           </thead>
           <tbody>
-            {warehouses.map((wh) => (
-              <tr
-                key={wh.id}
+            {warehouses.length === 0 ? (
+              <tr>
+                <td colSpan={13}>
+                  <div
+                    style={{
+                      padding: '48px 24px',
+                      textAlign: 'center',
+                      color: 'var(--muted)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 12,
+                        background: '#e9eef8',
+                        color: 'var(--navy)',
+                        display: 'grid',
+                        placeItems: 'center',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <AppIcon name="warehouses" size={24} />
+                    </div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                      No hay bodegas registradas
+                    </strong>
+                    <p style={{ margin: '4px 0 0', fontSize: 13 }}>
+                      No hay bodegas que coincidan con los filtros o aún no se han configurado ubicaciones en el sistema.
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              warehouses.map((wh) => (
+                <tr
+                  key={wh.id}
                 onClick={() => onSelect(wh.id)}
                 tabIndex={0}
                 role="row"
@@ -222,57 +256,60 @@ export function WarehouseTable({
                   </div>
                 </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
 
       {/* Pagination Footer */}
-      <div className="table-pagination-footer">
-        <div className="pagination-info">
-          <span>
-            Mostrando <b>{warehouses.length}</b> de <b>{total}</b> bodegas
-          </span>
-          <div className="page-size-selector">
-            <span>Mostrar:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => onPageSizeChange(Number(e.target.value))}
-              aria-label="Registros por página"
+      {total > 0 && (
+        <div className="table-pagination-footer">
+          <div className="pagination-info">
+            <span>
+              Mostrando <b>{warehouses.length}</b> de <b>{total}</b> bodegas
+            </span>
+            <div className="page-size-selector">
+              <span>Mostrar:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                aria-label="Registros por página"
+              >
+                <option value={5}>5 por pág.</option>
+                <option value={10}>10 por pág.</option>
+                <option value={20}>20 por pág.</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="pagination-controls">
+            <button
+              type="button"
+              className="icon-button pagination-btn"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+              aria-label="Página anterior"
             >
-              <option value={5}>5 por pág.</option>
-              <option value={10}>10 por pág.</option>
-              <option value={20}>20 por pág.</option>
-            </select>
+              <AppIcon name="chevronLeft" size={16} />
+            </button>
+
+            <span className="pagination-page-indicator">
+              Página <b>{page}</b> de <b>{totalPages}</b>
+            </span>
+
+            <button
+              type="button"
+              className="icon-button pagination-btn"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+              aria-label="Página siguiente"
+            >
+              <AppIcon name="chevronRight" size={16} />
+            </button>
           </div>
         </div>
-
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="icon-button pagination-btn"
-            disabled={page <= 1}
-            onClick={() => onPageChange(page - 1)}
-            aria-label="Página anterior"
-          >
-            <AppIcon name="chevronLeft" size={16} />
-          </button>
-
-          <span className="pagination-page-indicator">
-            Página <b>{page}</b> de <b>{totalPages}</b>
-          </span>
-
-          <button
-            type="button"
-            className="icon-button pagination-btn"
-            disabled={page >= totalPages}
-            onClick={() => onPageChange(page + 1)}
-            aria-label="Página siguiente"
-          >
-            <AppIcon name="chevronRight" size={16} />
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }

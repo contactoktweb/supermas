@@ -103,6 +103,10 @@ async function seedCleanBootstrap() {
     console.log('\n[2/3] Configurando estructura de cuentas contables PUC (public.accounting_accounts)...')
     const rawPucs = readJson('accounting_accounts.json')
     if (Array.isArray(rawPucs) && rawPucs.length > 0) {
+      // Mapear los ids originales a sus códigos correspondientes
+      const idToCode = new Map<string, string>()
+      rawPucs.forEach((p: any) => idToCode.set(p.id, String(p.code).trim()))
+
       // 2.1 Calcular nivel y clase obligatoria (1: Activo, 2: Pasivo, etc.)
       const parsedPucs = rawPucs.map((a: any) => {
         const cleanCode = String(a.code).trim()
@@ -122,12 +126,12 @@ async function seedCleanBootstrap() {
         const accountClass = parseInt(cleanCode[0], 10) || 1
         const id = codeToDeterministicUuid(cleanCode)
 
-        // Calcular parent_id determinista según código padre
+        // Asignar parent_id determinista ÚNICAMENTE si el padre existe en el catálogo
         let parentId: string | null = null
-        if (cleanCode.length === 2) parentId = codeToDeterministicUuid(cleanCode.substring(0, 1))
-        else if (cleanCode.length === 4) parentId = codeToDeterministicUuid(cleanCode.substring(0, 2))
-        else if (cleanCode.length === 6) parentId = codeToDeterministicUuid(cleanCode.substring(0, 4))
-        else if (cleanCode.length > 6) parentId = codeToDeterministicUuid(cleanCode.substring(0, 6))
+        if (a.parentId && idToCode.has(a.parentId)) {
+          const parentCode = idToCode.get(a.parentId)!
+          parentId = codeToDeterministicUuid(parentCode)
+        }
 
         return {
           id,

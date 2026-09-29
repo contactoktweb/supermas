@@ -281,4 +281,88 @@ El modelo de datos ha completado la fase integral de auditoría, corrección y n
 6. **Migración DDL 013**: Archivo `013_pre_supabase_audit_and_model_fixes.sql` consolida todas las foreign keys, restricciones e índices.
 7. **Integridad Validada**: 39 pruebas de integridad, JOINs relacionales y simulación de ciclo de vida empresarial aprobadas al 100% (`scripts/test-model-integrity.ts`).
 8. **Validación de Seguridad Paso 0 Completada**: Migración 014 con matriz RLS granular por operación, protección contra elevación de privilegios en bootstrap (raw_app_meta_data + pg_advisory_xact_lock), inmutabilidad de Kardex y asientos contables, stock_levels de solo lectura cliente y service_role blindado fuera de los bundles del navegador. Suite de pruebas A-J 100% aprobada (`scripts/test-security-onboarding.ts`).
+9. **Despliegue Staging Supabase Real (Pasos 1 a 10)**:
+   - Migraciones 001 a 021 aplicadas y registradas en `supabase_migrations.schema_migrations`.
+   - Hardening integral de funciones SECURITY DEFINER (015), trigger de bootstrap y app_metadata lifecycle (016).
+   - Seed estructural limpio (006): tarifas DIAN, catálogo PUC de 55 cuentas, system settings.
+   - Primer Superadministrador inicial fiduciario (Paso 7): `samirdurant234@gmail.com`.
+   - Onboarding de primera empresa y bodega legítimas (Paso 8): `Super Más S.A.S.` y `BOD-01`.
+   - **Paso 9 — Pruebas Reales de RLS, Permisos y Aislamiento Aprobadas al 100%**: Aislamiento estricto entre inquilinos (Empresa A vs B), validación de roles SUPERADMIN, ADMIN, ACCOUNTANT, WAREHOUSE_ADMIN, SELLER, CASHIER, permisos granulares (productos, inventario, ventas, compras, contabilidad, tesorería), inmutabilidad fiduciaria de Kardex y asientos contables POSTED, auditoría inviolable y rollback total sin contaminación de datos.
+   - **Paso 10 — Validación Real de Kardex y Recálculo Atómico de Stock Aprobada al 100%**: Ciclo de vida integral comprobado en PostgreSQL (entradas con cálculo matemático exacto de costo promedio ponderado, salidas preservando costo unitario, devoluciones de clientes y a proveedores, ajustes positivos y negativos por conteo/merma, transiciones automáticas de salud AVAILABLE -> LOW_STOCK -> OUT_OF_STOCK, mutabilidad exclusiva de stock_levels vía trigger desde inventory_movements, separación multi-bodega y multi-tenant en Kardex y existencias, con rollback total garantizado).
+   - **Paso 11 — Validación Real de Ventas / POS y Facturación Electrónica DIAN Aprobada al 100%**:
+     - Migración `022_sales_invoicing_and_stock_guard.sql` aplicada y registrada en `schema_migrations`:
+       - Restricción física `chk_stock_levels_non_negative CHECK (quantity >= 0)` contra existencias negativas.
+       - Blindaje de motor en `process_inventory_movement()` impidiendo overselling tanto en inserciones iniciales como en movimientos subsecuentes.
+       - Disparador de inmutabilidad `fn_prevent_invoice_deletion()` que bloquea el borrado físico de comprobantes electrónicos DIAN.
+       - Políticas RLS completas para `electronic_invoices` (aislamiento multi-tenant por empresa y sede).
+       - Asignación de permisos `invoices.create` e `invoices.read` al rol `CASHIER` para terminales POS.
+     - Suite integral de pruebas reales ejecutada exitosamente con `BEGIN ... ROLLBACK` (`scripts/test-real-sales-pos-invoicing.ts`):
+       1. Creación de cliente con datos fiscales y de contacto (`customers`).
+       2. Creación de producto y entrada inicial en Kardex (50 unds @ $8.000 COP, costo total $400.000 COP).
+       3. Bloqueo atómico de intento de overselling (intento de salida de 60 unds bloqueado por excepción del motor, stock intacto en 50 unds).
+       4. Bloqueo RLS de usuario no autorizado (`ACCOUNTANT` sin `sales.create` bloqueado al intentar registrar venta).
+       5. Venta POS exitosa por cajero autenticado (10 unds @ $10.000 base + 19% IVA, subtotal $100.000, IVA $19.000, total $119.000, costo $80.000, ganancia estimada $20.000 calculada automáticamente por columna STORED).
+       6. Descuento automático en Kardex: existencias reducidas de 50 a 40 unds, costo promedio inalterado ($8.000 COP), valoración total $320.000 COP.
+       7. Emisión de Factura Electrónica DIAN (SETP-990000001) con CUFE, código QR y desglose de IVA al 19%.
+       8. Inmutabilidad física garantizada: disparadores `fn_prevent_sale_deletion` y `fn_prevent_invoice_deletion` bloquean eliminación directa.
+       9. Contabilización en partida doble PUC (Asiento CC-2026-0001): 1105 Débito $119.000, 4135 Crédito $100.000, 2408 Crédito $19.000, 6135 Débito $80.000, 1435 Crédito $80.000 (Débito $199.000 == Crédito $199.000). Asiento en estado POSTED blindado contra modificación.
+       10. Aislamiento multi-tenant y multi-sede: Cajero de Empresa B no puede consultar ventas ni facturas de Empresa A; vendedor de Sede A2 no puede acceder a ventas de Sede A1.
+       11. Devolución de cliente (`CUSTOMER_RETURN`): 2 unds devueltas a Kardex, stock incrementa automáticamente de 40 a 42 unds.
+       12. Emisión de Nota Crédito DIAN (NC-990000001) por $23.800 COP y asiento contable de reversión en partida doble (CC-2026-0002, Débito $39.800 == Crédito $39.800).
+       13. Auditoría forense inmutable (`audit_logs`) con eventos de emisión, anulación y bloqueo de alteración física.
+   - **Paso 12 — Validación Real de Compras, Proveedores, Kardex y Tesorería Aprobada al 100%**:
+     - Migración `023_purchases_treasury_and_bank_hardening.sql` aplicada y registrada en `schema_migrations`:
+       - Asignación de permiso `suppliers.read` al rol `ACCOUNTANT` para auditoría y causación de pagos.
+       - Aislamiento multi-tenant RLS en `bank_accounts` y `bank_movements` cerrando fugas en registros corporativos con `location_id = NULL`.
+       - Política `Tenant isolation update treasury_payments` habilitando la dispersión formal y cambio de estado a `PAID`.
+       - Disparador de inmutabilidad `trg_prevent_paid_payment_deletion` que bloquea la eliminación física de pagos desembolsados.
+     - Suite integral de pruebas reales ejecutada exitosamente con `BEGIN ... ROLLBACK` (`scripts/test-real-purchases-suppliers-ap.ts`):
+       1. Creación de proveedor con datos fiscales y condiciones de pago (Disnalimentos S.A.S., NIT 900555444-1, 30 días de plazo).
+       2. Creación de producto y stock base previo (50 unds @ $3.000 COP, valoración $150.000 COP).
+       3. Bloqueo RLS de usuario no autorizado (`CASHIER` bloqueado de crear órdenes de compra).
+       4. Orden de compra registrada por `WAREHOUSE_ADMIN`: 100 unds @ $3.600 COP (Subtotal $360.000 COP, IVA 19% $68.400 COP, Total Factura $428.400 COP).
+       5. Recepción de mercancía (`inventory_status = 'RECEIVED'`) y recálculo matemático de Costo Promedio Ponderado: $\frac{150.000 + 360.000}{150} = \$3.400,00$ COP exactos. Total valor costo: $510.000,00 COP.
+       6. Inmutabilidad física de compra recibida: Disparador `fn_prevent_received_purchase_deletion` bloquea eliminación directa.
+       7. Contabilización en partida doble PUC con retenciones (Asiento CP-2026-0001): 1435 Débito $360.000, 2408 Débito $68.400 (IVA descontable), 2365 Crédito $9.000 (ReteFuente 2.5%), 2205 Crédito $419.400 (CXP neta proveedor). Total Débitos $428.400 == Total Créditos $428.400.
+       8. Gestión de Tesorería y Cuentas por Pagar: Creación de cuenta bancaria institucional ($5.000.000 COP saldo) y dispersión de pago por transferencia ($419.400 COP) en `treasury_payments` (`status = 'PAID'`). Movimiento bancario egreso registrado. Inmutabilidad de pago validada (bloqueo DELETE).
+       9. Contabilización del desembolso a proveedor (Asiento CP-2026-0002): 2205 Débito $419.400 vs 1110 Crédito $419.400 (Débito == Crédito).
+       10. Devolución a proveedor (`SUPPLIER_RETURN`): 10 unds averiadas devueltas en Kardex, existencias reducidas automáticamente de 150 a 140 unds a costo promedio $3.400 COP.
+       11. Nota Débito al proveedor y asiento de reversión contable (Asiento CP-2026-0003): 2205 Débito $41.940, 2365 Débito $900, 1435 Crédito $36.000, 2408 Crédito $6.840 (Total Débitos $42.840 == Total Créditos $42.840).
+       12. Aislamiento multi-tenant y multi-sede verificado: Empresa B no puede consultar proveedores, compras, cuentas bancarias ni pagos de Empresa A.
+       13. Auditoría forense inmutable (`audit_logs`) con 4 eventos registrados y blindados contra borrado.
+       14. Rollback total verificado: Cero registros comerciales, transaccionales, bancarios o de compras residuales en PostgreSQL Staging.
+    - **Paso 13 — Validación Integral del Módulo Contable, Periodos, Cierres y Reportes Financieros Aprobada al 100%**:
+      - Migración `024_accounting_periods_puc_and_financial_reports.sql` aplicada y registrada en `schema_migrations`:
+        - Centros de costo multiempresa (`cost_centers`): Columna `company_id`, unicidad `UNIQUE (company_id, code)` y activación de RLS aislado por inquilino.
+        - Plan Único de Cuentas (`accounting_accounts`): Políticas RLS que permiten lectura fiduciaria a usuarios autenticados y restringen mutaciones a `SUPERADMIN` y `ACCOUNTANT`.
+        - Periodos contables (`accounting_periods`): Unicidad multi-tenant `UNIQUE (company_id, period_code)` y aislamiento RLS estricto.
+        - Trigger de bloqueo de meses cerrados (`fn_prevent_entries_on_closed_period`): Filtrado estricto por `company_id = NEW.company_id` que evita bloqueos cruzados entre empresas.
+        - Procedimientos de cierre y reapertura (`fn_close_accounting_period`, `fn_reopen_accounting_period`) con recálculo de sumas, verificación de partida doble, bloqueo ante borradores y trazabilidad en `audit_logs`.
+        - Motor de reportes financieros SQL de alto rendimiento:
+          1. `fn_financial_trial_balance`: Balance de Comprobación (Sumas y Saldos).
+          2. `fn_financial_daily_journal`: Libro Diario cronológico.
+          3. `fn_financial_general_ledger`: Libro Mayor con saldo acumulado dinámico (`running_balance`).
+          4. `fn_financial_income_statement`: Estado de Resultados / P&L (Utilidad Bruta y Operativa).
+          5. `fn_financial_balance_sheet`: Balance General y Ecuación Patrimonial (`Activo = Pasivo + Patrimonio`).
+          6. `fn_financial_tax_summary`: Resumen tributario con cruce de IVA Generado, IVA Descontable, Saldo Neto DIAN y Retenciones en la fuente.
+      - Suite integral de pruebas reales ejecutada exitosamente con `BEGIN ... ROLLBACK` (`scripts/test-real-accounting-full-cycle.ts`):
+        1. Auditoría del PUC: 55 cuentas maestras activas verificadas en sus 7 clases PUC.
+        2. Centros de costo: Creación aislada multi-empresa (`CC-01`, `CC-02`) y bloqueo de duplicados.
+        3. Periodos contables: Apertura simultánea de periodos en Empresa A y Empresa B sin colisión.
+        4. Asiento manual de gastos: Comprobante `AS-202608-001` ($2.000.000 COP) con bloqueo de publicación ante descuadre por `fn_enforce_accounting_double_entry`.
+        5. Inmutabilidad estricta de comprobantes POSTED: Bloqueo de mutación de fecha/concepto, bloqueo de borrado de asientos y bloqueo de alteración de líneas (código `23506`).
+        6. Asiento automático de compras con retención: Comprobante `AS-202608-002` (Débito $11.900.000 == Crédito $11.900.000).
+        7. Asiento automático de ventas POS con CMV: Comprobante `AS-202608-003` (Débito $25.850.000 == Crédito $25.850.000).
+        8. Cierre contable de periodo mensual: `fn_close_accounting_period` ejecutado con éxito ($39.750.000 COP en débitos y créditos), estado `CLOSED` con auditoría.
+        9. Restricción de movimientos en periodos cerrados: Bloqueo de inserciones extemporáneas en Empresa A, mientras Empresa B continúa operando en su propio periodo abierto.
+        10. Reapertura controlada con justificación obligatoria y re-cierre formal.
+        11. Reportes financieros:
+            - Balance de comprobación 100% cuadrado ($39.750.000 COP).
+            - Libro diario con 11 líneas cronológicas y libro mayor con saldo dinámico.
+            - Estado de resultados: Ingresos ($15.000.000) - Costos ($8.000.000) = Utilidad Bruta ($7.000.000) - Gastos ($2.000.000) = Utilidad Operativa de $5.000.000 COP.
+            - Balance general: Activos ($17.850.000 COP) == Pasivo + Patrimonio ($17.850.000 COP) $\rightarrow$ Ecuación patrimonial balanceada al céntimo.
+        12. Validación tributaria DIAN: IVA Generado $2.850.000 COP, IVA Descontable $1.900.000 COP, Saldo Neto por pagar $950.000 COP, Retefuente $250.000 COP.
+        13. Seguridad RLS: Rol `CASHIER` bloqueado de crear asientos; rol `ACCOUNTANT` Empresa B bloqueado de consultar asientos y periodos de Empresa A.
+        14. Rollback total verificado: Cero registros residuales en todas las tablas comerciales, contables y de periodos.
+
 

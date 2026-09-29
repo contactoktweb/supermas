@@ -1,5 +1,298 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-09-29] — PASO 13: Validación Integral del Módulo Contable, Periodos, Cierres y Reportes Financieros en PostgreSQL (Staging)
+
+### Migración Técnica de Hardening Aplicada
+- **`024_accounting_periods_puc_and_financial_reports.sql`**:
+  - **Centros de Costo Multiempresa (`cost_centers`)**: Adición de columna `company_id UUID REFERENCES companies(id)`, migración de unicidad a `UNIQUE (company_id, code)` y activación de RLS con aislamiento multi-tenant estricto.
+  - **Plan Único de Cuentas (`accounting_accounts`)**: Creación de políticas RLS permitiendo consulta para lectura de cuentas maestras activas a usuarios autenticados y restringiendo mutaciones a roles `SUPERADMIN` y `ACCOUNTANT`.
+  - **Periodos Contables Multiempresa (`accounting_periods`)**: Reemplazo de restricción global de periodo por unicidad multi-tenant `UNIQUE (company_id, period_code)` y políticas RLS aisladas por empresa.
+  - **Protección de Periodos Cerrados (`fn_prevent_entries_on_closed_period`)**: Actualización de la función trigger para validar el estado cerrado estrictamente contra el `company_id` del comprobante contable.
+  - **Procedimientos de Cierre y Reapertura de Periodos**:
+    - `fn_close_accounting_period(p_company_id, p_period_code, p_closed_by)`: Valida ausencia de comprobantes en borrador (`DRAFT`), audita y totaliza débitos y créditos posted (`total_debits == total_credits`), clausura el periodo e inserta trazabilidad en `public.audit_logs`.
+    - `fn_reopen_accounting_period(p_company_id, p_period_code, p_reopened_by, p_reason)`: Exige motivo de reapertura obligatorio, reactiva el periodo a `OPEN` y registra auditoría forense en `public.audit_logs`.
+  - **Motor de Reportes Financieros en Base de Datos**:
+    - `fn_financial_trial_balance`: Balance de Comprobación (Sumas y Saldos) por cuenta, clase, nivel y naturaleza contable.
+    - `fn_financial_daily_journal`: Libro Diario con orden cronológico de comprobantes, terceros y centros de costo.
+    - `fn_financial_general_ledger`: Libro Mayor con cálculo acumulativo dinámico de saldo móvil (`running_balance`).
+    - `fn_financial_income_statement`: Estado de Resultados / P&L (Ingresos Clase 4, Costos Clases 6 y 7, Gastos Clase 5 y Utilidad Operativa).
+    - `fn_financial_balance_sheet`: Balance General y validación matemática de la Ecuación Patrimonial (`Activo = Pasivo + Patrimonio`).
+    - `fn_financial_tax_summary`: Reporte tributario integrado de IVA Generado, IVA Descontable, Saldo Neto DIAN y Retenciones en la fuente.
+
+### Validaciones Ejecutadas (100% de Éxito dentro de Transacción con ROLLBACK)
+- **1. Estructura y Categorización del PUC (55 Cuentas)**:
+  - Clase 1 (Activos): 21 cuentas Débito.
+  - Clase 2 (Pasivos): 11 cuentas (9 Crédito, 2 Débito para IVA descontable).
+  - Clase 3 (Patrimonio): 4 cuentas Crédito.
+  - Clase 4 (Ingresos): 6 cuentas Crédito.
+  - Clase 5 (Gastos): 4 cuentas Débito.
+  - Clase 6 (Costos de Venta): 7 cuentas Débito.
+  - Clase 7 (Costos de Producción): 2 cuentas Débito.
+  - Total verificado: 55 cuentas maestras activas.
+- **2. Centros de Costo Multiempresa (`cost_centers`)**:
+  - Creación de `CC-01` (Ventas Mostrador) y `CC-02` (Administración) en Empresa A.
+  - Creación de `CC-01` en Empresa B: admitido sin conflicto gracias a la clave compuesta `(company_id, code)`.
+  - Intento de duplicar `CC-01` dentro de Empresa A: Bloqueado por restricción de integridad.
+- **3. Periodos Contables y Aislamiento Multiempresa (`accounting_periods`)**:
+  - Creación de periodos `2026-08` y `2026-09` en Empresa A (`OPEN`).
+  - Creación simultánea de periodo `2026-08` en Empresa B (`OPEN`): comprobado aislamiento sin colisión.
+- **4. Asiento Contable Manual y Control de Partida Doble**:
+  - Comprobante `AS-202608-001` (Gasto Arrendamiento): Débito 5120 ($2.000.000 COP) vs Crédito 111005 ($2.000.000 COP).
+  - Intento de publicación en `POSTED` con descuadre: Bloqueado por `fn_enforce_accounting_double_entry`.
+  - Publicación balanceada exitosa: Estado `POSTED`.
+- **5. Inmutabilidad de Asientos POSTED**:
+  - Intento de alterar fecha o concepto de asiento publicado: Bloqueado con error `23506` por `fn_prevent_posted_accounting_mutation`.
+  - Intento de eliminar asiento publicado: Bloqueado con error `23506` por `fn_prevent_posted_accounting_mutation`.
+  - Intento de eliminar o modificar líneas de asiento publicado: Bloqueado con error `23506` por `fn_prevent_posted_entry_lines_mutation`.
+- **6. Asiento Automático de Compra Comercial con Retención e IVA**:
+  - Comprobante `AS-202608-002`:
+    - Débito 143501 (Inventario Harinas): $10.000.000 COP
+    - Débito 240810 (IVA Descontable 19%): $1.900.000 COP
+    - Crédito 236540 (Retención en la fuente compras 2.5%): $250.000 COP
+    - Crédito 220505 (Proveedores Nacionales): $11.650.000 COP
+    - Total Débito: $11.900.000 COP == Total Crédito: $11.900.000 COP (`POSTED`).
+- **7. Asiento Automático de Venta Comercial POS con Costo de Ventas**:
+  - Comprobante `AS-202608-003`:
+    - Débito 110505 (Recaudo Efectivo Caja General): $17.850.000 COP
+    - Crédito 413501 (Ingresos Operacionales Víveres): $15.000.000 COP
+    - Crédito 240805 (IVA Generado 19%): $2.850.000 COP
+    - Débito 613501 (Costo de Ventas): $8.000.000 COP
+    - Crédito 143501 (Salida de Inventario al Costo): $8.000.000 COP
+    - Total Débito: $25.850.000 COP == Total Crédito: $25.850.000 COP (`POSTED`).
+- **8. Cierre Contable de Periodo 2026-08**:
+  - Ejecución de `fn_close_accounting_period` para Empresa A:
+    - Comprobantes procesados: 3 (`POSTED`).
+    - Total débitos: $39.750.000,00 COP | Total créditos: $39.750.000,00 COP.
+    - Estado actualizado a `CLOSED`, sellado con fecha, usuario y auditoría.
+- **9. Bloqueo de Movimientos Extemporáneos en Periodo Cerrado**:
+  - Intento de insertar nuevo comprobante con fecha en `2026-08` para Empresa A: Bloqueado por `fn_prevent_entries_on_closed_period` con error `23506`.
+  - Verificación de Empresa B operando en su propio `2026-08`: Inserción permitida porque su periodo permanece `OPEN`.
+- **10. Reapertura de Periodo con Motivo**:
+  - Intento de reapertura sin justificación: Rechazado con excepción.
+  - Reapertura justificada exitosa: Estado `OPEN` con registro en `public.audit_logs`.
+  - Re-cierre formal ejecutado para completar auditoría de reportes.
+- **11. Verificación de Reportes Financieros**:
+  - **Balance de Comprobación**: Total Débitos = $39.750.000 COP == Total Créditos = $39.750.000 COP (Cuadre 100%).
+  - **Libro Diario**: 11 líneas cronológicas debidamente estructuradas con documentos de soporte.
+  - **Libro Mayor**: Cuenta 143501 (Inventario) con saldo inicial $0, débito $10.000.000, crédito $8.000.000 y saldo acumulado final $2.000.000 COP.
+  - **Estado de Resultados**: Ingresos ($15.000.000) - Costos ($8.000.000) = Utilidad Bruta ($7.000.000) - Gastos ($2.000.000) = Utilidad Operativa neta de $5.000.000 COP.
+  - **Balance General**: Activos ($17.850.000 COP) == Pasivo + Patrimonio ($17.850.000 COP) $\rightarrow$ Diferencia: $0,00 COP (`esta_balanceado = true`).
+- **12. Verificación Tributaria y Cruce DIAN**:
+  - IVA Generado (19% ventas): $2.850.000 COP.
+  - IVA Descontable (19% compras): $1.900.000 COP.
+  - Saldo Neto IVA a Pagar a DIAN: $950.000 COP.
+  - Retención en la fuente practicada en compras: $250.000 COP.
+- **13. Seguridad y Permisos RLS**:
+  - Rol `CASHIER`: Bloqueado por RLS al intentar registrar comprobantes contables.
+  - Rol `ACCOUNTANT` Empresa B: 0 filas visibles al consultar `accounting_entries` y `accounting_periods` de Empresa A.
+- **14. Confirmación de Rollback y Cero Residuos**:
+  - Rollback completado limpiamente: Todas las tablas comerciales, contables y de auditoría retornaron a 0 registros.
+
+---
+
+## [2026-09-29] — PASO 12: Validación Real de Compras, Proveedores, Kardex y Tesorería en PostgreSQL (Staging)
+
+### Migración Técnica de Hardening Aplicada
+- **`023_purchases_treasury_and_bank_hardening.sql`**:
+  - Asignación del permiso `suppliers.read` al rol `ACCOUNTANT` en `public.role_permissions` para permitir auditoría y causación de pagos a terceros.
+  - Aislamiento multi-tenant RLS en `public.bank_accounts` y `public.bank_movements`, reemplazando directivas legacy que permitían fugas en cuentas con `location_id = NULL`.
+  - Creación de política RLS `Tenant isolation update treasury_payments` permitiendo el cambio formal a `PAID` y dispersión de recursos por tesorería.
+  - Creación del disparador de inmutabilidad `trg_prevent_paid_payment_deletion` / `fn_prevent_paid_payment_deletion()` que bloquea la eliminación física de pagos ya desembolsados en `public.treasury_payments`.
+
+### Validaciones Ejecutadas (100% de Éxito dentro de Transacción con ROLLBACK)
+- **1. Creación de Proveedor (`suppliers`)**:
+  - Registro de proveedor comercial `Disnalimentos S.A.S.` (NIT: 900555444-1, contacto: Mauricio Restrepo, plazo comercial: 30 días) con aislamiento estricto de `company_id`.
+- **2. Creación de Producto y Stock Base Previo**:
+  - Producto `Leche Entera Colanta 1L` (SKU `SKU-LECHE-1L`, código de barras `7709876543210`, umbral mínimo: 20 unds).
+  - Stock previo inicial: 50 unds @ $3.000 COP $\rightarrow$ Stock: 50.00 unds, Costo Promedio: $3.000,00 COP, Valoración: $150.000,00 COP.
+- **3. Bloqueo de Usuario no Autorizado (CASHIER) en Compras**:
+  - Simulación RLS de usuario con rol `CASHIER` intentando registrar orden de compra.
+  - Bloqueo RLS estricto: `new row violates row-level security policy for table "purchases"`.
+- **4. Orden de Compra Registrada por WAREHOUSE_ADMIN**:
+  - Orden `COM-2026-0001` (Factura Proveedor: `FAC-DISNAL-88990`): 100 unds @ $3.600 COP.
+  - Subtotal: $360.000 COP, IVA 19%: $68.400 COP, Total Factura: $428.400 COP, Estado: `PENDING`.
+- **5. Recepción de Mercancía y Recálculo Matemático de Costo Promedio Ponderado**:
+  - Recepción confirmada (`inventory_status = 'RECEIVED'`) e ingreso al Kardex (`PURCHASE_ENTRY`).
+  - Ponderación matemática automática: $\frac{150.000 + 360.000}{150} = \frac{510.000}{150} = \$3.400,00$ COP exactos.
+  - Existencias resultantes verificadas: 150.00 unds, Costo Promedio: $3.400,00 COP, Valoración total: $510.000,00 COP, Estado: `AVAILABLE`.
+- **6. Inmutabilidad de Compras Recibidas**:
+  - Intento de eliminación física en `purchases`: Bloqueado por trigger `fn_prevent_received_purchase_deletion`.
+- **7. Contabilización en Partida Doble PUC con Retenciones**:
+  - Asiento de causación de compra `CP-2026-0001` publicado (`POSTED`):
+    - Débito 1435 (Inventario Mercancías): $360.000 COP
+    - Débito 2408 (IVA Descontable 19%): $68.400 COP
+    - Crédito 2365 (Retención en la Fuente 2.5% compras): $9.000 COP
+    - Crédito 2205 (Proveedores Nacionales - Cuenta por pagar neta): $419.400 COP
+    - Total Débito: $428.400 COP == Total Crédito: $428.400 COP (Partida doble exacta).
+- **8. Cuentas por Pagar y Dispersión de Pago en Tesorería**:
+  - Creación de cuenta bancaria institucional `Bancolombia S.A.` (Saldo: $5.000.000 COP).
+  - Comprobante `PAG-2026-0001` por $419.400 COP registrado en `treasury_payments` (`status = 'PAID'`).
+  - Estado de compra actualizado a `payment_status = 'PAID'`.
+  - Saldo bancario actualizado a $4.580.600 COP y movimiento bancario de egreso (`CREDIT`) registrado.
+  - Intento de eliminación física del pago desembolsado: Bloqueado por trigger `trg_prevent_paid_payment_deletion`.
+- **9. Contabilización del Desembolso en Partida Doble PUC**:
+  - Asiento de egreso de tesorería `CP-2026-0002` publicado (`POSTED`):
+    - Débito 2205 (Proveedores Nacionales - Cancelación de pasivo): $419.400 COP
+    - Crédito 1110 (Bancos - Salida de fondos): $419.400 COP
+    - Total Débito: $419.400 COP == Total Crédito: $419.400 COP.
+- **10. Devolución a Proveedor (`SUPPLIER_RETURN`) en Kardex**:
+  - Devolución de 10 unds por fecha corta de vencimiento.
+  - Movimiento `SUPPLIER_RETURN`: 10 unds descontadas a costo promedio $3.400 COP.
+  - Existencias verificadas: 140.00 unds restantes, Valoración: $476.000,00 COP.
+- **11. Nota Débito al Proveedor y Reversión Contable**:
+  - Asiento de Nota Débito `CP-2026-0003` publicado (`POSTED`):
+    - Débito 2205 (Saldo a favor / Menor pasivo con proveedor): $41.940 COP
+    - Débito 2365 (Reversión retención en la fuente): $900 COP
+    - Crédito 1435 (Salida de inventario devuelto a costo de compra): $36.000 COP
+    - Crédito 2408 (Reversión proporcional de IVA descontable 19%): $6.840 COP
+    - Total Débito: $42.840 COP == Total Crédito: $42.840 COP (Partida doble exacta).
+- **12. Aislamiento Multi-Tenant y Multi-Sede**:
+  - Usuario de Empresa B consultando proveedores, compras, cuentas bancarias y pagos de Empresa A: 0 registros visibles en todas las consultas.
+- **13. Auditoría Forense Inmutable (`audit_logs`)**:
+  - 4 eventos registrados (creación de proveedor, recepción de compra, desembolso de pago, devolución a proveedor).
+  - Intento de alteración o borrado físico: Bloqueado por trigger `trg_prevent_audit_log_mutation`.
+- **14. Rollback Estricto y Verificación Post-Test**:
+  - `ROLLBACK;` ejecutado con éxito total.
+  - Conteo final en PostgreSQL Staging:
+    `suppliers = 0`, `purchases = 0`, `purchase_items = 0`, `treasury_payments = 0`, `bank_accounts = 0`, `bank_movements = 0`, `stock_levels = 0`, `inventory_movements = 0`, `accounting_entries = 0`, `accounting_entry_lines = 0`, `audit_logs = 0`, `products = 0`.
+    Preservadas intactas las 3 entidades legítimas: `companies = 1`, `locations = 1`, `users = 1`.
+
+## [2026-09-29] — PASO 11: Validación Real de Ventas / POS y Facturación Electrónica DIAN en PostgreSQL (Staging)
+
+### Migración Técnica de Hardening Aplicada
+- **`022_sales_invoicing_and_stock_guard.sql`**:
+  - Restricción física `chk_stock_levels_non_negative CHECK (quantity >= 0)` en `public.stock_levels` para evitar a nivel de motor existencias negativas.
+  - Hardening en trigger `process_inventory_movement()`: valida stock disponible y bloquea con excepción `55000` (`Stock insuficiente...`) cualquier intento de overselling en inserción inicial y salidas acumuladas.
+  - Función y trigger de inmutabilidad `trg_prevent_invoice_deletion` / `fn_prevent_invoice_deletion()` sobre `public.electronic_invoices` impidiendo la eliminación física de facturas DIAN emitidas.
+  - Políticas RLS completas para `public.electronic_invoices` (aislamiento multi-tenant estricto por `company_id` y por sede autorizada vía `has_location_access`).
+  - Asignación de permisos de facturación POS (`invoices.create`, `invoices.read`) al rol `CASHIER`.
+
+### Validaciones Ejecutadas (100% de Éxito dentro de Transacción con ROLLBACK)
+- **1. Creación de Cliente (`customers`)**:
+  - Registro de cliente fiscal `Juan David Pérez Restrepo` (CC: 1020304050, tipo: INDIVIDUAL, categoría: RETAIL) con asignación estricta de `company_id`.
+- **2. Creación de Producto y Entrada Inicial en Kardex**:
+  - Producto `Aceite Vegetal Premier 1L` (SKU `SKU-ACEITE-1L`, código de barras `7701234567890`, umbral mínimo: 5 unds).
+  - Entrada inicial `PURCHASE_ENTRY`: 50 unds @ $8.000 COP $\rightarrow$ Stock: 50.00 unds, Costo Promedio: $8.000,00 COP, Valor Total Costo: $400.000,00 COP, Estado: `AVAILABLE`.
+- **3. Prevención de Venta sin Stock Suficiente (Overselling Blocking)**:
+  - Intento de salida por 60 unds cuando solo existían 50 unds en bodega.
+  - Bloqueo inmediato por excepción del motor: `"Stock insuficiente para el producto ... en la bodega ... Stock disponible: 50.00, Solicitado: 60.00 unidades."`
+  - Stock intacto verificado en 50.00 unds.
+- **4. Bloqueo de Usuario no Autorizado intentando Vender**:
+  - Usuario con rol `ACCOUNTANT` intentó insertar registro en `sales`.
+  - Bloqueo RLS estricto: `new row violates row-level security policy for table "sales"`.
+- **5. Venta POS Exitosa por Cajero Autorizado**:
+  - Cajero autorizado operando en Sede Principal registró venta POS de 10 unds @ $10.000 COP base.
+  - Subtotal: $100.000 COP, IVA 19%: $19.000 COP, Total Venta: $119.000 COP.
+  - Costo de venta: 10 x $8.000 = $80.000 COP.
+  - Utilidad estimada: $20.000 COP calculada automáticamente por columna generada STORED (`estimated_profit_amount`).
+- **6. Descuento Automático en Kardex y Recálculo de Stock**:
+  - Movimiento `SALE_OUT` procesado atómicamente por trigger.
+  - Stock actualizado: 40.00 unds restantes, Costo Promedio inalterado ($8.000,00 COP), Valoración total: $320.000,00 COP, Estado: `AVAILABLE`.
+- **7. Generación de Factura Electrónica DIAN e Impuestos**:
+  - Factura `SETP-990000001` emitida y vinculada a la venta.
+  - Base Gravable: $100.000 COP, IVA 19%: $19.000 COP, Total: $119.000 COP.
+  - Generación de CUFE hash y enlace QR oficial catálogo DIAN, estado `ACCEPTED`.
+- **8. Inmutabilidad de Ventas y Facturas Electrónicas**:
+  - Intento de eliminación física en `sales`: Denegado por trigger `fn_prevent_sale_deletion`.
+  - Intento de eliminación física en `electronic_invoices`: Denegado por trigger `fn_prevent_invoice_deletion`.
+- **9. Contabilización en Partida Doble PUC**:
+  - Asiento `CC-2026-0001` registrado y publicado (`POSTED`):
+    - Débito 1105 (Caja General): $119.000 COP
+    - Crédito 4135 (Comercio al por Mayor y Menor): $100.000 COP
+    - Crédito 2408 (Impuesto IVA generado 19%): $19.000 COP
+    - Débito 6135 (Costo de Ventas): $80.000 COP
+    - Crédito 1435 (Mercancías no fabricadas / Inventario): $80.000 COP
+    - Total Débito: $199.000 COP == Total Crédito: $199.000 COP.
+  - Intento de modificación sobre asiento POSTED: Bloqueado por trigger `trg_prevent_posted_accounting_mutation`.
+- **10. Aislamiento Multi-Tenant y Multi-Sede**:
+  - Cajero de Empresa B consultando `sales` y `electronic_invoices`: 0 registros de Empresa A.
+  - Vendedor asignado a Sede Envigado consultando ventas de Sede Principal: 0 registros visibles.
+- **11. Devolución de Venta (`CUSTOMER_RETURN`) y Reingreso en Kardex**:
+  - Cliente devolvió 2 unds por inconformidad de empaque.
+  - Movimiento `CUSTOMER_RETURN`: +2 unds reingresadas a costo unitario $8.000 COP.
+  - Stock resultante verificado: 42.00 unds, Valoración total: $336.000,00 COP.
+- **12. Emisión de Nota Crédito DIAN y Reversión Contable**:
+  - Nota Crédito `NC-990000001` emitida por $23.800 COP (Subtotal: $20.000, IVA 19%: $3.800).
+  - Asiento de reversión `CC-2026-0002` publicado (`POSTED`):
+    - Débito 4135 (Menor ingreso por devolución): $20.000 COP
+    - Débito 2408 (IVA devuelto): $3.800 COP
+    - Crédito 1105 (Reembolso efectivo al cliente): $23.800 COP
+    - Débito 1435 (Reingreso de mercancía a costo): $16.000 COP
+    - Crédito 6135 (Reversión costo de venta): $16.000 COP
+    - Total Débito: $39.800 COP == Total Crédito: $39.800 COP.
+- **13. Auditoría Forense Inmutable (`audit_logs`)**:
+  - 4 eventos registrados (creación cliente, emisión factura, devolución, nota crédito).
+  - Intento de alteración o borrado físico: Bloqueado por trigger `trg_prevent_audit_log_mutation`.
+- **14. Rollback Estricto y Verificación Post-Test**:
+  - `ROLLBACK;` ejecutado con éxito total.
+  - Verificación final en PostgreSQL Staging:
+    `customers = 0`, `sales = 0`, `sale_items = 0`, `electronic_invoices = 0`, `stock_levels = 0`, `inventory_movements = 0`, `accounting_entries = 0`, `accounting_entry_lines = 0`, `audit_logs = 0`, `products = 0`.
+    Preservadas intactas las 3 entidades legítimas: `companies = 1`, `locations = 1`, `users = 1`.
+
+## [2026-09-29] — PASO 10: Validación Real de Kardex y Recálculo Atómico de Stock en PostgreSQL (Staging)
+
+### Validaciones Ejecutadas (100% de Éxito dentro de Transacción con ROLLBACK)
+- **Entradas y Costo Promedio Ponderado Matemático**:
+  - Entrada Inicial (`PURCHASE_ENTRY`): 100 unds @ $2.000 COP $\rightarrow$ Stock: 100.00 unds, Costo Promedio: $2.000,00 COP, Valor Total Costo: $200.000,00 COP.
+  - Segunda Entrada (`PURCHASE_ENTRY`): 50 unds @ $2.600 COP $\rightarrow$ Ponderación matemática automática: $\frac{(100 \times 2000) + (50 \times 2600)}{150} = \frac{330.000}{150} = \$2.200,00$ COP exactos. Total valor: $330.000,00 COP.
+- **Salidas de Inventario (Ventas)**:
+  - Salida comercial (`SALE_OUT`): 60 unds deducidas del stock $\rightarrow$ Saldo: 90.00 unds, Costo Unitario preservado inmutablemente en $2.200,00 COP, Valor Total Costo: $198.000,00 COP.
+- **Devoluciones (Cliente y Proveedor)**:
+  - Devolución de Cliente (`CUSTOMER_RETURN`): +10 unds reingresadas al stock $\rightarrow$ Saldo: 100.00 unds, Costo: $2.200,00 COP.
+  - Devolución a Proveedor (`SUPPLIER_RETURN`): -15 unds por garantía $\rightarrow$ Saldo: 85.00 unds, Costo: $2.200,00 COP.
+- **Ajustes de Inventario y Transiciones de Salud (`health_status`)**:
+  - Ajuste Positivo (`POSITIVE_ADJUSTMENT`): +5 unds por conteo físico $\rightarrow$ Saldo: 90.00 unds.
+  - Ajuste Negativo (`NEGATIVE_ADJUSTMENT`): -82 unds por merma $\rightarrow$ Saldo: 8.00 unds. Al ser $\le$ al umbral `min_stock` (10), el trigger transicionó automáticamente el estado a `LOW_STOCK`.
+  - Agotamiento Total (`SALE_OUT`): Venta de las últimas 8 unds $\rightarrow$ Saldo: 0.00 unds. El trigger transicionó automáticamente el estado a `OUT_OF_STOCK` preservando el último costo promedio histórico ($2.200,00 COP).
+- **Inmutabilidad de `stock_levels`**:
+  - Intentos de `UPDATE` directo e `INSERT` directo desde cliente autenticado: Denegados por RLS (`new row violates row-level security policy`).
+  - Confirmado: `stock_levels` muta exclusivamente a través de `inventory_movements` mediante el trigger `process_inventory_movement()`.
+- **Aislamiento Multi-Bodega y Multi-Tenant**:
+  - Multi-Bodega (Misma Empresa A, Bodega 1 Medellín vs Bodega 2 Envigado): Entrada de 40 unds @ $2.500 en Bodega 2 mantuvo intacto el saldo en 0.00 unds de Bodega 1 y generó existencia independiente de 40.00 unds en Bodega 2.
+  - Multi-Tenant (Empresa A vs Empresa B): Entrada de 75 unds @ $3.200 en Bodega de Empresa B. Usuario de Empresa A únicamente visualizó sus 2 registros propios (cero visibilidad de Empresa B). Usuario de Empresa B únicamente visualizó su registro propio en Kardex (cero visibilidad de Empresa A).
+- **Rollback Transaccional y Comprobación Post-Test**:
+  - `ROLLBACK;` ejecutado con éxito. Verificación en PostgreSQL Staging:
+    `companies = 1`, `locations = 1`, `users = 1`, `products = 0`, `stock_levels = 0`, `inventory_movements = 0`, `sales = 0`, `purchases = 0`, `accounting_entries = 0`, `audit_logs = 0`. Cero datos residuales.
+
+## [2026-09-29] — PASO 9: Pruebas Reales de RLS, Permisos y Aislamiento en PostgreSQL (Staging)
+
+### Validaciones Ejecutadas (100% de Éxito dentro de Transacción con ROLLBACK)
+- **Multiempresa (Aislamiento Estricto entre Tenants)**:
+  - Usuario de Empresa B consultando `public.products`, `public.companies` y `public.locations`: Recibe 0 registros de Empresa A.
+  - Inserción cruzada de Empresa B asignando `company_id` de Empresa A: Denegada por RLS `WITH CHECK`.
+- **Roles y Permisos Atómicos**:
+  - `products.read/create/update/delete`: WAREHOUSE_ADMIN crea productos; CASHIER y SELLER bloqueados de creación y edición; WAREHOUSE_ADMIN bloqueado de eliminación; ADMIN autorizado a eliminar.
+  - `inventory.read/adjust`: CASHIER bloqueado de realizar ajustes de inventario; WAREHOUSE_ADMIN autorizado (+20 unds); trigger `process_inventory_movement()` actualizó atómicamente `stock_levels` a 20.00 unds con estado `AVAILABLE`.
+  - `sales.create`: ACCOUNTANT bloqueado; SELLER autorizado; CASHIER autorizado en terminal POS.
+  - `purchases.create`: CASHIER bloqueado; WAREHOUSE_ADMIN autorizado.
+  - `accounting.read/create`: SELLER bloqueado; ACCOUNTANT autorizado para comprobantes en `DRAFT`.
+  - `treasury.read/create`: CASHIER bloqueado; ACCOUNTANT autorizado para dispersión de pagos.
+- **Inventario e Inmutabilidad de Kardex**:
+  - Intento de `UPDATE` directo sobre `stock_levels`: Denegado por ausencia de directiva UPDATE en RLS.
+  - Intento de `DELETE` sobre `inventory_movements` desde cliente: Denegado por RLS (0 filas).
+  - Intento de `DELETE` sobre `inventory_movements` en motor PostgreSQL: Denegado por trigger `trg_prevent_kardex_mutation` (`Kardex inmutable`).
+- **Contabilidad e Inmutabilidad de Asientos POSTED**:
+  - Comprobante con partida doble formal publicado a `POSTED`.
+  - Intento de `UPDATE` sobre asiento `POSTED`: Denegado por trigger `trg_prevent_posted_accounting_mutation`.
+  - Intento de `DELETE` sobre asiento `POSTED`: Denegado por trigger `trg_prevent_posted_accounting_mutation`.
+  - Intento de `DELETE` sobre líneas contables de asiento `POSTED`: Denegado por trigger `trg_prevent_posted_entry_lines_mutation`.
+- **Auditoría (`audit_logs`)**:
+  - Intento de `INSERT` directo desde cliente autenticado: Denegado por RLS.
+  - Inserción fiduciaria vía backend (`service_role`): Autorizada.
+  - Consulta por ACCOUNTANT con permiso `audit.read`: Autorizada dentro de su empresa.
+  - Consulta por Empresa B: Denegada (0 filas de Empresa A).
+  - Intento de `UPDATE` y `DELETE` sobre `audit_logs`: Denegados por trigger `trg_prevent_audit_log_mutation`.
+- **Rollback Garantizado y Comprobación Post-Test**:
+  - Ejecutado `ROLLBACK;`. Conteo verificado en PostgreSQL Staging:
+    `companies = 1`, `locations = 1`, `users = 1`, `products = 0`, `stock_levels = 0`, `inventory_movements = 0`, `sales = 0`, `purchases = 0`, `accounting_entries = 0`, `accounting_entry_lines = 0`, `treasury_payments = 0`, `treasury_receipts = 0`, `audit_logs = 0`. Cero contaminación de datos.
+
+### Migraciones Técnicas de Hardening Aplicadas
+- `017_fix_inventory_movement_trigger_cast.sql`: Casteo explícito a `::stock_health_status` y propagación de `company_id` en `stock_levels` dentro de `process_inventory_movement()`.
+- `018_drop_legacy_audit_policies.sql`: Eliminación de directivas legacy de migración 009 en `audit_logs` para forzar inserción exclusiva server-side.
+- `019_treasury_rls_and_permissions.sql`: Registro de permisos `treasury.read`/`treasury.create` y blindaje multi-tenant de `treasury_payments` y `treasury_receipts`.
+- `020_granular_inventory_movement_rls.sql`: Política granular en `inventory_movements` por tipo de movimiento (`inventory.adjust` requerido para ajustes manuales).
+- `021_cashier_sales_read_permission.sql`: Otorgamiento de permiso `sales.read` al rol `CASHIER` para terminal POS y operaciones con `RETURNING`.
+
 ## [2026-09-26] — Validación de Seguridad Paso 0: RLS Estricto, Bootstrap Inexpugnable e Inmutabilidad Fiduciaria
 
 ### Blindaje de Seguridad y Eliminación de Brechas

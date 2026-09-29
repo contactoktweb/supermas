@@ -105,7 +105,7 @@ async function bootstrapFirstAdmin() {
     // 3. Confirmar la sincronización en public.users
     const { data: publicProfile, error: profileErr } = await supabaseAdmin
       .from('users')
-      .select('id, email, full_name, role_id, is_active')
+      .select('id, email, full_name, role_id, company_id, is_active')
       .eq('id', createdUser.user.id)
       .single()
 
@@ -118,17 +118,16 @@ async function bootstrapFirstAdmin() {
         .eq('code', 'SUPERADMIN')
         .single()
 
-      if (superadminRole && publicProfile.role_id !== superadminRole.id) {
-        console.log('⏳ Asegurando rol SUPERADMIN en public.users mediante Admin API...')
-        await supabaseAdmin
-          .from('users')
-          .update({ role_id: superadminRole.id })
-          .eq('id', createdUser.user.id)
+      if (!superadminRole || publicProfile.role_id !== superadminRole.id) {
+        console.error('🚨 FALLO FIDUCIARIO: El trigger handle_new_auth_user NO asignó el rol SUPERADMIN.')
+        console.error(`   Rol recibido: ${publicProfile.role_id}, Rol esperado: ${superadminRole?.id}`)
+        process.exit(1)
       }
 
-      console.log('✅ Perfil sincronizado exitosamente en public.users:')
+      console.log('✅ Perfil sincronizado legítimamente por trigger PostgreSQL en public.users:')
       console.log(`   - Email: ${publicProfile.email}`)
-      console.log(`   - Rol ID: ${superadminRole?.id || publicProfile.role_id} (SUPERADMIN)`)
+      console.log(`   - Rol ID: ${publicProfile.role_id} (SUPERADMIN)`)
+      console.log(`   - Company ID: ${publicProfile.company_id ?? 'NULL (Esperado antes de Onboarding)'}`)
       console.log(`   - Activo: ${publicProfile.is_active}`)
     }
 

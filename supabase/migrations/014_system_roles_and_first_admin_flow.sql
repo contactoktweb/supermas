@@ -180,27 +180,27 @@ ON CONFLICT DO NOTHING;
 
 -- 4. Funciones Auxiliares de Seguridad y Permisos RBAC
 CREATE OR REPLACE FUNCTION public.get_auth_company_id()
-RETURNS UUID AS 28749
+RETURNS UUID AS $$
     SELECT u.company_id
     FROM public.users u
     WHERE u.id = auth.uid();
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 CREATE OR REPLACE FUNCTION public.get_auth_role()
-RETURNS VARCHAR AS 28749
+RETURNS VARCHAR AS $$
     SELECT r.code
     FROM public.users u
     JOIN public.roles r ON u.role_id = r.id
     WHERE u.id = auth.uid();
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN AS 28749
+RETURNS BOOLEAN AS $$
     SELECT public.get_auth_role() = 'SUPERADMIN';
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 CREATE OR REPLACE FUNCTION public.has_permission(p_permission_code VARCHAR)
-RETURNS BOOLEAN AS 28749
+RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1
         FROM public.users u
@@ -209,10 +209,10 @@ RETURNS BOOLEAN AS 28749
         WHERE u.id = auth.uid()
           AND p.code = p_permission_code
     ) OR public.is_admin();
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 CREATE OR REPLACE FUNCTION public.has_any_permission(p_permission_codes VARCHAR[])
-RETURNS BOOLEAN AS 28749
+RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1
         FROM public.users u
@@ -221,15 +221,15 @@ RETURNS BOOLEAN AS 28749
         WHERE u.id = auth.uid()
           AND p.code = ANY(p_permission_codes)
     ) OR public.is_admin();
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 CREATE OR REPLACE FUNCTION public.has_location_access(p_location_id UUID)
-RETURNS BOOLEAN AS 28749
+RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1 FROM public.user_locations ul
         WHERE ul.user_id = auth.uid() AND ul.location_id = p_location_id
     ) OR public.is_admin();
-28749 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_catalog;
 
 -- 5. Actualización del Trigger de Sincronización Supabase Auth -> public.users
 -- REGLA MAESTRA DE SEGURIDAD BOOTSTRAP:
@@ -241,7 +241,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER
 SECURITY DEFINER
 SET search_path = public, pg_catalog
-AS 28749
+AS $$
 DECLARE
     target_role_id UUID;
     v_company_id UUID := NULL;
@@ -317,7 +317,7 @@ BEGIN
 
     RETURN NEW;
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 -- 6. Purgado de Políticas Preliminares o Redundantes
 DROP POLICY IF EXISTS "Superadmin full access companies" ON public.companies;
@@ -345,23 +345,23 @@ DROP POLICY IF EXISTS "Tenant isolation for customers" ON public.customers;
 DROP POLICY IF EXISTS "Tenant isolation for suppliers" ON public.suppliers;
 
 -- 7. Asegurar columna company_id en audit_logs si aplica
-DO 28749 BEGIN
+DO $$ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'audit_logs' AND column_name = 'company_id') THEN
         ALTER TABLE public.audit_logs ADD COLUMN company_id UUID REFERENCES public.companies(id) ON DELETE RESTRICT;
         CREATE INDEX IF NOT EXISTS idx_audit_logs_company ON public.audit_logs(company_id);
     END IF;
-END 28749;
+END $$;
 
 -- 8. Triggers de Inmutabilidad Fiduciaria
 
 -- 8.1 Inmutabilidad de Kardex (inventory_movements)
 CREATE OR REPLACE FUNCTION public.fn_prevent_kardex_mutation()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 BEGIN
     RAISE EXCEPTION 'Kardex inmutable: No está permitido modificar ni eliminar movimientos de inventario ya registrados (ID: %).', OLD.id
         USING ERRCODE = '23506';
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_kardex_mutation ON public.inventory_movements;
 CREATE TRIGGER trg_prevent_kardex_mutation
@@ -371,12 +371,12 @@ EXECUTE FUNCTION public.fn_prevent_kardex_mutation();
 
 -- 8.2 Inmutabilidad de Ventas Finalizadas (sales)
 CREATE OR REPLACE FUNCTION public.fn_prevent_sale_deletion()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 BEGIN
     RAISE EXCEPTION 'Ventas inmutables: No está permitido eliminar físicamente registros de venta (Venta: %). Las anulaciones deben realizarse mediante flujo de trazabilidad contable.', OLD.sale_number
         USING ERRCODE = '23506';
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_sale_deletion ON public.sales;
 CREATE TRIGGER trg_prevent_sale_deletion
@@ -386,7 +386,7 @@ EXECUTE FUNCTION public.fn_prevent_sale_deletion();
 
 -- 8.3 Inmutabilidad de Compras Recibidas (purchases)
 CREATE OR REPLACE FUNCTION public.fn_prevent_received_purchase_deletion()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.inventory_status = 'RECEIVED' THEN
         RAISE EXCEPTION 'Compras inmutables: No está permitido eliminar compras con mercancía recibida (Compra: %). Debe tramitarse devolución a proveedor.', OLD.purchase_number
@@ -394,7 +394,7 @@ BEGIN
     END IF;
     RETURN OLD;
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_received_purchase_deletion ON public.purchases;
 CREATE TRIGGER trg_prevent_received_purchase_deletion
@@ -404,7 +404,7 @@ EXECUTE FUNCTION public.fn_prevent_received_purchase_deletion();
 
 -- 8.4 Inmutabilidad de Asientos Contables POSTED (accounting_entries)
 CREATE OR REPLACE FUNCTION public.fn_prevent_posted_accounting_mutation()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.status = 'POSTED' THEN
         IF TG_OP = 'DELETE' THEN
@@ -417,7 +417,7 @@ BEGIN
     END IF;
     RETURN NEW;
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_posted_accounting_mutation ON public.accounting_entries;
 CREATE TRIGGER trg_prevent_posted_accounting_mutation
@@ -427,7 +427,7 @@ EXECUTE FUNCTION public.fn_prevent_posted_accounting_mutation();
 
 -- 8.5 Inmutabilidad de Líneas Contables de Asientos POSTED (accounting_entry_lines)
 CREATE OR REPLACE FUNCTION public.fn_prevent_posted_entry_lines_mutation()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 DECLARE
     parent_status accounting_entry_status;
 BEGIN
@@ -438,7 +438,7 @@ BEGIN
     END IF;
     RETURN OLD;
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_posted_entry_lines_mutation ON public.accounting_entry_lines;
 CREATE TRIGGER trg_prevent_posted_entry_lines_mutation
@@ -448,12 +448,12 @@ EXECUTE FUNCTION public.fn_prevent_posted_entry_lines_mutation();
 
 -- 8.6 Inmutabilidad de Logs de Auditoría (audit_logs)
 CREATE OR REPLACE FUNCTION public.fn_prevent_audit_log_mutation()
-RETURNS TRIGGER AS 28749
+RETURNS TRIGGER AS $$
 BEGIN
     RAISE EXCEPTION 'Auditoría inmutable: Los registros de auditoría no pueden ser alterados ni eliminados.'
         USING ERRCODE = '23506';
 END;
-28749 LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS trg_prevent_audit_log_mutation ON public.audit_logs;
 CREATE TRIGGER trg_prevent_audit_log_mutation

@@ -38,6 +38,8 @@ const MODULE_KEYWORDS: Record<string, string> = {
   'Dashboard': 'inicio resumen métricas indicadores ventas compras',
   'Bodegas': 'almacén cedi sucursal ubicaciones estantes sedes stock',
   'Productos': 'artículos mercancía catálogo precios items sku código',
+  'Categorías': 'clasificación subcategorías catálogo familias jerarquía grupos',
+  'Marcas': 'fabricantes marcas comerciales sellos etiquetas marcas',
   'Inventario': 'existencias stock conteo físico auditoría valorizado',
   'Kardex': 'movimientos entradas salidas trazabilidad transacciones kardex',
   'Transferencias': 'traslados despachos entre bodegas reubicación envíos internos',

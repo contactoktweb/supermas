@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   UserProfile,
   DashboardMetrics,
@@ -16,10 +16,41 @@ import {
   DateRange,
 } from '../types'
 import { dashboardService } from '../services/dashboard.service'
+import { useAuth } from '@/features/auth'
 
 export function useDashboardData() {
-  const availableProfiles = dashboardService.getAvailableProfiles()
-  const [currentUser, setCurrentUser] = useState<UserProfile>(availableProfiles[0])
+  const { user } = useAuth()
+
+  const currentUser: UserProfile = useMemo(() => {
+    if (!user) {
+      return {
+        id: '',
+        name: 'Cargando...',
+        email: '',
+        role: 'SUPERADMIN',
+        roleName: 'Superadministrador',
+        locationName: 'Consolidado General',
+        avatar: 'SM',
+        lastLoginAt: new Date().toISOString(),
+      }
+    }
+    return {
+      id: user.id,
+      name: user.fullName,
+      email: user.email,
+      role: (user.roleCode as any) || 'SUPERADMIN',
+      roleName: user.roleName,
+      locationId: user.locationIds[0],
+      locationName:
+        user.locationIds.length > 1
+          ? `Múltiples Sedes (${user.locationIds.length})`
+          : 'Sede Principal',
+      avatar: user.avatar,
+      lastLoginAt: user.lastLoginAt || new Date().toISOString(),
+    }
+  }, [user])
+
+  const availableProfiles = useMemo(() => [currentUser], [currentUser])
   const [period, setPeriod] = useState<PeriodType>('TODAY')
   const [customRange, setCustomRange] = useState<DateRange>({
     startDate: '2026-08-01',
@@ -41,6 +72,8 @@ export function useDashboardData() {
   const [error, setError] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
+    if (!currentUser.id) return
+
     try {
       setError(null)
       const [
@@ -73,15 +106,15 @@ export function useDashboardData() {
       setPendingAttention(attData)
       setQuickActions(dashboardService.getQuickActions(currentUser))
     } catch (err: any) {
-      setError(err?.message || 'Error al cargar los datos del dashboard')
+      console.error('Error al cargar datos del dashboard:', err)
+      setError(err?.message || 'Error al cargar métricas del sistema')
     } finally {
       setIsLoading(false)
       setIsRefreshing(false)
     }
-  }, [period, currentUser, customRange])
+  }, [period, currentUser])
 
   useEffect(() => {
-    setIsLoading(true)
     loadData()
   }, [loadData])
 
@@ -90,11 +123,8 @@ export function useDashboardData() {
     loadData()
   }
 
-  const changeUser = (userId: string) => {
-    const found = availableProfiles.find((u) => u.id === userId)
-    if (found) {
-      setCurrentUser(found)
-    }
+  const changeUser = (_userId: string) => {
+    // En producción con Auth real el usuario se cambia iniciando sesión legítimamente
   }
 
   const handleCustomRangeChange = (range: DateRange) => {
@@ -104,7 +134,7 @@ export function useDashboardData() {
 
   return {
     currentUser,
-    setCurrentUser,
+    setCurrentUser: () => {},
     changeUser,
     availableProfiles,
     period,

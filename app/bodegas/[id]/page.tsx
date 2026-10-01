@@ -9,6 +9,8 @@ import { useRouter } from 'next/navigation'
 import { APP_MODULES } from '@/components/navigation/modules'
 import { GlobalSearch } from '@/components/navigation/GlobalSearch'
 import { NotificationButton } from '@/components/navigation/NotificationButton'
+import { UserMini } from '@/components/navigation/UserMini'
+import { TopAvatar } from '@/components/navigation/TopAvatar'
 
 const modules = APP_MODULES
 
@@ -56,14 +58,7 @@ export default function WarehouseDetailRoutePage({ params }: PageProps) {
           ))}
         </nav>
 
-        <div className="user-mini">
-          <div className="avatar">AM</div>
-          <div>
-            <strong>Admin Mauricio</strong>
-            <span>Administrador</span>
-          </div>
-          <AppIcon name="logout" size={18} />
-        </div>
+        <UserMini />
       </aside>
 
       <div className="main-area">
@@ -87,7 +82,7 @@ export default function WarehouseDetailRoutePage({ params }: PageProps) {
           <div className="top-actions">
             <GlobalSearch />
             <NotificationButton count={3} />
-            <div className="top-avatar">AM</div>
+            <TopAvatar />
           </div>
         </header>
 

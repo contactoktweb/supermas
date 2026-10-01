@@ -13,8 +13,9 @@ import {
   TaxRateConfig,
 } from '../types'
 import { productRepository } from '../repositories/product.repository'
-import { productFormSchema } from '../schemas/product.schema'
-import { db } from '@/lib/supabase'
+import { productFormSchema, updateProductSchema } from '../schemas/product.schema'
+import { categoryService } from '@/features/categories/services/category.service'
+import { brandService } from '@/features/brands/services/brand.service'
 
 export class ProductService {
   /**
@@ -83,98 +84,40 @@ export class ProductService {
     const normalPrice = validated.prices.find((p) => p.code === 'NORMAL')?.price || 0
     const wholesalePrice =
       validated.prices.find((p) => p.code === 'MAYORISTA')?.price || normalPrice
-    const distributorPrice = validated.prices.find(
-      (p) => p.code === 'DISTRIBUIDOR'
-    )?.price
 
-    // 5. Cálculos financieros y margen
-    const initialCost = 0 // El costo real se calcula a través de compras o inventario
-    const margin = this.calculateProfitMargin(
-      normalPrice,
-      validated.vatRatePercent,
-      initialCost
-    )
+    const initialCost = (validated as any).estimatedCost || 0
 
-    // 6. Configuración de bodegas inicial (stock en 0)
-    const warehouseStock = (validated.warehouseDistribution || []).map((w, idx) => ({
-      locationId: w.locationId,
-      locationName: `Bodega ${idx + 1}`,
-      locationCode: `BOD-00${idx + 1}`,
-      locationType: 'MAIN_WAREHOUSE' as const,
-      quantity: 0,
-      minStock: w.minStock || 10,
-      criticalStock: w.criticalStock || 5,
-      averageCost: 0,
-      inventoryValueAtCost: 0,
-      stockHealth: 'OUT_OF_STOCK' as const,
-      percentageOfTotalStock: 0,
-    }))
-
-    const now = new Date().toISOString()
-    const newProduct: Product = {
-      id: `prod-${Date.now()}`,
+    const created = await productRepository.create({
+      categoryId: validated.categoryId,
+      brandId: validated.brandId,
       sku: validated.sku,
-      barcode: validated.barcode || '',
+      barcode: validated.barcode || undefined,
       name: validated.name,
       slug: this.slugify(validated.name),
-      description: validated.description || '',
-      category: validated.category,
-      brand: validated.brand,
+      shortDescription: validated.description || '',
+      fullDescription: validated.description || '',
       unitOfMeasure: validated.unitOfMeasure,
-      imageUrl:
-        validated.imageUrl ||
-        'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80',
-      images: validated.images && validated.images.length > 0 ? validated.images : [],
-      status: validated.status,
-      taxProfile: validated.taxProfile,
-      vatRatePercent: validated.vatRatePercent,
-      isExempt: validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO',
-      prices: validated.prices.map((p, i) => ({
-        id: `price-${i + 1}`,
-        name: p.name,
-        code: p.code,
-        price: p.price,
-        minQuantity: p.minQuantity || 1,
-        isDefault: p.code === 'NORMAL',
-      })),
-      normalPrice,
-      wholesalePrice,
-      distributorPrice,
-      averageCost: initialCost,
-      inventoryValueAtCost: 0,
-      profitMarginAmount: margin.amount,
-      profitMarginPercent: margin.percentage,
-      totalStock: 0,
-      availableUnits: 0,
+      costPrice: initialCost,
+      publicSalePrice: normalPrice,
+      wholesalePrice: wholesalePrice,
+      minWholesaleQuantity: 12,
+      taxRatePercent: validated.vatRatePercent,
+      isTaxExempt: validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO',
+      primaryImageUrl: validated.imageUrl || '',
+      secondaryImages: validated.images && validated.images.length > 0 ? validated.images : [],
       minStockThreshold: validated.minStockThreshold || 15,
       criticalStockThreshold: validated.criticalStockThreshold || 5,
-      stockHealth: 'OUT_OF_STOCK',
-      webSuperMas: validated.webSuperMas,
-      webDistribuidora: validated.webDistribuidora,
-      webAvailability: 'OUT_OF_STOCK',
-      warehouseStock,
-      auditTrail: [
-        {
-          id: `audit-${Date.now()}`,
-          productId: '',
-          fieldChanged: 'CREATION',
-          oldValue: '',
-          newValue: 'Producto creado en catálogo',
-          changedBy: userContext?.userName || 'Administrador',
-          changedAt: now,
-          reason: validated.auditReason || 'Creación inicial de producto',
-        },
-      ],
-      createdAt: now,
-      updatedAt: now,
-    }
+      isActive: validated.status === 'ACTIVE',
+      isPublishedSupermas: validated.webSuperMas,
+      isPublishedDistributor: validated.webDistribuidora,
+      inventoryType: 'MERCHANDISE',
+    })
 
-    const created = await productRepository.create(newProduct)
     return created
   }
 
   /**
-   * Actualiza los datos de un producto y genera trazabilidad de auditoría en cambios sensibles.
+   * Actualiza los datos de un producto bajo RLS en PostgreSQL.
    */
   async updateProduct(
     id: string,
@@ -187,7 +130,7 @@ export class ProductService {
     }
 
     // 1. Validar esquema parcial o completo
-    const validated = productFormSchema.partial().parse(input)
+    const validated = updateProductSchema.parse(input)
 
     // 2. Si cambia el SKU, verificar que no choque con otro producto
     if (validated.sku && validated.sku !== existing.sku) {
@@ -197,139 +140,63 @@ export class ProductService {
       }
     }
 
-    // 3. Generar auditoría de cambios
-    const auditEntries: ProductAuditEntry[] = existing.auditTrail || []
-    const now = new Date().toISOString()
-    const user = userContext?.userName || 'Administrador'
-
+    const updatePayload: Partial<Product> = {}
+    if (validated.name !== undefined) updatePayload.name = validated.name
+    if (validated.sku !== undefined) updatePayload.sku = validated.sku
+    if (validated.barcode !== undefined) updatePayload.barcode = validated.barcode
+    if (validated.description !== undefined) {
+      updatePayload.shortDescription = validated.description
+      updatePayload.fullDescription = validated.description
+    }
+    if (validated.categoryId !== undefined) updatePayload.categoryId = validated.categoryId
+    if (validated.brandId !== undefined) updatePayload.brandId = validated.brandId
+    if (validated.unitOfMeasure !== undefined) updatePayload.unitOfMeasure = validated.unitOfMeasure
+    if (validated.status !== undefined) updatePayload.isActive = validated.status === 'ACTIVE'
+    if (validated.imageUrl !== undefined) updatePayload.primaryImageUrl = validated.imageUrl
+    if (validated.images !== undefined) updatePayload.secondaryImages = validated.images
+    if (validated.webSuperMas !== undefined) updatePayload.isPublishedSupermas = validated.webSuperMas
+    if (validated.webDistribuidora !== undefined)
+      updatePayload.isPublishedDistributor = validated.webDistribuidora
+    if (validated.minStockThreshold !== undefined)
+      updatePayload.minStockThreshold = validated.minStockThreshold
+    if (validated.criticalStockThreshold !== undefined)
+      updatePayload.criticalStockThreshold = validated.criticalStockThreshold
+    if (validated.vatRatePercent !== undefined)
+      updatePayload.taxRatePercent = validated.vatRatePercent
+    if (validated.taxProfile !== undefined) {
+      updatePayload.isTaxExempt =
+        validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO'
+    }
     if (validated.prices) {
-      const newNormal = validated.prices.find((p) => p.code === 'NORMAL')?.price
-      if (newNormal !== undefined && newNormal !== existing.normalPrice) {
-        auditEntries.unshift({
-          id: `audit-${Date.now()}-1`,
-          productId: id,
-          fieldChanged: 'PRECIO_NORMAL',
-          oldValue: this.formatCurrency(existing.normalPrice),
-          newValue: this.formatCurrency(newNormal),
-          changedBy: user,
-          changedAt: now,
-          reason: input.auditReason || 'Actualización de lista de precios',
-        })
-      }
-
-      const newWholesale = validated.prices.find((p) => p.code === 'MAYORISTA')?.price
-      if (newWholesale !== undefined && newWholesale !== existing.wholesalePrice) {
-        auditEntries.unshift({
-          id: `audit-${Date.now()}-2`,
-          productId: id,
-          fieldChanged: 'PRECIO_MAYORISTA',
-          oldValue: this.formatCurrency(existing.wholesalePrice),
-          newValue: this.formatCurrency(newWholesale),
-          changedBy: user,
-          changedAt: now,
-          reason: input.auditReason || 'Actualización de precio mayorista',
-        })
-      }
+      const normalPrice = validated.prices.find((p) => p.code === 'NORMAL')?.price
+      if (normalPrice !== undefined) updatePayload.publicSalePrice = normalPrice
+      const wholesalePrice = validated.prices.find((p) => p.code === 'MAYORISTA')?.price
+      if (wholesalePrice !== undefined) updatePayload.wholesalePrice = wholesalePrice
+    }
+    if ((validated as any).estimatedCost !== undefined) {
+      updatePayload.costPrice = (validated as any).estimatedCost
     }
 
-    if (validated.taxProfile && validated.taxProfile !== existing.taxProfile) {
-      auditEntries.unshift({
-        id: `audit-${Date.now()}-3`,
-        productId: id,
-        fieldChanged: 'PERFIL_TRIBUTARIO',
-        oldValue: `${existing.taxProfile} (${existing.vatRatePercent}%)`,
-        newValue: `${validated.taxProfile} (${validated.vatRatePercent || 0}%)`,
-        changedBy: user,
-        changedAt: now,
-        reason: input.auditReason || 'Ajuste de perfil de impuestos',
-      })
-    }
-
-    if (validated.status && validated.status !== existing.status) {
-      auditEntries.unshift({
-        id: `audit-${Date.now()}-4`,
-        productId: id,
-        fieldChanged: 'ESTADO',
-        oldValue: existing.status,
-        newValue: validated.status,
-        changedBy: user,
-        changedAt: now,
-        reason: input.auditReason || 'Cambio de estado operativo',
-      })
-    }
-
-    // 4. Recalcular precios y márgenes
-    const normalPrice =
-      validated.prices?.find((p) => p.code === 'NORMAL')?.price ?? existing.normalPrice
-    const wholesalePrice =
-      validated.prices?.find((p) => p.code === 'MAYORISTA')?.price ??
-      existing.wholesalePrice
-    const distributorPrice =
-      validated.prices?.find((p) => p.code === 'DISTRIBUIDOR')?.price ??
-      existing.distributorPrice
-    const vatRate = validated.vatRatePercent ?? existing.vatRatePercent
-
-    const mappedPrices = validated.prices
-      ? validated.prices.map((p, i) => ({
-          id: p.id || `price-${i + 1}`,
-          name: p.name,
-          code: p.code,
-          price: p.price,
-          minQuantity: p.minQuantity || 1,
-          isDefault: p.code === 'NORMAL',
-        }))
-      : existing.prices
-
-    const margin = this.calculateProfitMargin(normalPrice, vatRate, existing.averageCost)
-
-    const updated = await productRepository.update(id, {
-      ...validated,
-      prices: mappedPrices,
-      normalPrice,
-      wholesalePrice,
-      distributorPrice,
-      profitMarginAmount: margin.amount,
-      profitMarginPercent: margin.percentage,
-      auditTrail: auditEntries,
-    })
-
+    const updated = await productRepository.update(id, updatePayload)
     const canReadCost = this.hasPermission(userContext, 'cost.read')
     return this.sanitizeProductForUser(updated, canReadCost)
   }
 
   /**
    * Desactiva un producto de forma segura (Soft Delete) manteniendo integridad histórica.
+   * La auditoría es generada automáticamente por el trigger fn_audit_products() (029).
    */
   async deactivateProduct(
     id: string,
-    reason?: string,
-    userContext?: UserPermissionContext
+    _reason?: string,
+    _userContext?: UserPermissionContext
   ): Promise<Product> {
     const existing = await productRepository.findById(id)
     if (!existing) {
       throw new Error(`Producto con ID ${id} no encontrado.`)
     }
 
-    const now = new Date().toISOString()
-    const auditEntries = existing.auditTrail || []
-    auditEntries.unshift({
-      id: `audit-${Date.now()}`,
-      productId: id,
-      fieldChanged: 'DESACTIVACION',
-      oldValue: existing.status,
-      newValue: 'INACTIVE',
-      changedBy: userContext?.userName || 'Administrador',
-      changedAt: now,
-      reason: reason || 'Desactivación lógica de producto',
-    })
-
-    const updated = await productRepository.update(id, {
-      status: 'INACTIVE',
-      webSuperMas: false,
-      webDistribuidora: false,
-      auditTrail: auditEntries,
-    })
-
+    const updated = await productRepository.softDelete(id)
     return updated
   }
 
@@ -378,11 +245,10 @@ export class ProductService {
   }
 
   /**
-   * Obtiene los movimientos de Kardex recientes del producto.
+   * Obtiene los movimientos de Kardex recientes del producto desde PostgreSQL.
    */
   async getProductMovements(id: string): Promise<ProductMovementSummary[]> {
-    const movements = db.productMovements as unknown as Record<string, ProductMovementSummary[]>
-    return movements[id] || []
+    return productRepository.getProductMovements(id)
   }
 
   /**
@@ -469,8 +335,8 @@ export class ProductService {
       `"${p.sku}"`,
       `"${p.barcode}"`,
       `"${p.name.replace(/"/g, '""')}"`,
-      `"${p.category}"`,
-      `"${p.brand}"`,
+      `"${p.categoryName || p.category?.name || ''}"`,
+      `"${p.brandName || p.brand?.name || ''}"`,
       `"${p.unitOfMeasure}"`,
       p.totalStock,
       `"${p.status}"`,
@@ -509,6 +375,7 @@ export class ProductService {
     return {
       ...product,
       averageCost: 0,
+      costPrice: 0,
       inventoryValueAtCost: 0,
       profitMarginAmount: 0,
       profitMarginPercent: 0,
@@ -531,11 +398,13 @@ export class ProductService {
   }
 
   async getCategories(): Promise<string[]> {
-    return db.categories
+    const { data } = await categoryService.listCategories({ status: 'ACTIVE' })
+    return data.map((c) => c.name)
   }
 
   async getBrands(): Promise<string[]> {
-    return db.brands
+    const { data } = await brandService.listBrands({ status: 'ACTIVE' })
+    return data.map((b) => b.name)
   }
 
   /**
@@ -581,7 +450,7 @@ export class ProductService {
   }
 
   async getTaxConfigs(): Promise<TaxRateConfig[]> {
-    return db.taxConfigs as unknown as TaxRateConfig[]
+    return productRepository.getTaxRates()
   }
 }
 

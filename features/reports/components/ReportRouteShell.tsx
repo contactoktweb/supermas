@@ -7,6 +7,8 @@ import { ReportsHubPage } from './ReportsHubPage'
 import { ReportType } from '../types'
 import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { UserMini } from '@/components/navigation/UserMini'
+import { TopAvatar } from '@/components/navigation/TopAvatar'
 
 const modules = APP_MODULES
 
@@ -58,14 +60,7 @@ export function ReportRouteShell({
           })}
         </nav>
 
-        <button className="user-mini" onClick={() => (window.location.href = '/')}>
-          <div className="avatar">AM</div>
-          <div>
-            <strong>Admin Mauricio</strong>
-            <span>Administrador</span>
-          </div>
-          <AppIcon name="logout" size={18} />
-        </button>
+        <UserMini />
       </aside>
 
       <div className="main-area">
@@ -99,7 +94,7 @@ export function ReportRouteShell({
               <AppIcon name="alerts" size={18} />
               <i>3</i>
             </button>
-            <div className="top-avatar">AM</div>
+            <TopAvatar />
           </div>
         </header>
 

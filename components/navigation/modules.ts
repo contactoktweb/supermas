@@ -10,6 +10,8 @@ export const APP_MODULES: AppModuleItem[] = [
   ['Dashboard', 'dashboard', '/'],
   ['Bodegas', 'warehouse', '/bodegas'],
   ['Productos', 'products', '/'],
+  ['Categorías', 'layers', '/categorias'],
+  ['Marcas', 'award', '/marcas'],
   ['Inventario', 'inventory', '/inventario'],
   ['Kardex', 'kardex', '/kardex'],
   ['Transferencias', 'transfers', '/transferencias'],

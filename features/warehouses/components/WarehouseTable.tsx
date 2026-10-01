@@ -20,6 +20,7 @@ interface WarehouseTableProps {
   onEdit: (warehouse: LocationWithMetrics) => void
   onDeactivate: (warehouse: LocationWithMetrics) => void
   onClearFilters: () => void
+  onActivate?: (warehouse: LocationWithMetrics) => void
 }
 
 export function WarehouseTable({
@@ -36,6 +37,7 @@ export function WarehouseTable({
   onEdit,
   onDeactivate,
   onClearFilters,
+  onActivate,
 }: WarehouseTableProps) {
   const totalPages = Math.ceil(total / pageSize) || 1
 
@@ -251,6 +253,17 @@ export function WarehouseTable({
                         aria-label={`Desactivar ${wh.name}`}
                       >
                         <AppIcon name="powerOff" size={14} />
+                      </button>
+                    )}
+                    {permissions.canEditWarehouse && wh.status === 'INACTIVE' && onActivate && (
+                      <button
+                        type="button"
+                        className="icon-button row-btn text-success"
+                        onClick={() => onActivate(wh)}
+                        title="Activar bodega"
+                        aria-label={`Activar ${wh.name}`}
+                      >
+                        <AppIcon name="check" size={14} />
                       </button>
                     )}
                   </div>

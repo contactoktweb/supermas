@@ -8,11 +8,15 @@ import Link from 'next/link'
 import { APP_MODULES } from '@/components/navigation/modules'
 import { GlobalSearch } from '@/components/navigation/GlobalSearch'
 import { NotificationButton } from '@/components/navigation/NotificationButton'
+import { UserMini } from '@/components/navigation/UserMini'
+import { TopAvatar } from '@/components/navigation/TopAvatar'
+import { useAuth } from '@/features/auth'
 
 const modules = APP_MODULES
 
 export default function UsuariosRoutePage() {
   const [menu, setMenu] = useState(false)
+  const { user } = useAuth()
 
   return (
     <div className="app-shell">
@@ -48,14 +52,7 @@ export default function UsuariosRoutePage() {
           ))}
         </nav>
 
-        <div className="user-mini">
-          <div className="avatar">AM</div>
-          <div>
-            <strong>Admin Mauricio</strong>
-            <span>Superadministrador</span>
-          </div>
-          <AppIcon name="logout" size={18} />
-        </div>
+        <UserMini />
       </aside>
 
       <div className="main-area">
@@ -77,12 +74,12 @@ export default function UsuariosRoutePage() {
           <div className="top-actions">
             <GlobalSearch />
             <NotificationButton count={3} />
-            <div className="top-avatar">AM</div>
+            <TopAvatar />
           </div>
         </header>
 
         <main className="dashboard-content">
-          <UsersPage currentRole="SUPERADMIN" />
+          <UsersPage currentRole={user?.roleCode || 'SUPERADMIN'} />
           <Footer isDark={false} />
         </main>
       </div>

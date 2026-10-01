@@ -51,6 +51,7 @@ export const LIGHT_ICON_MAP = {
   edit: 'solar:pen-linear',
   trash: 'solar:trash-bin-trash-linear',
   eye: 'solar:eye-linear',
+  eyeOff: 'solar:eye-closed-linear',
   download: 'solar:download-minimalistic-linear',
   upload: 'solar:upload-minimalistic-linear',
   save: 'solar:diskette-linear',
@@ -69,6 +70,7 @@ export const LIGHT_ICON_MAP = {
   close: 'solar:close-circle-linear',
   closeSimple: 'ph:x-light',
   warning: 'solar:danger-triangle-linear',
+  alertTriangle: 'solar:danger-triangle-linear',
   info: 'solar:info-circle-linear',
   sparkles: 'solar:stars-minimalistic-linear',
 

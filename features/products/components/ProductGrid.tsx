@@ -33,7 +33,7 @@ export function ProductGrid({
           >
             {/* Card Header with Category and Status */}
             <div className="product-card-top-bar">
-              <span className="category-pill-tag">{product.category}</span>
+              <span className="category-pill-tag">{product.categoryName || product.category?.name || '—'}</span>
               <span
                 className={`status-indicator-pill ${
                   product.status === 'ACTIVE' ? 'active' : 'inactive'
@@ -79,7 +79,7 @@ export function ProductGrid({
 
             {/* Product Info */}
             <div className="product-card-content">
-              <span className="product-card-brand">{product.brand}</span>
+              <span className="product-card-brand">{product.brandName || product.brand?.name || '—'}</span>
               <h3 className="product-card-name" title={product.name}>
                 {product.name}
               </h3>

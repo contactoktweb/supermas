@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { auditService } from '../services/audit.service'
 import { AuditLogEntry, AuditFilters, AuditStats } from '../types'
 import { UserRole } from './useAuditPermissions'
+import { useAuth } from '@/features/auth'
 
 const DEFAULT_STATS: AuditStats = {
   todayEventsCount: 0,
@@ -15,6 +16,16 @@ const DEFAULT_STATS: AuditStats = {
 }
 
 export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: string) {
+  const { user } = useAuth()
+  const actor = useMemo(
+    () => ({
+      id: user?.id || '',
+      name: user?.fullName || 'Usuario',
+      role: user?.roleName || user?.roleCode || 'Superadministrador',
+    }),
+    [user]
+  )
+
   const [logs, setLogs] = useState<AuditLogEntry[]>([])
   const [stats, setStats] = useState<AuditStats>(DEFAULT_STATS)
   const [isLoading, setIsLoading] = useState<boolean>(true)
@@ -89,7 +100,7 @@ export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: str
   const handleExportCSV = async () => {
     const res = await auditService.exportAudit(
       filters,
-      { id: 'usr-001', name: 'Mauricio Andrade', role: 'Superadministrador' },
+      actor,
       userRole
     )
 

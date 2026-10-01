@@ -56,8 +56,8 @@ export function ProductTable({
 }: ProductTableProps) {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
-  const canUpdate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('product.update')
-  const canDeactivate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('product.deactivate')
+  const canUpdate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('products.update')
+  const canDeactivate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('products.delete')
 
   const getSortIcon = (field: ProductSortField) => {
     if (sortField !== field) {
@@ -361,7 +361,7 @@ export function ProductTable({
                   {visibility.category && (
                     <td>
                       <span className="category-pill-tag">
-                        {product.category}
+                        {product.categoryName || product.category?.name || '—'}
                       </span>
                     </td>
                   )}
@@ -369,7 +369,7 @@ export function ProductTable({
                   {/* Brand */}
                   {visibility.brand && (
                     <td>
-                      <span className="brand-text">{product.brand}</span>
+                      <span className="brand-text">{product.brandName || product.brand?.name || '—'}</span>
                     </td>
                   )}
 

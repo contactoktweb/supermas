@@ -70,6 +70,7 @@ export class UserRepository {
 
     const usersByRole: Record<UserRole, number> = {
       SUPERADMIN: 0,
+      ADMIN: 0,
       WAREHOUSE_ADMIN: 0,
       POINT_ADMIN: 0,
       ACCOUNTANT: 0,

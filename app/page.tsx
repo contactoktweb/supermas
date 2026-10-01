@@ -31,6 +31,9 @@ import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
 import { GlobalSearch } from '@/components/navigation/GlobalSearch'
 import { NotificationButton } from '@/components/navigation/NotificationButton'
+import { useAuth, LoginForm } from '@/features/auth'
+import { UserMini } from '@/components/navigation/UserMini'
+import { TopAvatar } from '@/components/navigation/TopAvatar'
 import { db } from '@/lib/supabase'
 
 const modules = APP_MODULES
@@ -57,11 +60,7 @@ function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string
           </button>
         ))}
       </nav>
-      <button className="user-mini" onClick={logout}>
-        <div className="avatar">AM</div>
-        <div><strong>Admin Mauricio</strong><span>Superadministrador</span></div>
-        <AppIcon name="logout" size={18}/>
-      </button>
+      <UserMini onLogout={logout} />
     </aside>
   </>
 }
@@ -79,7 +78,7 @@ function Header({view,open,onNavigate}:{view:string;open:()=>void;onNavigate:(v:
     <div className="top-actions">
       <GlobalSearch onNavigate={onNavigate} />
       <NotificationButton onNavigate={onNavigate} count={3} />
-      <div className="top-avatar">AM</div>
+      <TopAvatar />
     </div>
   </header>
 }
@@ -127,58 +126,6 @@ function Products({ onNavigate }: { onNavigate?: (view: string) => void }) {
 
 
 
-function Login({onLogin}:{onLogin:()=>void}){
-  const [email,setEmail]=useState('admin@supermas.com.co');
-  const [pass,setPass]=useState('••••••••');
-  return <main className="login-shell">
-    <section className="login-visual">
-      <div className="visual-grid"/>
-      <div className="visual-copy">
-        <Brand/>
-        <p className="eyebrow">Sistema de administración general</p>
-        <h1>Toda la operación de Super Más,<br/><em>en un solo lugar.</em></h1>
-        <p className="visual-description">Administra bodegas, inventario, ventas, compras, facturación y estadísticas desde una plataforma centralizada.</p>
-        <div className="visual-metrics"><div><strong>4</strong><span>bodegas conectadas</span></div><div><strong>100%</strong><span>operación centralizada</span></div></div>
-      </div>
-      <div className="orbit orbit-one"/><div className="orbit orbit-two"/>
-    </section>
-    <section className="login-panel">
-      <div className="login-card">
-        <div className="mobile-brand">
-          <Brand />
-        </div>
-        <div className="login-heading"><span className="status-dot">● En línea</span><h2>Bienvenido de nuevo</h2><p>Ingresa a tu centro de control</p></div>
-        <div style={{marginBottom:18,padding:'12px 14px',borderRadius:10,background:'#eef4fd',border:'1px solid #001b5c24',display:'flex',flexDirection:'column',gap:8}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <span style={{fontSize:11,fontWeight:800,color:'var(--navy)',display:'flex',alignItems:'center',gap:5}}>
-              <AppIcon name="webOrders" size={14} color="var(--red)"/> Acceso temporal directo
-            </span>
-            <span style={{fontSize:10,background:'#001b5c14',color:'var(--navy)',padding:'2px 6px',borderRadius:4,fontWeight:700}}>Superadmin</span>
-          </div>
-          <button type="button" onClick={onLogin} style={{width:'100%',height:42,background:'var(--navy)',color:'#fff',border:0,borderRadius:8,fontSize:12,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:8,cursor:'pointer',boxShadow:'0 6px 16px #001b5c2b',transition:'transform .2s, background .2s'}} onMouseOver={e=>e.currentTarget.style.transform='translateY(-2px)'} onMouseOut={e=>e.currentTarget.style.transform='none'}>
-            <AppIcon name="users" size={16}/> Ingresar como Administrador <AppIcon name="chevronRight" size={14}/>
-          </button>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10,margin:'12px 0 16px',color:'var(--muted)',fontSize:11}}><div style={{flex:1,height:1,background:'var(--line)'}}/><span>o con credenciales</span><div style={{flex:1,height:1,background:'var(--line)'}}/></div>
-        <form onSubmit={e=>{e.preventDefault();onLogin()}}>
-          <label htmlFor="email">Correo electrónico</label>
-          <div className="input-wrap">
-            <AppIcon name="mail" size={18}/>
-            <input id="email" type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@empresa.com" required/>
-          </div>
-          <label htmlFor="password">Contraseña</label>
-          <div className="input-wrap">
-            <AppIcon name="lock" size={18}/>
-            <input id="password" type="password" value={pass} onChange={e=>setPass(e.target.value)} placeholder="••••••••" required/>
-          </div>
-          <button className="primary-button" type="submit" style={{marginTop:8}}>
-            Ingresar al sistema <AppIcon name="chevronRight" size={15}/>
-          </button>
-        </form>
-      </div>
-    </section>
-  </main>
-}
 
 const moduleRows: Record<string, string[][]> = db.operationalModules.moduleRows
 
@@ -412,7 +359,7 @@ function AdminModule({name}:{name:string}){
 }
 
 function App(){
-  const [auth,setAuth]=useState(false);
+  const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const [view,setView]=useState('Dashboard');
   const [menu,setMenu]=useState(false);
 
@@ -442,7 +389,42 @@ function App(){
     }
   };
 
-  if(!auth)return <Login onLogin={()=>setAuth(true)}/>;
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          height: '100vh',
+          width: '100vw',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#001b5c',
+          color: '#ffffff',
+          fontFamily: 'system-ui, sans-serif',
+          flexDirection: 'column',
+          gap: '16px',
+        }}
+      >
+        <div
+          style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid rgba(255, 255, 255, 0.2)',
+            borderTopColor: '#ffffff',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }}
+        />
+        <span style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
+          Verificando sesión fiduciaria...
+        </span>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginForm />;
+  }
 
   if (view === 'POS') {
     return <POSView onExit={() => handleSetView('Dashboard')} />;
@@ -493,7 +475,7 @@ function App(){
   ) : view === 'Auditoría' ? (
     <AuditPage />
   ) : view === 'Usuarios' ? (
-    <UsersPage currentRole="SUPERADMIN" />
+    <UsersPage currentRole={user?.roleCode || 'SUPERADMIN'} />
   ) : view === 'Roles' ? (
     <RolesView />
   ) : view === 'Configuración' ? (
@@ -513,7 +495,7 @@ function App(){
         setView={handleSetView}
         open={menu}
         close={()=>setMenu(false)}
-        logout={()=>setAuth(false)}
+        logout={signOut}
       />
       <div className="main-area">
         <Header view={view} open={()=>setMenu(true)} onNavigate={handleSetView}/>

@@ -1,14 +1,15 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { CustomSelect } from '@/components/ui/CustomSelect'
+import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import {
   ProductFilterParams,
   ProductStatus,
   ProductStockHealth,
 } from '../types'
-import { getDbCategoryOptions, getDbBrandOptions } from '@/lib/supabase'
+import { categoryService } from '@/features/categories/services/category.service'
+import { brandService } from '@/features/brands/services/brand.service'
 
 interface ProductFiltersProps {
   filters: ProductFilterParams
@@ -28,18 +29,62 @@ export function ProductFilters({
   // Count active filters (ignoring pagination and defaults)
   const activeFilterCount = [
     Boolean(filters.query?.trim()),
-    Boolean(filters.category && filters.category !== 'ALL'),
-    Boolean(filters.brand && filters.brand !== 'ALL'),
+    Boolean(
+      (filters.categoryId && filters.categoryId !== 'ALL') ||
+      (filters.category && filters.category !== 'ALL')
+    ),
+    Boolean(
+      (filters.brandId && filters.brandId !== 'ALL') ||
+      (filters.brand && filters.brand !== 'ALL')
+    ),
     Boolean(filters.status && filters.status !== 'ALL'),
     Boolean(filters.stockHealth && filters.stockHealth !== 'ALL'),
     Boolean(filters.webChannel && filters.webChannel !== 'ALL'),
   ].filter(Boolean).length
 
-  // Build category options from Supabase DB
-  const categoryOptions = getDbCategoryOptions()
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([
+    { value: 'ALL', label: 'Todas las categorías' },
+  ])
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([
+    { value: 'ALL', label: 'Todas las marcas' },
+  ])
 
-  // Build brand options from Supabase DB
-  const brandOptions = getDbBrandOptions()
+  useEffect(() => {
+    let isMounted = true
+    categoryService
+      .listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' })
+      .then(({ data }) => {
+        if (isMounted) {
+          setCategoryOptions([
+            { value: 'ALL', label: 'Todas las categorías' },
+            ...data.map((c) => ({
+              value: c.id,
+              label: `${c.level > 0 ? '— '.repeat(c.level) : ''}${c.name}`,
+            })),
+          ])
+        }
+      })
+      .catch((err) => console.error('Error cargando categorías para filtros de productos:', err))
+
+    brandService
+      .listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' })
+      .then(({ data }) => {
+        if (isMounted) {
+          setBrandOptions([
+            { value: 'ALL', label: 'Todas las marcas' },
+            ...data.map((b) => ({
+              value: b.id,
+              label: b.name,
+            })),
+          ])
+        }
+      })
+      .catch((err) => console.error('Error cargando marcas para filtros de productos:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Build status options
   const statusOptions = [
@@ -95,8 +140,8 @@ export function ProductFilters({
         <div className="filter-select-item">
           <CustomSelect
             options={categoryOptions}
-            value={filters.category || 'ALL'}
-            onChange={(val) => onFilterChange('category', val)}
+            value={filters.categoryId || filters.category || 'ALL'}
+            onChange={(val) => onFilterChange('categoryId', val)}
             placeholder="Categoría"
           />
         </div>
@@ -105,8 +150,8 @@ export function ProductFilters({
         <div className="filter-select-item">
           <CustomSelect
             options={brandOptions}
-            value={filters.brand || 'ALL'}
-            onChange={(val) => onFilterChange('brand', val)}
+            value={filters.brandId || filters.brand || 'ALL'}
+            onChange={(val) => onFilterChange('brandId', val)}
             placeholder="Marca"
           />
         </div>

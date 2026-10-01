@@ -33,82 +33,88 @@ export const priceTierSchema = z.object({
 })
 
 export const warehouseStockConfigSchema = z.object({
-  locationId: z.string().min(1, 'La ubicación es requerida'),
+  locationId: z.string().uuid('La ubicación debe ser un identificador UUID válido'),
   minStock: z.coerce.number().min(0, 'El stock mínimo no puede ser negativo').default(10),
   criticalStock: z.coerce.number().min(0, 'El stock crítico no puede ser negativo').default(5),
 })
 
-export const productFormSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(2, 'El nombre del producto debe tener al menos 2 caracteres')
-      .max(120, 'El nombre del producto no puede exceder 120 caracteres'),
-    sku: z
-      .string()
-      .trim()
-      .min(2, 'El SKU debe tener al menos 2 caracteres')
-      .max(30, 'El SKU no puede exceder 30 caracteres')
-      .regex(
-        /^[A-Za-z0-9\-_]+$/,
-        'El SKU solo puede contener letras, números, guiones (-) y guiones bajos (_)'
-      )
-      .transform((val) => val.toUpperCase()),
-    barcode: z
-      .string()
-      .trim()
-      .max(48, 'El código de barras no puede exceder 48 caracteres')
-      .default(''),
-    description: z
-      .string()
-      .trim()
-      .max(500, 'La descripción no puede exceder 500 caracteres')
-      .optional()
-      .default(''),
-    category: z
-      .string()
-      .trim()
-      .min(2, 'La categoría es obligatoria'),
-    brand: z
-      .string()
-      .trim()
-      .min(2, 'La marca es obligatoria'),
-    unitOfMeasure: unitOfMeasureSchema.default('UND'),
-    imageUrl: z.string().trim().default(''),
-    images: z.array(z.string()).default([]),
-    status: productStatusSchema.default('ACTIVE'),
-    taxProfile: taxProfileSchema.default('IVA_19'),
-    vatRatePercent: z.coerce
-      .number()
-      .min(0, 'El IVA no puede ser menor a 0%')
-      .max(100, 'El IVA no puede ser mayor a 100%')
-      .default(19),
-    prices: z
-      .array(priceTierSchema)
-      .min(1, 'Debe registrar al menos un precio para el producto'),
-    minStockThreshold: z.coerce
-      .number()
-      .min(0, 'El umbral mínimo no puede ser negativo')
-      .default(15),
-    criticalStockThreshold: z.coerce
-      .number()
-      .min(0, 'El umbral crítico no puede ser negativo')
-      .default(5),
-    webSuperMas: z.boolean().default(true),
-    webDistribuidora: z.boolean().default(false),
-    warehouseDistribution: z.array(warehouseStockConfigSchema).optional().default([]),
-    auditReason: z.string().trim().optional(),
-  })
-  .refine(
-    (data) => {
-      const normalPrice = data.prices.find((p) => p.code === 'NORMAL')?.price || 0
-      return normalPrice > 0
-    },
-    {
-      message: 'El Precio Normal de venta debe ser mayor a $0',
-      path: ['prices'],
-    }
-  )
+export const baseProductFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'El nombre del producto debe tener al menos 2 caracteres')
+    .max(120, 'El nombre del producto no puede exceder 120 caracteres'),
+  sku: z
+    .string()
+    .trim()
+    .min(2, 'El SKU debe tener al menos 2 caracteres')
+    .max(30, 'El SKU no puede exceder 30 caracteres')
+    .regex(
+      /^[A-Za-z0-9\-_]+$/,
+      'El SKU solo puede contener letras, números, guiones (-) y guiones bajos (_)'
+    )
+    .transform((val) => val.toUpperCase()),
+  barcode: z
+    .string()
+    .trim()
+    .max(48, 'El código de barras no puede exceder 48 caracteres')
+    .optional()
+    .default(''),
+  description: z
+    .string()
+    .trim()
+    .max(500, 'La descripción no puede exceder 500 caracteres')
+    .optional()
+    .default(''),
+  categoryId: z
+    .string()
+    .trim()
+    .min(1, 'La categoría es obligatoria')
+    .uuid('Identificador de categoría inválido'),
+  brandId: z
+    .string()
+    .trim()
+    .min(1, 'La marca es obligatoria')
+    .uuid('Identificador de marca inválido'),
+  unitOfMeasure: unitOfMeasureSchema.default('UND'),
+  imageUrl: z.string().trim().default(''),
+  images: z.array(z.string()).default([]),
+  status: productStatusSchema.default('ACTIVE'),
+  taxProfile: taxProfileSchema.default('IVA_19'),
+  vatRatePercent: z.coerce
+    .number()
+    .min(0, 'El IVA no puede ser menor a 0%')
+    .max(100, 'El IVA no puede ser mayor a 100%')
+    .default(19),
+  prices: z
+    .array(priceTierSchema)
+    .min(1, 'Debe registrar al menos un precio para el producto'),
+  minStockThreshold: z.coerce
+    .number()
+    .min(0, 'El umbral mínimo no puede ser negativo')
+    .default(15),
+  criticalStockThreshold: z.coerce
+    .number()
+    .min(0, 'El umbral crítico no puede ser negativo')
+    .default(5),
+  webSuperMas: z.boolean().default(true),
+  webDistribuidora: z.boolean().default(false),
+  warehouseDistribution: z.array(warehouseStockConfigSchema).optional().default([]),
+  auditReason: z.string().trim().optional(),
+})
+
+export const productFormSchema = baseProductFormSchema.refine(
+  (data) => {
+    const normalPrice = data.prices.find((p) => p.code === 'NORMAL')?.price || 0
+    return normalPrice > 0
+  },
+  {
+    message: 'El Precio Normal de venta debe ser mayor a $0',
+    path: ['prices'],
+  }
+)
+
+export const updateProductSchema = baseProductFormSchema.partial()
 
 export type ProductFormValues = z.infer<typeof productFormSchema>
+export type UpdateProductFormValues = z.infer<typeof updateProductSchema>

@@ -26,6 +26,7 @@ export type SettingsCategory =
 export type SettingValueType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'JSON'
 
 export interface CompanySettings {
+  id?: string
   companyName: string
   legalName: string
   nit: string
@@ -37,6 +38,7 @@ export interface CompanySettings {
   address: string
   city: string
   department: string
+  country?: string
   postalCode: string
   phone: string
   mobile: string
@@ -45,6 +47,7 @@ export interface CompanySettings {
   website: string
   logoUrl: string
   currency: string
+  status?: 'ACTIVE' | 'INACTIVE'
   timezone: string
   commercialDescription: string
   updatedAt: string
@@ -173,6 +176,7 @@ export interface CategoryCardInfo {
 }
 
 export type SettingsPermission =
+  | 'settings.manage'
   | 'settings.read'
   | 'settings.update'
   | 'settings.company'

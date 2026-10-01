@@ -2,7 +2,7 @@
  * SUPER MÁS ERP/POS - Hook de Estado y Lógica del Módulo Configuración
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   CompanySettings,
   InventorySettings,
@@ -14,7 +14,8 @@ import {
   SettingsCategory,
   UserSettingsContext,
 } from '../types'
-import { settingsService, DEFAULT_SETTINGS_USER } from '../services/settings.service'
+import { settingsService } from '../services/settings.service'
+import { useAuth } from '@/features/auth'
 
 export interface CriticalModalState {
   isOpen: boolean
@@ -26,7 +27,19 @@ export interface CriticalModalState {
   onConfirm: () => Promise<void>
 }
 
-export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
+export function useSettings(overrideUser?: UserSettingsContext) {
+  const { user: authUser } = useAuth()
+
+  const currentUser: UserSettingsContext = useMemo(() => {
+    if (overrideUser) return overrideUser
+    return {
+      userId: authUser?.id || 'anonymous',
+      name: authUser?.fullName || 'Usuario',
+      role: (authUser?.roleCode as any) || 'SUPERADMIN',
+      permissions: (authUser?.permissions as any) || ['settings.manage'],
+    }
+  }, [overrideUser, authUser])
+
   const [stats, setStats] = useState<SettingsStats | null>(null)
   const [companySettings, setCompanySettings] = useState<CompanySettings | null>(null)
   const [inventorySettings, setInventorySettings] = useState<InventorySettings | null>(null)
@@ -70,14 +83,14 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
         rls,
         hist,
       ] = await Promise.all([
-        settingsService.getStats(user),
-        settingsService.getCompanySettings(user),
-        settingsService.getInventorySettings(user),
-        settingsService.getPOSSettings(user),
-        settingsService.getEcommerceSettings(user),
-        settingsService.getSystemSettings(undefined, user),
-        settingsService.getPredefinedRoles(user),
-        settingsService.getChangeHistory(20, user),
+        settingsService.getStats(currentUser),
+        settingsService.getCompanySettings(currentUser),
+        settingsService.getInventorySettings(currentUser),
+        settingsService.getPOSSettings(currentUser),
+        settingsService.getEcommerceSettings(currentUser),
+        settingsService.getSystemSettings(undefined, currentUser),
+        settingsService.getPredefinedRoles(currentUser),
+        settingsService.getChangeHistory(20, currentUser),
       ])
 
       setStats(st)
@@ -94,7 +107,7 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
     } finally {
       setIsLoading(false)
     }
-  }, [user, showToast])
+  }, [currentUser, showToast])
 
   useEffect(() => {
     loadAll()
@@ -103,9 +116,15 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
   const saveCompany = async (data: Partial<CompanySettings>) => {
     try {
       setIsSaving(true)
-      const updated = await settingsService.updateCompanySettings(data, user)
+      let updated: CompanySettings
+      if (!companySettings?.id) {
+        updated = await settingsService.createCompany(data, currentUser)
+        showToast('Empresa inicial registrada y vinculada exitosamente')
+      } else {
+        updated = await settingsService.updateCompanySettings({ ...data, id: companySettings.id }, currentUser)
+        showToast('Información institucional actualizada correctamente')
+      }
       setCompanySettings(updated)
-      showToast('Información institucional actualizada correctamente')
       await loadAll()
       return true
     } catch (err: any) {
@@ -143,7 +162,7 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
 
     try {
       setIsSaving(true)
-      const updated = await settingsService.updateInventorySettings(data, user)
+      const updated = await settingsService.updateInventorySettings(data, currentUser)
       setInventorySettings(updated)
       showToast('Políticas de inventario actualizadas correctamente')
       await loadAll()
@@ -159,7 +178,7 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
   const savePOS = async (data: Partial<POSSettings>) => {
     try {
       setIsSaving(true)
-      const updated = await settingsService.updatePOSSettings(data, user)
+      const updated = await settingsService.updatePOSSettings(data, currentUser)
       setPOSSettings(updated)
       showToast('Configuración de punto de venta y cajas actualizada')
       await loadAll()
@@ -199,7 +218,7 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
 
     try {
       setIsSaving(true)
-      const updated = await settingsService.updateEcommerceSettings(data, user)
+      const updated = await settingsService.updateEcommerceSettings(data, currentUser)
       setEcommerceSettings(updated)
       showToast('Configuración de canales web y catálogos actualizada')
       await loadAll()
@@ -239,7 +258,7 @@ export function useSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
 
     try {
       setIsSaving(true)
-      await settingsService.updateSystemSetting({ key, value, notes }, user)
+      await settingsService.updateSystemSetting({ key, value, notes }, currentUser)
       showToast(`Parámetro "${item.description}" actualizado`)
       await loadAll()
       return true

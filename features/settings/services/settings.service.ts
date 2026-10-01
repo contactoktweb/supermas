@@ -37,48 +37,66 @@ import {
 } from '../schemas/settings.schema'
 
 export const DEFAULT_SETTINGS_USER: UserSettingsContext = {
-  userId: 'usr-001',
-  name: 'Mauricio Andrade',
+  userId: 'system-actor',
+  name: 'Administrador del Sistema',
   role: 'SUPERADMIN',
-  permissions: [
-    'settings.read',
-    'settings.update',
-    'settings.company',
-    'settings.inventory',
-    'settings.ecommerce',
-    'settings.billing',
-    'settings.tax',
-    'settings.accounting',
-    'settings.alerts',
-    'settings.security',
-  ],
+  permissions: ['settings.manage'],
 }
 
 export class SettingsService {
   /**
-   * Verifica permisos del usuario
+   * Verifica permisos del usuario contra el rol y permisos reales
    */
-  private assertPermission(permission: SettingsPermission, user: UserSettingsContext): void {
+  private assertPermission(permission: string, user: UserSettingsContext): void {
     if (user.role === 'SUPERADMIN') return
-    if (!user.permissions.includes(permission)) {
-      throw new Error(`Acceso denegado: Se requiere el permiso '${permission}' para esta operación.`)
-    }
+    if (user.permissions.includes('settings.manage')) return
+    if (user.permissions.includes(permission as any)) return
+    throw new Error(`Acceso denegado: Se requiere autorización para esta operación de configuración.`)
   }
 
   /**
    * Obtiene las métricas consolidadas del tablero de configuración
    */
-  async getStats(user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<SettingsStats> {
-    this.assertPermission('settings.read', user)
+  async getStats(user: UserSettingsContext): Promise<SettingsStats> {
+    this.assertPermission('settings.manage', user)
     return settingsRepository.getStats()
   }
 
   /**
    * Obtiene la configuración institucional de la empresa
    */
-  async getCompanySettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<CompanySettings> {
-    this.assertPermission('settings.read', user)
+  async getCompanySettings(user?: UserSettingsContext): Promise<CompanySettings | null> {
+    if (user) {
+      this.assertPermission('settings.manage', user)
+    }
     return settingsRepository.getCompanySettings()
+  }
+
+  /**
+   * Registra la empresa inicial (Onboarding Bootstrap)
+   */
+  async createCompany(
+    rawInput: Partial<CompanySettingsInput>,
+    user: UserSettingsContext
+  ): Promise<CompanySettings> {
+    this.assertPermission('settings.manage', user)
+    const validated = companySettingsSchema.parse(rawInput)
+    const created = await settingsRepository.createCompany(validated, user.name)
+
+    await auditService.log({
+      action: 'SETTING_UPDATED',
+      module: 'SETTINGS',
+      entityType: 'COMPANY_SETTINGS',
+      entityId: created.id || 'COMPANY',
+      entityReference: created.nit,
+      userId: user.userId,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      details: `Empresa inicial registrada en el sistema por ${user.name}: "${created.companyName}".`,
+    })
+
+    return created
   }
 
   /**
@@ -86,13 +104,12 @@ export class SettingsService {
    */
   async updateCompanySettings(
     rawInput: Partial<CompanySettingsInput>,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
+    user: UserSettingsContext
   ): Promise<CompanySettings> {
-    this.assertPermission('settings.company', user)
-    this.assertPermission('settings.update', user)
+    this.assertPermission('settings.manage', user)
 
     const current = await settingsRepository.getCompanySettings()
-    const merged = { ...current, ...rawInput }
+    const merged = { ...(current || {}), ...rawInput }
     const validated = companySettingsSchema.parse(merged)
 
     const updated = await settingsRepository.updateCompanySettings(validated, user.name)
@@ -101,7 +118,7 @@ export class SettingsService {
       action: 'SETTING_UPDATED',
       module: 'SETTINGS',
       entityType: 'COMPANY_SETTINGS',
-      entityId: 'COMPANY',
+      entityId: updated.id || 'COMPANY',
       entityReference: updated.nit,
       userId: user.userId,
       userName: user.name,
@@ -109,9 +126,10 @@ export class SettingsService {
       level: 'INFO',
       details: `Información de la empresa actualizada por ${user.name}: "${updated.companyName}".`,
       changes: [
-        { label: 'Razón Social', field: 'companyName', previousValue: current.companyName, newValue: updated.companyName },
-        { label: 'Dirección', field: 'address', previousValue: current.address, newValue: updated.address },
-        { label: 'Teléfono', field: 'phone', previousValue: current.phone, newValue: updated.phone },
+        { label: 'Nombre Comercial', field: 'companyName', previousValue: current?.companyName || '', newValue: updated.companyName },
+        { label: 'Razón Social', field: 'legalName', previousValue: current?.legalName || '', newValue: updated.legalName },
+        { label: 'Dirección', field: 'address', previousValue: current?.address || '', newValue: updated.address },
+        { label: 'Teléfono', field: 'phone', previousValue: current?.phone || '', newValue: updated.phone },
       ],
     })
 

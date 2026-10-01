@@ -18,6 +18,7 @@ interface WarehouseGridProps {
   onOpenKardex: (id: string) => void
   onOpenUsers: (id: string) => void
   onClearFilters: () => void
+  onActivate?: (warehouse: LocationWithMetrics) => void
 }
 
 export function WarehouseGrid({
@@ -32,6 +33,7 @@ export function WarehouseGrid({
   onOpenKardex,
   onOpenUsers,
   onClearFilters,
+  onActivate,
 }: WarehouseGridProps) {
   if (warehouses.length === 0) {
     return (
@@ -58,6 +60,7 @@ export function WarehouseGrid({
           onOpenInventory={onOpenInventory}
           onOpenKardex={onOpenKardex}
           onOpenUsers={onOpenUsers}
+          onActivate={onActivate}
         />
       ))}
     </div>

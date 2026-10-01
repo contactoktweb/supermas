@@ -39,7 +39,7 @@ export class DashboardService {
 
     // Common permissions
     permissions.add('sale.read')
-    permissions.add('product.read')
+    permissions.add('products.read')
     permissions.add('inventory.read')
     permissions.add('alert.read')
 
@@ -53,8 +53,8 @@ export class DashboardService {
         permissions.add('purchase.read')
         permissions.add('inventory.transfer')
         permissions.add('inventory.adjust')
-        permissions.add('product.create')
-        permissions.add('product.write')
+        permissions.add('products.create')
+        permissions.add('products.update')
         permissions.add('report.view')
         permissions.add('cost.read')
         permissions.add('financial.read')
@@ -251,7 +251,7 @@ export class DashboardService {
         subtitle: 'Crear referencia con precios e impuestos',
         icon: 'products',
         targetView: 'Productos',
-        requiredPermission: 'product.create',
+        requiredPermission: 'products.create',
       },
       {
         id: 'qa-reports',

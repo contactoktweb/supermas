@@ -12,20 +12,21 @@ export function useSettingsPermissions(user: UserSettingsContext = DEFAULT_SETTI
 
     const has = (permission: SettingsPermission): boolean => {
       if (isSuperAdmin) return true
+      if (user.permissions.includes('settings.manage')) return true
       return user.permissions.includes(permission)
     }
 
     return {
-      canRead: has('settings.read'),
-      canUpdate: has('settings.update'),
-      canEditCompany: has('settings.company') && has('settings.update'),
-      canEditInventory: has('settings.inventory') && has('settings.update'),
-      canEditEcommerce: has('settings.ecommerce') && has('settings.update'),
-      canEditBilling: has('settings.billing') && has('settings.update'),
-      canEditTax: has('settings.tax') && has('settings.update'),
-      canEditAccounting: has('settings.accounting') && has('settings.update'),
-      canEditAlerts: has('settings.alerts') && has('settings.update'),
-      canEditSecurity: has('settings.security') && has('settings.update'),
+      canRead: has('settings.read') || has('settings.manage'),
+      canUpdate: has('settings.update') || has('settings.manage'),
+      canEditCompany: has('settings.manage') || (has('settings.company') && has('settings.update')),
+      canEditInventory: has('settings.manage') || (has('settings.inventory') && has('settings.update')),
+      canEditEcommerce: has('settings.manage') || (has('settings.ecommerce') && has('settings.update')),
+      canEditBilling: has('settings.manage') || (has('settings.billing') && has('settings.update')),
+      canEditTax: has('settings.manage') || (has('settings.tax') && has('settings.update')),
+      canEditAccounting: has('settings.manage') || (has('settings.accounting') && has('settings.update')),
+      canEditAlerts: has('settings.manage') || (has('settings.alerts') && has('settings.update')),
+      canEditSecurity: has('settings.manage') || (has('settings.security') && has('settings.update')),
       isSuperAdmin,
     }
   }, [user])

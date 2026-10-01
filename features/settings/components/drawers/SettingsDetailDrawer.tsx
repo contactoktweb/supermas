@@ -145,22 +145,35 @@ export function SettingsDetailDrawer({
           {/* CATEGORY: COMPANY */}
           {category === 'COMPANY' && (
             <div className="space-y-4 text-xs">
+              {!compForm.id && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 flex items-center gap-2">
+                  <AppIcon name="alertTriangle" size={16} className="shrink-0 text-amber-600" />
+                  <span>
+                    <strong>Onboarding de Empresa:</strong> Registra los datos de la empresa principal. Al guardar, quedará vinculada automáticamente a tu usuario Superadministrador.
+                  </span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Nombre Comercial</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Nombre Comercial *</label>
                   <input
                     type="text"
+                    required
                     value={compForm.companyName || ''}
                     onChange={(e) => setCompForm({ ...compForm, companyName: e.target.value })}
+                    placeholder="Ej. Distribuidora Super Más"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Razón Social</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Razón Social *</label>
                   <input
                     type="text"
+                    required
                     value={compForm.legalName || ''}
                     onChange={(e) => setCompForm({ ...compForm, legalName: e.target.value })}
+                    placeholder="Ej. Super Más S.A.S."
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
@@ -168,22 +181,53 @@ export function SettingsDetailDrawer({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-2">
-                  <label className="text-[var(--navy)] font-semibold block mb-1">NIT</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">NIT (Sin dígito de verificación) *</label>
                   <input
                     type="text"
+                    required
                     value={compForm.nit || ''}
                     onChange={(e) => setCompForm({ ...compForm, nit: e.target.value })}
+                    placeholder="900842109"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">DV</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">DV *</label>
                   <input
                     type="text"
+                    required
                     maxLength={1}
                     value={compForm.dv || ''}
                     onChange={(e) => setCompForm({ ...compForm, dv: e.target.value })}
+                    placeholder="4"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 text-center focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Régimen Tributario *</label>
+                  <select
+                    value={compForm.fiscalRegime || 'RESPONSABLE_DE_IVA'}
+                    onChange={(e) => setCompForm({ ...compForm, fiscalRegime: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                  >
+                    <option value="RESPONSABLE_DE_IVA">Responsable de IVA</option>
+                    <option value="NO_RESPONSABLE_DE_IVA">No Responsable de IVA</option>
+                    <option value="REGIMEN_SIMPLE">Régimen Simple de Tributación (RST)</option>
+                    <option value="GRAN_CONTRIBUYENTE">Gran Contribuyente</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Actividad Económica (CIIU) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={compForm.economicActivityCode || ''}
+                    onChange={(e) => setCompForm({ ...compForm, economicActivityCode: e.target.value })}
+                    placeholder="4711"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 font-mono focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -195,6 +239,7 @@ export function SettingsDetailDrawer({
                     type="text"
                     value={compForm.legalRepresentative || ''}
                     onChange={(e) => setCompForm({ ...compForm, legalRepresentative: e.target.value })}
+                    placeholder="Nombre completo"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
@@ -204,30 +249,30 @@ export function SettingsDetailDrawer({
                     type="text"
                     value={compForm.legalRepresentativeDoc || ''}
                     onChange={(e) => setCompForm({ ...compForm, legalRepresentativeDoc: e.target.value })}
+                    placeholder="CC / Pasaporte"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm font-mono"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Dirección Principal</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Dirección Principal *</label>
                   <input
                     type="text"
+                    required
                     value={compForm.address || ''}
                     onChange={(e) => setCompForm({ ...compForm, address: e.target.value })}
+                    placeholder="Calle 50 # 45-20"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Ciudad y Departamento</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">País</label>
                   <input
                     type="text"
-                    value={`${compForm.city || ''}, ${compForm.department || ''}`}
-                    onChange={(e) => {
-                      const [city = '', department = ''] = e.target.value.split(',').map((s) => s.trim())
-                      setCompForm({ ...compForm, city, department })
-                    }}
+                    value={compForm.country || 'Colombia'}
+                    onChange={(e) => setCompForm({ ...compForm, country: e.target.value })}
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
@@ -235,33 +280,85 @@ export function SettingsDetailDrawer({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Teléfono PBX</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Ciudad *</label>
                   <input
                     type="text"
-                    value={compForm.phone || ''}
-                    onChange={(e) => setCompForm({ ...compForm, phone: e.target.value })}
+                    required
+                    value={compForm.city || ''}
+                    onChange={(e) => setCompForm({ ...compForm, city: e.target.value })}
+                    placeholder="Medellín"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
                 <div>
-                  <label className="text-[var(--navy)] font-semibold block mb-1">Correo Electrónico General</label>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Departamento *</label>
                   <input
-                    type="email"
-                    value={compForm.email || ''}
-                    onChange={(e) => setCompForm({ ...compForm, email: e.target.value })}
+                    type="text"
+                    required
+                    value={compForm.department || ''}
+                    onChange={(e) => setCompForm({ ...compForm, department: e.target.value })}
+                    placeholder="Antioquia"
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-[var(--navy)] font-semibold block mb-1">Descripción Comercial</label>
-                <textarea
-                  rows={3}
-                  value={compForm.commercialDescription || ''}
-                  onChange={(e) => setCompForm({ ...compForm, commercialDescription: e.target.value })}
-                  className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Teléfono PBX *</label>
+                  <input
+                    type="text"
+                    required
+                    value={compForm.phone || ''}
+                    onChange={(e) => setCompForm({ ...compForm, phone: e.target.value })}
+                    placeholder="+57 300 123 4567"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Correo General *</label>
+                  <input
+                    type="email"
+                    required
+                    value={compForm.email || ''}
+                    onChange={(e) => setCompForm({ ...compForm, email: e.target.value })}
+                    placeholder="contacto@supermas.com.co"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Correo Facturación DIAN</label>
+                  <input
+                    type="email"
+                    value={compForm.billingEmail || ''}
+                    onChange={(e) => setCompForm({ ...compForm, billingEmail: e.target.value })}
+                    placeholder="facturacion@supermas.com.co"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Moneda Principal</label>
+                  <input
+                    type="text"
+                    readOnly
+                    value={compForm.currency || 'COP'}
+                    className="w-full bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-slate-600 font-mono shadow-sm cursor-not-allowed"
+                  />
+                </div>
+                <div>
+                  <label className="text-[var(--navy)] font-semibold block mb-1">Estado de la Empresa</label>
+                  <select
+                    value={compForm.status || 'ACTIVE'}
+                    onChange={(e) => setCompForm({ ...compForm, status: e.target.value as any })}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                  >
+                    <option value="ACTIVE">Activa (Operacional)</option>
+                    <option value="INACTIVE">Inactiva (Bloqueada)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="pt-2">
@@ -269,9 +366,13 @@ export function SettingsDetailDrawer({
                   type="button"
                   disabled={isSaving}
                   onClick={() => onSaveCompany(compForm)}
-                  className="primary-button w-full justify-center py-2.5 shadow-md"
+                  className="primary-button w-full justify-center py-2.5 shadow-md font-semibold"
                 >
-                  {isSaving ? 'Guardando...' : 'Guardar Información de Empresa'}
+                  {isSaving
+                    ? 'Guardando...'
+                    : compForm.id
+                    ? 'Guardar Información de Empresa'
+                    : 'Registrar y Configurar Empresa'}
                 </button>
               </div>
             </div>

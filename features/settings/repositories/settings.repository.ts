@@ -6,6 +6,7 @@
  */
 
 import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   CompanySettings,
   InventorySettings,
@@ -18,12 +19,43 @@ import {
 } from '../types'
 import { SYSTEM_ROLES } from '@/features/users/services/role-permissions'
 
+function mapDbCompanyToSettings(row: any): CompanySettings {
+  return {
+    id: row.id,
+    companyName: row.trade_name || row.business_name || '',
+    legalName: row.business_name || '',
+    nit: row.tax_id || '',
+    dv: row.verification_digit || '',
+    fiscalRegime: row.tax_regime || 'RESPONSABLE_DE_IVA',
+    economicActivityCode: row.economic_activity_code || '4711',
+    legalRepresentative: row.legal_representative_name || '',
+    legalRepresentativeDoc: row.legal_representative_doc || '',
+    address: row.address || '',
+    city: row.city || '',
+    department: row.department || '',
+    country: row.country || 'Colombia',
+    postalCode: '050001',
+    phone: row.phone || '',
+    mobile: '',
+    email: row.email || '',
+    billingEmail: row.invoice_email || '',
+    website: '',
+    logoUrl: row.logo_url || '/super-mas-logo.svg',
+    currency: row.currency || 'COP',
+    status: (row.status as any) || 'ACTIVE',
+    timezone: 'America/Bogota',
+    commercialDescription: '',
+    updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+    updatedBy: 'Sistema',
+  }
+}
+
 // Almacén en memoria para historial de cambios de configuración
 let changeHistoryStore: SettingChangeHistory[] = [
   {
     id: 'hist-001',
     timestamp: '2026-09-18T10:00:00.000Z',
-    actor: 'Admin Mauricio',
+    actor: 'Sistema',
     category: 'INVENTORY',
     key: 'inventory.defaultMinStockThreshold',
     fieldLabel: 'Stock Mínimo General',
@@ -32,56 +64,140 @@ let changeHistoryStore: SettingChangeHistory[] = [
     isCritical: false,
     notes: 'Ajuste inicial de políticas de stock de seguridad para abarrotes.',
   },
-  {
-    id: 'hist-002',
-    timestamp: '2026-09-18T10:05:00.000Z',
-    actor: 'Admin Mauricio',
-    category: 'ECOMMERCE',
-    key: 'ecommerce.dispatchWarehouseId',
-    fieldLabel: 'Bodega Despacho Ecommerce',
-    previousValue: 'loc-002',
-    newValue: 'loc-001',
-    isCritical: true,
-    notes: 'Centralización de alistamiento web en Centro Logístico CEDI.',
-  },
 ]
 
 export class SettingsRepository {
   /**
-   * Obtiene la configuración institucional de la empresa
+   * Obtiene la configuración institucional de la empresa desde Supabase
    */
-  async getCompanySettings(): Promise<CompanySettings> {
-    return JSON.parse(JSON.stringify(db.companySettings))
+  async getCompanySettings(): Promise<CompanySettings | null> {
+    const { data, error } = await supabaseClient
+      .from('companies')
+      .select('*')
+      .limit(1)
+
+    if (error) {
+      console.error('Error al consultar companies en Supabase:', error)
+      throw new Error(`Error consultando empresa: ${error.message}`)
+    }
+
+    if (!data || data.length === 0) {
+      return null
+    }
+
+    return mapDbCompanyToSettings(data[0])
   }
 
   /**
-   * Actualiza la información de la empresa
+   * Crea la empresa inicial (Bootstrap Onboarding) en public.companies
    */
-  async updateCompanySettings(data: Partial<CompanySettings>, actorName: string): Promise<CompanySettings> {
-    const prev = await this.getCompanySettings()
-    const now = new Date().toISOString()
-
-    const updated: CompanySettings = {
-      ...prev,
-      ...data,
-      updatedAt: now,
-      updatedBy: actorName,
+  async createCompany(data: Partial<CompanySettings>, actorName: string): Promise<CompanySettings> {
+    const payload = {
+      business_name: data.legalName || data.companyName,
+      trade_name: data.companyName || data.legalName,
+      tax_id: data.nit?.replace(/[^0-9]/g, '') || data.nit,
+      verification_digit: data.dv || '0',
+      tax_regime: data.fiscalRegime || 'RESPONSABLE_DE_IVA',
+      economic_activity_code: data.economicActivityCode || '4711',
+      legal_representative_name: data.legalRepresentative || null,
+      legal_representative_doc: data.legalRepresentativeDoc || null,
+      address: data.address || '',
+      city: data.city || '',
+      department: data.department || '',
+      country: data.country || 'Colombia',
+      phone: data.phone || '',
+      email: data.email || '',
+      invoice_email: data.billingEmail || data.email || '',
+      logo_url: data.logoUrl || null,
+      currency: data.currency || 'COP',
+      status: data.status || 'ACTIVE',
     }
 
-    Object.assign(db.companySettings, updated)
+    const { data: inserted, error } = await supabaseClient
+      .from('companies')
+      .insert(payload)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creando empresa en Supabase:', error)
+      throw new Error(`Error registrando empresa: ${error.message}`)
+    }
 
     this.recordChange({
       actor: actorName,
       category: 'COMPANY',
-      key: 'company.general_info',
-      fieldLabel: 'Información Empresarial',
-      previousValue: prev.companyName,
-      newValue: updated.companyName,
-      isCritical: false,
-      notes: 'Actualización de datos corporativos de la empresa.',
+      key: 'company.create',
+      fieldLabel: 'Creación de Empresa',
+      previousValue: '(Ninguna)',
+      newValue: inserted.business_name,
+      isCritical: true,
+      notes: 'Registro inicial de la empresa en el ERP.',
     })
 
-    return JSON.parse(JSON.stringify(updated))
+    return mapDbCompanyToSettings(inserted)
+  }
+
+  /**
+   * Actualiza la información de la empresa en public.companies
+   */
+  async updateCompanySettings(data: Partial<CompanySettings>, actorName: string): Promise<CompanySettings> {
+    let companyId = data.id
+    if (!companyId) {
+      const current = await this.getCompanySettings()
+      if (!current?.id) {
+        throw new Error('No existe una empresa registrada para actualizar. Debe crearla primero.')
+      }
+      companyId = current.id
+    }
+
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString(),
+    }
+
+    if (data.legalName !== undefined) payload.business_name = data.legalName
+    if (data.companyName !== undefined) payload.trade_name = data.companyName
+    if (data.nit !== undefined) payload.tax_id = data.nit.replace(/[^0-9]/g, '')
+    if (data.dv !== undefined) payload.verification_digit = data.dv
+    if (data.fiscalRegime !== undefined) payload.tax_regime = data.fiscalRegime
+    if (data.economicActivityCode !== undefined) payload.economic_activity_code = data.economicActivityCode
+    if (data.legalRepresentative !== undefined) payload.legal_representative_name = data.legalRepresentative || null
+    if (data.legalRepresentativeDoc !== undefined) payload.legal_representative_doc = data.legalRepresentativeDoc || null
+    if (data.address !== undefined) payload.address = data.address
+    if (data.city !== undefined) payload.city = data.city
+    if (data.department !== undefined) payload.department = data.department
+    if (data.country !== undefined) payload.country = data.country
+    if (data.phone !== undefined) payload.phone = data.phone
+    if (data.email !== undefined) payload.email = data.email
+    if (data.billingEmail !== undefined) payload.invoice_email = data.billingEmail
+    if (data.logoUrl !== undefined) payload.logo_url = data.logoUrl
+    if (data.currency !== undefined) payload.currency = data.currency
+    if (data.status !== undefined) payload.status = data.status
+
+    const { data: updated, error } = await supabaseClient
+      .from('companies')
+      .update(payload)
+      .eq('id', companyId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error actualizando empresa en Supabase:', error)
+      throw new Error(`Error actualizando empresa: ${error.message}`)
+    }
+
+    this.recordChange({
+      actor: actorName,
+      category: 'COMPANY',
+      key: 'company.update',
+      fieldLabel: 'Información Empresarial',
+      previousValue: data.companyName || '',
+      newValue: updated.trade_name || updated.business_name,
+      isCritical: false,
+      notes: 'Actualización fiduciaria de datos institucionales de la empresa.',
+    })
+
+    return mapDbCompanyToSettings(updated)
   }
 
   /**

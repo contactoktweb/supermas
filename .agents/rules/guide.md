@@ -32,40 +32,28 @@ Existe un sistema previo en React + NestJS + Prisma + PostgreSQL. Debe reutiliza
 
 ## Arquitectura
 
-Usar separación clara:
+Usar la arquitectura de acceso a datos existente del proyecto.
 
-UI → validación → service → repository → Prisma/PostgreSQL.
+La base de datos oficial y fuente de verdad es:
+Supabase / PostgreSQL.
 
-No colocar lógica compleja dentro de `route.ts`, Server Actions o componentes React.
+Flujo recomendado:
 
-Organización recomendada:
+UI
+→ validación
+→ service
+→ repository/data-access
+→ Supabase/PostgreSQL
 
-```text
-src/
-├── app/
-├── features/
-│   ├── warehouses/
-│   ├── products/
-│   ├── inventory/
-│   ├── purchases/
-│   ├── sales/
-│   ├── accounting/
-│   └── ...
-├── components/
-├── server/
-├── lib/
-└── config/
-```
+No introducir Prisma, ORM adicional ni una nueva capa de acceso a datos si el proyecto ya dispone de una implementación funcional equivalente.
 
-Cada feature puede incluir:
-- components;
-- schemas;
-- services;
-- repositories;
-- types;
-- tests.
+Antes de crear un repository, service, hook o cliente de datos:
+1. Buscar si ya existe.
+2. Reutilizarlo si es compatible.
+3. Extenderlo si es necesario.
+4. Crear uno nuevo únicamente si realmente no existe una implementación adecuada.
 
-No crear archivos gigantes ni duplicar servicios.
+Las operaciones deben respetar RLS, permisos y las reglas de seguridad existentes de Supabase.
 
 ---
 
@@ -604,3 +592,4 @@ Si existe riesgo o incertidumbre:
 DETENER, documentar y solicitar definición.
 
 Integridad + seguridad + trazabilidad tienen prioridad sobre velocidad.
+

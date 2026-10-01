@@ -10,6 +10,7 @@ import { CriticalChangeModal } from './modals/CriticalChangeModal'
 import { SettingsSkeleton } from './SettingsSkeleton'
 import { SettingsToast } from './SettingsToast'
 import { CategoryCardInfo } from '../types'
+import { AppIcon } from '@/components/ui/Icon'
 
 const CATEGORIES_DEFINITIONS: CategoryCardInfo[] = [
   {
@@ -216,6 +217,56 @@ export function SettingsPage() {
 
       {/* KPI Stats */}
       <SettingsStatsCards stats={stats} />
+
+      {/* Banner de Estado de Empresa / Onboarding */}
+      {!companySettings?.id ? (
+        <div className="p-5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <AppIcon name="alertTriangle" size={20} />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-amber-950">Empresa no configurada en el sistema</h3>
+              <p className="text-xs text-amber-800 mt-0.5">
+                El ERP requiere los datos legales y tributarios de la empresa principal para operar.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('COMPANY')}
+            className="primary-button text-xs py-2 px-4 shadow-sm shrink-0"
+          >
+            Registrar Empresa
+          </button>
+        </div>
+      ) : (
+        <div className="p-4 rounded-2xl bg-white border border-[#e2e8f0] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-[var(--navy)] flex items-center justify-center shrink-0">
+              <AppIcon name="warehouse" size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-[var(--navy)]">{companySettings.legalName}</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  {companySettings.status === 'ACTIVE' ? 'Activa' : 'Inactiva'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                NIT {companySettings.nit}-{companySettings.dv} • {companySettings.city}, {companySettings.department} • {companySettings.fiscalRegime}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('COMPANY')}
+            className="outline-button text-xs py-1.5 px-3.5"
+          >
+            Editar Empresa
+          </button>
+        </div>
+      )}
 
       {/* Categories Grid Section */}
       <section className="space-y-4">

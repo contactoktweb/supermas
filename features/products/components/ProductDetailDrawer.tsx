@@ -56,7 +56,7 @@ export function ProductDetailDrawer({
 
   if (!isOpen || !product || !mounted) return null
 
-  const canEdit = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('product.update')
+  const canEdit = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('products.update')
 
   return createPortal(
     <div
@@ -89,7 +89,7 @@ export function ProductDetailDrawer({
               )}
             </div>
             <div className="product-detail-header-info">
-              <span className="product-category-eyebrow">{product.category}</span>
+              <span className="product-category-eyebrow">{product.categoryName || product.category?.name || '—'}</span>
               <h2 className="product-title-heading">{product.name}</h2>
               <div className="detail-badges-row">
                 <span className="code-badge">{product.sku}</span>
@@ -240,11 +240,11 @@ export function ProductDetailDrawer({
               <div className="info-list">
                 <p>
                   <span>Marca:</span>
-                  <b>{product.brand}</b>
+                  <b>{product.brandName || product.brand?.name || '—'}</b>
                 </p>
                 <p>
                   <span>Categoría:</span>
-                  <b>{product.category}</b>
+                  <b>{product.categoryName || product.category?.name || '—'}</b>
                 </p>
                 <p>
                   <span>Unidad de Medida:</span>

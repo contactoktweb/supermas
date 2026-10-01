@@ -16,6 +16,7 @@ interface WarehouseCardProps {
   onOpenInventory: (id: string) => void
   onOpenKardex: (id: string) => void
   onOpenUsers: (id: string) => void
+  onActivate?: (warehouse: LocationWithMetrics) => void
 }
 
 export function WarehouseCard({
@@ -28,6 +29,7 @@ export function WarehouseCard({
   onOpenInventory,
   onOpenKardex,
   onOpenUsers,
+  onActivate,
 }: WarehouseCardProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -208,6 +210,20 @@ export function WarehouseCard({
                 >
                   <AppIcon name="powerOff" size={14} />
                   <span>Desactivar bodega</span>
+                </button>
+              )}
+
+              {permissions.canEditWarehouse && warehouse.status === 'INACTIVE' && onActivate && (
+                <button
+                  type="button"
+                  className="dropdown-item text-success"
+                  onClick={() => {
+                    setMenuOpen(false)
+                    onActivate(warehouse)
+                  }}
+                >
+                  <AppIcon name="check" size={14} />
+                  <span>Activar bodega</span>
                 </button>
               )}
             </div>

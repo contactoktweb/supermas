@@ -13,15 +13,14 @@ interface InventoryFiltersProps {
   hasActiveFilters: boolean
 }
 
-import { getDbLocationOptions, getDbCategoryOptions, getDbBrandOptions } from '@/lib/supabase'
+import { getDbLocationOptions } from '@/lib/supabase'
+import { categoryService } from '@/features/categories/services/category.service'
+import { brandService } from '@/features/brands/services/brand.service'
 
 const LOCATION_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todas las bodegas' },
   ...getDbLocationOptions(),
 ]
-
-const CATEGORY_OPTIONS: SelectOption[] = getDbCategoryOptions()
-const BRAND_OPTIONS: SelectOption[] = getDbBrandOptions()
 
 const HEALTH_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todos los estados' },
@@ -61,6 +60,52 @@ export function InventoryFilters({
     }, 280)
     return () => clearTimeout(timer)
   }, [searchInput, filters.query])
+
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([
+    { value: 'ALL', label: 'Todas las categorías' },
+  ])
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([
+    { value: 'ALL', label: 'Todas las marcas' },
+  ])
+
+  useEffect(() => {
+    let isMounted = true
+
+    categoryService
+      .listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' })
+      .then(({ data }) => {
+        if (isMounted) {
+          setCategoryOptions([
+            { value: 'ALL', label: 'Todas las categorías' },
+            ...data.map((c) => ({
+              value: c.name,
+              label: `${c.level > 0 ? '— '.repeat(c.level) : ''}${c.name}`,
+              badge: c.code || undefined,
+            })),
+          ])
+        }
+      })
+      .catch((err) => console.error('Error cargando categorías para filtros:', err))
+
+    brandService
+      .listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' })
+      .then(({ data }) => {
+        if (isMounted) {
+          setBrandOptions([
+            { value: 'ALL', label: 'Todas las marcas' },
+            ...data.map((b) => ({
+              value: b.name,
+              label: b.name,
+            })),
+          ])
+        }
+      })
+      .catch((err) => console.error('Error cargando marcas para filtros:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   return (
     <div className="toolbar inventory-toolbar products-toolbar page-enter">
@@ -107,7 +152,7 @@ export function InventoryFilters({
           <CustomSelect
             value={filters.category || 'ALL'}
             onChange={(val) => onFilterChange({ category: val, page: 1 })}
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions}
             placeholder="Categoría"
             size="sm"
             icon={<AppIcon name="grid" size={14} color="#64748b" />}
@@ -119,7 +164,7 @@ export function InventoryFilters({
           <CustomSelect
             value={filters.brand || 'ALL'}
             onChange={(val) => onFilterChange({ brand: val, page: 1 })}
-            options={BRAND_OPTIONS}
+            options={brandOptions}
             placeholder="Marca"
             size="sm"
           />

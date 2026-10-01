@@ -1,4 +1,8 @@
 import assert from 'node:assert'
+if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://fake-staging.supabase.co'
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.fake'
+}
 import { DashboardService } from '../services/dashboard.service'
 import { dashboardRepository } from '../repositories/dashboard.repository'
 import { mockUserProfiles } from '../mocks/dashboard.mock'
@@ -28,7 +32,7 @@ async function runDashboardTests() {
     avatar: 'AM',
     locationName: 'Punto Centro',
     lastLoginAt: '2026-09-24T10:00:00Z',
-    permissions: ['pos.sell', 'product.read'],
+    permissions: ['pos.sell', 'products.read'],
   }
   const pointAdmin = {
     id: 'usr-padmin',
@@ -39,7 +43,7 @@ async function runDashboardTests() {
     avatar: 'LG',
     locationName: 'Punto Norte',
     lastLoginAt: '2026-09-24T10:00:00Z',
-    permissions: ['pos.sell', 'product.read', 'inventory.read'],
+    permissions: ['pos.sell', 'products.read', 'inventory.read'],
   }
 
   // Test 1: RBAC Cost & Financial Redaction

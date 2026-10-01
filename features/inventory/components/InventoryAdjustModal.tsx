@@ -8,6 +8,7 @@ import { FileUpload } from '@/components/ui/FileUpload'
 import { StockAdjustmentInput, ConsolidatedProductStock, InventoryStockLevel } from '../types'
 import { stockAdjustmentSchema } from '../schemas/inventory.schema'
 import { getDbLocationOptions } from '@/lib/supabase'
+import { useAuth } from '@/features/auth'
 
 interface InventoryAdjustModalProps {
   isOpen: boolean
@@ -38,7 +39,10 @@ export function InventoryAdjustModal({
   const [reason, setReason] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
   const [evidenceUrl, setEvidenceUrl] = useState<string>('')
-  const [responsibleName, setResponsibleName] = useState<string>('Mauricio Andrade (Administrador)')
+  const { user } = useAuth()
+  const [responsibleName, setResponsibleName] = useState<string>(
+    user ? `${user.fullName} (${user.roleName})` : 'Administrador'
+  )
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 

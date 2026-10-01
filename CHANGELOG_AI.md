@@ -1,5 +1,79 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-10-01] — PASO 2: Multiempresa y Configuración de Empresa (Supabase Client + RLS + PostgreSQL)
+
+- **Eliminación Total de Datos y Fallbacks Mock de Empresa**:
+  - `features/settings/repositories/settings.repository.ts`: Desacoplado totalmente de `db.companySettings`. Las operaciones `getCompanySettings()`, `createCompany()` y `updateCompanySettings()` consultan y mutan fiduciariamente la tabla `public.companies` vía `supabaseClient` bajo Row Level Security (RLS).
+  - `features/settings/services/settings.service.ts`: Eliminado el mock `DEFAULT_SETTINGS_USER` con `usr-001` y "Mauricio Andrade". Se verifica el permiso real de PostgreSQL `settings.manage` y los privilegios soberanos de `SUPERADMIN` y `ADMIN`.
+  - `features/settings/hooks/useSettings.ts`: Conectado dinámicamente con `useAuth()` para extraer la identidad, rol y permisos del usuario real autenticado.
+  - `app/proveedores/page.tsx`: Reemplazado avatar hardcodeado "Mauricio Arango" por `TopAvatar` y añadido `UserMini` al sidebar.
+
+- **Migración 026 Aplicada en PostgreSQL (`026_company_bootstrap_and_link_trigger.sql`)**:
+  - **Función y Trigger de Vinculación Automática (`trg_link_superadmin_on_company_create`)**:
+    - Trigger `AFTER INSERT ON public.companies` que ejecuta `fn_on_company_created_link_superadmin()`.
+    - Si un usuario autenticado con rol `SUPERADMIN` crea una empresa durante el onboarding (teniendo inicialmente `company_id = NULL`), la función actualiza de inmediato `public.users.company_id = NEW.id` de forma atómica en la misma transacción.
+  - **Refinamiento de Política RLS SELECT en `companies` (`Tenant isolation select company`)**:
+    - Permite consulta a usuarios autenticados si `id = public.get_auth_company_id()`, o si `public.get_auth_company_id() IS NULL AND public.is_admin()`, evitando que el SUPERADMIN quede a oscuras durante el onboarding inicial.
+
+- **Frontend & UX de Configuración de Empresa (`features/settings`)**:
+  - `SettingsPage.tsx`: Tarjeta/banner inteligente con detección de estado. Si no existe empresa registrada, despliega alerta de onboarding con botón "Registrar Empresa". Si ya existe, presenta resumen institucional con razón social, NIT, ubicación y estado, con botón "Editar Empresa".
+  - `SettingsDetailDrawer.tsx`: Formulario integral conectado a PostgreSQL con validaciones Zod completas: Razón Social, Nombre Comercial, NIT (numérico), DV, Régimen Tributario, Código CIIU, Representante Legal y documento, Dirección, Ciudad, Departamento, País, Teléfono, Correo General, Correo Facturación DIAN, Moneda y Estado (`ACTIVE`/`INACTIVE`).
+
+- **Batería de Pruebas Automatizadas (11/11 PASS)**:
+  - Ejecutada suite completa `scripts/test-step2-real-company.ts` contra Staging.
+  - Comprobadas: Consulta RLS por SUPERADMIN, flujo bootstrap y triggers en PG, edición fiduciaria de campos, persistencia tras re-login, coincidencia `public.users.company_id === public.companies.id`, rechazo estricto a accesos no autorizados mediante RLS, unicidad institucional sin empresas ficticias y ausencia total de datos comerciales.
+  - `pnpm exec tsc --noEmit` (0 errores) y `pnpm build` (0 errores en 40 rutas).
+
+---
+
+## [2026-10-01] — PASO 1: Autenticación Real y Sesión de Usuario (Supabase Auth + PostgreSQL RLS)
+
+- **Eliminación Total de Autenticación Mock e In-Memory**:
+  - Eliminado el usuario mock `usr-001` ("Mauricio Andrade") y `initialAdminUser` de `lib/supabase/db.ts`.
+  - Vaciado `lib/supabase/mock-db/users.json` a `[]` (cero usuarios ficticios).
+  - Eliminados selectores locales simulados y bypasses en `app/page.tsx` y shells de navegación.
+  - Reemplazadas todas las firmas de autor hardcodeadas (`usr-001`) en `useAudit.ts`, `useUsers.ts`, `InventoryAdjustModal.tsx`, etc., por el usuario autenticado real provisto por `useAuth()`.
+
+- **Arquitectura de Autenticación Fiduciaria (`features/auth`)**:
+  - `features/auth/types.ts`: Tipado estricto de usuario autenticado (`AuthUser`), estado (`AuthState`), credenciales y roles canónicos (`SUPERADMIN`, `ADMIN`, `ACCOUNTANT`, `WAREHOUSE_MANAGER`, `CASHIER`, `SELLER`, `AUDITOR`).
+  - `features/auth/services/auth.service.ts`: Servicio con llamadas directas a `supabase.auth.signInWithPassword`, `supabase.auth.signOut`, consulta al perfil en `public.users` (bajo RLS), resolución de rol en `public.roles` y permisos en `role_permissions` -> `permissions`, y sincronización de cookies de sesión (`sb-access-token`, `sb-user-role`).
+  - `features/auth/context/AuthContext.tsx`: `AuthProvider` con suscripción en tiempo real a `supabase.auth.onAuthStateChange`, persistencia de sesión automática tras refresh o navegación, y helpers de autorización `hasPermission()` y `hasRole()`.
+  - `features/auth/components/LoginForm.tsx`: Formulario de login corporativo Super Más (azul institucional `#001b5c`, acento `#e11d48`), accesible, responsive, con validación de credenciales, feedback de errores y spinner de carga.
+  - `app/login/page.tsx` y `LoginPageClient.tsx`: Ruta dedicada `/login` con soporte de parámetro `redirectTo`.
+
+- **Protección de Rutas por Middleware (`middleware.ts`)**:
+  - Validación de cookies de sesión (`sb-access-token`) en el edge.
+  - Redirección automática de usuarios no autenticados a `/login?redirectTo=...`.
+  - Guardas por rol: Bloqueo perimetral a rutas administrativas críticas (`/usuarios`, `/roles`, `/auditoria`, `/configuracion`, `/contabilidad`) para roles sin privilegios (`CASHIER`, `SELLER`), redirigiendo al dashboard con notificación.
+
+- **Integración Visual y de Perfil de Usuario**:
+  - Creados `components/navigation/UserMini.tsx` (sidebar) y `components/navigation/TopAvatar.tsx` (header) para mostrar dinámicamente el nombre, rol y avatar del usuario real autenticado, además de permitir `signOut()` fiduciario.
+  - Actualizados todos los layouts y páginas del App Router para utilizar la identidad del usuario autenticado.
+
+- **Verificación y Pruebas Automatizadas (14/14 PASS)**:
+  - Ejecutada suite completa `scripts/test-step1-real-auth.ts` con credenciales de Staging contra Supabase Auth y PostgreSQL.
+  - Verificados login válido/inválido, persistencia de sesión, logout, match exacto `auth.users.id === public.users.id`, carga de roles y 42 permisos reales de BD, protección de rutas y ausencia total de `SERVICE_ROLE_KEY` en el frontend.
+  - `pnpm exec tsc --noEmit` y `pnpm build` completados con 0 errores en 40 rutas.
+
+---
+
+## [2026-09-30] — Paso 14: Hardening de Pre-Producción y Aplicación de Migración 025 (`025_pre_production_hardening.sql`)
+
+- **Aplicación Exitosa de Migración `025_pre_production_hardening.sql` vía Supabase CLI**:
+  - **Habilitación y Cobertura Total de RLS (122 políticas activas)**:
+    - Eliminado el riesgo de denegación total ("deny-all") en las 14 tablas que tenían RLS activado sin políticas (`categories`, `brands`, `users`, `user_locations`, `cash_registers`, `cash_sessions`, `cash_movements`, `transfers`, `transfer_items`, `remissions`, `remission_items`, `web_orders`, `system_alerts`, `system_settings`).
+    - Habilitado RLS y creadas políticas en tablas auxiliares (`product_prices`, `supplier_payments`, `web_order_items`, `tax_rates`, `alert_rules`, `dian_events`, `exogena_formats`, `exogena_records`).
+    - Total de tablas protegidas con RLS: 45 / 48 (las 3 restantes son `roles`, `permissions`, `role_permissions`, conservadas como catálogos globales de referencia sin RLS para evitar recursión de autenticación).
+  - **Blindaje contra Search Path Hijacking (8 funciones financieras)**:
+    - Fijado `search_path = public, pg_catalog` en todas las funciones `SECURITY DEFINER` de contabilidad y estados financieros: `fn_close_accounting_period`, `fn_reopen_accounting_period`, `fn_financial_trial_balance`, `fn_financial_daily_journal`, `fn_financial_general_ledger`, `fn_financial_income_statement`, `fn_financial_balance_sheet` y `fn_financial_tax_summary`.
+  - **Optimización de Consultas en Claves Foráneas (24 nuevos índices)**:
+    - Creados índices en relaciones de alto volumen para evitar *Sequential Scans* y bloqueos en `electronic_invoices`, `sales`, `remissions`, `remission_items`, `transfers`, `transfer_items`, `treasury_payments`, `treasury_receipts`, `bank_movements`, `accounting_entry_lines`, `cash_movements`, `cash_sessions` y `system_alerts`.
+  - **Validación de Fronteras de Seguridad y Aislamiento de Roles**:
+    - `SUPERADMIN`: Conserva gobierno total y acceso exclusivo a `settings.manage` y `system_settings`.
+    - `ADMIN`: Mantiene operaciones de negocio completas sin ganar privilegios de sistema.
+    - `ACCOUNTANT`: Acceso financiero estricto; no puede facturar en POS ni mover stock físico.
+    - `CASHIER` & `SELLER`: Estrictamente aislados a sus catálogos, clientes y sedes/cajas asignadas sin visibilidad de contabilidad, costos, compras ni tesorería bancaria.
+
 ## [2026-09-29] — Navegación y Búsqueda Global: Redirección de Notificaciones a Alertas y Buscador Universal Multi-Módulo
 
 - **Redirección del Icono de Notificaciones a `/alertas` (`NotificationButton.tsx`)**:

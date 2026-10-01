@@ -836,7 +836,7 @@
       "subtitle": "Crear en catálogo central",
       "icon": "Package",
       "targetView": "Productos",
-      "requiredPermission": "product.create"
+      "requiredPermission": "products.create"
     },
     {
       "id": "qa-remision",

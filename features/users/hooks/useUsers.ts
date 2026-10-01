@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { userService } from '../services/user.service'
 import { User, UserFilters, UserStats, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
 import { AuditLogEntry } from '@/features/audit/types'
+import { useAuth } from '@/features/auth'
 
 const DEFAULT_STATS: UserStats = {
   totalUsersCount: 0,
@@ -13,6 +14,7 @@ const DEFAULT_STATS: UserStats = {
   recentlyConnectedCount: 0,
   usersByRole: {
     SUPERADMIN: 0,
+    ADMIN: 0,
     WAREHOUSE_ADMIN: 0,
     POINT_ADMIN: 0,
     ACCOUNTANT: 0,
@@ -22,6 +24,16 @@ const DEFAULT_STATS: UserStats = {
 }
 
 export function useUsers(userRole: UserRole = 'SUPERADMIN') {
+  const { user } = useAuth()
+  const actor = useMemo(
+    () => ({
+      id: user?.id || '',
+      name: user?.fullName || 'Usuario',
+      role: user?.roleName || user?.roleCode || 'Superadministrador',
+    }),
+    [user]
+  )
+
   const [users, setUsers] = useState<User[]>([])
   const [stats, setStats] = useState<UserStats>(DEFAULT_STATS)
   const [locations, setLocations] = useState<Array<{ id: string; code: string; name: string; type: string }>>([])
@@ -108,7 +120,6 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
 
   // Guardar usuario (Crear o Editar)
   const handleSaveUser = async (data: CreateUserInput | UpdateUserInput) => {
-    const actor = { id: 'usr-001', name: 'Mauricio Andrade', role: 'Superadministrador' }
     if (editingUser) {
       await userService.update(editingUser.id, data as UpdateUserInput, actor, userRole)
     } else {
@@ -154,7 +165,6 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
   // Confirmar cambio de estado
   const handleConfirmToggleStatus = async (reason?: string) => {
     if (!userToToggleStatus) return
-    const actor = { id: 'usr-001', name: 'Mauricio Andrade', role: 'Superadministrador' }
     const newStatus: UserStatus = userToToggleStatus.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
     await userService.toggleStatus(userToToggleStatus.id, newStatus, actor, userRole, reason)
     handleCloseDeactivateDialog()
@@ -166,7 +176,6 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
 
   // Exportar a CSV
   const handleExportCSV = async () => {
-    const actor = { id: 'usr-001', name: 'Mauricio Andrade', role: 'Superadministrador' }
     const res = await userService.exportUsers(filters, actor, userRole)
 
     const blob = new Blob([res.content], { type: 'text/csv;charset=utf-8;' })

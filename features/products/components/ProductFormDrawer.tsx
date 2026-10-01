@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { CustomSelect } from '@/components/ui/CustomSelect'
+import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import {
@@ -12,10 +12,12 @@ import {
   UpdateProductInput,
   TaxProfile,
   UnitOfMeasure,
+  TaxRateConfig,
 } from '../types'
 import { productFormSchema } from '../schemas/product.schema'
-import { db } from '@/lib/supabase'
 import { productService } from '../services/product.service'
+import { categoryService } from '@/features/categories/services/category.service'
+import { brandService } from '@/features/brands/services/brand.service'
 
 interface ProductFormDrawerProps {
   isOpen: boolean
@@ -53,8 +55,12 @@ export function ProductFormDrawer({
   const [sku, setSku] = useState('')
   const [barcode, setBarcode] = useState('')
   const [description, setDescription] = useState('')
-  const [category, setCategory] = useState('Abarrotes y Despensa')
-  const [brand, setBrand] = useState('Super Más Premium')
+  const [categoryId, setCategoryId] = useState('')
+  const [brandId, setBrandId] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([])
+  const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
+  const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true)
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('UND')
   const [imageUrl, setImageUrl] = useState('')
 
@@ -82,6 +88,50 @@ export function ProductFormDrawer({
     setMounted(true)
   }, [])
 
+  // Cargar catálogos reales desde Supabase (Categorías, Marcas, Impuestos)
+  useEffect(() => {
+    let isMounted = true
+    setLoadingCatalogs(true)
+
+    Promise.all([
+      categoryService.listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' }),
+      brandService.listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' }),
+      productService.getTaxConfigs(),
+    ])
+      .then(([catsRes, brandsRes, taxesRes]) => {
+        if (!isMounted) return
+
+        const cats: SelectOption[] = (catsRes.data || []).map((c) => ({
+          value: c.id,
+          label: `${c.level > 0 ? '— '.repeat(c.level) : ''}${c.name}`,
+        }))
+
+        const brands: SelectOption[] = (brandsRes.data || []).map((b) => ({
+          value: b.id,
+          label: b.name,
+        }))
+
+        setCategoryOptions(cats)
+        setBrandOptions(brands)
+        setTaxRates(taxesRes || [])
+
+        if (mode === 'create') {
+          if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
+          if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
+        }
+      })
+      .catch((err) => {
+        console.error('Error cargando catálogos reales de Supabase:', err)
+      })
+      .finally(() => {
+        if (isMounted) setLoadingCatalogs(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [mode])
+
   useEffect(() => {
     if (isOpen) {
       setErrors({})
@@ -92,8 +142,8 @@ export function ProductFormDrawer({
         setSku(initialProduct.sku)
         setBarcode(initialProduct.barcode || '')
         setDescription(initialProduct.description || '')
-        setCategory(initialProduct.category)
-        setBrand(initialProduct.brand)
+        setCategoryId(initialProduct.categoryId || (categoryOptions[0]?.value ?? ''))
+        setBrandId(initialProduct.brandId || (brandOptions[0]?.value ?? ''))
         setUnitOfMeasure(initialProduct.unitOfMeasure)
         setImageUrl(initialProduct.imageUrl || '')
         setNormalPrice(initialProduct.normalPrice)
@@ -114,8 +164,8 @@ export function ProductFormDrawer({
         setSku('')
         setBarcode('')
         setDescription('')
-        setCategory('Abarrotes y Despensa')
-        setBrand('Super Más Premium')
+        setCategoryId(categoryOptions[0]?.value || '')
+        setBrandId(brandOptions[0]?.value || '')
         setUnitOfMeasure('UND')
         setImageUrl('')
         setNormalPrice(0)
@@ -132,13 +182,13 @@ export function ProductFormDrawer({
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
 
   if (!isOpen || !mounted) return null
 
   // Tax Profile change handler
   const handleTaxProfileChange = (selectedCode: string) => {
-    const found = db.taxConfigs.find((t) => t.code === selectedCode)
+    const found = taxRates.find((t) => t.code === selectedCode)
     if (found) {
       setTaxProfile(found.code as any)
       setVatRatePercent(found.ratePercent)
@@ -177,8 +227,8 @@ export function ProductFormDrawer({
       sku: sku.trim().toUpperCase(),
       barcode: barcode.trim(),
       description: description.trim(),
-      category,
-      brand,
+      categoryId,
+      brandId,
       unitOfMeasure,
       imageUrl: imageUrl.trim(),
       status,
@@ -383,15 +433,19 @@ export function ProductFormDrawer({
                     Categoría <em>*</em>
                   </label>
                   <CustomSelect
-                    options={db.categories.map((c) => ({
-                      value: c,
-                      label: c,
-                    }))}
-                    value={category}
-                    onChange={setCategory}
+                    options={categoryOptions}
+                    value={categoryId}
+                    onChange={setCategoryId}
+                    disabled={categoryOptions.length === 0}
+                    placeholder={loadingCatalogs ? 'Cargando categorías...' : 'Selecciona una categoría'}
                   />
-                  {errors.category && (
-                    <span className="field-error-text">{errors.category}</span>
+                  {errors.categoryId && (
+                    <span className="field-error-text">{errors.categoryId}</span>
+                  )}
+                  {categoryOptions.length === 0 && !loadingCatalogs && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * No hay categorías activas en Supabase para tu empresa.
+                    </small>
                   )}
                 </div>
 
@@ -400,15 +454,19 @@ export function ProductFormDrawer({
                     Marca <em>*</em>
                   </label>
                   <CustomSelect
-                    options={db.brands.map((b) => ({
-                      value: b,
-                      label: b,
-                    }))}
-                    value={brand}
-                    onChange={setBrand}
+                    options={brandOptions}
+                    value={brandId}
+                    onChange={setBrandId}
+                    disabled={brandOptions.length === 0}
+                    placeholder={loadingCatalogs ? 'Cargando marcas...' : 'Selecciona una marca'}
                   />
-                  {errors.brand && (
-                    <span className="field-error-text">{errors.brand}</span>
+                  {errors.brandId && (
+                    <span className="field-error-text">{errors.brandId}</span>
+                  )}
+                  {brandOptions.length === 0 && !loadingCatalogs && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * No hay marcas activas en Supabase para tu empresa.
+                    </small>
                   )}
                 </div>
               </div>
@@ -577,10 +635,14 @@ export function ProductFormDrawer({
               <div className="form-field">
                 <label>Perfil Tributario DIAN</label>
                 <CustomSelect
-                  options={db.taxConfigs.map((t) => ({
-                    value: t.code,
-                    label: `${t.name} (${t.ratePercent}%)`,
-                  }))}
+                  options={
+                    taxRates.length > 0
+                      ? taxRates.map((t) => ({
+                          value: t.code,
+                          label: `${t.name} (${t.ratePercent}%)`,
+                        }))
+                      : [{ value: 'IVA_19', label: 'IVA General 19%' }]
+                  }
                   value={taxProfile}
                   onChange={handleTaxProfileChange}
                 />

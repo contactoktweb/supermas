@@ -1,7 +1,7 @@
 /**
  * MÓDULO DE PRODUCTOS — SUPER MÁS ERP/POS
- * Tipos de dominio, modelos de datos, listas de precios extensibles,
- * configuración tributaria y canales web.
+ * Tipos de dominio, modelos de datos alineados con PostgreSQL (public.products),
+ * listas de precios extensibles, configuración tributaria y canales web.
  */
 
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'
@@ -18,9 +18,12 @@ export type TaxProfile = 'EXENTO' | 'EXCLUIDO' | 'IVA_0' | 'IVA_5' | 'IVA_19' | 
 
 export interface TaxRateConfig {
   id: string
+  code: string
   name: string
-  code: TaxProfile
   ratePercent: number
+  percentage?: number // PostgreSQL column: public.tax_rates.percentage
+  type?: string // 'IVA', 'EXCLUIDO', 'NO_GRAVADO', 'OTRO'
+  isActive?: boolean
   description?: string
   isDefault?: boolean
 }
@@ -73,48 +76,87 @@ export interface ProductAuditEntry {
   reason?: string
 }
 
+/**
+ * Modelo canónico de Producto alineado con public.products en PostgreSQL.
+ * Las relaciones hacia categoría y marca se expresan mediante UUIDs (categoryId, brandId).
+ */
 export interface Product {
+  // Columnas maestras de PostgreSQL (public.products)
   id: string
+  companyId: string
+  categoryId: string
+  brandId: string
   sku: string
-  barcode: string
+  barcode?: string
   name: string
   slug: string
-  description: string
-  category: string
-  brand: string
+  shortDescription?: string
+  fullDescription?: string
   unitOfMeasure: UnitOfMeasure
+  costPrice: number
+  publicSalePrice: number
+  wholesalePrice: number
+  minWholesaleQuantity: number
+  taxRatePercent: number
+  isTaxExempt: boolean
+  primaryImageUrl?: string
+  secondaryImages: string[]
+  minStockThreshold: number
+  criticalStockThreshold: number
+  isActive: boolean
+  isPublishedSupermas: boolean
+  isPublishedDistributor: boolean
+  inventoryType: string
+  accountingCategoryId?: string
+  createdAt: string
+  updatedAt: string
+
+  // Relaciones tipadas para joins y visualización UI
+  category?: {
+    id: string
+    name: string
+    code?: string
+    slug?: string
+  } | null
+  brand?: {
+    id: string
+    name: string
+    slug?: string
+  } | null
+  categoryName?: string
+  brandName?: string
+
+  // Propiedades calculadas y de compatibilidad para vistas
   imageUrl: string
   images: string[]
+  description: string
   status: ProductStatus
   taxProfile: TaxProfile
   vatRatePercent: number
   isExempt: boolean
   prices: PriceTier[]
   normalPrice: number
-  wholesalePrice: number
   distributorPrice?: number
-  averageCost: number // Calculado por stock y protegido por RBAC
-  inventoryValueAtCost: number // totalStock * averageCost
-  profitMarginAmount: number // (normalPrice / (1 + vatRatePercent/100)) - averageCost
-  profitMarginPercent: number // (profitMarginAmount / (normalPrice / (1 + vatRatePercent/100))) * 100
-  totalStock: number // Existencia agregada en todas las bodegas
+  averageCost: number
+  inventoryValueAtCost: number
+  profitMarginAmount: number
+  profitMarginPercent: number
+  totalStock: number
   availableUnits: number
-  minStockThreshold: number
-  criticalStockThreshold: number
   stockHealth: ProductStockHealth
-  webSuperMas: boolean // Catálogo Super Más (compra directa web)
-  webDistribuidora: boolean // Catálogo Distribuidora (contacto WhatsApp)
-  webAvailability: WebAvailability // Derivado dinámicamente de la sumatoria de stock
+  webSuperMas: boolean
+  webDistribuidora: boolean
+  webAvailability: WebAvailability
   warehouseStock: WarehouseStockDetail[]
   auditTrail?: ProductAuditEntry[]
-  createdAt: string
-  updatedAt: string
 }
 
 export interface ProductFilterParams {
   query?: string
   category?: string
   brand?: string
+  categoryId?: string
+  brandId?: string
   status?: 'ALL' | ProductStatus
   stockHealth?: 'ALL' | ProductStockHealth
   locationId?: string
@@ -167,13 +209,18 @@ export interface UserPermissionContext {
   permissions: string[]
 }
 
+/**
+ * Payload de entrada para crear un producto.
+ * companyId NO se expone al usuario; es resuelto por la sesión/RLS.
+ * categoryId y brandId son UUIDs obligatorios.
+ */
 export interface CreateProductInput {
   name: string
   sku: string
-  barcode: string
+  barcode?: string
   description?: string
-  category: string
-  brand: string
+  categoryId: string
+  brandId: string
   unitOfMeasure: UnitOfMeasure
   imageUrl?: string
   images?: string[]

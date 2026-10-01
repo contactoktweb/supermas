@@ -373,3 +373,21 @@ El modelo de datos ha completado la fase integral de auditoría, corrección y n
      - **Navegación y Búsqueda Global del Sistema (NotificationButton y GlobalSearch)**:
        - Redirección directa del icono de campana/notificaciones con badge (3) hacia /alertas (o vista de alertas en SPA).
        - Buscador global GlobalSearch.tsx con atajo Ctrl+K / ⌘K accesible desde la barra superior en todos los módulos y rutas del App Router. Búsqueda instantánea y transversal en 8 entidades: Módulos del Sistema, Productos, Clientes, Proveedores, Facturas, Remisiones, Bodegas y Alertas con navegación por teclado y atajos rápidos por defecto.
+
+     - **Paso 14 — Hardening de Pre-Producción y Aplicación de Migración 025 (`025_pre_production_hardening.sql`)**:
+       - Auditoría completa de las 48 tablas, 75 funciones y 64 políticas RLS previas.
+       - Corrección de la brecha de denegación por defecto (zero-policy) en 14 tablas heredadas y 8 tablas auxiliares.
+       - RLS activado en 45 de 48 tablas con 122 políticas granulares (las 3 restantes son roles/permisos como referencia global de autenticación).
+       - Blindaje de 8 funciones financieras con `SET search_path = public, pg_catalog` contra secuestro de búsqueda.
+       - Optimización de rendimiento con 24 índices en claves foráneas de alto tráfico para prevenir bloqueos y Sequential Scans.
+       - Verificación de aislamiento estricto de roles: SUPERADMIN (42 permisos), ADMIN (41 permisos), ACCOUNTANT (15 permisos), WAREHOUSE_ADMIN (13 permisos), CASHIER (8 permisos), SELLER (7 permisos). Cero filtración cross-área.
+
+     - **Paso 1 (Nueva Hoja de Ruta) — Autenticación Real y Sesión de Usuario (Supabase Auth + PostgreSQL RLS)**:
+       - Eliminación total de la capa mock in-memory (`db.ts`, `usr-001`, `initialAdminUser`, `users.json`).
+       - Arquitectura completa fiduciaria en `features/auth/`: `AuthService`, `AuthContext`, `LoginForm`, `LoginPageClient`.
+       - Cadena relacional fiduciaria: `auth.users` -> `public.users` -> `public.roles` -> `role_permissions` -> `permissions`.
+       - Persistencia de sesión con Supabase Auth SDK (`persistSession: true`) sincronizada con cookies seguras (`sb-access-token`, `sb-user-role`).
+       - Middleware perimetral Next.js para protección de rutas y control de acceso por roles (`SUPERADMIN`, `ADMIN`, `ACCOUNTANT`, `WAREHOUSE_MANAGER`, `CASHIER`, `SELLER`, `AUDITOR`).
+       - Header y Sidebar dinámicos con `TopAvatar` y `UserMini` (`signOut()` real).
+       - Verificación completa con 14 pruebas automatizadas A-N aprobadas (14/14 PASS). Cero datos comerciales generados.
+

@@ -13,6 +13,7 @@ interface WarehouseDetailHeaderProps {
   onTransfer: () => void
   onOpenKardexTab: () => void
   onDeactivate: () => void
+  onActivate?: () => void
 }
 
 export function WarehouseDetailHeader({
@@ -23,6 +24,7 @@ export function WarehouseDetailHeader({
   onTransfer,
   onOpenKardexTab,
   onDeactivate,
+  onActivate,
 }: WarehouseDetailHeaderProps) {
   const iconName: LightIconName =
     warehouse.type === 'STORE_POINT'
@@ -156,6 +158,19 @@ export function WarehouseDetailHeader({
               aria-label="Desactivar bodega"
             >
               <AppIcon name="powerOff" size={16} />
+            </button>
+          )}
+
+          {permissions.canEditWarehouse && warehouse.status === 'INACTIVE' && onActivate && (
+            <button
+              type="button"
+              className="outline-button compact text-success"
+              onClick={onActivate}
+              title="Activar bodega"
+              aria-label="Activar bodega"
+            >
+              <AppIcon name="check" size={15} />
+              <span>Activar bodega</span>
             </button>
           )}
         </div>

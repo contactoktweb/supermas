@@ -22,6 +22,7 @@ import { WarehouseErrorState } from './WarehouseErrorState'
 import { WarehouseToastContainer, ToastMessage } from './WarehouseToast'
 import { WarehouseFormData, StockAdjustmentFormData, CreateTransferFormData } from '../schemas/warehouse.schema'
 import { WarehouseDetailPage } from './detail/WarehouseDetailPage'
+import { useAuth } from '@/features/auth/hooks/useAuth'
 
 interface WarehousePageProps {
   onNavigateWarehouseDetail?: (id: string) => void
@@ -32,7 +33,8 @@ export function WarehousePage({
   onNavigateWarehouseDetail,
   initialWarehouseId,
 }: WarehousePageProps) {
-  const permissions = useWarehousePermissions('SUPERADMIN')
+  const { user } = useAuth()
+  const permissions = useWarehousePermissions((user?.roleCode as any) || 'SUPERADMIN')
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(
     initialWarehouseId || null
   )
@@ -153,8 +155,9 @@ export function WarehousePage({
   const handleFormSubmit = async (data: WarehouseFormData) => {
     if (formDrawerMode === 'create') {
       const created = await warehouseService.createWarehouse(data, {
-        id: 'usr-admin',
-        name: 'Admin Mauricio',
+        id: user?.id || '',
+        name: user?.fullName || user?.email || 'Administrador',
+        companyId: user?.companyId || undefined,
       })
       addToast(
         'success',
@@ -165,7 +168,7 @@ export function WarehousePage({
       const updated = await warehouseService.updateWarehouse(
         editingWarehouse.id,
         data,
-        { id: 'usr-admin', name: 'Admin Mauricio' }
+        { id: user?.id || '', name: user?.fullName || user?.email || 'Administrador' }
       )
       addToast(
         'success',
@@ -178,8 +181,8 @@ export function WarehousePage({
 
   const handleDeactivateConfirm = async (id: string) => {
     const deactivated = await warehouseService.deactivateWarehouse(id, {
-      id: 'usr-admin',
-      name: 'Admin Mauricio',
+      id: user?.id || '',
+      name: user?.fullName || user?.email || 'Administrador',
     })
     addToast(
       'info',
@@ -189,10 +192,23 @@ export function WarehousePage({
     await loadData()
   }
 
+  const handleActivateConfirm = async (wh: LocationWithMetrics) => {
+    const activated = await warehouseService.activateWarehouse(wh.id, {
+      id: user?.id || '',
+      name: user?.fullName || user?.email || 'Administrador',
+    })
+    addToast(
+      'success',
+      'Bodega activada',
+      `La bodega "${activated.name}" está nuevamente activa para operaciones.`
+    )
+    await loadData()
+  }
+
   const handleCreateTransfer = async (data: CreateTransferFormData) => {
     const newTr = await warehouseService.createTransfer(data, {
-      id: 'usr-admin',
-      name: 'Admin Mauricio',
+      id: user?.id || '',
+      name: user?.fullName || user?.email || 'Administrador',
     })
     addToast(
       'success',
@@ -298,6 +314,7 @@ export function WarehousePage({
           onOpenKardex={(id) => handleSelectWarehouse(id)}
           onOpenUsers={(id) => handleSelectWarehouse(id)}
           onClearFilters={handleClearFilters}
+          onActivate={handleActivateConfirm}
         />
       ) : (
         <WarehouseTable
@@ -314,6 +331,7 @@ export function WarehousePage({
           onEdit={handleOpenEdit}
           onDeactivate={handleOpenDeactivate}
           onClearFilters={handleClearFilters}
+          onActivate={handleActivateConfirm}
         />
       )}
 

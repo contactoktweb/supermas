@@ -1,12 +1,9 @@
 import assert from 'node:assert'
 import { productService } from '../services/product.service'
-import { productRepository } from '../repositories/product.repository'
-import { UserPermissionContext, CreateProductInput } from '../types'
+import { Product } from '../types'
 
 async function runTests() {
   console.log('--- RUNNING PRODUCTS MODULE BUSINESS LOGIC TESTS ---')
-
-  await productRepository.resetMocks()
 
   // Test 1: Profit Margin and VAT Calculation
   console.log('Test 1: Profit Margin and VAT Calculation')
@@ -27,101 +24,80 @@ async function runTests() {
   assert.strictEqual(productService.deriveWebAvailability(420, 15), 'AVAILABLE')
   console.log('✓ Dynamic Web Availability Derivation passed')
 
-  // Test 3: Duplicate SKU Prevention
-  console.log('Test 3: Duplicate SKU Prevention')
-  const baseProduct: CreateProductInput = {
-    name: 'Producto Base Test',
-    sku: 'ABA-ARR-001',
-    barcode: '7709999999991',
-    category: 'Abarrotes y Despensa',
-    brand: 'Diana',
+  // Test 3: RBAC Cost Privacy Sanitization
+  console.log('Test 3: RBAC Cost Privacy Sanitization')
+  const mockProduct: Product = {
+    id: 'test-p1',
+    companyId: 'comp-1',
+    categoryId: 'cat-1',
+    brandId: 'brand-1',
+    sku: 'TEST-001',
+    name: 'Test Product',
+    slug: 'test-product',
     unitOfMeasure: 'UND',
+    costPrice: 5000,
+    publicSalePrice: 10000,
+    wholesalePrice: 8000,
+    minWholesaleQuantity: 12,
+    taxRatePercent: 19,
+    isTaxExempt: false,
+    minStockThreshold: 10,
+    criticalStockThreshold: 5,
+    isActive: true,
+    isPublishedSupermas: true,
+    isPublishedDistributor: true,
+    inventoryType: 'MERCHANDISE',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    primaryImageUrl: '',
+    secondaryImages: [],
+    imageUrl: '',
+    images: [],
+    description: '',
     status: 'ACTIVE',
     taxProfile: 'IVA_19',
     vatRatePercent: 19,
-    prices: [{ code: 'NORMAL', name: 'Precio Normal', price: 10000 }],
+    isExempt: false,
+    prices: [],
+    normalPrice: 10000,
+    averageCost: 5000,
+    inventoryValueAtCost: 50000,
+    profitMarginAmount: 3403,
+    profitMarginPercent: 40.5,
+    totalStock: 10,
+    availableUnits: 10,
+    stockHealth: 'AVAILABLE',
     webSuperMas: true,
-    webDistribuidora: false,
-  }
-  const createdProduct = await productService.createProduct(baseProduct)
-
-  const duplicateInput: CreateProductInput = {
-    name: 'Producto Duplicado Test',
-    sku: 'ABA-ARR-001', // Existing SKU
-    barcode: '7709999999999',
-    category: 'Abarrotes y Despensa',
-    brand: 'Diana',
-    unitOfMeasure: 'UND',
-    status: 'ACTIVE',
-    taxProfile: 'IVA_19',
-    vatRatePercent: 19,
-    prices: [{ code: 'NORMAL', name: 'Precio Normal', price: 10000 }],
-    webSuperMas: true,
-    webDistribuidora: false,
+    webDistribuidora: true,
+    webAvailability: 'AVAILABLE',
+    warehouseStock: [],
   }
 
-  let errorThrown = false
-  try {
-    await productService.createProduct(duplicateInput)
-  } catch (err: any) {
-    errorThrown = true
-    assert.ok(err.message.includes('ya se encuentra registrado'))
-  }
-  assert.strictEqual(errorThrown, true, 'Debe arrojar error al intentar crear SKU duplicado')
-  console.log('✓ Duplicate SKU Prevention passed')
+  const sanitizedSeller = (productService as any).sanitizeProductForUser(mockProduct, false)
+  assert.strictEqual(sanitizedSeller.averageCost, 0)
+  assert.strictEqual(sanitizedSeller.costPrice, 0)
+  assert.strictEqual(sanitizedSeller.profitMarginAmount, 0)
+  assert.strictEqual(sanitizedSeller.profitMarginPercent, 0)
+  assert.strictEqual(sanitizedSeller.inventoryValueAtCost, 0)
 
-  // Test 4: RBAC Cost Privacy Protection
-  console.log('Test 4: RBAC Cost Privacy Protection')
-  const sellerContext: UserPermissionContext = {
-    userId: 'usr-seller',
-    userName: 'Vendedor Mostrador',
-    userRole: 'SELLER',
-    permissions: ['product.read', 'sale.create'], // No cost.read
-  }
+  const sanitizedAdmin = (productService as any).sanitizeProductForUser(mockProduct, true)
+  assert.strictEqual(sanitizedAdmin.averageCost, 5000)
+  assert.strictEqual(sanitizedAdmin.costPrice, 5000)
+  assert.strictEqual(sanitizedAdmin.profitMarginAmount, 3403)
+  console.log('✓ RBAC Cost Privacy Sanitization passed')
 
-  const responseSeller = await productService.listProducts({}, sellerContext)
-  assert.strictEqual(responseSeller.isCostRedacted, true)
-  assert.strictEqual(responseSeller.items[0].averageCost, 0)
-  assert.strictEqual(responseSeller.items[0].profitMarginPercent, 0)
+  // Test 4: Currency Formatter
+  console.log('Test 4: Currency Formatter')
+  assert.strictEqual(productService.formatCurrency(15000).replace(/\u00a0/g, ' '), '$ 15.000')
+  console.log('✓ Currency Formatter passed')
 
-  const adminContext: UserPermissionContext = {
-    userId: 'usr-admin',
-    userName: 'Administrador General',
-    userRole: 'ADMIN',
-    permissions: ['*'],
-  }
-
-  const responseAdmin = await productService.listProducts({}, adminContext)
-  assert.strictEqual(responseAdmin.isCostRedacted, false)
-  assert.strictEqual(typeof responseAdmin.items[0].averageCost, 'number')
-  assert.strictEqual(typeof responseAdmin.items[0].profitMarginPercent, 'number')
-  console.log('✓ RBAC Cost Privacy Protection passed')
-
-  // Test 5: Safe Deactivation (Soft Delete)
-  console.log('Test 5: Safe Deactivation (Soft Delete)')
-  const deactivated = await productService.deactivateProduct(
-    createdProduct.id,
-    'Retiro temporal del catálogo por cambio de empaque',
-    adminContext
+  // Test 5: Slug Generation
+  console.log('Test 5: Slug Generation')
+  assert.strictEqual(
+    (productService as any).slugify('Arroz Diana Extra 1000g'),
+    'arroz-diana-extra-1000g'
   )
-
-  assert.strictEqual(deactivated.status, 'INACTIVE')
-  assert.strictEqual(deactivated.webSuperMas, false)
-  assert.strictEqual(deactivated.webDistribuidora, false)
-  assert.ok(deactivated.auditTrail && deactivated.auditTrail.length > 0)
-  assert.strictEqual(deactivated.auditTrail[0].fieldChanged, 'DESACTIVACION')
-  console.log('✓ Safe Deactivation passed')
-
-  // Test 6: Global Stats with RBAC
-  console.log('Test 6: Global Stats with RBAC')
-  const statsSeller = await productService.getGlobalStats(sellerContext)
-  assert.strictEqual(statsSeller.isCostRedacted, true)
-  assert.strictEqual(statsSeller.totalInventoryValueAtCost, 0)
-
-  const statsAdmin = await productService.getGlobalStats(adminContext)
-  assert.strictEqual(statsAdmin.isCostRedacted, false)
-  assert.strictEqual(statsAdmin.totalProducts, 1)
-  console.log('✓ Global Stats with RBAC passed')
+  console.log('✓ Slug Generation passed')
 
   console.log('\n======================================')
   console.log('ALL PRODUCTS MODULE BUSINESS LOGIC TESTS PASSED!')

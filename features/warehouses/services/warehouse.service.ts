@@ -7,6 +7,7 @@ import {
   CreateTransferFormData,
 } from '../schemas/warehouse.schema'
 import { warehouseRepository } from '../repositories/warehouse.repository'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   LocationWithMetrics,
   WarehouseFilters,
@@ -25,7 +26,7 @@ import {
 
 export class WarehouseService {
   private hasCostPermission(userRole?: string): boolean {
-    if (!userRole) return true // default admin view in current ERP prototype
+    if (!userRole) return true
     return ['SUPERADMIN', 'STORE_ADMIN'].includes(userRole)
   }
 
@@ -98,68 +99,37 @@ export class WarehouseService {
 
   async createWarehouse(
     rawInput: WarehouseFormData,
-    user: { id: string; name: string }
+    user: { id: string; name: string; companyId?: string }
   ): Promise<LocationWithMetrics> {
-    // Server-side Zod validation
+    // Validación estricta con Zod
     const validated = warehouseFormSchema.parse(rawInput)
     const normalizedCode = validated.code.toUpperCase().trim()
 
-    // Check duplicate code
+    // Validar código duplicado
     const existing = await warehouseRepository.findByCode(normalizedCode)
     if (existing) {
       throw new Error(`El código "${normalizedCode}" ya está en uso por la bodega "${existing.name}".`)
     }
 
-    const newLocation: LocationWithMetrics = {
-      id: `loc-${Date.now()}`,
-      code: normalizedCode,
-      name: validated.name.trim(),
-      type: validated.type,
-      status: validated.status,
-      address: validated.address.trim(),
-      city: validated.city.trim(),
-      department: validated.department?.trim() || 'Antioquia',
-      phone: validated.phone?.trim() || '',
-      email: validated.email?.trim() || '',
-      managerName: validated.managerName?.trim() || '',
-      managerEmail: validated.managerEmail?.trim() || '',
-      managerPhone: validated.managerPhone?.trim() || '',
-      description: validated.description?.trim() || '',
-      settings: validated.settings,
-      inventoryValueAtCost: 0,
-      productsCount: 0,
-      availableUnits: 0,
-      todaySalesAmount: 0,
-      monthSalesAmount: 0,
-      monthPurchasesAmount: 0,
-      estimatedProfit: 0,
-      profitMarginPercent: 0,
-      lowStockProductsCount: 0,
-      outOfStockProductsCount: 0,
-      pendingTransfersCount: 0,
-      activeAlertsCount: 0,
-      assignedUsersCount: 1,
-      openCashRegistersCount: 0,
-      lastActivityAt: 'Recién creada',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    const created = await warehouseRepository.create(newLocation)
-
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'LOCATION_CREATED',
-      locationId: created.id,
-      locationName: created.name,
-      userId: user.id,
-      userName: user.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        details: `Bodega creada con código ${created.code} y tipo ${created.type}`,
-        newValue: created,
+    const created = await warehouseRepository.create(
+      {
+        code: normalizedCode,
+        name: validated.name.trim(),
+        type: validated.type,
+        status: validated.status,
+        address: validated.address.trim(),
+        city: validated.city.trim(),
+        department: validated.department?.trim() || 'Antioquia',
+        phone: validated.phone?.trim() || '',
+        email: validated.email?.trim() || '',
+        managerName: validated.managerName?.trim() || '',
+        managerEmail: validated.managerEmail?.trim() || '',
+        managerPhone: validated.managerPhone?.trim() || '',
+        description: validated.description?.trim() || '',
+        settings: validated.settings,
       },
-    })
+      user.companyId
+    )
 
     return created
   }
@@ -197,21 +167,6 @@ export class WarehouseService {
       managerPhone: validated.managerPhone?.trim() || '',
       description: validated.description?.trim() || '',
       settings: validated.settings,
-    })
-
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'LOCATION_UPDATED',
-      locationId: updated.id,
-      locationName: updated.name,
-      userId: user.id,
-      userName: user.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        details: 'Configuración general de bodega actualizada',
-        previousValue: prevLocation,
-        newValue: updated,
-      },
     })
 
     return updated
@@ -270,20 +225,16 @@ export class WarehouseService {
 
     const deactivated = await warehouseRepository.deactivate(id)
 
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'LOCATION_DEACTIVATED',
-      locationId: deactivated.id,
-      locationName: deactivated.name,
-      userId: user.id,
-      userName: user.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        details: 'Bodega desactivada de forma segura. El inventario histórico se preserva intacto.',
-      },
-    })
-
     return deactivated
+  }
+
+  async activateWarehouse(
+    id: string,
+    user: { id: string; name: string }
+  ): Promise<LocationWithMetrics> {
+    const activated = await warehouseRepository.activate(id)
+
+    return activated
   }
 
   async getWarehouseInventory(
@@ -311,90 +262,107 @@ export class WarehouseService {
   ): Promise<{ movement: WarehouseMovement; updatedItem: WarehouseInventoryItem }> {
     const validated = stockAdjustmentSchema.parse(rawInput)
 
-    const inventory = await warehouseRepository.findInventoryByLocationId(validated.locationId)
-    let currentItem = inventory.find((i) => i.productId === validated.productId)
+    const isRealUuid = (str: string) =>
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str)
 
-    if (!currentItem) {
-      if (validated.type === 'AJUSTE_NEGATIVO') {
-        throw new Error('No puedes realizar un ajuste negativo de un producto sin existencias en esta bodega.')
-      }
-      currentItem = {
-        id: `wh-inv-${Date.now()}`,
-        locationId: validated.locationId,
-        productId: validated.productId,
-        productName: 'Producto Ajustado',
-        sku: 'SKU-AJUSTE',
-        barcode: '',
-        category: 'General',
-        brand: 'Genérico',
-        unit: 'UND',
-        currentStock: 0,
-        minStock: 5,
-        maxStock: 100,
-        averageCost: 0,
-        totalValueAtCost: 0,
-        normalSalePrice: 0,
-        status: 'OUT_OF_STOCK',
-        lastMovementAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }
+    if (!isRealUuid(validated.locationId) || !isRealUuid(validated.productId)) {
+      throw new Error('Identificadores de bodega o producto inválidos.')
     }
 
-    const delta = validated.type === 'AJUSTE_POSITIVO' ? validated.quantity : -validated.quantity
-    const newStock = currentItem.currentStock + delta
+    const { data: currentLevel } = await supabaseClient
+      .from('stock_levels')
+      .select('*')
+      .eq('location_id', validated.locationId)
+      .eq('product_id', validated.productId)
+      .maybeSingle()
 
-    if (newStock < 0) {
-      throw new Error(
-        `No puedes realizar un ajuste negativo de ${validated.quantity} unidades. El saldo actual es de solo ${currentItem.currentStock} unidades.`
-      )
+    const currentQty = Number(currentLevel?.quantity || 0)
+    const avgCost = Number(currentLevel?.average_cost || 0)
+    const isPositive = validated.type === 'AJUSTE_POSITIVO'
+    const newQty = isPositive ? currentQty + validated.quantity : currentQty - validated.quantity
+
+    if (!isPositive && currentQty < validated.quantity) {
+      throw new Error(`Stock insuficiente. El saldo actual es de ${currentQty} uds.`)
     }
 
-    const location = await warehouseRepository.findById(validated.locationId)
-    const locationName = location ? location.name : 'Bodega'
+    const docRef = validated.documentRef || `AJ-${Date.now().toString().slice(-6)}`
+    const { data: movRow, error: movError } = await supabaseClient
+      .from('inventory_movements')
+      .insert({
+        location_id: validated.locationId,
+        product_id: validated.productId,
+        movement_type: isPositive ? 'POSITIVE_ADJUSTMENT' : 'NEGATIVE_ADJUSTMENT',
+        quantity_in: isPositive ? validated.quantity : 0,
+        quantity_out: isPositive ? 0 : validated.quantity,
+        previous_stock: currentQty,
+        new_stock: newQty,
+        unit_cost: avgCost,
+        total_cost: validated.quantity * avgCost,
+        document_type: 'ADJUSTMENT',
+        document_reference: docRef,
+        reason: `[${validated.reason}] ${validated.notes}`,
+        user_id: isRealUuid(user.id) ? user.id : null,
+      })
+      .select()
+      .single()
+
+    if (movError) {
+      throw new Error(`Error registrando movimiento: ${movError.message}`)
+    }
+
+    await supabaseClient
+      .from('stock_levels')
+      .upsert({
+        location_id: validated.locationId,
+        product_id: validated.productId,
+        quantity: newQty,
+        average_cost: avgCost,
+        updated_at: new Date().toISOString(),
+      })
+
+    const loc = await warehouseRepository.findById(validated.locationId)
 
     const movement: WarehouseMovement = {
-      id: `mov-${Date.now()}`,
+      id: movRow.id,
       locationId: validated.locationId,
-      locationName,
+      locationName: loc?.name || 'Bodega',
       productId: validated.productId,
-      productName: currentItem.productName,
-      sku: currentItem.sku,
+      productName: 'Producto',
+      sku: 'SKU',
       type: validated.type,
-      documentRef: validated.documentRef || `AJ-${Math.floor(10000 + Math.random() * 90000)}`,
-      quantityIn: validated.type === 'AJUSTE_POSITIVO' ? validated.quantity : 0,
-      quantityOut: validated.type === 'AJUSTE_NEGATIVO' ? validated.quantity : 0,
-      previousBalance: currentItem.currentStock,
-      newBalance: newStock,
-      unitCost: currentItem.averageCost,
-      totalCost: validated.quantity * currentItem.averageCost,
+      documentRef: docRef,
+      quantityIn: isPositive ? validated.quantity : 0,
+      quantityOut: isPositive ? 0 : validated.quantity,
+      previousBalance: currentQty,
+      newBalance: newQty,
+      unitCost: avgCost,
+      totalCost: validated.quantity * avgCost,
       userId: user.id,
       userName: user.name,
-      notes: `[Motivo: ${validated.reason}] ${validated.notes}`,
-      createdAt: 'Hoy, ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+      notes: validated.notes,
+      createdAt: new Date().toISOString(),
     }
 
-    await warehouseRepository.addMovement(movement)
-    const updatedItem = await warehouseRepository.updateInventoryStock(
-      validated.locationId,
-      validated.productId,
-      delta
-    )
-
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'STOCK_ADJUSTED',
+    const updatedItem: WarehouseInventoryItem = {
+      id: currentLevel?.id || `stk-${Date.now()}`,
       locationId: validated.locationId,
-      locationName,
-      userId: user.id,
-      userName: user.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        field: 'stock',
-        previousValue: `${currentItem.currentStock} uds`,
-        newValue: `${newStock} uds`,
-        details: `Ajuste (${validated.type}) por ${validated.quantity} uds. Doc: ${movement.documentRef}`,
-      },
-    })
+      productId: validated.productId,
+      productName: 'Producto',
+      sku: 'SKU',
+      barcode: '',
+      category: 'General',
+      brand: 'Genérico',
+      unit: 'UND',
+      currentStock: newQty,
+      minStock: 5,
+      maxStock: 100,
+      averageCost: avgCost,
+      totalValueAtCost: newQty * avgCost,
+      normalSalePrice: 0,
+      status: newQty === 0 ? 'OUT_OF_STOCK' : 'NORMAL',
+      lastMovementAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
 
     return { movement, updatedItem }
   }
@@ -412,28 +380,7 @@ export class WarehouseService {
       throw new Error('Bodega de origen o destino no válida.')
     }
 
-    const originInventory = await warehouseRepository.findInventoryByLocationId(validated.originLocationId)
-    const transferItems = validated.items.map((item) => {
-      const p = originInventory.find((inv) => inv.productId === item.productId)
-      if (!p) {
-        throw new Error(`Producto ${item.productId} no encontrado en bodega de origen.`)
-      }
-      if (p.currentStock < item.units) {
-        throw new Error(
-          `Stock insuficiente en origen para "${p.productName}". Disponibles: ${p.currentStock}, Solicitadas: ${item.units}`
-        )
-      }
-      return {
-        productId: p.productId,
-        productName: p.productName,
-        sku: p.sku,
-        units: item.units,
-        unitCost: p.averageCost,
-      }
-    })
-
-    const totalUnits = transferItems.reduce((sum, item) => sum + item.units, 0)
-    const totalValue = transferItems.reduce((sum, item) => sum + item.units * item.unitCost, 0)
+    const totalUnits = validated.items.reduce((sum, item) => sum + item.units, 0)
 
     const transfer: WarehouseTransfer = {
       id: `tr-${Date.now()}`,
@@ -443,30 +390,23 @@ export class WarehouseService {
       destinationLocationId: destLoc.id,
       destinationLocationName: destLoc.name,
       status: 'PENDIENTE',
-      itemsCount: transferItems.length,
+      itemsCount: validated.items.length,
       totalUnits,
-      totalValueAtCost: totalValue,
-      items: transferItems,
+      totalValueAtCost: 0,
+      items: validated.items.map((i) => ({
+        productId: i.productId,
+        productName: 'Producto',
+        sku: 'SKU',
+        units: i.units,
+        unitCost: 0,
+      })),
       requestedBy: user.name,
       notes: validated.notes || 'Transferencia logística interna solicitada.',
-      createdAt: 'Hoy, ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-      updatedAt: 'Hoy, ' + new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     }
 
     const created = await warehouseRepository.createTransfer(transfer)
-
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'TRANSFER_CREATED',
-      locationId: originLoc.id,
-      locationName: originLoc.name,
-      userId: user.id,
-      userName: user.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        details: `Transferencia ${created.code} creada hacia ${destLoc.name} (${totalUnits} unidades)`,
-      },
-    })
 
     return created
   }
@@ -543,25 +483,12 @@ export class WarehouseService {
       locationId,
       locationName: loc.name,
       isPrimaryLocation: true,
-      assignedAt: 'Hoy',
+      assignedAt: new Date().toISOString(),
       lastAccessAt: 'Nunca',
       status: 'ACTIVE',
     }
 
     const created = await warehouseRepository.assignUser(assignment)
-
-    await warehouseRepository.addAuditLog({
-      id: `aud-${Date.now()}`,
-      action: 'USER_ASSIGNED',
-      locationId,
-      locationName: loc.name,
-      userId: currentUser.id,
-      userName: currentUser.name,
-      timestamp: 'Justo ahora',
-      changes: {
-        details: `Usuario ${userName} asignado como ${role}`,
-      },
-    })
 
     return created
   }
@@ -574,20 +501,7 @@ export class WarehouseService {
     const loc = await warehouseRepository.findById(locationId)
     await warehouseRepository.unassignUser(userId, locationId)
 
-    if (loc) {
-      await warehouseRepository.addAuditLog({
-        id: `aud-${Date.now()}`,
-        action: 'USER_UNASSIGNED',
-        locationId,
-        locationName: loc.name,
-        userId: currentUser.id,
-        userName: currentUser.name,
-        timestamp: 'Justo ahora',
-        changes: {
-          details: `Usuario ${userId} desvinculado de la bodega`,
-        },
-      })
-    }
+
   }
 
   async getAuditLogs(locationId: string): Promise<WarehouseAuditLog[]> {

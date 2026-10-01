@@ -1,22 +1,23 @@
 'use client'
 
 import { useMemo } from 'react'
-import { userService } from '../services/user.service'
-import { UserPermission, UserRole } from '../types'
+import { useAuth } from '@/features/auth'
+import { UserRole } from '../types'
 
-export function useUserPermissions(role: UserRole = 'SUPERADMIN') {
+export function useUserPermissions(role?: UserRole) {
+  const { user, hasPermission } = useAuth()
+  const effectiveRole = (role || user?.roleCode || 'SUPERADMIN') as UserRole
+
   return useMemo(() => {
-    const can = (perm: UserPermission) => userService.hasUserPermission(perm, role)
-
     return {
-      canRead: can('users.read'),
-      canCreate: can('users.create'),
-      canUpdate: can('users.update'),
-      canActivate: can('users.activate'),
-      canAssign: can('users.assign'),
-      canViewActivity: can('users.view_activity'),
-      canExport: can('users.export'),
-      role,
+      canRead: hasPermission('users.read'),
+      canCreate: hasPermission('users.create'),
+      canUpdate: hasPermission('users.update'),
+      canActivate: hasPermission('users.activate'),
+      canAssign: hasPermission('users.assign'),
+      canViewActivity: hasPermission('users.view_activity'),
+      canExport: hasPermission('users.export'),
+      role: effectiveRole,
     }
-  }, [role])
+  }, [hasPermission, effectiveRole])
 }

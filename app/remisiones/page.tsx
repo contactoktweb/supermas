@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { APP_MODULES } from '@/components/navigation/modules'
 import { GlobalSearch } from '@/components/navigation/GlobalSearch'
 import { NotificationButton } from '@/components/navigation/NotificationButton'
+import { UserMini } from '@/components/navigation/UserMini'
+import { TopAvatar } from '@/components/navigation/TopAvatar'
 
 const modules = APP_MODULES
 
@@ -78,6 +80,7 @@ export default function RemissionsRoutePage() {
             </Link>
           ))}
         </nav>
+        <UserMini />
       </aside>
 
       {/* Main Area */}
@@ -96,15 +99,7 @@ export default function RemissionsRoutePage() {
 
           <div className="topbar-actions">
             <NotificationButton count={3} />
-            <div className="topbar-user">
-              <div className="topbar-avatar">
-                <span>AM</span>
-              </div>
-              <div className="topbar-user-info">
-                <strong>Admin Mauricio</strong>
-                <small>Administrador</small>
-              </div>
-            </div>
+            <TopAvatar />
           </div>
         </header>
 

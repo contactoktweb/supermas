@@ -22,23 +22,7 @@ import ecommerceSettingsData from './mock-db/ecommerce_settings.json'
 import settingsData from './mock-db/settings.json'
 import usersData from './mock-db/users.json'
 
-// Usuario administrador inicial para permitir el acceso y configuración del sistema
-const initialAdminUser = usersData.find((u) => u.role === 'SUPERADMIN') || {
-  id: 'usr-001',
-  name: 'Mauricio Andrade',
-  firstName: 'Mauricio',
-  lastName: 'Andrade',
-  email: 'admin@supermas.com.co',
-  username: 'mandrade',
-  phone: '+57 310 445 8821',
-  role: 'SUPERADMIN',
-  status: 'ACTIVE',
-  locationIds: [],
-  locationName: 'Administración Central',
-  avatar: 'MA',
-  createdAt: new Date().toISOString(),
-  lastLoginAt: new Date().toISOString(),
-}
+// Sin usuarios mock hardcodeados en db.ts (la autenticación opera fiduciariamente contra Supabase Auth y PostgreSQL)
 
 // Métricas de dashboard en ceros absolutos (sin datos simulados)
 const emptyDashboardMetrics = {
@@ -99,7 +83,7 @@ const emptyDashboardMetrics = {
   inventoryDistribution: [],
   quickActions: [
     { id: 'qa-1', title: 'Nueva Venta POS', subtitle: 'Facturación directa en caja', icon: 'pos', targetView: 'POS', requiredPermission: 'pos.sell', highlight: true },
-    { id: 'qa-2', title: 'Nuevo Producto', subtitle: 'Registrar producto en catálogo', icon: 'products', targetView: 'Productos', requiredPermission: 'product.create' },
+    { id: 'qa-2', title: 'Nuevo Producto', subtitle: 'Registrar producto en catálogo', icon: 'products', targetView: 'Productos', requiredPermission: 'products.create' },
     { id: 'qa-3', title: 'Nueva Compra', subtitle: 'Orden de compra a proveedor', icon: 'purchases', targetView: 'Compras', requiredPermission: 'purchase.create' },
     { id: 'qa-4', title: 'Configurar Bodega', subtitle: 'Registrar sede o bodega', icon: 'warehouse', targetView: 'Bodegas', requiredPermission: 'warehouse.write' },
   ],
@@ -220,7 +204,23 @@ export const db = {
   userAssignments: [] as any[],
 
   // Tablas de configuración inicial del sistema (Fase 6: Permitidas sin datos comerciales)
-  users: [initialAdminUser] as typeof usersData,
+  users: [] as Array<{
+    id: string
+    name: string
+    firstName?: string
+    lastName?: string
+    email: string
+    username?: string
+    phone?: string
+    role: string
+    roleName?: string
+    status?: string
+    locationIds?: string[]
+    locationName?: string
+    avatar?: string
+    createdAt?: string
+    lastLoginAt?: string | null
+  }>,
   taxConfigs: taxConfigsData,
   accountingAccounts: accountingAccountsData,
   accountingPeriods: accountingPeriodsData,

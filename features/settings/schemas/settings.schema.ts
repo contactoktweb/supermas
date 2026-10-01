@@ -5,25 +5,31 @@
 import { z } from 'zod'
 
 export const companySettingsSchema = z.object({
-  companyName: z.string().min(2, 'El nombre de la empresa debe tener al menos 2 caracteres'),
+  id: z.string().uuid().optional(),
+  companyName: z.string().min(2, 'El nombre comercial debe tener al menos 2 caracteres'),
   legalName: z.string().min(2, 'La razón social es obligatoria'),
-  nit: z.string().regex(/^\d{3}\.\d{3}\.\d{3}-\d$/, 'Formato de NIT inválido (ej. 900.842.109-4)'),
-  dv: z.string().length(1, 'El dígito de verificación debe ser de 1 dígito'),
+  nit: z
+    .string()
+    .min(5, 'El NIT debe tener al menos 5 dígitos')
+    .regex(/^[\d\.\-]+$/, 'El NIT solo puede contener dígitos, puntos o guiones'),
+  dv: z.string().length(1, 'El dígito de verificación debe ser de 1 dígito (0-9)'),
   fiscalRegime: z.string().min(2, 'El régimen fiscal es obligatorio'),
   economicActivityCode: z.string().min(4, 'Código de actividad económica CIIU requerido'),
-  legalRepresentative: z.string().min(3, 'El representante legal es obligatorio'),
-  legalRepresentativeDoc: z.string().min(4, 'Documento de representante legal requerido'),
-  address: z.string().min(5, 'Dirección requerida'),
+  legalRepresentative: z.string().optional().default(''),
+  legalRepresentativeDoc: z.string().optional().default(''),
+  address: z.string().min(3, 'Dirección requerida'),
   city: z.string().min(2, 'Ciudad requerida'),
   department: z.string().min(2, 'Departamento requerido'),
+  country: z.string().optional().default('Colombia'),
   postalCode: z.string().optional().default('050001'),
   phone: z.string().min(7, 'Teléfono requerido'),
-  mobile: z.string().min(10, 'Celular requerido'),
+  mobile: z.string().optional().default(''),
   email: z.string().email('Correo electrónico corporativo inválido'),
-  billingEmail: z.string().email('Correo de facturación electrónica inválido'),
-  website: z.string().url('URL del sitio web inválida').or(z.string().min(3)),
-  logoUrl: z.string().min(1, 'URL o ruta del logotipo requerida'),
+  billingEmail: z.string().email('Correo de facturación electrónica inválido').or(z.string().optional().default('')),
+  website: z.string().optional().default(''),
+  logoUrl: z.string().optional().default('/super-mas-logo.svg'),
   currency: z.string().default('COP'),
+  status: z.enum(['ACTIVE', 'INACTIVE']).optional().default('ACTIVE'),
   timezone: z.string().default('America/Bogota'),
   commercialDescription: z.string().max(500).optional().default(''),
 })

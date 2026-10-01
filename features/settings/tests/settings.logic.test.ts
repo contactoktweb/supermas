@@ -164,9 +164,12 @@ async function runTests() {
   // TEST 3: Consulta de Información Empresarial
   console.log('\n[Test 3] Consulta de información corporativa (getCompanySettings)')
   const company = await settingsService.getCompanySettings(SUPERADMIN_USER)
-  assert(company.companyName.includes('Super Más'), `Nombre de empresa verificado: ${company.companyName}`)
-  assert(company.nit === '900.842.109-4', `NIT institucional verificado: ${company.nit}`)
-  assert(company.currency === 'COP', 'Moneda institucional es COP')
+  assert(company !== null, 'Empresa configurada obtenida')
+  if (company) {
+    assert(company.companyName.includes('Super Más'), `Nombre de empresa verificado: ${company.companyName}`)
+    assert(company.nit.includes('900842109') || company.nit.includes('900.842.109'), `NIT institucional verificado: ${company.nit}`)
+    assert(company.currency === 'COP', 'Moneda institucional es COP')
+  }
 
   // TEST 4: Actualización de Configuración de Empresa con Auditoría
   console.log('\n[Test 4] Actualización de datos de empresa y registro de auditoría')

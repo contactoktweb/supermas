@@ -48,8 +48,9 @@ export const NAV_SECTIONS: NavSection[] = [
     id: 'compras',
     title: 'COMPRAS',
     items: [
-      { id: 'compras', label: 'Compras', icon: 'purchases', path: '/compras', permission: 'purchases.read' },
       { id: 'proveedores', label: 'Proveedores', icon: 'suppliers', path: '/proveedores', permission: 'suppliers.read' },
+      { id: 'compras', label: 'Compras', icon: 'purchases', path: '/compras', permission: 'purchases.read' },
+      { id: 'cuentas-por-pagar', label: 'Cuentas por Pagar', icon: 'wallet', path: '/cuentas-por-pagar', permission: 'purchases.read' },
     ],
   },
   {

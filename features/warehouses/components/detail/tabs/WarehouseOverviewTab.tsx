@@ -52,26 +52,17 @@ export function WarehouseOverviewTab({
   const [analytics, setAnalytics] = useState<{
     topSelling: { name: string; sku: string; sales: string; units: number }[]
     categoriesDistribution: { name: string; pct: string; value: string }[]
+    weeklyData: { day: string; sales: number; profit: number; ops: number }[]
   }>({
     topSelling: [],
     categoriesDistribution: [],
+    weeklyData: [],
   })
 
   useEffect(() => {
     warehouseService.getWarehouseOverviewAnalytics(warehouse.id).then((res) => {
-      if (res && res.categoriesDistribution && res.categoriesDistribution.length > 0) {
+      if (res) {
         setAnalytics(res)
-      } else {
-        setAnalytics({
-          topSelling: res?.topSelling || [],
-          categoriesDistribution: [
-            { name: 'Granos y Abastos', pct: '38%', value: '$93.4M' },
-            { name: 'Despensa y Aceites', pct: '26%', value: '$63.9M' },
-            { name: 'Lácteos y Refrigerados', pct: '18%', value: '$44.2M' },
-            { name: 'Bebidas y Líquidos', pct: '12%', value: '$29.5M' },
-            { name: 'Enlatados y Otros', pct: '6%', value: '$14.7M' },
-          ],
-        })
       }
     })
   }, [warehouse.id])
@@ -81,30 +72,45 @@ export function WarehouseOverviewTab({
   )
 
   const topSelling = analytics.topSelling
-  const categoriesDistribution =
-    analytics.categoriesDistribution.length > 0
-      ? analytics.categoriesDistribution
+
+  // Distribución de categorías: cálculo dinámico real a partir del inventario cargado o analytics
+  const categoriesDistribution = React.useMemo(() => {
+    if (analytics.categoriesDistribution && analytics.categoriesDistribution.length > 0) {
+      return analytics.categoriesDistribution
+    }
+    const catMap: Record<string, number> = {}
+    let totalVal = 0
+    for (const item of inventory) {
+      const cat = item.category || 'General'
+      const val = item.totalValueAtCost || 0
+      catMap[cat] = (catMap[cat] || 0) + val
+      totalVal += val
+    }
+    return Object.entries(catMap)
+      .map(([name, val]) => ({
+        name,
+        pct: totalVal > 0 ? `${Math.round((val / totalVal) * 100)}%` : '0%',
+        value: formatCOP(val, true),
+        rawVal: val,
+      }))
+      .sort((a, b) => b.rawVal - a.rawVal)
+      .slice(0, 6)
+      .map(({ name, pct, value }) => ({ name, pct, value }))
+  }, [analytics.categoriesDistribution, inventory])
+
+  // Desempeño semanal real de los últimos 7 días desde public.sales
+  const weeklyData =
+    analytics.weeklyData && analytics.weeklyData.length > 0
+      ? analytics.weeklyData
       : [
-          { name: 'Granos y Abastos', pct: '38%', value: '$93.4M' },
-          { name: 'Despensa y Aceites', pct: '26%', value: '$63.9M' },
-          { name: 'Lácteos y Refrigerados', pct: '18%', value: '$44.2M' },
-          { name: 'Bebidas y Líquidos', pct: '12%', value: '$29.5M' },
-          { name: 'Enlatados y Otros', pct: '6%', value: '$14.7M' },
+          { day: 'Lun', sales: 0, profit: 0, ops: 0 },
+          { day: 'Mar', sales: 0, profit: 0, ops: 0 },
+          { day: 'Mié', sales: 0, profit: 0, ops: 0 },
+          { day: 'Jue', sales: 0, profit: 0, ops: 0 },
+          { day: 'Vie', sales: 0, profit: 0, ops: 0 },
+          { day: 'Sáb', sales: 0, profit: 0, ops: 0 },
+          { day: 'Hoy', sales: Number(warehouse.todaySalesAmount || 0), profit: Number(warehouse.estimatedProfit || 0), ops: 0 },
         ]
-
-  // Data for the 7-day sales and performance chart
-  const todaySales = warehouse.todaySalesAmount || 8420000
-  const todayProfit = warehouse.estimatedProfit || Math.round(todaySales * 0.258)
-
-  const weeklyData = [
-    { day: 'Lun', sales: Math.round(todaySales * 0.81), profit: Math.round(todayProfit * 0.78), ops: 112 },
-    { day: 'Mar', sales: Math.round(todaySales * 1.02), profit: Math.round(todayProfit * 1.05), ops: 138 },
-    { day: 'Mié', sales: Math.round(todaySales * 0.86), profit: Math.round(todayProfit * 0.84), ops: 119 },
-    { day: 'Jue', sales: Math.round(todaySales * 1.28), profit: Math.round(todayProfit * 1.32), ops: 164 },
-    { day: 'Vie', sales: Math.round(todaySales * 1.14), profit: Math.round(todayProfit * 1.18), ops: 152 },
-    { day: 'Sáb', sales: Math.round(todaySales * 1.36), profit: Math.round(todayProfit * 1.41), ops: 185 },
-    { day: 'Hoy', sales: todaySales, profit: todayProfit, ops: 146 },
-  ]
 
   const totalWeeklySales = weeklyData.reduce((acc, d) => acc + d.sales, 0)
   const totalWeeklyProfit = weeklyData.reduce((acc, d) => acc + d.profit, 0)
@@ -578,19 +584,26 @@ export function WarehouseOverviewTab({
           </div>
 
           <div className="admin-list" style={{ padding: '10px 0 0' }}>
-            {topSelling.map((prod, idx) => (
-              <article className="rank-row" key={prod.sku}>
-                <span className="rank">0{idx + 1}</span>
-                <div className="admin-row-icon">
-                  <AppIcon name="products" size={15} />
-                </div>
-                <div>
-                  <strong>{prod.name}</strong>
-                  <small>{prod.sku} · {prod.units} unidades vendidas</small>
-                </div>
-                <b>{prod.sales}</b>
-              </article>
-            ))}
+            {topSelling.length === 0 ? (
+              <div className="drawer-empty" style={{ minHeight: 120 }}>
+                <AppIcon name="sales" size={24} color="var(--muted)" />
+                <p>Sin ventas registradas para esta bodega todavía.</p>
+              </div>
+            ) : (
+              topSelling.map((prod, idx) => (
+                <article className="rank-row" key={prod.sku || idx}>
+                  <span className="rank">0{idx + 1}</span>
+                  <div className="admin-row-icon">
+                    <AppIcon name="products" size={15} />
+                  </div>
+                  <div>
+                    <strong>{prod.name}</strong>
+                    <small>{prod.sku} · {prod.units} unidades vendidas</small>
+                  </div>
+                  <b>{prod.sales}</b>
+                </article>
+              ))
+            )}
           </div>
         </section>
 

@@ -7,8 +7,7 @@ import * as fs from 'fs'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || 'SuperMas2026*SecureAdmin'
+const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
 
 interface TestResult {
   code: string

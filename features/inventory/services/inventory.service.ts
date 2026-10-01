@@ -11,8 +11,25 @@ import {
 } from '../types'
 import { inventoryRepository } from '../repositories/inventory.repository'
 import { kardexRepository } from '@/features/kardex/repositories/kardex.repository'
+import { supabaseClient } from '@/lib/supabase/client'
 
 export class InventoryService {
+  /**
+   * Get active locations from PostgreSQL for select dropdowns
+   */
+  public async getActiveLocations(): Promise<Array<{ id: string; code: string; name: string }>> {
+    const { data, error } = await supabaseClient
+      .from('locations')
+      .select('id, code, name')
+      .eq('status', 'ACTIVE')
+      .order('name', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching active locations:', error)
+      return []
+    }
+    return data || []
+  }
   /**
    * Check if user has cost reading permission (cost.read)
    */
@@ -84,7 +101,7 @@ export class InventoryService {
   }
 
   /**
-   * Adjust inventory: mutates stock level and registers an immutable InventoryMovement in Kardex
+   * Adjust inventory: mutates stock level via process_inventory_movement trigger by inserting an immutable movement
    */
   public async adjustStock(
     input: StockAdjustmentInput,
@@ -95,42 +112,17 @@ export class InventoryService {
     movementId: string
     movementDoc: string
   }> {
-    const { previousStock, resultingStock, updatedItem } =
-      await inventoryRepository.adjustStock(input)
-
-    // Register immutable Kardex movement
-    const movementDoc = `AJ-${Math.floor(10000 + Math.random() * 90000)}`
-    const newMovement = await kardexRepository.recordMovement({
-      productId: updatedItem.productId,
-      productName: updatedItem.productName,
-      sku: updatedItem.sku,
-      locationId: updatedItem.locationId,
-      locationName: updatedItem.locationName,
-      locationCode: updatedItem.locationCode,
-      timestamp: new Date().toISOString(),
-      type: input.type === 'IN' ? 'AJUSTE_ENTRADA' : 'AJUSTE_SALIDA',
-      sourceDocType: 'AJUSTE',
-      sourceDocNumber: movementDoc,
-      sourceDocId: movementDoc,
-      quantityIn: input.type === 'IN' ? input.quantity : 0,
-      quantityOut: input.type === 'OUT' ? input.quantity : 0,
-      previousStock,
-      resultingStock,
-      unitCost: updatedItem.averageCost,
-      totalCost: input.quantity * updatedItem.averageCost,
-      unitPrice: updatedItem.averageCost * 1.3,
-      totalPrice: input.quantity * updatedItem.averageCost * 1.3,
-      responsibleUserId: input.responsibleUserId || userCtx?.userId || 'usr-001',
-      responsibleUserName:
-        input.responsibleUserName || 'Administrador Super Más',
-      notes: `${input.reason}${input.notes ? ` — ${input.notes}` : ''}`,
-      evidenceUrl: input.evidenceUrl,
-    })
+    const { previousStock, resultingStock, movementId, movementDoc } =
+      await inventoryRepository.adjustStock({
+        ...input,
+        responsibleUserId: input.responsibleUserId || userCtx?.userId,
+        responsibleUserName: input.responsibleUserName || 'Administrador',
+      })
 
     return {
       previousStock,
       resultingStock,
-      movementId: newMovement.id,
+      movementId,
       movementDoc,
     }
   }

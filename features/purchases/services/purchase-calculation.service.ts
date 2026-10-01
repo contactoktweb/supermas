@@ -1,5 +1,4 @@
 import { CreatePurchaseItemInput, PurchaseItem } from '../types'
-import { db } from '@/lib/supabase'
 
 export interface TaxBreakdownItem {
   code: string
@@ -105,17 +104,14 @@ export class PurchaseCalculationService {
   }
 
   /**
-   * Obtiene las configuraciones tributarias desde tax_configs.json
+   * Obtiene las configuraciones tributarias vigentes (Colombia)
    */
   getTaxConfigs() {
-    return (db.taxConfigs as unknown as {
-      id: string
-      name: string
-      code: string
-      ratePercent: number
-      description?: string
-      isDefault?: boolean
-    }[]) || []
+    return [
+      { id: 'tax-19', name: 'IVA 19%', code: 'IVA_19', ratePercent: 19, description: 'Tarifa general de IVA', isDefault: true },
+      { id: 'tax-5', name: 'IVA 5%', code: 'IVA_5', ratePercent: 5, description: 'Tarifa reducida bienes gravados', isDefault: false },
+      { id: 'tax-0', name: 'Exento 0%', code: 'IVA_0', ratePercent: 0, description: 'Bienes exentos de IVA', isDefault: false },
+    ]
   }
 }
 

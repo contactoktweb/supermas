@@ -6,7 +6,6 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { PhysicalCountSession, PhysicalCountItem } from '../types'
 import { inventoryService } from '../services/inventory.service'
-import { getDbLocationOptions } from '@/lib/supabase'
 import { extractErrorMessage } from '@/lib/utils'
 
 interface InventoryPhysicalCountModalProps {
@@ -15,15 +14,14 @@ interface InventoryPhysicalCountModalProps {
   onApplyDiscrepancies: (session: PhysicalCountSession) => Promise<void>
 }
 
-const LOCATION_OPTIONS: SelectOption[] = getDbLocationOptions()
-
 export function InventoryPhysicalCountModal({
   isOpen,
   onClose,
   onApplyDiscrepancies,
 }: InventoryPhysicalCountModalProps) {
   const [mounted, setMounted] = useState(false)
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('loc-01')
+  const [locationOptions, setLocationOptions] = useState<SelectOption[]>([])
+  const [selectedLocationId, setSelectedLocationId] = useState<string>('')
   const [session, setSession] = useState<PhysicalCountSession | null>(null)
   const [notes, setNotes] = useState<string>('')
   const [isLoading, setIsLoading] = useState<boolean>(false)
@@ -33,6 +31,29 @@ export function InventoryPhysicalCountModal({
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    inventoryService
+      .getActiveLocations()
+      .then((locs) => {
+        if (isMounted) {
+          const opts = locs.map((l) => ({
+            value: l.id,
+            label: l.code ? `[${l.code}] ${l.name}` : l.name,
+          }))
+          setLocationOptions(opts)
+          if (opts.length > 0) {
+            setSelectedLocationId((prev) => prev || opts[0].value)
+          }
+        }
+      })
+      .catch((err) => console.error('Error cargando bodegas para conteo:', err))
+
+    return () => {
+      isMounted = false
+    }
   }, [])
 
   // Escape key support
@@ -57,7 +78,7 @@ export function InventoryPhysicalCountModal({
 
   // Initialize count session when location changes or modal opens
   useEffect(() => {
-    if (!isOpen) {
+    if (!isOpen || !selectedLocationId) {
       setSession(null)
       return
     }
@@ -67,7 +88,7 @@ export function InventoryPhysicalCountModal({
     setErrorMsg(null)
 
     const locName =
-      LOCATION_OPTIONS.find((l) => l.value === selectedLocationId)?.label || 'Bodega'
+      locationOptions.find((l) => l.value === selectedLocationId)?.label || 'Bodega'
 
     inventoryService
       .startPhysicalCountSession(selectedLocationId, locName)
@@ -87,7 +108,7 @@ export function InventoryPhysicalCountModal({
     return () => {
       isMounted = false
     }
-  }, [isOpen, selectedLocationId])
+  }, [isOpen, selectedLocationId, locationOptions])
 
   if (!isOpen || !mounted) return null
 
@@ -191,7 +212,7 @@ export function InventoryPhysicalCountModal({
               <CustomSelect
                 value={selectedLocationId}
                 onChange={(val) => setSelectedLocationId(val)}
-                options={LOCATION_OPTIONS}
+                options={locationOptions}
                 size="sm"
               />
             </div>

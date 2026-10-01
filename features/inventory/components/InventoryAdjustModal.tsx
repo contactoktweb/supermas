@@ -7,7 +7,7 @@ import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { StockAdjustmentInput, ConsolidatedProductStock, InventoryStockLevel } from '../types'
 import { stockAdjustmentSchema } from '../schemas/inventory.schema'
-import { getDbLocationOptions } from '@/lib/supabase'
+import { inventoryService } from '../services/inventory.service'
 import { useAuth } from '@/features/auth'
 import { extractErrorMessage } from '@/lib/utils'
 
@@ -21,8 +21,6 @@ interface InventoryAdjustModalProps {
   onSubmit: (data: StockAdjustmentInput) => Promise<void>
 }
 
-const LOCATION_OPTIONS: SelectOption[] = getDbLocationOptions()
-
 export function InventoryAdjustModal({
   isOpen,
   productId,
@@ -33,8 +31,9 @@ export function InventoryAdjustModal({
   onSubmit,
 }: InventoryAdjustModalProps) {
   const [mounted, setMounted] = useState(false)
+  const [locationOptions, setLocationOptions] = useState<SelectOption[]>([])
   const [selectedProductId, setSelectedProductId] = useState<string>(productId || '')
-  const [selectedLocationId, setSelectedLocationId] = useState<string>(locationId || 'loc-01')
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(locationId || '')
   const [adjustmentType, setAdjustmentType] = useState<'IN' | 'OUT'>('IN')
   const [quantity, setQuantity] = useState<number>(1)
   const [reason, setReason] = useState<string>('')
@@ -52,9 +51,31 @@ export function InventoryAdjustModal({
   }, [])
 
   useEffect(() => {
+    let isMounted = true
+    inventoryService
+      .getActiveLocations()
+      .then((locs) => {
+        if (isMounted) {
+          const opts = locs.map((l) => ({
+            value: l.id,
+            label: l.code ? `[${l.code}] ${l.name}` : l.name,
+          }))
+          setLocationOptions(opts)
+          if (!locationId && opts.length > 0) {
+            setSelectedLocationId((prev) => prev || opts[0].value)
+          }
+        }
+      })
+      .catch((err) => console.error('Error cargando bodegas para ajuste:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [locationId])
+
+  useEffect(() => {
     if (productId) setSelectedProductId(productId)
     if (locationId) setSelectedLocationId(locationId)
-    else if (!selectedLocationId) setSelectedLocationId('loc-01')
   }, [productId, locationId])
 
   // Escape key support
@@ -183,7 +204,7 @@ export function InventoryAdjustModal({
               <CustomSelect
                 value={selectedLocationId}
                 onChange={(val) => setSelectedLocationId(val)}
-                options={LOCATION_OPTIONS}
+                options={locationOptions}
                 placeholder="Seleccionar bodega..."
                 size="md"
               />

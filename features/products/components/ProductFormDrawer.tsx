@@ -20,6 +20,7 @@ import { productService } from '../services/product.service'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
 import { extractErrorMessage } from '@/lib/utils'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface ProductFormDrawerProps {
   isOpen: boolean
@@ -48,9 +49,11 @@ export function ProductFormDrawer({
   onSubmit,
 }: ProductFormDrawerProps) {
   const [mounted, setMounted] = useState(false)
-  const [activeTab, setActiveTab] = useState<'info' | 'prices' | 'tax' | 'web' | 'governance'>('info')
+  const [activeTab, setActiveTab] = useState<'info' | 'prices' | 'initialStock' | 'tax' | 'web' | 'governance'>('info')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [activeWarehouses, setActiveWarehouses] = useState<{ id: string; code: string; name: string }[]>([])
+  const [initialStockMap, setInitialStockMap] = useState<Record<string, { quantity: number; unitCost: number }>>({})
 
   // Form States
   const [name, setName] = useState('')
@@ -115,16 +118,17 @@ export function ProductFormDrawer({
       categoryService.listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' }),
       brandService.listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' }),
       productService.getTaxConfigs(),
+      supabaseClient.from('locations').select('id, code, name').eq('status', 'ACTIVE').order('name', { ascending: true }),
     ])
-      .then(([catsRes, brandsRes, taxesRes]) => {
+      .then(([catsRes, brandsRes, taxesRes, locsRes]) => {
         if (!isMounted) return
 
-        const cats: SelectOption[] = (catsRes.data || []).map((c) => ({
+        const cats: SelectOption[] = ((catsRes as any).data || []).map((c: any) => ({
           value: c.id,
           label: `${c.level > 0 ? '— '.repeat(c.level) : ''}${c.name}`,
         }))
 
-        const brands: SelectOption[] = (brandsRes.data || []).map((b) => ({
+        const brands: SelectOption[] = ((brandsRes as any).data || []).map((b: any) => ({
           value: b.id,
           label: b.name,
         }))
@@ -132,6 +136,9 @@ export function ProductFormDrawer({
         setCategoryOptions(cats)
         setBrandOptions(brands)
         setTaxRates(taxesRes || [])
+        if (locsRes?.data) {
+          setActiveWarehouses(locsRes.data)
+        }
 
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
@@ -303,6 +310,19 @@ export function ProductFormDrawer({
       })
     })
 
+    const initialStockPayload = activeWarehouses
+      .map((w) => {
+        const item = initialStockMap[w.id] || { quantity: 0, unitCost: estimatedCost }
+        return {
+          locationId: w.id,
+          locationName: w.name,
+          locationCode: w.code,
+          quantity: Number(item.quantity || 0),
+          unitCost: Number(item.unitCost !== undefined && item.unitCost !== null && item.unitCost > 0 ? item.unitCost : estimatedCost || 0),
+        }
+      })
+      .filter((s) => s.quantity > 0)
+
     const payload: CreateProductInput = {
       name: name.trim(),
       sku: sku.trim().toUpperCase(),
@@ -316,10 +336,12 @@ export function ProductFormDrawer({
       taxProfile,
       vatRatePercent: Number(vatRatePercent),
       prices: pricesPayload,
+      costPrice: Number(estimatedCost || 0),
       minStockThreshold: Number(minStockThreshold),
       criticalStockThreshold: Number(criticalStockThreshold),
       webSuperMas,
       webDistribuidora,
+      initialStock: initialStockPayload,
     }
 
     try {
@@ -431,6 +453,31 @@ export function ProductFormDrawer({
             <AppIcon name="sales" size={14} />
             <span>Precios</span>
           </button>
+
+          {mode === 'create' && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'initialStock'}
+              className={activeTab === 'initialStock' ? 'active' : ''}
+              onClick={() => setActiveTab('initialStock')}
+            >
+              <AppIcon name="inventory" size={14} />
+              <span>Inventario Inicial</span>
+              {Object.values(initialStockMap).some((s) => s.quantity > 0) && (
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: 'var(--green, #16a34a)',
+                    marginLeft: 4,
+                  }}
+                />
+              )}
+            </button>
+          )}
 
           <button
             type="button"
@@ -1033,6 +1080,166 @@ export function ProductFormDrawer({
                     </strong>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: INVENTARIO INICIAL (SOLO AL CREAR PRODUCTO) */}
+          {activeTab === 'initialStock' && mode === 'create' && (
+            <div className="form-tab-content page-enter">
+              <div
+                className="info-banner-compact"
+                style={{
+                  background: '#f0f9ff',
+                  borderColor: '#bae6fd',
+                  color: '#0369a1',
+                }}
+              >
+                <AppIcon name="inventory" size={16} />
+                <span>
+                  Indica las existencias iniciales por bodega física. Si una bodega tiene 0 unidades, no se generará movimiento innecesario. Para cantidades mayores a 0, se registrará una entrada formal en el Kardex (<code>POSITIVE_ADJUSTMENT</code>) con tipo de documento <code>INVENTARIO_INICIAL</code> y la base de datos actualizará el saldo mediante <code>process_inventory_movement()</code>.
+                </span>
+              </div>
+
+              <div style={{ marginTop: 16 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 12,
+                  }}
+                >
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>
+                    Bodegas Físicas Activas ({activeWarehouses.length})
+                  </h4>
+                  <span className="time-muted" style={{ fontSize: 12 }}>
+                    Costo base de referencia: ${Number(estimatedCost || 0).toLocaleString('es-CO')}
+                  </span>
+                </div>
+
+                {activeWarehouses.length === 0 ? (
+                  <div
+                    className="empty-state-card"
+                    style={{ padding: 24, textAlign: 'center', background: '#f8fafc', borderRadius: 8 }}
+                  >
+                    <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
+                      No se encontraron bodegas activas en la empresa.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {activeWarehouses.map((w) => {
+                      const currentItem = initialStockMap[w.id] || {
+                        quantity: 0,
+                        unitCost: estimatedCost || 0,
+                      }
+                      const qty = Number(currentItem.quantity || 0)
+                      const cost = Number(
+                        currentItem.unitCost !== undefined &&
+                          currentItem.unitCost !== null &&
+                          currentItem.unitCost > 0
+                          ? currentItem.unitCost
+                          : estimatedCost || 0
+                      )
+                      const subtotal = qty * cost
+
+                      return (
+                        <div
+                          key={w.id}
+                          style={{
+                            padding: '14px 16px',
+                            background: qty > 0 ? '#f0fdf4' : '#ffffff',
+                            border: `1px solid ${qty > 0 ? '#86efac' : '#e2e8f0'}`,
+                            borderRadius: 8,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              marginBottom: 10,
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <AppIcon name="warehouse" size={16} />
+                              <strong style={{ fontSize: 14, color: 'var(--navy)' }}>{w.name}</strong>
+                              <span className="code-badge">{w.code}</span>
+                            </div>
+                            {qty > 0 && (
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: 'var(--green, #16a34a)',
+                                }}
+                              >
+                                Valor inicial: ${subtotal.toLocaleString('es-CO')}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="form-grid-2">
+                            <div className="form-field">
+                              <label style={{ fontSize: 12, fontWeight: 600 }}>
+                                Cantidad inicial (uds)
+                              </label>
+                              <div className="input-wrap">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={currentItem.quantity || ''}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, Number(e.target.value) || 0)
+                                    setInitialStockMap((prev) => ({
+                                      ...prev,
+                                      [w.id]: {
+                                        ...prev[w.id],
+                                        quantity: val,
+                                        unitCost: prev[w.id]?.unitCost ?? (estimatedCost || 0),
+                                      },
+                                    }))
+                                  }}
+                                  placeholder="0"
+                                />
+                                <span className="input-suffix">{unitOfMeasure}</span>
+                              </div>
+                            </div>
+
+                            <div className="form-field">
+                              <label style={{ fontSize: 12, fontWeight: 600 }}>
+                                Costo unitario de entrada ($)
+                              </label>
+                              <div className="input-wrap">
+                                <span className="input-prefix">$</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={100}
+                                  value={currentItem.unitCost || ''}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, Number(e.target.value) || 0)
+                                    setInitialStockMap((prev) => ({
+                                      ...prev,
+                                      [w.id]: {
+                                        ...prev[w.id],
+                                        quantity: prev[w.id]?.quantity || 0,
+                                        unitCost: val,
+                                      },
+                                    }))
+                                  }}
+                                  placeholder={String(estimatedCost || 0)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}

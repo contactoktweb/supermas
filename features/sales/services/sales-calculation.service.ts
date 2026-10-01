@@ -1,4 +1,3 @@
-import { db } from '@/lib/supabase'
 import { SaleItem, CreateSaleItemDTO } from '../types'
 
 export interface ProductSource {
@@ -40,9 +39,8 @@ export class SalesCalculationService {
       return product.vatRatePercent
     }
 
-    // Buscar en configuración de impuestos activa
-    const defaultTax = db.taxConfigs?.find((t) => t.isDefault)
-    return defaultTax ? defaultTax.ratePercent : 19
+// Default IVA rate fallback
+    return 19
   }
 
   /**

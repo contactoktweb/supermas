@@ -8,17 +8,11 @@ import {
   StockHealthStatus,
   LocationStockBreakdown,
 } from '../types'
-import { supabaseClient, supabaseMock } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 export class InventoryRepository {
-  private stockLevels: InventoryStockLevel[] = []
-
-  constructor() {
-    this.stockLevels = []
-  }
-
   /**
-   * Determine stock health dynamically based on current, min, and critical stock
+   * Determina la salud del stock dinámicamente con base en saldo actual, mínimo y crítico
    */
   public calculateStockHealth(
     current: number,
@@ -32,14 +26,135 @@ export class InventoryRepository {
   }
 
   /**
-   * Get filtered stock levels (By Location view)
+   * Resuelve el company_id del usuario autenticado actual bajo RLS
+   */
+  private async resolveCompanyId(): Promise<string> {
+    const { data: authUser } = await supabaseClient.auth.getUser()
+    if (authUser.user) {
+      const { data: userRow } = await supabaseClient
+        .from('users')
+        .select('company_id')
+        .eq('id', authUser.user.id)
+        .maybeSingle()
+      if (userRow?.company_id) return userRow.company_id
+    }
+    const { data: comp } = await supabaseClient
+      .from('companies')
+      .select('id')
+      .limit(1)
+      .single()
+    if (comp?.id) return comp.id
+    throw new Error('No se pudo resolver la empresa asociada para operaciones de inventario.')
+  }
+
+  /**
+   * Obtiene las existencias de inventario por bodega directamente desde Supabase/PostgreSQL.
+   * Regla Fase 4: Todo producto activo de la empresa aparece en cada bodega autorizada;
+   * si no existe fila en stock_levels, se visualiza con cantidad 0 sin registros artificiales.
    */
   public async getStockLevelsByLocation(
     params: InventoryFilterParams
   ): Promise<{ data: InventoryStockLevel[]; total: number }> {
-    let list = [...this.stockLevels]
+    // 1. Obtener productos activos
+    const { data: productsData, error: prodErr } = await supabaseClient
+      .from('products')
+      .select(`
+        id,
+        sku,
+        barcode,
+        name,
+        unit_of_measure,
+        cost_price,
+        primary_image_url,
+        categories ( name ),
+        brands ( name )
+      `)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
 
-    // 1. Text Search (Name, SKU, Barcode)
+    if (prodErr || !productsData) {
+      console.error('Error al consultar productos en inventario:', prodErr)
+      return { data: [], total: 0 }
+    }
+
+    // 2. Obtener bodegas activas
+    let locQuery = supabaseClient
+      .from('locations')
+      .select('id, code, name')
+      .eq('status', 'ACTIVE')
+
+    if (params.locationId && params.locationId !== 'ALL') {
+      locQuery = locQuery.eq('id', params.locationId)
+    }
+
+    const { data: locationsData, error: locErr } = await locQuery
+    if (locErr || !locationsData) {
+      console.error('Error al consultar bodegas en inventario:', locErr)
+      return { data: [], total: 0 }
+    }
+
+    // 3. Obtener niveles de stock reales desde public.stock_levels
+    let stockQuery = supabaseClient
+      .from('stock_levels')
+      .select('id, product_id, location_id, quantity, min_stock, max_stock, average_cost, health_status, last_movement_at')
+
+    if (params.locationId && params.locationId !== 'ALL') {
+      stockQuery = stockQuery.eq('location_id', params.locationId)
+    }
+
+    const { data: stockLevelsData, error: stockErr } = await stockQuery
+    if (stockErr) {
+      console.error('Error al consultar stock_levels:', stockErr)
+    }
+
+    const stockMap = new Map<string, any>()
+    if (stockLevelsData) {
+      for (const sl of stockLevelsData) {
+        stockMap.set(`${sl.product_id}_${sl.location_id}`, sl)
+      }
+    }
+
+    // 4. Cruzar productos con bodegas (LEFT JOIN virtual)
+    let list: InventoryStockLevel[] = []
+
+    for (const loc of locationsData) {
+      for (const prod of productsData) {
+        const p = prod as any
+        const key = `${p.id}_${loc.id}`
+        const sl = stockMap.get(key)
+
+        const qty = sl ? Number(sl.quantity || 0) : 0
+        const minStock = sl ? Number(sl.min_stock || 10) : 10
+        const criticalStock = Math.max(1, Math.round(minStock * 0.3))
+        const averageCost = sl ? Number(sl.average_cost || 0) : Number(p.cost_price || 0)
+        const health = this.calculateStockHealth(qty, minStock, criticalStock)
+
+        list.push({
+          id: sl?.id || `stock-virtual-${p.id}-${loc.id}`,
+          productId: p.id,
+          productName: p.name || 'Producto',
+          sku: p.sku || 'SKU',
+          barcode: p.barcode || '',
+          category: p.categories?.name || 'General',
+          brand: p.brands?.name || 'Genérico',
+          unitOfMeasure: p.unit_of_measure || 'UND',
+          imageUrl: p.primary_image_url || undefined,
+          locationId: loc.id,
+          locationName: loc.name,
+          locationCode: loc.code,
+          currentStock: qty,
+          minStock,
+          criticalStock,
+          reorderPoint: minStock,
+          averageCost,
+          totalValueAtCost: qty * averageCost,
+          stockHealth: health,
+          lastMovementAt: sl?.last_movement_at,
+        })
+      }
+    }
+
+    // 5. Filtros en memoria
     if (params.query && params.query.trim() !== '') {
       const q = params.query.toLowerCase().trim()
       list = list.filter(
@@ -50,35 +165,26 @@ export class InventoryRepository {
       )
     }
 
-    // 2. Location filter
-    if (params.locationId && params.locationId !== 'ALL') {
-      list = list.filter((item) => item.locationId === params.locationId)
-    }
-
-    // 3. Category filter
     if (params.category && params.category !== 'ALL') {
       list = list.filter((item) => item.category === params.category)
     }
 
-    // 4. Brand filter
     if (params.brand && params.brand !== 'ALL') {
       list = list.filter((item) => item.brand === params.brand)
     }
 
-    // 5. Stock Health / Tab filter
     const activeTab = params.tab && params.tab !== 'ALL' ? params.tab : params.stockHealth
     if (activeTab && activeTab !== 'ALL') {
       list = list.filter((item) => item.stockHealth === activeTab)
     }
 
-    // 6. Has Stock presence
     if (params.hasStock === 'WITH_STOCK') {
       list = list.filter((item) => item.currentStock > 0)
     } else if (params.hasStock === 'ZERO_STOCK') {
       list = list.filter((item) => item.currentStock === 0)
     }
 
-    // 7. Sorting
+    // 6. Ordenamiento
     const sortField = params.sortField || 'productName'
     const sortDir = params.sortDirection === 'desc' ? -1 : 1
 
@@ -102,80 +208,123 @@ export class InventoryRepository {
   }
 
   /**
-   * Get consolidated stock per product across all locations
+   * Obtiene inventario consolidado por producto a través de todas las bodegas desde PostgreSQL
    */
   public async getConsolidatedStock(
     params: InventoryFilterParams
   ): Promise<{ data: ConsolidatedProductStock[]; total: number }> {
-    // Group all stockLevels by productId
-    const grouped = new Map<string, InventoryStockLevel[]>()
-    for (const item of this.stockLevels) {
-      const existing = grouped.get(item.productId) || []
-      existing.push(item)
-      grouped.set(item.productId, existing)
+    // 1. Obtener productos activos
+    const { data: productsData } = await supabaseClient
+      .from('products')
+      .select(`
+        id,
+        sku,
+        barcode,
+        name,
+        unit_of_measure,
+        cost_price,
+        primary_image_url,
+        categories ( name ),
+        brands ( name )
+      `)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
+
+    if (!productsData || productsData.length === 0) {
+      return { data: [], total: 0 }
+    }
+
+    // 2. Obtener bodegas activas
+    const { data: locationsData } = await supabaseClient
+      .from('locations')
+      .select('id, code, name')
+      .eq('status', 'ACTIVE')
+
+    const activeLocations = locationsData || []
+
+    // 3. Obtener niveles de stock reales
+    const { data: stockLevelsData } = await supabaseClient
+      .from('stock_levels')
+      .select('*')
+
+    const stockMap = new Map<string, any>()
+    if (stockLevelsData) {
+      for (const sl of stockLevelsData) {
+        stockMap.set(`${sl.product_id}_${sl.location_id}`, sl)
+      }
     }
 
     let consolidatedList: ConsolidatedProductStock[] = []
 
-    for (const [prodId, items] of grouped.entries()) {
-      const first = items[0]
-      const totalStock = items.reduce((sum, i) => sum + i.currentStock, 0)
-      const totalValueAtCost = items.reduce((sum, i) => sum + i.totalValueAtCost, 0)
-      const minStockConsolidated = items.reduce((sum, i) => sum + i.minStock, 0)
-      const criticalStockConsolidated = items.reduce((sum, i) => sum + i.criticalStock, 0)
-      const averageCost = first.averageCost
+    for (const prod of productsData) {
+      const p = prod as any
+      let totalStock = 0
+      let totalValueAtCost = 0
+      let minStockConsolidated = 0
+      let criticalStockConsolidated = 0
+      let lastMovementAt: string | undefined = undefined
 
+      const locationBreakdown: LocationStockBreakdown[] = activeLocations.map((loc) => {
+        const sl = stockMap.get(`${p.id}_${loc.id}`)
+        const stock = sl ? Number(sl.quantity || 0) : 0
+        const minStock = sl ? Number(sl.min_stock || 10) : 10
+        const criticalStock = Math.max(1, Math.round(minStock * 0.3))
+        const averageCost = sl ? Number(sl.average_cost || 0) : Number(p.cost_price || 0)
+        const health = this.calculateStockHealth(stock, minStock, criticalStock)
+        const valueAtCost = stock * averageCost
+
+        totalStock += stock
+        totalValueAtCost += valueAtCost
+        minStockConsolidated += minStock
+        criticalStockConsolidated += criticalStock
+
+        if (sl?.last_movement_at && (!lastMovementAt || new Date(sl.last_movement_at) > new Date(lastMovementAt))) {
+          lastMovementAt = sl.last_movement_at
+        }
+
+        return {
+          locationId: loc.id,
+          locationName: loc.name,
+          locationCode: loc.code,
+          stock,
+          minStock,
+          criticalStock,
+          health,
+          averageCost,
+          valueAtCost,
+          lastMovementAt: sl?.last_movement_at,
+        }
+      })
+
+      const averageCost = totalStock > 0 ? totalValueAtCost / totalStock : Number(p.cost_price || 0)
       const overallHealth = this.calculateStockHealth(
         totalStock,
         minStockConsolidated,
         criticalStockConsolidated
       )
 
-      const locationBreakdown: LocationStockBreakdown[] = items.map((i) => ({
-        locationId: i.locationId,
-        locationName: i.locationName,
-        locationCode: i.locationCode,
-        stock: i.currentStock,
-        minStock: i.minStock,
-        criticalStock: i.criticalStock,
-        health: i.stockHealth,
-        averageCost: i.averageCost,
-        valueAtCost: i.totalValueAtCost,
-        lastMovementAt: i.lastMovementAt,
-        lastMovementDoc: i.lastMovementDoc,
-      }))
-
-      // Find latest movement
-      const sortedByMovement = [...items].sort((a, b) => {
-        const dateA = a.lastMovementAt ? new Date(a.lastMovementAt).getTime() : 0
-        const dateB = b.lastMovementAt ? new Date(b.lastMovementAt).getTime() : 0
-        return dateB - dateA
-      })
-
       consolidatedList.push({
-        productId: prodId,
-        productName: first.productName,
-        sku: first.sku,
-        barcode: first.barcode,
-        category: first.category,
-        brand: first.brand,
-        unitOfMeasure: first.unitOfMeasure,
-        imageUrl: first.imageUrl,
+        productId: p.id,
+        productName: p.name || 'Producto',
+        sku: p.sku || 'SKU',
+        barcode: p.barcode || '',
+        category: p.categories?.name || 'General',
+        brand: p.brands?.name || 'Genérico',
+        unitOfMeasure: p.unit_of_measure || 'UND',
+        imageUrl: p.primary_image_url || undefined,
         totalStock,
         totalValueAtCost,
         averageCost,
         overallHealth,
         minStockConsolidated,
         criticalStockConsolidated,
-        locationsCount: items.length,
+        locationsCount: activeLocations.length,
         locationBreakdown,
-        lastMovementAt: sortedByMovement[0]?.lastMovementAt,
-        lastMovementType: sortedByMovement[0]?.lastMovementType,
-        lastMovementDoc: sortedByMovement[0]?.lastMovementDoc,
+        lastMovementAt,
       })
     }
 
-    // Apply filters on consolidated list
+    // 4. Filtros
     if (params.query && params.query.trim() !== '') {
       const q = params.query.toLowerCase().trim()
       consolidatedList = consolidatedList.filter(
@@ -188,7 +337,7 @@ export class InventoryRepository {
 
     if (params.locationId && params.locationId !== 'ALL') {
       consolidatedList = consolidatedList.filter((c) =>
-        c.locationBreakdown.some((l) => l.locationId === params.locationId)
+        c.locationBreakdown.some((l) => l.locationId === params.locationId && l.stock > 0)
       )
     }
 
@@ -202,11 +351,7 @@ export class InventoryRepository {
 
     const activeTab = params.tab && params.tab !== 'ALL' ? params.tab : params.stockHealth
     if (activeTab && activeTab !== 'ALL') {
-      consolidatedList = consolidatedList.filter(
-        (c) =>
-          c.overallHealth === activeTab ||
-          c.locationBreakdown.some((l) => l.health === activeTab)
-      )
+      consolidatedList = consolidatedList.filter((c) => c.overallHealth === activeTab)
     }
 
     if (params.hasStock === 'WITH_STOCK') {
@@ -215,7 +360,7 @@ export class InventoryRepository {
       consolidatedList = consolidatedList.filter((c) => c.totalStock === 0)
     }
 
-    // Sorting
+    // 5. Ordenamiento
     const sortField = params.sortField || 'productName'
     const sortDir = params.sortDirection === 'desc' ? -1 : 1
 
@@ -239,134 +384,234 @@ export class InventoryRepository {
   }
 
   /**
-   * Get operational KPIs
+   * Obtiene los KPIs operacionales reales desde PostgreSQL
    */
   public async getKPIs(): Promise<InventoryKPIs> {
-    const totalValueAtCost = this.stockLevels.reduce(
-      (sum, item) => sum + item.totalValueAtCost,
-      0
-    )
-    const totalUnitsAvailable = this.stockLevels.reduce(
-      (sum, item) => sum + item.currentStock,
-      0
-    )
+    const { data: stockData } = await supabaseClient
+      .from('stock_levels')
+      .select('product_id, quantity, average_cost, min_stock')
 
-    // Consolidated unique products count
-    const uniqueProducts = new Set(this.stockLevels.map((i) => i.productId))
-    let productsWithStockCount = 0
+    const { count: totalProductsCount } = await supabaseClient
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_active', true)
 
-    for (const prodId of uniqueProducts) {
-      const totalStock = this.stockLevels
-        .filter((i) => i.productId === prodId)
-        .reduce((sum, i) => sum + i.currentStock, 0)
-      if (totalStock > 0) {
-        productsWithStockCount++
+    let totalValueAtCost = 0
+    let totalUnitsAvailable = 0
+    let lowStockCount = 0
+    let criticalStockCount = 0
+    let outOfStockCount = 0
+    const productsWithStockSet = new Set<string>()
+
+    if (stockData) {
+      for (const row of stockData) {
+        const q = Number(row.quantity || 0)
+        const c = Number(row.average_cost || 0)
+        const min = Number(row.min_stock || 10)
+        const crit = Math.max(1, Math.round(min * 0.3))
+
+        totalValueAtCost += q * c
+        totalUnitsAvailable += q
+        if (q > 0) {
+          productsWithStockSet.add(row.product_id)
+        }
+        if (q === 0) outOfStockCount++
+        else if (q <= crit) criticalStockCount++
+        else if (q <= min) lowStockCount++
       }
     }
 
-    // Count stock health breakdown
-    const lowStockCount = this.stockLevels.filter(
-      (i) => i.stockHealth === 'LOW_STOCK'
-    ).length
-    const criticalStockCount = this.stockLevels.filter(
-      (i) => i.stockHealth === 'CRITICAL'
-    ).length
-    const outOfStockCount = this.stockLevels.filter(
-      (i) => i.stockHealth === 'OUT_OF_STOCK'
-    ).length
+    const totalProducts = totalProductsCount || 0
+    const productsWithStock = productsWithStockSet.size
+    const productsWithNoStockAtAll = Math.max(0, totalProducts - productsWithStock)
+    const effectiveOutOfStock = outOfStockCount + productsWithNoStockAtAll
 
     return {
       totalValueAtCost,
       totalUnitsAvailable,
-      productsWithStock: productsWithStockCount,
+      productsWithStock,
       lowStockCount,
       criticalStockCount,
-      outOfStockCount,
+      outOfStockCount: effectiveOutOfStock,
       isCostRedacted: false,
     }
   }
 
   /**
-   * Adjust stock for a product in a location
+   * Realiza un ajuste de stock insertando un movimiento real en public.inventory_movements.
+   * REGLA FASE 4: No modifica stock_levels directamente; el trigger process_inventory_movement()
+   * actualiza stock_levels de forma transaccional e inmutable.
    */
   public async adjustStock(
     input: StockAdjustmentInput
-  ): Promise<{ previousStock: number; resultingStock: number; updatedItem: InventoryStockLevel }> {
-    const itemIndex = this.stockLevels.findIndex(
-      (i) => i.productId === input.productId && i.locationId === input.locationId
-    )
+  ): Promise<{
+    previousStock: number
+    resultingStock: number
+    movementId: string
+    movementDoc: string
+    updatedItem: InventoryStockLevel
+  }> {
+    // 1. Obtener saldo previo y costo del producto
+    const { data: existingSL } = await supabaseClient
+      .from('stock_levels')
+      .select('*')
+      .eq('product_id', input.productId)
+      .eq('location_id', input.locationId)
+      .maybeSingle()
 
-    if (itemIndex === -1) {
-      throw new Error('No se encontró el registro de stock para el producto en la bodega indicada')
+    const { data: prodData } = await supabaseClient
+      .from('products')
+      .select('id, name, sku, barcode, cost_price, unit_of_measure, categories(name), brands(name)')
+      .eq('id', input.productId)
+      .single()
+
+    if (!prodData) {
+      throw new Error(`El producto con ID ${input.productId} no existe en la base de datos.`)
     }
 
-    const current = this.stockLevels[itemIndex]
-    const previousStock = current.currentStock
-    let resultingStock = previousStock
+    const previousStock = existingSL ? Number(existingSL.quantity || 0) : 0
+    const unitCost = existingSL ? Number(existingSL.average_cost || 0) : Number(prodData.cost_price || 0)
 
-    if (input.type === 'IN') {
-      resultingStock = previousStock + input.quantity
-    } else {
-      if (input.quantity > previousStock) {
-        throw new Error(
-          `No se puede realizar un ajuste de salida de ${input.quantity} unidades porque el saldo actual es de ${previousStock} unidades.`
-        )
-      }
-      resultingStock = previousStock - input.quantity
+    if (input.type === 'OUT' && input.quantity > previousStock) {
+      throw new Error(
+        `No se puede realizar un ajuste de salida de ${input.quantity} unidades porque el saldo actual en esta bodega es de ${previousStock} unidades.`
+      )
     }
 
-    const health = this.calculateStockHealth(
-      resultingStock,
-      current.minStock,
-      current.criticalStock
-    )
+    const resultingStock = input.type === 'IN' ? previousStock + input.quantity : previousStock - input.quantity
+    const companyId = await this.resolveCompanyId()
+
+    const { data: authUser } = await supabaseClient.auth.getUser()
+    const userId = input.responsibleUserId || authUser.user?.id || null
+
+    const docRef = `AJ-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`
+
+    // 2. Insertar movimiento inmutable en Kardex (inventory_movements)
+    const { data: movRow, error: movError } = await supabaseClient
+      .from('inventory_movements')
+      .insert({
+        company_id: companyId,
+        product_id: input.productId,
+        location_id: input.locationId,
+        movement_type: input.type === 'IN' ? 'POSITIVE_ADJUSTMENT' : 'NEGATIVE_ADJUSTMENT',
+        quantity_in: input.type === 'IN' ? input.quantity : 0,
+        quantity_out: input.type === 'OUT' ? input.quantity : 0,
+        previous_stock: previousStock,
+        new_stock: resultingStock,
+        unit_cost: unitCost,
+        total_cost: input.quantity * unitCost,
+        document_type: 'ADJUSTMENT',
+        document_reference: docRef,
+        reason: `${input.reason}${input.notes ? ` — ${input.notes}` : ''}`,
+        user_id: userId,
+      })
+      .select()
+      .single()
+
+    if (movError) {
+      console.error('Error insertando movimiento de inventario:', movError)
+      throw new Error(`Error al registrar ajuste de inventario: ${movError.message}`)
+    }
+
+    // 3. El trigger process_inventory_movement() ya actualizó public.stock_levels.
+    // Consultamos la fila resultante actualizada de la base de datos
+    const { data: updatedSL } = await supabaseClient
+      .from('stock_levels')
+      .select('*')
+      .eq('product_id', input.productId)
+      .eq('location_id', input.locationId)
+      .maybeSingle()
+
+    const finalStock = updatedSL ? Number(updatedSL.quantity || 0) : resultingStock
+    const finalCost = updatedSL ? Number(updatedSL.average_cost || 0) : unitCost
+    const minStock = updatedSL ? Number(updatedSL.min_stock || 10) : 10
+    const critStock = Math.max(1, Math.round(minStock * 0.3))
+    const health = this.calculateStockHealth(finalStock, minStock, critStock)
 
     const updatedItem: InventoryStockLevel = {
-      ...current,
-      currentStock: resultingStock,
-      totalValueAtCost: resultingStock * current.averageCost,
+      id: updatedSL?.id || `stock-virtual-${input.productId}-${input.locationId}`,
+      productId: input.productId,
+      productName: prodData.name || 'Producto',
+      sku: prodData.sku || 'SKU',
+      barcode: prodData.barcode || '',
+      category: (prodData.categories as any)?.name || 'General',
+      brand: (prodData.brands as any)?.name || 'Genérico',
+      unitOfMeasure: prodData.unit_of_measure || 'UND',
+      locationId: input.locationId,
+      locationName: 'Bodega',
+      locationCode: 'BOD',
+      currentStock: finalStock,
+      minStock,
+      criticalStock: critStock,
+      averageCost: finalCost,
+      totalValueAtCost: finalStock * finalCost,
       stockHealth: health,
       lastMovementAt: new Date().toISOString(),
-      lastMovementType: input.type === 'IN' ? 'AJUSTE_ENTRADA' : 'AJUSTE_SALIDA',
-      lastMovementDoc: `AJ-${Math.floor(10000 + Math.random() * 90000)}`,
+      lastMovementType: input.type === 'IN' ? 'POSITIVE_ADJUSTMENT' : 'NEGATIVE_ADJUSTMENT',
+      lastMovementDoc: docRef,
     }
 
-    this.stockLevels[itemIndex] = updatedItem
-
-    return { previousStock, resultingStock, updatedItem }
+    return {
+      previousStock,
+      resultingStock: finalStock,
+      movementId: movRow.id,
+      movementDoc: docRef,
+      updatedItem,
+    }
   }
 
   /**
-   * Update thresholds (min / critical / reorder)
+   * Actualiza los umbrales de stock en public.stock_levels
    */
   public async updateThresholds(
     input: ThresholdUpdateInput
   ): Promise<InventoryStockLevel> {
-    const itemIndex = this.stockLevels.findIndex(
-      (i) => i.productId === input.productId && i.locationId === input.locationId
-    )
+    const { data, error } = await supabaseClient
+      .from('stock_levels')
+      .update({
+        min_stock: input.minStock,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('product_id', input.productId)
+      .eq('location_id', input.locationId)
+      .select()
+      .maybeSingle()
 
-    if (itemIndex === -1) {
-      throw new Error('Producto no encontrado en la bodega seleccionada')
+    if (error) {
+      console.error('Error al actualizar umbrales de stock:', error)
+      throw new Error(`Error al actualizar umbrales: ${error.message}`)
     }
 
-    const current = this.stockLevels[itemIndex]
-    const health = this.calculateStockHealth(
-      current.currentStock,
-      input.minStock,
-      input.criticalStock
-    )
+    const { data: prodData } = await supabaseClient
+      .from('products')
+      .select('name, sku, barcode, cost_price, unit_of_measure, categories(name), brands(name)')
+      .eq('id', input.productId)
+      .single()
 
-    const updated: InventoryStockLevel = {
-      ...current,
+    const currentStock = data ? Number(data.quantity || 0) : 0
+    const critStock = Math.max(1, Math.round(input.minStock * 0.3))
+    const health = this.calculateStockHealth(currentStock, input.minStock, critStock)
+    const cost = data ? Number(data.average_cost || 0) : Number(prodData?.cost_price || 0)
+
+    return {
+      id: data?.id || `sl-${input.productId}-${input.locationId}`,
+      productId: input.productId,
+      productName: prodData?.name || 'Producto',
+      sku: prodData?.sku || 'SKU',
+      barcode: prodData?.barcode || '',
+      category: (prodData?.categories as any)?.name || 'General',
+      brand: (prodData?.brands as any)?.name || 'Genérico',
+      unitOfMeasure: prodData?.unit_of_measure || 'UND',
+      locationId: input.locationId,
+      locationName: 'Bodega',
+      locationCode: 'BOD',
+      currentStock,
       minStock: input.minStock,
-      criticalStock: input.criticalStock,
-      reorderPoint: input.reorderPoint ?? current.reorderPoint,
+      criticalStock: critStock,
+      averageCost: cost,
+      totalValueAtCost: currentStock * cost,
       stockHealth: health,
     }
-
-    this.stockLevels[itemIndex] = updated
-    return updated
   }
 }
 

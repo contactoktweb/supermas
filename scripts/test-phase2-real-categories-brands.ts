@@ -24,7 +24,7 @@ import { categoryRepository } from '../features/categories/repositories/category
 import { brandService } from '../features/brands/services/brand.service'
 import { brandRepository } from '../features/brands/repositories/brand.repository'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || 'SuperMas2026*SecureAdmin'
+const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
 
 interface TestResult {
   code: string

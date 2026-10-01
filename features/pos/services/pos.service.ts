@@ -9,14 +9,13 @@ import {
   POSDailySaleSummary,
   POSUserContext,
 } from '../types'
-import { db } from '@/lib/supabase'
 
 const DEFAULT_POS_USER: POSUserContext = {
   userId: 'usr-cajero-01',
   userName: 'Cajero Principal',
   userRole: 'Cajero Operativo',
-  locationId: 'loc-001',
-  locationName: 'Bodega Principal (CEDI)',
+  locationId: '',
+  locationName: 'Punto de Venta',
   cashRegisterNumber: 'CAJA-01',
   permissions: ['pos.access', 'pos.create_sale', 'pos.discount', 'pos.view_history'],
 }

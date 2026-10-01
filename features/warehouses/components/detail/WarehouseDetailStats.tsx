@@ -13,6 +13,10 @@ interface WarehouseDetailStatsProps {
   canReadCost: boolean
   customRange?: { startDate: string; endDate: string }
   onCustomRangeChange?: (range: { startDate: string; endDate: string }) => void
+  periodSalesAmount?: number
+  periodPurchasesAmount?: number
+  periodProfitAmount?: number
+  periodMarginPercent?: number
 }
 
 export function WarehouseDetailStats({
@@ -22,16 +26,33 @@ export function WarehouseDetailStats({
   canReadCost,
   customRange = { startDate: '2026-08-01', endDate: '2026-08-31' },
   onCustomRangeChange,
+  periodSalesAmount,
+  periodPurchasesAmount,
+  periodProfitAmount,
+  periodMarginPercent,
 }: WarehouseDetailStatsProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false)
 
+  const salesValue = periodSalesAmount !== undefined
+    ? periodSalesAmount
+    : (period === 'TODAY' ? warehouse.todaySalesAmount : warehouse.monthSalesAmount)
+
+  const purchasesValue = periodPurchasesAmount !== undefined
+    ? periodPurchasesAmount
+    : warehouse.monthPurchasesAmount
+
+  const profitValue = periodProfitAmount !== undefined
+    ? periodProfitAmount
+    : warehouse.estimatedProfit
+
+  const marginValue = periodMarginPercent !== undefined
+    ? periodMarginPercent
+    : warehouse.profitMarginPercent
+
   const formattedInv = useCountUp(warehouse.inventoryValueAtCost, { isCurrency: true })
-  const formattedSales = useCountUp(
-    period === 'TODAY' ? warehouse.todaySalesAmount : warehouse.monthSalesAmount,
-    { isCurrency: true }
-  )
-  const formattedPurchases = useCountUp(warehouse.monthPurchasesAmount, { isCurrency: true })
-  const formattedProfit = useCountUp(warehouse.estimatedProfit, { isCurrency: true })
+  const formattedSales = useCountUp(salesValue, { isCurrency: true })
+  const formattedPurchases = useCountUp(purchasesValue, { isCurrency: true })
+  const formattedProfit = useCountUp(profitValue, { isCurrency: true })
 
   const handlePeriodClick = (key: PeriodFilter) => {
     if (key === 'CUSTOM') {
@@ -139,9 +160,23 @@ export function WarehouseDetailStats({
             <AppIcon name="sales" size={18} />
           </div>
           <div className="stat-text">
-            <span>{period === 'TODAY' ? 'Ventas de hoy' : 'Ventas del periodo'}</span>
+            <span>
+              {period === 'TODAY'
+                ? 'Ventas de hoy'
+                : period === '7_DAYS'
+                ? 'Ventas 7 días'
+                : period === '30_DAYS'
+                ? 'Ventas 30 días'
+                : period === 'MONTH'
+                ? 'Ventas del mes'
+                : period === 'YEAR'
+                ? 'Ventas del año'
+                : 'Ventas periodo'}
+            </span>
             <strong>{formattedSales}</strong>
-            <small className="positive">+8.4% de efectividad</small>
+            <small className="positive">
+              {period === 'TODAY' ? 'Cierre de caja en curso' : 'Acumulado en el periodo'}
+            </small>
           </div>
         </article>
 
@@ -151,9 +186,21 @@ export function WarehouseDetailStats({
             <AppIcon name="purchases" size={18} />
           </div>
           <div className="stat-text">
-            <span>Compras recibidas</span>
+            <span>
+              {period === 'TODAY'
+                ? 'Compras de hoy'
+                : period === '7_DAYS'
+                ? 'Compras 7 días'
+                : period === '30_DAYS'
+                ? 'Compras 30 días'
+                : period === 'MONTH'
+                ? 'Compras del mes'
+                : period === 'YEAR'
+                ? 'Compras del año'
+                : 'Compras periodo'}
+            </span>
             <strong>{canReadCost ? formattedPurchases : '••••••••'}</strong>
-            <small className="positive">Entradas de stock</small>
+            <small className="positive">Entradas a bodega</small>
           </div>
         </article>
 
@@ -166,7 +213,7 @@ export function WarehouseDetailStats({
             <span>Utilidad estimada</span>
             <strong>{canReadCost ? formattedProfit : '••••••••'}</strong>
             <small className="positive">
-              {canReadCost ? `Margen ${warehouse.profitMarginPercent}%` : 'Restringido'}
+              {canReadCost ? `Margen ${marginValue}%` : 'Restringido'}
             </small>
           </div>
         </article>

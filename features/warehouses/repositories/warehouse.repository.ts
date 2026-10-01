@@ -464,46 +464,95 @@ export class WarehouseRepository {
   }
 
   /**
-   * Consulta existencias de inventario para una bodega específica desde PostgreSQL
+   * Helper privado para calcular fechas según PeriodFilter
+   */
+  private getPeriodDateRange(period?: string): { startDate?: string; endDate?: string } {
+    if (!period || period === 'ALL') return {}
+    const now = new Date()
+    const endIso = now.toISOString()
+
+    if (period === 'TODAY') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: endIso }
+    }
+    if (period === '7_DAYS') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+      return { startDate: start.toISOString(), endDate: endIso }
+    }
+    if (period === '30_DAYS') {
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      return { startDate: start.toISOString(), endDate: endIso }
+    }
+    if (period === 'MONTH') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: endIso }
+    }
+    if (period === 'YEAR') {
+      const start = new Date(now.getFullYear(), 0, 1, 0, 0, 0)
+      return { startDate: start.toISOString(), endDate: endIso }
+    }
+    return {}
+  }
+
+  /**
+   * Consulta existencias de inventario para una bodega específica desde PostgreSQL.
+   * CUMPLE FASE 4: Todo producto activo de la empresa aparece en la bodega.
+   * Si no existe registro en stock_levels, se muestra con cantidad 0 sin crear registros ficticios.
    */
   async findInventoryByLocationId(
     locationId: string,
     filters?: { query?: string; status?: string; category?: string }
   ): Promise<WarehouseInventoryItem[]> {
-    const { data, error } = await supabaseClient
-      .from('stock_levels')
+    // 1. Obtener todos los productos activos de la empresa bajo RLS
+    const { data: productsData, error: prodError } = await supabaseClient
+      .from('products')
       .select(`
         id,
-        location_id,
-        product_id,
-        quantity,
-        min_stock,
-        max_stock,
-        average_cost,
-        products (
-          id,
-          sku,
-          barcode,
-          name,
-          unit_type,
-          categories ( name ),
-          brands ( name )
-        )
+        sku,
+        barcode,
+        name,
+        unit_of_measure,
+        cost_price,
+        public_sale_price,
+        is_active,
+        created_at,
+        categories ( name ),
+        brands ( name )
       `)
-      .eq('location_id', locationId)
+      .eq('is_active', true)
+      .order('name', { ascending: true })
 
-    if (error || !data) {
+    if (prodError || !productsData) {
+      console.error('Error al consultar productos activos para inventario de bodega:', prodError)
       return []
     }
 
-    let items: WarehouseInventoryItem[] = data.map((sl: any) => {
-      const p = sl.products || {}
+    // 2. Obtener los niveles de stock reales para esta bodega
+    const { data: stockLevelsData, error: stockError } = await supabaseClient
+      .from('stock_levels')
+      .select('id, product_id, location_id, quantity, min_stock, max_stock, average_cost, updated_at')
+      .eq('location_id', locationId)
+
+    if (stockError) {
+      console.error('Error al consultar stock_levels para bodega:', stockError)
+    }
+
+    const stockMap = new Map<string, any>()
+    if (stockLevelsData) {
+      for (const sl of stockLevelsData) {
+        stockMap.set(sl.product_id, sl)
+      }
+    }
+
+    // 3. Cruzar productos con stock: productos sin fila en stock_levels tienen cantidad 0
+    let items: WarehouseInventoryItem[] = productsData.map((p: any) => {
+      const sl = stockMap.get(p.id)
       const cat = p.categories?.name || 'General'
       const brand = p.brands?.name || 'Genérico'
-      const qty = Number(sl.quantity || 0)
-      const cost = Number(sl.average_cost || 0)
-      const minStock = Number(sl.min_stock || 5)
-      const maxStock = Number(sl.max_stock || 100)
+      const qty = sl ? Number(sl.quantity || 0) : 0
+      const cost = sl ? Number(sl.average_cost || 0) : Number(p.cost_price || 0)
+      const minStock = sl ? Number(sl.min_stock || 10) : 10
+      const maxStock = sl ? Number(sl.max_stock || 1000) : 1000
 
       let status: WarehouseInventoryItem['status'] = 'NORMAL'
       if (qty === 0) status = 'OUT_OF_STOCK'
@@ -511,29 +560,30 @@ export class WarehouseRepository {
       else if (qty <= minStock) status = 'LOW_STOCK'
 
       return {
-        id: sl.id,
-        locationId: sl.location_id,
-        productId: sl.product_id,
+        id: sl?.id || `stock-virtual-${p.id}-${locationId}`,
+        locationId,
+        productId: p.id,
         productName: p.name || 'Producto',
         sku: p.sku || 'SKU',
         barcode: p.barcode || '',
         category: cat,
         brand: brand,
-        unit: p.unit_type || 'UND',
+        unit: p.unit_of_measure || 'UND',
         currentStock: qty,
         minStock,
         maxStock,
         averageCost: cost,
         totalValueAtCost: qty * cost,
-        normalSalePrice: 0,
+        normalSalePrice: Number(p.public_sale_price || 0),
         status,
-        lastMovementAt: 'N/A',
-        updatedAt: new Date().toISOString(),
+        lastMovementAt: sl?.updated_at || 'Sin movimientos registrados',
+        updatedAt: sl?.updated_at || p.created_at || new Date().toISOString(),
       }
     })
 
+    // 4. Aplicar filtros en memoria si fueron solicitados
     if (filters?.query) {
-      const q = filters.query.toLowerCase()
+      const q = filters.query.toLowerCase().trim()
       items = items.filter(
         (i) =>
           i.productName.toLowerCase().includes(q) ||
@@ -629,43 +679,63 @@ export class WarehouseRepository {
   }
 
   /**
-   * Consulta ventas registradas en esta sede desde public.sales
+   * Consulta ventas registradas en esta sede desde public.sales con filtro temporal real
    */
-  async findSalesByLocationId(locationId: string, _period?: string): Promise<WarehouseSaleRecord[]> {
-    const { data, error } = await supabaseClient
+  async findSalesByLocationId(locationId: string, period?: string): Promise<WarehouseSaleRecord[]> {
+    let query = supabaseClient
       .from('sales')
       .select('*')
       .eq('location_id', locationId)
       .order('created_at', { ascending: false })
+
+    const { startDate, endDate } = this.getPeriodDateRange(period)
+    if (startDate) {
+      query = query.gte('created_at', startDate)
+    }
+    if (endDate) {
+      query = query.lte('created_at', endDate)
+    }
+
+    const { data, error } = await query
 
     if (error || !data) return []
 
     return data.map((s: any) => ({
       id: s.id,
       locationId: s.location_id,
-      saleCode: s.code || `V-${s.id.slice(0, 6)}`,
+      saleCode: s.sale_number || `V-${s.id.slice(0, 6)}`,
       date: s.created_at,
-      customerName: s.customer_name || 'Cliente Mostrador',
+      customerName: s.customer_name || 'Cliente',
       customerDoc: s.customer_doc || '',
       sellerName: s.seller_name || 'Vendedor',
       itemsCount: Number(s.items_count || 1),
       totalAmount: Number(s.total_amount || 0),
-      costAmount: Number(s.total_cost || 0),
-      profitAmount: Number(s.total_amount || 0) - Number(s.total_cost || 0),
-      paymentMethod: s.payment_method || 'EFECTIVO',
-      status: s.status || 'COMPLETED',
+      costAmount: Number(s.total_cost_amount || 0),
+      profitAmount: Number(s.total_amount || 0) - Number(s.total_cost_amount || 0),
+      paymentMethod: s.payment_method || 'CASH',
+      status: s.status || 'ISSUED',
     }))
   }
 
   /**
-   * Consulta compras recibidas en esta bodega desde public.purchases
+   * Consulta compras recibidas en esta bodega desde public.purchases con filtro temporal real
    */
-  async findPurchasesByLocationId(locationId: string, _period?: string): Promise<WarehousePurchaseRecord[]> {
-    const { data, error } = await supabaseClient
+  async findPurchasesByLocationId(locationId: string, period?: string): Promise<WarehousePurchaseRecord[]> {
+    let query = supabaseClient
       .from('purchases')
       .select('*')
       .eq('location_id', locationId)
       .order('created_at', { ascending: false })
+
+    const { startDate, endDate } = this.getPeriodDateRange(period)
+    if (startDate) {
+      query = query.gte('created_at', startDate)
+    }
+    if (endDate) {
+      query = query.lte('created_at', endDate)
+    }
+
+    const { data, error } = await query
 
     if (error || !data) return []
 
@@ -681,6 +751,152 @@ export class WarehouseRepository {
       paymentTerms: (p.payment_terms === 'CREDITO' ? 'CREDITO' : 'CONTADO') as 'CONTADO' | 'CREDITO',
       status: (['PAGADA', 'PENDIENTE', 'POR_VENCER', 'VENCIDA'].includes(p.status) ? p.status : 'PENDIENTE') as 'PAGADA' | 'PENDIENTE' | 'POR_VENCER' | 'VENCIDA',
     }))
+  }
+
+  /**
+   * Calcula analíticas operativas reales de la bodega desde PostgreSQL (Sin datos mock)
+   */
+  async getWarehouseOverviewAnalytics(locationId: string): Promise<{
+    topSelling: { name: string; sku: string; sales: string; units: number }[]
+    categoriesDistribution: { name: string; pct: string; value: string }[]
+    weeklyData: { day: string; sales: number; profit: number; ops: number }[]
+  }> {
+    // 1. Distribución real por categoría a partir de stock_levels reales de la bodega
+    const { data: stockRows } = await supabaseClient
+      .from('stock_levels')
+      .select(`
+        quantity,
+        average_cost,
+        products (
+          categories ( name )
+        )
+      `)
+      .eq('location_id', locationId)
+
+    const categoryTotals: Record<string, number> = {}
+    let totalStockVal = 0
+
+    if (stockRows && stockRows.length > 0) {
+      for (const row of stockRows) {
+        const p = row.products as any
+        const catName = p?.categories?.name || 'General'
+        const qty = Number(row.quantity || 0)
+        const cost = Number(row.average_cost || 0)
+        const itemVal = qty * cost
+        categoryTotals[catName] = (categoryTotals[catName] || 0) + itemVal
+        totalStockVal += itemVal
+      }
+    }
+
+    const categoriesDistribution = Object.entries(categoryTotals)
+      .map(([name, val]) => ({
+        name,
+        pct: totalStockVal > 0 ? `${Math.round((val / totalStockVal) * 100)}%` : '0%',
+        value: new Intl.NumberFormat('es-CO', {
+          style: 'currency',
+          currency: 'COP',
+          maximumFractionDigits: 0,
+        }).format(val),
+        rawVal: val,
+      }))
+      .sort((a, b) => b.rawVal - a.rawVal)
+      .slice(0, 6)
+      .map(({ name, pct, value }) => ({ name, pct, value }))
+
+    // 2. Top productos vendidos reales de la bodega desde sale_items
+    const { data: salesRows } = await supabaseClient
+      .from('sales')
+      .select(`
+        id,
+        created_at,
+        total_amount,
+        total_cost_amount,
+        sale_items (
+          product_id,
+          quantity,
+          total,
+          products ( name, sku )
+        )
+      `)
+      .eq('location_id', locationId)
+      .neq('status', 'CANCELLED')
+      .order('created_at', { ascending: false })
+      .limit(500)
+
+    const productSalesMap: Record<string, { name: string; sku: string; units: number; total: number }> = {}
+
+    if (salesRows) {
+      for (const sale of salesRows) {
+        const items = (sale.sale_items as any[]) || []
+        for (const it of items) {
+          const pid = it.product_id
+          const p = it.products || {}
+          if (!productSalesMap[pid]) {
+            productSalesMap[pid] = {
+              name: p.name || 'Producto',
+              sku: p.sku || 'SKU',
+              units: 0,
+              total: 0,
+            }
+          }
+          productSalesMap[pid].units += Number(it.quantity || 0)
+          productSalesMap[pid].total += Number(it.total || 0)
+        }
+      }
+    }
+
+    const topSelling = Object.values(productSalesMap)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5)
+      .map((item) => ({
+        name: item.name,
+        sku: item.sku,
+        units: item.units,
+        sales: new Intl.NumberFormat('es-CO', {
+          style: 'currency',
+          currency: 'COP',
+          maximumFractionDigits: 0,
+        }).format(item.total),
+      }))
+
+    // 3. Ventas de los últimos 7 días agrupadas por día real
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+    const today = new Date()
+    const last7Days: { dateStr: string; dayLabel: string; sales: number; profit: number; ops: number }[] = []
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 24 * 60 * 60 * 1000)
+      const dateStr = d.toISOString().slice(0, 10)
+      const dayLabel = i === 0 ? 'Hoy' : dayNames[d.getDay()]
+      last7Days.push({ dateStr, dayLabel, sales: 0, profit: 0, ops: 0 })
+    }
+
+    if (salesRows) {
+      for (const s of salesRows) {
+        const sDate = s.created_at?.slice(0, 10)
+        const bucket = last7Days.find((b) => b.dateStr === sDate)
+        if (bucket) {
+          const tot = Number(s.total_amount || 0)
+          const cost = Number(s.total_cost_amount || 0)
+          bucket.sales += tot
+          bucket.profit += tot - cost
+          bucket.ops += 1
+        }
+      }
+    }
+
+    const weeklyData = last7Days.map((b) => ({
+      day: b.dayLabel,
+      sales: b.sales,
+      profit: b.profit,
+      ops: b.ops,
+    }))
+
+    return {
+      topSelling,
+      categoriesDistribution,
+      weeklyData,
+    }
   }
 
   /**

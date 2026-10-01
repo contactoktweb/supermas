@@ -1,12 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import { KardexFilterParams, MovementType } from '../types'
-
-import { getDbLocationOptions, getDbUserOptions } from '@/lib/supabase'
+import { kardexService } from '../services/kardex.service'
 
 interface KardexFiltersProps {
   filters: KardexFilterParams
@@ -29,13 +28,6 @@ const MOVEMENT_TYPE_OPTIONS: { value: MovementType | 'ALL'; label: string }[] = 
   { value: 'REMISION', label: 'Remisiones (-)' },
 ]
 
-const LOCATION_OPTIONS = [
-  { value: 'ALL', label: 'Todas las bodegas' },
-  ...getDbLocationOptions(),
-]
-
-const USER_OPTIONS = getDbUserOptions()
-
 export function KardexFilters({
   filters,
   onFilterChange,
@@ -43,6 +35,29 @@ export function KardexFilters({
   onToggleColumnSelector,
   isColumnSelectorOpen,
 }: KardexFiltersProps) {
+  const [locationOptions, setLocationOptions] = useState<Array<{ value: string; label: string }>>([
+    { value: 'ALL', label: 'Todas las bodegas' },
+  ])
+  const [userOptions, setUserOptions] = useState<Array<{ value: string; label: string }>>([
+    { value: 'ALL', label: 'Todos los responsables' },
+  ])
+
+  useEffect(() => {
+    let isMounted = true
+    kardexService
+      .getFilterOptions()
+      .then((opts) => {
+        if (isMounted) {
+          setLocationOptions(opts.locations)
+          setUserOptions(opts.users)
+        }
+      })
+      .catch((err) => console.error('Error cargando opciones para filtros de Kardex:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
   const hasActiveFilters = Boolean(
     filters.query?.trim() ||
       (filters.locationId && filters.locationId !== 'ALL') ||
@@ -85,7 +100,7 @@ export function KardexFilters({
         {/* Bodega Select */}
         <div className="filter-select-item" style={{ minWidth: 170 }}>
           <CustomSelect
-            options={LOCATION_OPTIONS}
+            options={locationOptions}
             value={filters.locationId || 'ALL'}
             onChange={(val) => onFilterChange('locationId', val)}
             placeholder="Bodega"
@@ -109,7 +124,7 @@ export function KardexFilters({
         {/* User Responsable Select */}
         <div className="filter-select-item" style={{ minWidth: 170 }}>
           <CustomSelect
-            options={USER_OPTIONS}
+            options={userOptions}
             value={filters.userId || 'ALL'}
             onChange={(val) => onFilterChange('userId', val)}
             placeholder="Usuario responsable"

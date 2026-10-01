@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 import { usePOS } from '../hooks/usePOS'
 import { POSHeader } from './POSHeader'
 import { POSProductGrid } from './POSProductGrid'
@@ -17,9 +17,13 @@ interface POSViewProps {
 }
 
 export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
-  const isCompanyConfigured = Boolean(db.companySettings?.nit && (db.companySettings?.companyName || db.companySettings?.legalName))
+  const [isCompanyConfigured, setIsCompanyConfigured] = useState(true)
 
   const {
+    // Locations
+    locations,
+    locationsLoading,
+    changeLocation,
     // User / Context
     userContext,
     // Catalog
@@ -75,6 +79,25 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
   } = usePOS()
 
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Verify company configuration from PostgreSQL
+  useEffect(() => {
+    async function checkCompany() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('companies')
+          .select('id, name, tax_id')
+          .limit(1)
+          .maybeSingle()
+        if (!error && data) {
+          setIsCompanyConfigured(Boolean(data.name && data.tax_id))
+        }
+      } catch {
+        setIsCompanyConfigured(true)
+      }
+    }
+    checkCompany()
+  }, [])
 
   // Fullscreen toggle handler
   const handleToggleFullscreen = () => {
@@ -147,9 +170,14 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
     <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans select-none">
       {/* 1. POS Top Bar */}
       <POSHeader
+        userContext={userContext}
         locationName={userContext.locationName}
         cashierName={userContext.userName}
         cashRegisterNumber={userContext.cashRegisterNumber}
+        locations={locations}
+        selectedLocationId={userContext.locationId}
+        onLocationChange={changeLocation}
+        locationsLoading={locationsLoading}
         onOpenDailySales={openDailySales}
         onToggleFullscreen={handleToggleFullscreen}
         isFullscreen={isFullscreen}

@@ -228,6 +228,14 @@ export interface UserPermissionContext {
   permissions: string[]
 }
 
+export interface InitialStockItemInput {
+  locationId: string
+  locationName?: string
+  locationCode?: string
+  quantity: number
+  unitCost?: number
+}
+
 /**
  * Payload de entrada para crear un producto.
  * companyId NO se expone al usuario; es resuelto por la sesión/RLS.
@@ -247,10 +255,12 @@ export interface CreateProductInput {
   taxProfile: TaxProfile
   vatRatePercent: number
   prices: PriceTier[]
+  costPrice?: number
   minStockThreshold?: number
   criticalStockThreshold?: number
   webSuperMas: boolean
   webDistribuidora: boolean
+  initialStock?: InitialStockItemInput[]
   warehouseDistribution?: {
     locationId: string
     minStock: number

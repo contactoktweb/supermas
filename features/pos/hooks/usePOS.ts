@@ -11,16 +11,20 @@ import {
   POSDailySaleSummary,
   POSUserContext,
 } from '../types'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 export function usePOS() {
-  // Current cashier context
+  // Real active locations state
+  const [locations, setLocations] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [locationsLoading, setLocationsLoading] = useState(true)
+
+  // Current cashier context (initial empty locationId, resolved dynamically)
   const [userContext, setUserContext] = useState<POSUserContext>({
-    userId: 'usr-cajero-01',
-    userName: 'Cajero Centro',
+    userId: '',
+    userName: 'Cajero Operativo',
     userRole: 'Cajero Operativo',
-    locationId: 'loc-003', // Punto de Venta Centro por defecto
-    locationName: 'Punto de Venta Centro',
+    locationId: '',
+    locationName: 'Cargando sede...',
     cashRegisterNumber: 'CAJA-01',
     permissions: [
       'pos.access',
@@ -35,6 +39,7 @@ export function usePOS() {
   const [catalogLoading, setCatalogLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('ALL')
+  const [categories, setCategories] = useState<string[]>(['ALL'])
 
   // Customer State
   const [currentCustomer, setCurrentCustomer] = useState<POSCustomer | null>(null)
@@ -67,7 +72,95 @@ export function usePOS() {
 
   const isMountedRef = useRef(true)
 
-  // 1. Load initial customer (Consumidor Final)
+  // 1. Load active locations from PostgreSQL and authenticated cashier
+  useEffect(() => {
+    async function initPOSLocationsAndUser() {
+      try {
+        setLocationsLoading(true)
+        const [locsRes, authUserRes, catsRes] = await Promise.all([
+          supabaseClient
+            .from('locations')
+            .select('id, code, name')
+            .eq('status', 'ACTIVE')
+            .order('name', { ascending: true }),
+          supabaseClient.auth.getUser(),
+          supabaseClient
+            .from('categories')
+            .select('name')
+            .eq('status', 'ACTIVE')
+            .order('name', { ascending: true }),
+        ])
+
+        const activeLocs = locsRes.data || []
+        if (isMountedRef.current) {
+          setLocations(activeLocs)
+          if (catsRes.data && catsRes.data.length > 0) {
+            setCategories(['ALL', ...catsRes.data.map((c: any) => c.name)])
+          }
+
+          let currentUserId = authUserRes.data?.user?.id || ''
+          let currentUserName = authUserRes.data?.user?.email?.split('@')[0] || 'Cajero Operativo'
+          let currentUserRole = 'Cajero'
+
+          if (authUserRes.data?.user) {
+            const { data: userProfile } = await supabaseClient
+              .from('users')
+              .select('full_name, role_id, roles(name)')
+              .eq('id', authUserRes.data.user.id)
+              .maybeSingle()
+
+            if (userProfile) {
+              currentUserName = userProfile.full_name || currentUserName
+              currentUserRole = (userProfile.roles as any)?.name || 'Cajero'
+            }
+          }
+
+          if (activeLocs.length > 0) {
+            setUserContext((prev) => ({
+              ...prev,
+              userId: currentUserId,
+              userName: currentUserName,
+              userRole: currentUserRole,
+              locationId: activeLocs[0].id,
+              locationName: activeLocs[0].name,
+            }))
+          }
+        }
+      } catch (err) {
+        console.error('Error al inicializar contexto de bodegas en POS:', err)
+      } finally {
+        if (isMountedRef.current) {
+          setLocationsLoading(false)
+        }
+      }
+    }
+    initPOSLocationsAndUser()
+  }, [])
+
+  // 2. Switch location handler
+  const changeLocation = useCallback(
+    (newLocationId: string) => {
+      const loc = locations.find((l) => l.id === newLocationId)
+      if (!loc) return
+
+      if (cart.length > 0) {
+        const confirmed = window.confirm(
+          'Cambiar de sede/bodega vaciará los productos actuales del carrito para evitar inconsistencias de inventario. ¿Deseas continuar?'
+        )
+        if (!confirmed) return
+        setCart([])
+      }
+
+      setUserContext((prev) => ({
+        ...prev,
+        locationId: loc.id,
+        locationName: loc.name,
+      }))
+    },
+    [locations, cart.length]
+  )
+
+  // 3. Load initial customer (Consumidor Final)
   useEffect(() => {
     async function loadDefaultCustomer() {
       try {
@@ -82,8 +175,13 @@ export function usePOS() {
     loadDefaultCustomer()
   }, [])
 
-  // 2. Load products for selected location
+  // 4. Load products for selected location
   const fetchProducts = useCallback(async () => {
+    if (!userContext.locationId) {
+      setCatalogLoading(false)
+      return
+    }
+
     try {
       setCatalogLoading(true)
       const data = await posService.getProducts(
@@ -111,12 +209,6 @@ export function usePOS() {
       isMountedRef.current = false
     }
   }, [fetchProducts])
-
-  // Extract available categories
-  const categories = useMemo(() => {
-    const rawCategories = Array.from(new Set(db.products.map((p) => p.category).filter(Boolean)))
-    return ['ALL', ...rawCategories]
-  }, [])
 
   // 3. Customer search
   const handleSearchCustomers = useCallback(async (query: string) => {
@@ -374,6 +466,10 @@ export function usePOS() {
   }
 
   return {
+    // Locations
+    locations,
+    locationsLoading,
+    changeLocation,
     // User / Context
     userContext,
     setUserContext,

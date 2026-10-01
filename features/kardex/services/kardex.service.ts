@@ -230,6 +230,16 @@ export class KardexService {
 
     return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
   }
+
+  /**
+   * Obtiene opciones reales para selectores de bodega y usuario
+   */
+  async getFilterOptions(): Promise<{
+    locations: Array<{ value: string; label: string }>
+    users: Array<{ value: string; label: string }>
+  }> {
+    return kardexRepository.getFilterOptions()
+  }
 }
 
 export const kardexService = new KardexService()

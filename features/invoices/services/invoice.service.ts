@@ -16,7 +16,7 @@ import {
   DIANStatus,
   DIANTransmissionLog,
 } from '../types'
-import { db } from '@/lib/supabase'
+import { salesRepository } from '@/features/sales/repositories/sales.repository'
 
 const DEFAULT_ADMIN_USER: InvoiceUserContext = {
   userId: 'usr-admin-01',
@@ -99,9 +99,8 @@ export class InvoiceService {
     this.checkPermission(user, 'invoice.create')
     const validated = generateInvoiceSchema.parse(payload)
 
-    // 1. Obtener la venta
-    const sales = (db.sales as unknown as Array<any>) || []
-    const sale = sales.find((s) => s.id === validated.saleId || s.saleNumber === validated.saleId)
+    // 1. Obtener la venta desde PostgreSQL
+    const sale = await salesRepository.findById(validated.saleId)
     if (!sale) {
       throw new Error(`No se encontró la venta con ID "${validated.saleId}".`)
     }
@@ -136,11 +135,8 @@ export class InvoiceService {
     const internalSeq = allInvoices.length + 1
     const internalNumber = `FAC-${String(internalSeq).padStart(5, '0')}`
 
-    // 2. Configuración y Rango Autorizado Oficial DIAN
-    const dianResolutions = (db.dianResolutions as any[]) || []
-    const matchingRes = dianResolutions.find(
-      (r) => r.documentType === validated.type && r.isActive
-    ) || {
+    // 2. Rango por defecto (simulación interna controlada)
+    const matchingRes = {
       dianPrefix: validated.type === 'POS' ? 'POS' : 'FE',
       resolutionNumber: '18764000001',
       resolutionDate: '2026-01-15',
@@ -153,7 +149,6 @@ export class InvoiceService {
 
     const dianPrefix = matchingRes.dianPrefix
     const dianNumber = matchingRes.currentNumber ? matchingRes.currentNumber + 1 : 1250 + internalSeq
-    matchingRes.currentNumber = dianNumber
     const dianResolution = matchingRes.resolutionNumber
     const dianRange = `${matchingRes.initialRange} - ${matchingRes.finalRange}`
     const invoiceNumber = `${dianPrefix}-${dianNumber}`
@@ -221,7 +216,7 @@ export class InvoiceService {
       resolutionNumber: dianResolution,
       resolutionDate: matchingRes.resolutionDate,
       type: validated.type,
-      status: sale.status === 'COMPLETED' ? 'PAID' : 'PAYMENT_PENDING',
+      status: sale.status === 'CONFIRMED' ? 'PAID' : 'PAYMENT_PENDING',
       dianStatus: initialDianStatus,
       dianCufe: cufe,
       dianQrCode: `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${cufe}`,
@@ -234,11 +229,11 @@ export class InvoiceService {
       customerId: sale.customerId,
       customerName: sale.customerName,
       customerDoc: sale.customerDoc,
-      customerDocType: sale.customerDocType || 'NIT',
-      customerEmail: sale.customerEmail || 'facturacion@supermas.com.co',
-      customerPhone: sale.customerPhone || '+57 300 123 4567',
-      customerAddress: sale.customerAddress || 'Cra 15 # 45-20',
-      customerCity: sale.customerCity || 'Bogotá, D.C.',
+      customerDocType: sale.customerType === 'COMPANY' ? 'NIT' : 'CC',
+      customerEmail: 'facturacion@supermas.com.co',
+      customerPhone: '',
+      customerAddress: '',
+      customerCity: 'Bogotá, D.C.',
 
       locationId: sale.locationId,
       locationName: sale.locationName,
@@ -247,7 +242,7 @@ export class InvoiceService {
       sellerName: sale.sellerName || user.userName,
 
       date: dateIso,
-      dueDate: validated.dueDate || sale.dueDate || dateIso,
+      dueDate: validated.dueDate || dateIso,
       issuedAtBogota: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
 
       items: mappedItems,
@@ -259,7 +254,7 @@ export class InvoiceService {
       taxTotal: totals.taxTotal,
       taxesBreakdown: totals.taxesBreakdown,
       total: totals.total,
-      pendingBalance: sale.pendingBalance !== undefined ? sale.pendingBalance : 0,
+      pendingBalance: sale.paymentMethod === 'CREDITO' ? totals.total : 0,
 
       paymentMethod: validated.paymentMethod || sale.paymentMethod || 'EFECTIVO',
       paymentTerms: validated.paymentTerms || (sale.paymentMethod === 'CREDITO' ? 'Crédito 30 días' : 'Contado'),
@@ -290,7 +285,7 @@ export class InvoiceService {
       throw new Error('No se puede transmitir una factura anulada a la DIAN.')
     }
 
-    // Simulación de validación DIAN
+    // Simulación de prueba local interna (pendiente conexión a WebService/proveedor tecnológico DIAN)
     const dateIso = new Date().toISOString()
     const cufe = invoice.dianCufe || this.calc.generateCUFE(invoice.invoiceNumber, invoice.total, dateIso, invoice.customerDoc)
 
@@ -302,7 +297,7 @@ export class InvoiceService {
       status: 'EXITOSO',
       dianStatus: 'ACEPTADA',
       statusCode: '200',
-      message: 'Documento electrónico procesado y aceptado por la DIAN con firma digital verificada.',
+      message: '[SIMULACIÓN INTERNA LOCAL] Documento procesado en ambiente de pruebas interno. Sin transmisión oficial externa DIAN.',
       cufe,
       responseTimeMs: Math.floor(180 + Math.random() * 220),
     }
@@ -312,7 +307,7 @@ export class InvoiceService {
     return {
       invoice: updated,
       success: true,
-      message: 'Factura validada y aceptada exitosamente por la DIAN.',
+      message: '[Simulación Local] Factura validada internamente en modo de pruebas (pendiente proveedor tecnológico DIAN).',
     }
   }
 

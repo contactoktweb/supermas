@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { SalesStats } from './SalesStats'
 import { SalesFilters } from './SalesFilters'
@@ -13,7 +13,7 @@ import { SaleRemissionModal } from './SaleRemissionModal'
 import { useSales } from '../hooks/useSales'
 import { useSaleDetail } from '../hooks/useSaleDetail'
 import { Sale, CreateSaleDTO } from '../types'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface SalesPageProps {
   onNavigate?: (view: string) => void
@@ -60,16 +60,48 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
     refresh: refreshDetail,
   } = useSaleDetail(selectedSaleIdForDetail)
 
-  // Locations for filters and new sale
-  const locations = db.locations.map((l) => ({
-    id: l.id,
-    name: l.name,
-  }))
+  // Real locations & sellers from PostgreSQL
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const [sellers, setSellers] = useState<string[]>([])
 
-  // Extract unique sellers from sales
-  const sellers = Array.from(
-    new Set((db.sales as unknown as Sale[]).map((s) => s.sellerName).filter(Boolean))
-  )
+  useEffect(() => {
+    let isMounted = true
+    Promise.all([
+      supabaseClient
+        .from('locations')
+        .select('id, name, code')
+        .eq('status', 'ACTIVE')
+        .order('name', { ascending: true }),
+      supabaseClient
+        .from('users')
+        .select('id, full_name, email')
+        .order('full_name', { ascending: true }),
+    ])
+      .then(([locsRes, usersRes]) => {
+        if (isMounted) {
+          if (locsRes.data) {
+            setLocations(
+              locsRes.data.map((l: any) => ({
+                id: l.id,
+                name: l.code ? `[${l.code}] ${l.name}` : l.name,
+              }))
+            )
+          }
+          if (usersRes.data) {
+            setSellers(
+              usersRes.data
+                .map((u: any) => u.full_name || u.email)
+                .filter(Boolean)
+            )
+          }
+        }
+      })
+      .catch((err) => console.error('Error cargando ubicaciones o vendedores en SalesPage:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Handlers
   const handleOpenNewSale = () => {
@@ -180,10 +212,25 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
     document.body.removeChild(link)
   }
 
-  const isCompanyConfigured = Boolean(
-    db.companySettings?.nit &&
-      (db.companySettings?.companyName || db.companySettings?.legalName)
-  )
+  const [isCompanyConfigured, setIsCompanyConfigured] = useState(true)
+
+  useEffect(() => {
+    async function checkCompany() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('companies')
+          .select('id, name, tax_id')
+          .limit(1)
+          .maybeSingle()
+        if (!error && data) {
+          setIsCompanyConfigured(Boolean(data.name && data.tax_id))
+        }
+      } catch {
+        setIsCompanyConfigured(true)
+      }
+    }
+    checkCompany()
+  }, [])
 
   return (
     <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>

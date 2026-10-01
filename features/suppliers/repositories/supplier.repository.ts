@@ -1,4 +1,4 @@
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   Supplier,
   SupplierFilterParams,
@@ -10,13 +10,83 @@ import {
   SupplierDocumentItem,
 } from '../types'
 
+/**
+ * Mapea una fila de public.suppliers (con compras anidadas) a la entidad de dominio Supplier
+ */
+function mapDbRowToSupplier(row: any): Supplier {
+  const purchases = (row.purchases as any[]) || []
+  const totalPurchased = purchases.reduce((acc, p) => acc + Number(p.total_amount || 0), 0)
+  const currentBalance = purchases
+    .filter((p) => p.payment_status !== 'PAID' && p.inventory_status !== 'CANCELLED')
+    .reduce((acc, p) => acc + (Number(p.total_amount || 0) - Number(p.paid_amount || 0)), 0)
+  const pendingInvoicesCount = purchases.filter(
+    (p) => p.payment_status !== 'PAID' && p.inventory_status !== 'CANCELLED'
+  ).length
+  const deliveriesCount = purchases.filter((p) => p.inventory_status === 'RECEIVED').length
+
+  let lastPurchaseDate: string | undefined = undefined
+  if (purchases.length > 0) {
+    const dates = purchases
+      .map((p) => p.issue_date)
+      .filter(Boolean)
+      .sort()
+    lastPurchaseDate = dates[dates.length - 1]
+  }
+
+  return {
+    id: row.id,
+    supplierId: row.id,
+    companyId: row.company_id,
+    documentType: 'NIT',
+    documentNumber: row.tax_id || '',
+    verificationDigit: row.verification_digit || undefined,
+    nit: row.tax_id || '',
+    businessName: row.legal_name || row.name || '',
+    commercialName: row.commercial_name || row.name || '',
+    supplierName: row.name || row.legal_name || '',
+    personType: row.person_type || 'JURIDICA',
+    contactName: row.contact_name || '',
+    phone: row.phone || '',
+    whatsapp: row.whatsapp || undefined,
+    email: row.email || '',
+    address: row.address || '',
+    city: row.city || 'Medellín',
+    department: row.department || 'Antioquia',
+    country: 'Colombia',
+    status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+    creditDays: Number(row.payment_terms_days || 0),
+    creditLimit: Number(row.credit_limit || 0),
+    notes: row.notes || undefined,
+    deliveriesCount,
+    totalPurchased,
+    currentBalance,
+    pendingInvoicesCount,
+    lastPurchaseDate,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+  }
+}
+
 export class SupplierRepository {
-  private get suppliers(): Supplier[] {
-    return db.suppliers as unknown as Supplier[]
+  /**
+   * Resuelve el company_id autenticado del usuario actual
+   */
+  private async resolveCompanyId(): Promise<string> {
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    if (comp?.id) return comp.id
+
+    const { data: userProfile } = await supabaseClient
+      .from('users')
+      .select('company_id')
+      .limit(1)
+      .single()
+
+    if (userProfile?.company_id) return userProfile.company_id
+    throw new Error('No se pudo resolver la empresa activa del usuario.')
   }
 
   /**
-   * Consulta proveedores con filtros dinámicos, ordenamiento y paginación.
+   * Consulta proveedores con filtros dinámicos, ordenamiento y paginación reales contra PostgreSQL
    */
   async findAll(params: SupplierFilterParams): Promise<{
     items: Supplier[]
@@ -25,109 +95,103 @@ export class SupplierRepository {
     pageSize: number
     totalPages: number
   }> {
-    let result = [...this.suppliers]
+    let query = supabaseClient.from('suppliers').select(
+      `
+        id,
+        company_id,
+        tax_id,
+        verification_digit,
+        name,
+        legal_name,
+        commercial_name,
+        person_type,
+        contact_name,
+        email,
+        phone,
+        whatsapp,
+        address,
+        city,
+        department,
+        payment_terms_days,
+        credit_limit,
+        is_active,
+        notes,
+        created_at,
+        updated_at,
+        purchases (
+          id,
+          total_amount,
+          paid_amount,
+          payment_status,
+          inventory_status,
+          issue_date
+        )
+      `,
+      { count: 'exact' }
+    )
 
     // 1. Búsqueda por texto (nombre, documento, contacto, email, ciudad)
     if (params.query && params.query.trim()) {
       const q = params.query.trim().toLowerCase()
-      result = result.filter((s) => {
-        const name = (s.businessName || s.supplierName || '').toLowerCase()
-        const commercial = (s.commercialName || '').toLowerCase()
-        const doc = (s.documentNumber || s.nit || '').toLowerCase()
-        const contact = (s.contactName || '').toLowerCase()
-        const email = (s.email || '').toLowerCase()
-        const city = (s.city || '').toLowerCase()
-
-        return (
-          name.includes(q) ||
-          commercial.includes(q) ||
-          doc.includes(q) ||
-          contact.includes(q) ||
-          email.includes(q) ||
-          city.includes(q)
-        )
-      })
+      query = query.or(
+        `name.ilike.%${q}%,legal_name.ilike.%${q}%,commercial_name.ilike.%${q}%,tax_id.ilike.%${q}%,contact_name.ilike.%${q}%,email.ilike.%${q}%,city.ilike.%${q}%`
+      )
     }
 
     // 2. Filtro por Documento / NIT específico
     if (params.documentNumber && params.documentNumber.trim()) {
-      const docQ = params.documentNumber.trim().toLowerCase()
-      result = result.filter((s) =>
-        (s.documentNumber || s.nit || '').toLowerCase().includes(docQ)
-      )
+      query = query.eq('tax_id', params.documentNumber.trim())
     }
 
     // 3. Filtro por Estado
     if (params.status && params.status !== 'ALL') {
-      result = result.filter((s) => s.status === params.status)
+      query = query.eq('is_active', params.status === 'ACTIVE')
     }
 
-    // 4. Filtro por Bodega relacionada
-    if (params.locationId && params.locationId !== 'ALL') {
-      const purchases = db.purchases as unknown as { supplierId: string; destinationLocationId?: string; locationId?: string }[]
-      const supplierIdsInLocation = new Set(
-        purchases
-          .filter((p) => p.destinationLocationId === params.locationId || p.locationId === params.locationId)
-          .map((p) => p.supplierId)
-      )
-      result = result.filter((s) => s.locationId === params.locationId || supplierIdsInLocation.has(s.id) || supplierIdsInLocation.has(s.supplierId || ''))
-    }
-
-    // 5. Filtro por Saldo Pendiente
-    if (params.hasPendingBalance !== undefined) {
-      if (params.hasPendingBalance) {
-        result = result.filter((s) => (s.currentBalance || 0) > 0)
-      } else {
-        result = result.filter((s) => (s.currentBalance || 0) <= 0)
-      }
-    }
-
-    // 6. Filtro por rango de fecha de compra
-    if (params.startDate) {
-      result = result.filter((s) => {
-        const date = s.lastPurchaseDate || s.createdAt
-        return date >= params.startDate!
-      })
-    }
-    if (params.endDate) {
-      result = result.filter((s) => {
-        const date = s.lastPurchaseDate || s.createdAt
-        return date <= params.endDate!
-      })
-    }
-
-    // 7. Ordenamiento
+    // 4. Ordenamiento
     const sortField = params.sortField || 'businessName'
     const sortDirection = params.sortDirection || 'asc'
-    const multiplier = sortDirection === 'asc' ? 1 : -1
+    const ascending = sortDirection === 'asc'
 
-    result.sort((a, b) => {
-      let valA: any = a[sortField as keyof Supplier] || ''
-      let valB: any = b[sortField as keyof Supplier] || ''
+    if (sortField === 'businessName') {
+      query = query.order('legal_name', { ascending })
+    } else if (sortField === 'documentNumber') {
+      query = query.order('tax_id', { ascending })
+    } else {
+      query = query.order('created_at', { ascending })
+    }
 
-      if (sortField === 'businessName') {
-        valA = (a.businessName || a.supplierName || '').toLowerCase()
-        valB = (b.businessName || b.supplierName || '').toLowerCase()
-      } else if (sortField === 'currentBalance' || sortField === 'totalPurchased') {
-        valA = Number(valA) || 0
-        valB = Number(valB) || 0
-      }
-
-      if (valA < valB) return -1 * multiplier
-      if (valA > valB) return 1 * multiplier
-      return 0
-    })
-
-    // 8. Paginación
-    const total = result.length
+    // 5. Paginación
     const page = Math.max(1, params.page || 1)
     const pageSize = Math.max(1, params.pageSize || 10)
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    query = query.range(from, to)
+
+    const { data, count, error } = await query
+
+    if (error) {
+      console.error('Error consultando proveedores en PostgreSQL:', error)
+      throw new Error(`Error consultando proveedores: ${error.message}`)
+    }
+
+    const total = count || 0
+    let items = (data || []).map(mapDbRowToSupplier)
+
+    // Filtro adicional en memoria para hasPendingBalance si se solicitó
+    if (params.hasPendingBalance !== undefined) {
+      if (params.hasPendingBalance) {
+        items = items.filter((s) => s.currentBalance > 0)
+      } else {
+        items = items.filter((s) => s.currentBalance <= 0)
+      }
+    }
+
     const totalPages = Math.ceil(total / pageSize) || 1
-    const startIndex = (page - 1) * pageSize
-    const paginatedItems = result.slice(startIndex, startIndex + pageSize)
 
     return {
-      items: paginatedItems,
+      items,
       total,
       page,
       pageSize,
@@ -136,125 +200,265 @@ export class SupplierRepository {
   }
 
   /**
-   * Obtiene un proveedor por ID.
+   * Obtiene un proveedor por ID con sus compras asociadas
    */
   async findById(id: string): Promise<Supplier | null> {
-    const supplier = this.suppliers.find(
-      (s) => s.id === id || s.supplierId === id
-    )
-    return supplier || null
+    const { data, error } = await supabaseClient
+      .from('suppliers')
+      .select(
+        `
+        id,
+        company_id,
+        tax_id,
+        verification_digit,
+        name,
+        legal_name,
+        commercial_name,
+        person_type,
+        contact_name,
+        email,
+        phone,
+        whatsapp,
+        address,
+        city,
+        department,
+        payment_terms_days,
+        credit_limit,
+        is_active,
+        notes,
+        created_at,
+        updated_at,
+        purchases (
+          id,
+          total_amount,
+          paid_amount,
+          payment_status,
+          inventory_status,
+          issue_date
+        )
+      `
+      )
+      .eq('id', id)
+      .single()
+
+    if (error || !data) {
+      return null
+    }
+
+    return mapDbRowToSupplier(data)
   }
 
   /**
-   * Busca si un número de documento/NIT ya existe en el sistema.
+   * Busca si un número de documento/NIT ya existe en la empresa actual
    */
   async findByDocument(documentNumber: string, excludeId?: string): Promise<Supplier | null> {
-    const cleanDoc = documentNumber.replace(/[.\-\s]/g, '').toLowerCase()
-    const found = this.suppliers.find((s) => {
-      if (excludeId && (s.id === excludeId || s.supplierId === excludeId)) return false
-      const sDoc = (s.documentNumber || s.nit || '').replace(/[.\-\s]/g, '').toLowerCase()
-      return sDoc === cleanDoc
-    })
-    return found || null
-  }
+    const cleanDoc = documentNumber.replace(/[.\-\s]/g, '').trim()
+    let query = supabaseClient.from('suppliers').select('id, tax_id, legal_name, name').eq('tax_id', cleanDoc)
 
-  /**
-   * Registra un nuevo proveedor en la capa de datos de Supabase.
-   */
-  async create(supplier: Supplier, user: { id: string; name: string }): Promise<Supplier> {
-    ;(db.suppliers as unknown as Supplier[]).unshift(supplier)
-
-    // Auditoría
-    const auditEntry = {
-      id: `aud-${Date.now()}`,
-      action: 'SUPPLIER_CREATED',
-      entity: 'SUPPLIER',
-      entityId: supplier.id,
-      userId: user.id,
-      userName: user.name,
-      timestamp: new Date().toISOString(),
-      changes: {
-        field: 'supplier',
-        newValue: `${supplier.businessName} (NIT: ${supplier.documentNumber})`,
-        details: `Proveedor creado con cupo de crédito $${supplier.creditLimit.toLocaleString('es-CO')} y ${supplier.creditDays} días de plazo.`,
-      },
+    if (excludeId) {
+      query = query.neq('id', excludeId)
     }
-    ;(db.auditLogs as unknown as any[]).unshift(auditEntry)
 
-    return supplier
+    const { data } = await query.limit(1).maybeSingle()
+    if (!data) return null
+
+    return {
+      id: data.id,
+      supplierId: data.id,
+      documentType: 'NIT',
+      documentNumber: data.tax_id,
+      nit: data.tax_id,
+      businessName: data.legal_name || data.name,
+      contactName: '',
+      phone: '',
+      email: '',
+      address: '',
+      city: '',
+      department: '',
+      country: 'Colombia',
+      status: 'ACTIVE',
+      creditDays: 30,
+      creditLimit: 0,
+      deliveriesCount: 0,
+      totalPurchased: 0,
+      currentBalance: 0,
+      pendingInvoicesCount: 0,
+      createdAt: '',
+      updatedAt: '',
+    }
   }
 
   /**
-   * Actualiza los datos de un proveedor existente.
+   * Registra un nuevo proveedor en PostgreSQL bajo RLS
+   */
+  async create(supplier: Supplier, _user?: { id: string; name: string }): Promise<Supplier> {
+    const companyId = await this.resolveCompanyId()
+
+    const insertPayload: any = {
+      company_id: companyId,
+      tax_id: supplier.documentNumber.trim(),
+      verification_digit: supplier.verificationDigit || null,
+      name: (supplier.commercialName?.trim() || supplier.businessName.trim()),
+      legal_name: supplier.businessName.trim(),
+      commercial_name: (supplier.commercialName?.trim() || supplier.businessName.trim()),
+      person_type: supplier.personType || 'JURIDICA',
+      contact_name: supplier.contactName.trim(),
+      phone: supplier.phone.trim(),
+      whatsapp: supplier.whatsapp?.trim() || null,
+      email: supplier.email.trim().toLowerCase(),
+      address: supplier.address.trim(),
+      city: supplier.city.trim(),
+      department: supplier.department.trim(),
+      payment_terms_days: supplier.creditDays || 30,
+      credit_limit: supplier.creditLimit || 0,
+      notes: supplier.notes?.trim() || null,
+      is_active: supplier.status === 'INACTIVE' ? false : true,
+    }
+
+    const { data, error } = await supabaseClient
+      .from('suppliers')
+      .insert(insertPayload)
+      .select()
+      .single()
+
+    if (error || !data) {
+      console.error('Error insertando proveedor en Supabase:', error)
+      throw new Error(`Error creando proveedor: ${error?.message || 'Error desconocido'}`)
+    }
+
+    return mapDbRowToSupplier(data)
+  }
+
+  /**
+   * Actualiza los datos de un proveedor existente en PostgreSQL
    */
   async update(
     id: string,
     data: Partial<Supplier>,
-    user: { id: string; name: string }
+    _user?: { id: string; name: string }
   ): Promise<Supplier> {
-    const index = this.suppliers.findIndex(
-      (s) => s.id === id || s.supplierId === id
-    )
-    if (index === -1) {
-      throw new Error(`Proveedor no encontrado (ID: ${id})`)
+    const updatePayload: any = {}
+
+    if (data.businessName !== undefined) {
+      updatePayload.legal_name = data.businessName.trim()
+    }
+    if (data.commercialName !== undefined) {
+      updatePayload.commercial_name = data.commercialName.trim()
+      updatePayload.name = data.commercialName.trim()
+    }
+    if (data.documentNumber !== undefined) {
+      updatePayload.tax_id = data.documentNumber.trim()
+    }
+    if (data.verificationDigit !== undefined) {
+      updatePayload.verification_digit = data.verificationDigit
+    }
+    if (data.personType !== undefined) {
+      updatePayload.person_type = data.personType
+    }
+    if (data.contactName !== undefined) {
+      updatePayload.contact_name = data.contactName.trim()
+    }
+    if (data.phone !== undefined) {
+      updatePayload.phone = data.phone.trim()
+    }
+    if (data.whatsapp !== undefined) {
+      updatePayload.whatsapp = data.whatsapp.trim()
+    }
+    if (data.email !== undefined) {
+      updatePayload.email = data.email.trim().toLowerCase()
+    }
+    if (data.address !== undefined) {
+      updatePayload.address = data.address.trim()
+    }
+    if (data.city !== undefined) {
+      updatePayload.city = data.city.trim()
+    }
+    if (data.department !== undefined) {
+      updatePayload.department = data.department.trim()
+    }
+    if (data.creditDays !== undefined) {
+      updatePayload.payment_terms_days = data.creditDays
+    }
+    if (data.creditLimit !== undefined) {
+      updatePayload.credit_limit = data.creditLimit
+    }
+    if (data.notes !== undefined) {
+      updatePayload.notes = data.notes?.trim() || null
+    }
+    if (data.status !== undefined) {
+      updatePayload.is_active = data.status === 'ACTIVE'
     }
 
-    const previous = this.suppliers[index]
-    const updated: Supplier = {
-      ...previous,
-      ...data,
-      supplierName: data.businessName || previous.businessName || previous.supplierName,
-      nit: data.documentNumber || previous.documentNumber || previous.nit,
-      updatedAt: new Date().toISOString(),
+    const { data: updated, error } = await supabaseClient
+      .from('suppliers')
+      .update(updatePayload)
+      .eq('id', id)
+      .select(
+        `
+        id,
+        company_id,
+        tax_id,
+        verification_digit,
+        name,
+        legal_name,
+        commercial_name,
+        person_type,
+        contact_name,
+        email,
+        phone,
+        whatsapp,
+        address,
+        city,
+        department,
+        payment_terms_days,
+        credit_limit,
+        is_active,
+        notes,
+        created_at,
+        updated_at,
+        purchases (
+          id,
+          total_amount,
+          paid_amount,
+          payment_status,
+          inventory_status,
+          issue_date
+        )
+      `
+      )
+      .single()
+
+    if (error || !updated) {
+      console.error('Error actualizando proveedor en PostgreSQL:', error)
+      throw new Error(`Error actualizando proveedor: ${error?.message || 'Error desconocido'}`)
     }
 
-    this.suppliers[index] = updated
-
-    // Auditoría de campos importantes
-    const auditEntry = {
-      id: `aud-${Date.now()}`,
-      action: 'SUPPLIER_UPDATED',
-      entity: 'SUPPLIER',
-      entityId: id,
-      userId: user.id,
-      userName: user.name,
-      timestamp: new Date().toISOString(),
-      changes: {
-        field: 'supplier_data',
-        previousValue: `${previous.businessName} (Estado: ${previous.status})`,
-        newValue: `${updated.businessName} (Estado: ${updated.status})`,
-        details: `Actualización de ficha de proveedor. Días crédito: ${updated.creditDays}, Cupo: $${updated.creditLimit.toLocaleString('es-CO')}.`,
-      },
-    }
-    ;(db.auditLogs as unknown as any[]).unshift(auditEntry)
-
-    return updated
+    return mapDbRowToSupplier(updated)
   }
 
   /**
-   * Desactiva un proveedor validando que no tenga obligaciones pendientes ni compras abiertas.
+   * Desactiva un proveedor validando que no tenga obligaciones pendientes ni compras abiertas
    */
   async deactivate(id: string, user: { id: string; name: string }): Promise<Supplier> {
     const supplier = await this.findById(id)
     if (!supplier) throw new Error(`Proveedor no encontrado (ID: ${id})`)
 
-    // Regla de negocio: Comprobar saldo pendiente
-    if ((supplier.currentBalance || 0) > 0) {
+    if (supplier.currentBalance > 0) {
       throw new Error(
         `No es posible desactivar al proveedor "${supplier.businessName}" porque posee un saldo pendiente de $${supplier.currentBalance.toLocaleString('es-CO')}. Debe liquidar las cuentas por pagar primero.`
       )
     }
 
-    // Regla de negocio: Comprobar compras pendientes de recepción
-    const purchases = db.purchases as unknown as { supplierId: string; status: string; purchaseNumber: string }[]
-    const openPurchase = purchases.find(
-      (p) =>
-        (p.supplierId === id || p.supplierId === supplier.supplierId) &&
-        (p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT')
-    )
-    if (openPurchase) {
+    const { data: openPurchases } = await supabaseClient
+      .from('purchases')
+      .select('id, purchase_number, inventory_status')
+      .eq('supplier_id', id)
+      .in('inventory_status', ['PENDING', 'DRAFT'])
+      .limit(1)
+
+    if (openPurchases && openPurchases.length > 0) {
       throw new Error(
-        `No es posible desactivar al proveedor porque tiene la orden de compra ${openPurchase.purchaseNumber} en proceso (Estado: ${openPurchase.status}).`
+        `No es posible desactivar al proveedor porque tiene la orden de compra ${openPurchases[0].purchase_number} pendiente de recepción.`
       )
     }
 
@@ -262,67 +466,129 @@ export class SupplierRepository {
   }
 
   /**
-   * Reactiva un proveedor inactivo.
+   * Reactiva un proveedor inactivo
    */
   async activate(id: string, user: { id: string; name: string }): Promise<Supplier> {
     return this.update(id, { status: 'ACTIVE' }, user)
   }
 
   /**
-   * Obtiene la relación de productos suministrados por el proveedor:
-   * Supplier -> PurchaseLine -> Product
+   * Obtiene estadísticas agregadas fiduciarias desde PostgreSQL
+   */
+  async getStats(_userContext?: any): Promise<SupplierStats> {
+    const { data: suppliersData, error: supErr } = await supabaseClient
+      .from('suppliers')
+      .select('id, is_active')
+
+    if (supErr) {
+      console.error('Error consultando estadísticas de proveedores:', supErr)
+    }
+
+    const totalSuppliers = suppliersData?.length || 0
+    const activeSuppliers = suppliersData?.filter((s) => s.is_active).length || 0
+
+    // Consultar compras para calcular saldos y facturas pendientes
+    const { data: purchasesData } = await supabaseClient
+      .from('purchases')
+      .select('id, supplier_id, total_amount, paid_amount, payment_status, due_date, inventory_status')
+      .neq('inventory_status', 'CANCELLED')
+
+    const purchases = purchasesData || []
+    const now = new Date().toISOString().split('T')[0]
+
+    let totalPendingBalance = 0
+    let pendingInvoicesCount = 0
+    let overdueInvoicesCount = 0
+    const suppliersWithRecent = new Set<string>()
+
+    for (const p of purchases) {
+      if (p.payment_status !== 'PAID') {
+        const pending = Number(p.total_amount || 0) - Number(p.paid_amount || 0)
+        totalPendingBalance += pending
+        pendingInvoicesCount++
+
+        if (p.due_date && p.due_date < now) {
+          overdueInvoicesCount++
+        }
+      }
+      suppliersWithRecent.add(p.supplier_id)
+    }
+
+    return {
+      totalSuppliers,
+      activeSuppliers,
+      suppliersWithRecentPurchases: suppliersWithRecent.size,
+      totalPendingBalance,
+      pendingInvoicesCount,
+      overdueInvoicesCount,
+      totalPurchasedPeriod: purchases.reduce((acc, p) => acc + Number(p.total_amount || 0), 0),
+      suppliedProductsCount: 0,
+      isCostRedacted: false,
+    }
+  }
+
+  /**
+   * Obtiene la relación de productos suministrados por el proveedor desde PostgreSQL
    */
   async getSupplierProducts(supplierId: string): Promise<SupplierProductSummary[]> {
-    const purchases = db.purchases as unknown as {
-      supplierId: string
-      purchaseNumber: string
-      date: string
-      items: {
-        productId: string
-        productName: string
-        sku: string
-        unitOfMeasure: string
-        imageUrl?: string
-        unitCost: number
-        quantity: number
-        total: number
-      }[]
-    }[]
+    const { data, error } = await supabaseClient
+      .from('purchase_items')
+      .select(
+        `
+        id,
+        product_id,
+        quantity,
+        unit_cost,
+        total,
+        created_at,
+        purchases!inner (
+          id,
+          supplier_id,
+          purchase_number,
+          issue_date
+        ),
+        products (
+          id,
+          name,
+          sku,
+          unit_of_measure,
+          category_id,
+          categories (name)
+        )
+      `
+      )
+      .eq('purchases.supplier_id', supplierId)
 
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplierId === supplierId
-    )
+    if (error || !data) return []
 
-    // Agrupar productos únicos y calcular métricas acumuladas
     const productMap = new Map<string, SupplierProductSummary>()
 
-    for (const purchase of supplierPurchases) {
-      if (!purchase.items) continue
-      for (const item of purchase.items) {
-        const existing = productMap.get(item.productId)
-        if (!existing) {
-          productMap.set(item.productId, {
-            productId: item.productId,
-            productName: item.productName,
-            sku: item.sku,
-            category: 'Abarrotes y Despensa',
-            unitOfMeasure: item.unitOfMeasure,
-            imageUrl: item.imageUrl,
-            lastUnitCost: item.unitCost,
-            lastPurchaseDoc: purchase.purchaseNumber,
-            lastPurchaseDate: purchase.date,
-            totalUnitsSupplied: item.quantity,
-            totalValueSupplied: item.total,
-          })
-        } else {
-          existing.totalUnitsSupplied += item.quantity
-          existing.totalValueSupplied += item.total
-          // Si esta compra es más reciente, actualizar último costo y fecha
-          if (purchase.date > existing.lastPurchaseDate) {
-            existing.lastUnitCost = item.unitCost
-            existing.lastPurchaseDoc = purchase.purchaseNumber
-            existing.lastPurchaseDate = purchase.date
-          }
+    for (const row of data as any[]) {
+      const prod = row.products || {}
+      const purchase = row.purchases || {}
+      const pid = row.product_id
+
+      if (!productMap.has(pid)) {
+        productMap.set(pid, {
+          productId: pid,
+          productName: prod.name || 'Producto',
+          sku: prod.sku || 'SKU',
+          category: prod.categories?.name || 'General',
+          unitOfMeasure: prod.unit_of_measure || 'UND',
+          lastUnitCost: Number(row.unit_cost || 0),
+          lastPurchaseDoc: purchase.purchase_number || '',
+          lastPurchaseDate: purchase.issue_date || row.created_at,
+          totalUnitsSupplied: Number(row.quantity || 0),
+          totalValueSupplied: Number(row.total || 0),
+        })
+      } else {
+        const existing = productMap.get(pid)!
+        existing.totalUnitsSupplied += Number(row.quantity || 0)
+        existing.totalValueSupplied += Number(row.total || 0)
+        if (purchase.issue_date && purchase.issue_date >= existing.lastPurchaseDate) {
+          existing.lastUnitCost = Number(row.unit_cost || 0)
+          existing.lastPurchaseDoc = purchase.purchase_number || ''
+          existing.lastPurchaseDate = purchase.issue_date
         }
       }
     }
@@ -331,260 +597,212 @@ export class SupplierRepository {
   }
 
   /**
-   * Obtiene las facturas y obligaciones asociadas al proveedor.
+   * Obtiene el historial de compras/facturas del proveedor desde PostgreSQL
    */
   async getSupplierInvoices(supplierId: string): Promise<SupplierInvoiceSummary[]> {
-    const purchases = db.purchases as unknown as any[]
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplierId === supplierId
-    )
+    const { data, error } = await supabaseClient
+      .from('purchases')
+      .select('id, purchase_number, supplier_invoice_number, issue_date, due_date, total_amount, paid_amount, payment_status, invoice_attachment_url')
+      .eq('supplier_id', supplierId)
+      .order('issue_date', { ascending: false })
+
+    if (error || !data) return []
 
     const now = new Date().toISOString().split('T')[0]
 
-    return supplierPurchases.map((p) => {
+    return data.map((p) => {
+      const total = Number(p.total_amount || 0)
+      const paid = Number(p.paid_amount || 0)
+      const pending = total - paid
+
       let status: 'PENDIENTE' | 'PAGADA' | 'VENCIDA' = 'PENDIENTE'
-      if (p.pendingBalance <= 0 || p.status === 'PAID') {
+      if (p.payment_status === 'PAID' || pending <= 0) {
         status = 'PAGADA'
-      } else if (p.dueDate && p.dueDate < now) {
+      } else if (p.due_date && p.due_date < now) {
         status = 'VENCIDA'
       }
 
-      const hasAtt = Boolean(p.attachments && p.attachments.length > 0)
-      const firstAtt = hasAtt ? p.attachments[0] : undefined
-
       return {
         purchaseId: p.id,
-        purchaseNumber: p.purchaseNumber,
-        invoiceNumber: p.supplierInvoiceNumber || p.purchaseNumber,
-        date: p.date,
-        dueDate: p.dueDate,
-        total: p.total,
-        paidAmount: p.paidAmount || 0,
-        pendingBalance: p.pendingBalance || 0,
+        purchaseNumber: p.purchase_number,
+        invoiceNumber: p.supplier_invoice_number,
+        date: p.issue_date,
+        dueDate: p.due_date || undefined,
+        total,
+        paidAmount: paid,
+        pendingBalance: Math.max(0, pending),
         status,
-        hasAttachment: hasAtt,
-        attachmentUrl: firstAtt?.url,
-        attachmentName: firstAtt?.fileName,
+        hasAttachment: !!p.invoice_attachment_url,
+        attachmentUrl: p.invoice_attachment_url || undefined,
       }
     })
   }
 
   /**
-   * Obtiene los pagos realizados al proveedor.
+   * Obtiene el historial de pagos efectuados al proveedor desde PostgreSQL
    */
   async getSupplierPayments(supplierId: string): Promise<SupplierPaymentSummary[]> {
-    const purchases = db.purchases as unknown as any[]
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplierId === supplierId
-    )
+    const { data, error } = await supabaseClient
+      .from('supplier_payments')
+      .select(
+        `
+        id,
+        purchase_id,
+        payment_date,
+        amount,
+        payment_method,
+        transaction_reference,
+        notes,
+        purchases!inner (
+          id,
+          supplier_id,
+          purchase_number,
+          supplier_invoice_number
+        )
+      `
+      )
+      .eq('purchases.supplier_id', supplierId)
+      .order('payment_date', { ascending: false })
 
-    const payments: SupplierPaymentSummary[] = []
+    if (error || !data) return []
 
-    for (const pur of supplierPurchases) {
-      if (!pur.payments) continue
-      for (const pay of pur.payments) {
-        payments.push({
-          paymentId: pay.id,
-          purchaseId: pur.id,
-          purchaseNumber: pur.purchaseNumber,
-          invoiceNumber: pur.supplierInvoiceNumber || pur.purchaseNumber,
-          date: pay.date,
-          amount: pay.amount,
-          paymentMethod: pay.paymentMethod,
-          reference: pay.reference,
-          registeredByUserName: pay.registeredByUserName,
-          notes: pay.notes,
-        })
-      }
-    }
-
-    // Ordenar del más reciente al más antiguo
-    payments.sort((a, b) => (b.date > a.date ? 1 : -1))
-    return payments
+    return data.map((pay: any) => ({
+      paymentId: pay.id,
+      purchaseId: pay.purchase_id,
+      purchaseNumber: pay.purchases?.purchase_number || '',
+      invoiceNumber: pay.purchases?.supplier_invoice_number || '',
+      date: pay.payment_date,
+      amount: Number(pay.amount || 0),
+      paymentMethod: pay.payment_method || 'TRANSFERENCIA',
+      reference: pay.transaction_reference || 'N/A',
+      registeredByUserName: 'Administrador',
+      notes: pay.notes || undefined,
+    }))
   }
 
   /**
-   * Obtiene la relación de bodegas que han recibido compras de este proveedor:
-   * Supplier <-> Location
+   * Obtiene las bodegas donde el proveedor ha entregado mercancía
    */
   async getSupplierWarehouses(supplierId: string): Promise<SupplierWarehouseRelation[]> {
-    const purchases = db.purchases as unknown as any[]
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplierId === supplierId
-    )
+    const { data, error } = await supabaseClient
+      .from('purchases')
+      .select(
+        `
+        location_id,
+        total_amount,
+        issue_date,
+        locations (
+          id,
+          code,
+          name,
+          city
+        )
+      `
+      )
+      .eq('supplier_id', supplierId)
 
-    const map = new Map<string, SupplierWarehouseRelation>()
+    if (error || !data) return []
 
-    for (const pur of supplierPurchases) {
-      const locId = pur.destinationLocationId || pur.locationId || 'loc-001'
-      const locName = pur.destinationLocationName || 'Bodega Principal'
-      const locCode = pur.destinationLocationCode || 'BOD-001'
+    const warehouseMap = new Map<string, SupplierWarehouseRelation>()
 
-      const existing = map.get(locId)
-      if (!existing) {
-        map.set(locId, {
-          locationId: locId,
-          locationName: locName,
-          locationCode: locCode,
+    for (const row of data as any[]) {
+      const loc = row.locations
+      if (!loc) continue
+
+      if (!warehouseMap.has(loc.id)) {
+        warehouseMap.set(loc.id, {
+          locationId: loc.id,
+          locationName: loc.name,
+          locationCode: loc.code,
           purchasesCount: 1,
-          totalAmount: pur.total || 0,
-          lastOperationDate: pur.date,
+          totalAmount: Number(row.total_amount || 0),
+          lastOperationDate: row.issue_date,
         })
       } else {
-        existing.purchasesCount += 1
-        existing.totalAmount += pur.total || 0
-        if (pur.date > (existing.lastOperationDate || '')) {
-          existing.lastOperationDate = pur.date
+        const existing = warehouseMap.get(loc.id)!
+        existing.purchasesCount++
+        existing.totalAmount += Number(row.total_amount || 0)
+        if (row.issue_date && row.issue_date > (existing.lastOperationDate || '')) {
+          existing.lastOperationDate = row.issue_date
         }
       }
     }
 
-    return Array.from(map.values())
+    return Array.from(warehouseMap.values())
   }
 
   /**
-   * Obtiene los documentos y soportes digitales asociados.
+   * Documentos adjuntos asociados al proveedor
    */
   async getSupplierDocuments(supplierId: string): Promise<SupplierDocumentItem[]> {
-    const purchases = db.purchases as unknown as any[]
-    const supplierPurchases = purchases.filter(
-      (p) => p.supplierId === supplierId
-    )
+    const { data } = await supabaseClient
+      .from('purchases')
+      .select('id, purchase_number, supplier_invoice_number, invoice_attachment_url, created_at')
+      .eq('supplier_id', supplierId)
+      .not('invoice_attachment_url', 'is', null)
 
-    const docs: SupplierDocumentItem[] = []
+    if (!data) return []
 
-    for (const pur of supplierPurchases) {
-      if (!pur.attachments) continue
-      for (const att of pur.attachments) {
-        docs.push({
-          id: att.id,
-          fileName: att.fileName,
-          fileType: att.fileType,
-          fileSize: att.fileSize,
-          url: att.url,
-          uploadedAt: att.uploadedAt,
-          uploadedBy: att.uploadedBy,
-          purchaseNumber: pur.purchaseNumber,
-          invoiceNumber: pur.supplierInvoiceNumber,
-        })
-      }
-    }
-
-    return docs
+    return data.map((p) => ({
+      id: p.id,
+      fileName: `Factura_${p.supplier_invoice_number || p.purchase_number}.pdf`,
+      fileType: 'application/pdf',
+      fileSize: 102400,
+      url: p.invoice_attachment_url || '',
+      uploadedAt: p.created_at,
+      uploadedBy: 'Sistema',
+    }))
   }
 
   /**
-   * Obtiene los registros de auditoría específicos del proveedor.
+   * Consulta la bitácora de auditoría del proveedor desde PostgreSQL
    */
   async getSupplierAuditLogs(supplierId: string) {
-    const logs = db.auditLogs as unknown as any[]
-    return logs.filter(
-      (l) =>
-        l.entityId === supplierId ||
-        (l.changes && l.changes.details && l.changes.details.includes(supplierId))
-    )
+    const { data } = await supabaseClient
+      .from('audit_logs')
+      .select('*')
+      .eq('entity_name', 'suppliers')
+      .eq('entity_id', supplierId)
+      .order('created_at', { ascending: false })
+    return data || []
   }
 
   /**
-   * Calcula las métricas globales y estadísticas del módulo Proveedores.
-   */
-  async getSupplierStats(): Promise<SupplierStats> {
-    const suppliers = this.suppliers
-    const totalSuppliers = suppliers.length
-    const activeSuppliers = suppliers.filter((s) => s.status === 'ACTIVE').length
-
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-    const suppliersWithRecentPurchases = suppliers.filter((s) => {
-      const last = s.lastPurchaseDate || s.createdAt
-      return last >= thirtyDaysAgo
-    }).length
-
-    const totalPendingBalance = suppliers.reduce(
-      (acc, s) => acc + (s.currentBalance || 0),
-      0
-    )
-
-    const purchases = db.purchases as unknown as any[]
-    const now = new Date().toISOString().split('T')[0]
-
-    let pendingInvoicesCount = 0
-    let overdueInvoicesCount = 0
-    let totalPurchasedPeriod = 0
-
-    for (const pur of purchases) {
-      if (pur.status !== 'CANCELLED' && (pur.pendingBalance || 0) > 0) {
-        pendingInvoicesCount += 1
-        if (pur.dueDate && pur.dueDate < now) {
-          overdueInvoicesCount += 1
-        }
-      }
-      if (pur.status !== 'CANCELLED') {
-        totalPurchasedPeriod += pur.total || 0
-      }
-    }
-
-    // Catálogo de productos únicos suministrados
-    const productIds = new Set<string>()
-    for (const pur of purchases) {
-      if (pur.items) {
-        for (const it of pur.items) {
-          productIds.add(it.productId)
-        }
-      }
-    }
-
-    return {
-      totalSuppliers,
-      activeSuppliers,
-      suppliersWithRecentPurchases,
-      totalPendingBalance,
-      pendingInvoicesCount,
-      overdueInvoicesCount,
-      totalPurchasedPeriod,
-      suppliedProductsCount: productIds.size,
-      isCostRedacted: false,
-    }
-  }
-
-  /**
-   * Exporta proveedores en formato CSV estructurado.
+   * Exporta proveedores en formato CSV
    */
   exportToCsv(suppliers: Supplier[], isCostRedacted: boolean = false): string {
     const headers = [
-      'Documento_NIT',
-      'Razon_Social',
-      'Nombre_Comercial',
+      'Documento',
+      'Razón Social',
+      'Nombre Comercial',
       'Contacto',
-      'Telefono',
+      'Teléfono',
       'Email',
       'Ciudad',
+      'Días Crédito',
       'Estado',
-      'Dias_Credito',
-      'Cupo_Credito',
-      'Total_Comprado',
-      'Saldo_Pendiente',
     ]
-
-    const rows = suppliers.map((s) => [
-      `"${s.documentNumber || s.nit || ''}"`,
-      `"${(s.businessName || s.supplierName || '').replace(/"/g, '""')}"`,
-      `"${(s.commercialName || '').replace(/"/g, '""')}"`,
-      `"${s.contactName || ''}"`,
-      `"${s.phone || ''}"`,
-      `"${s.email || ''}"`,
-      `"${s.city || ''}"`,
-      s.status,
-      s.creditDays,
-      isCostRedacted ? 'OCULTO' : s.creditLimit,
-      isCostRedacted ? 'OCULTO' : s.totalPurchased,
-      isCostRedacted ? 'OCULTO' : s.currentBalance,
-    ])
-
-    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-  }
-
-  async resetMocks(): Promise<void> {
-    // Para restauración en tests si se requiere
+    if (!isCostRedacted) {
+      headers.push('Cupo Crédito', 'Total Comprado', 'Saldo Pendiente')
+    }
+    const rows = suppliers.map((s) => {
+      const base = [
+        `"${s.documentNumber}"`,
+        `"${s.businessName.replace(/"/g, '""')}"`,
+        `"${(s.commercialName || '').replace(/"/g, '""')}"`,
+        `"${s.contactName.replace(/"/g, '""')}"`,
+        `"${s.phone}"`,
+        `"${s.email}"`,
+        `"${s.city}"`,
+        s.creditDays,
+        s.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
+      ]
+      if (!isCostRedacted) {
+        base.push(s.creditLimit, s.totalPurchased, s.currentBalance)
+      }
+      return base.join(',')
+    })
+    return [headers.join(','), ...rows].join('\n')
   }
 }
 

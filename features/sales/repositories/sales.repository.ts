@@ -1,16 +1,143 @@
-import { db, supabaseMock } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   Sale,
   SaleItem,
   SaleDetail,
   SaleFilterParams,
   SaleStats,
+  SaleStatus,
+  PaymentMethod,
   SaleDocumentType,
 } from '../types'
 
+function mapDbPaymentMethodToDomain(pm?: string): PaymentMethod {
+  switch (pm) {
+    case 'CASH':
+      return 'EFECTIVO'
+    case 'CREDIT_CARD':
+    case 'DEBIT_CARD':
+      return 'TARJETA'
+    case 'BANK_TRANSFER':
+      return 'TRANSFERENCIA'
+    case 'CREDIT':
+      return 'CREDITO'
+    case 'MIXED':
+      return 'MIXTO'
+    default:
+      return 'EFECTIVO'
+  }
+}
+
+function mapDomainPaymentMethodToDb(pm: PaymentMethod): 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'CREDIT' | 'MIXED' {
+  switch (pm) {
+    case 'EFECTIVO':
+      return 'CASH'
+    case 'TARJETA':
+      return 'CREDIT_CARD'
+    case 'TRANSFERENCIA':
+      return 'BANK_TRANSFER'
+    case 'CREDITO':
+      return 'CREDIT'
+    case 'MIXTO':
+      return 'MIXED'
+    default:
+      return 'CASH'
+  }
+}
+
+function mapDbStatusToDomain(status?: string): SaleStatus {
+  switch (status) {
+    case 'ISSUED':
+      return 'CONFIRMED'
+    case 'PENDING':
+      return 'PENDING'
+    case 'CANCELLED':
+      return 'CANCELLED'
+    default:
+      return 'CONFIRMED'
+  }
+}
+
 export class SalesRepository {
   /**
-   * Obtiene la lista de ventas filtrada, ordenada y paginada
+   * Mapea un registro de public.sales a la entidad de dominio Sale
+   */
+  private mapDbRowToSale(s: any): Sale {
+    const cust = s.customers || {}
+    const loc = s.locations || {}
+    const user = s.users || {}
+    const rawItems = (s.sale_items as any[]) || []
+
+    const items: SaleItem[] = rawItems.map((it) => {
+      const p = it.products || {}
+      return {
+        id: it.id,
+        productId: it.product_id,
+        productName: p.name || 'Producto',
+        sku: p.sku || 'SKU',
+        barcode: p.barcode || '',
+        unitOfMeasure: p.unit_type || 'UND',
+        imageUrl: p.image_url || '',
+        quantity: Number(it.quantity || 0),
+        unitPrice: Number(it.unit_price || 0),
+        unitCost: Number(it.unit_cost || 0),
+        discountPercent: Number(it.discount_percent || 0),
+        discountAmount: Math.round(Number(it.subtotal || 0) * (Number(it.discount_percent || 0) / 100)),
+        taxRatePercent: Number(it.tax_rate_percent || 0),
+        taxAmount: Number(it.tax_amount || 0),
+        subtotal: Number(it.subtotal || 0),
+        total: Number(it.total || 0),
+      }
+    })
+
+    const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0)
+    const subtotal = Number(s.subtotal_amount || 0)
+    const discountTotal = Number(s.discount_amount || 0)
+    const taxTotal = Number(s.tax_amount || 0)
+    const totalAmount = Number(s.total_amount || 0)
+    const totalCost = Number(s.total_cost_amount || 0)
+    const totalProfit = totalAmount - taxTotal - totalCost
+    const profitMarginPercent = totalAmount > 0 ? Math.round((totalProfit / totalAmount) * 100) : 0
+
+    const customerName = cust.company_name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || 'Consumidor Final'
+    const customerDoc = `${cust.document_type || 'CC'} ${cust.document_number || '222222222222'}`
+
+    return {
+      id: s.id,
+      saleNumber: s.sale_number,
+      customerId: s.customer_id,
+      customerName,
+      customerDoc,
+      customerType: cust.customer_type === 'COMPANY' ? 'COMPANY' : 'NATURAL',
+      customerCategory: cust.customer_category || 'RETAIL',
+      priceList: cust.customer_category === 'WHOLESALE' ? 'WHOLESALE' : cust.customer_category === 'VIP' ? 'VIP' : 'DEFAULT',
+      locationId: s.location_id,
+      locationName: loc.name || 'Bodega',
+      sellerId: s.seller_user_id || '',
+      sellerName: user.full_name || user.email || 'Vendedor',
+      date: s.created_at,
+      items,
+      itemsCount: items.length,
+      totalUnits,
+      subtotal,
+      discountTotal,
+      taxTotal,
+      totalAmount,
+      totalCost,
+      totalProfit,
+      profitMarginPercent,
+      paymentMethod: mapDbPaymentMethodToDomain(s.payment_method),
+      paymentStatus: 'PAID',
+      status: mapDbStatusToDomain(s.status),
+      documentType: 'FACTURA_POS',
+      notes: s.notes || undefined,
+      createdAt: s.created_at,
+      updatedAt: s.updated_at || s.created_at,
+    }
+  }
+
+  /**
+   * Obtiene la lista de ventas filtrada, ordenada y paginada desde PostgreSQL
    */
   async findFiltered(filters: SaleFilterParams = {}): Promise<{
     items: Sale[]
@@ -19,99 +146,130 @@ export class SalesRepository {
     pageSize: number
     totalPages: number
   }> {
-    const { data: rawSales } = await supabaseMock.from('sales').select()
-    let list = (rawSales as unknown as Sale[]) || []
+    let query = supabaseClient
+      .from('sales')
+      .select(`
+        id,
+        sale_number,
+        location_id,
+        customer_id,
+        seller_user_id,
+        cash_session_id,
+        subtotal_amount,
+        discount_amount,
+        tax_amount,
+        total_amount,
+        total_cost_amount,
+        payment_method,
+        status,
+        notes,
+        created_at,
+        updated_at,
+        customers (
+          id,
+          first_name,
+          last_name,
+          company_name,
+          document_type,
+          document_number,
+          customer_type,
+          customer_category
+        ),
+        locations (
+          id,
+          name,
+          code
+        ),
+        users (
+          id,
+          full_name,
+          email
+        ),
+        sale_items (
+          id,
+          product_id,
+          quantity,
+          unit_cost,
+          unit_price,
+          discount_percent,
+          tax_rate_percent,
+          tax_amount,
+          subtotal,
+          total,
+          products (
+            name,
+            sku,
+            barcode,
+            unit_type,
+            image_url
+          )
+        )
+      `, { count: 'exact' })
 
-    // 1. Filtrado por texto (Búsqueda global)
+    if (filters.customerId && filters.customerId !== 'ALL') {
+      query = query.eq('customer_id', filters.customerId)
+    }
+
+    if (filters.locationId && filters.locationId !== 'ALL') {
+      query = query.eq('location_id', filters.locationId)
+    }
+
+    if (filters.paymentMethod && filters.paymentMethod !== 'ALL') {
+      query = query.eq('payment_method', mapDomainPaymentMethodToDb(filters.paymentMethod))
+    }
+
+    if (filters.status && filters.status !== 'ALL') {
+      const dbStatus = filters.status === 'CANCELLED' ? 'CANCELLED' : filters.status === 'PENDING' ? 'PENDING' : 'ISSUED'
+      query = query.eq('status', dbStatus)
+    }
+
+    if (filters.startDate) {
+      query = query.gte('created_at', filters.startDate)
+    }
+    if (filters.endDate) {
+      const endStr = filters.endDate.includes('T') ? filters.endDate : `${filters.endDate}T23:59:59.999Z`
+      query = query.lte('created_at', endStr)
+    }
+
+    query = query.order('created_at', { ascending: filters.sortDirection === 'asc' ? true : false })
+
+    const { data, count, error } = await query
+
+    if (error || !data) {
+      console.error('Error consultando ventas en PostgreSQL:', error)
+      return {
+        items: [],
+        total: 0,
+        page: filters.page || 1,
+        pageSize: filters.pageSize || 10,
+        totalPages: 1,
+      }
+    }
+
+    let items: Sale[] = data.map((row) => this.mapDbRowToSale(row))
+
     if (filters.query?.trim()) {
       const q = filters.query.toLowerCase().trim()
-      list = list.filter((s) => {
-        return (
+      items = items.filter(
+        (s) =>
           s.saleNumber.toLowerCase().includes(q) ||
           s.customerName.toLowerCase().includes(q) ||
           s.customerDoc.toLowerCase().includes(q) ||
           s.sellerName.toLowerCase().includes(q) ||
-          s.locationName.toLowerCase().includes(q) ||
-          (s.invoiceNumber && s.invoiceNumber.toLowerCase().includes(q)) ||
-          (s.remissionNumber && s.remissionNumber.toLowerCase().includes(q))
-        )
-      })
-    }
-
-    // 2. Filtrado por cliente
-    if (filters.customerId && filters.customerId !== 'ALL') {
-      list = list.filter((s) => s.customerId === filters.customerId)
-    }
-
-    // 3. Filtrado por bodega / punto de venta
-    if (filters.locationId && filters.locationId !== 'ALL') {
-      list = list.filter((s) => s.locationId === filters.locationId)
-    }
-
-    // 4. Filtrado por vendedor
-    if (filters.sellerName && filters.sellerName !== 'ALL') {
-      list = list.filter(
-        (s) => s.sellerName.toLowerCase() === filters.sellerName!.toLowerCase()
+          s.locationName.toLowerCase().includes(q)
       )
     }
 
-    // 5. Filtrado por estado de la venta
-    if (filters.status && filters.status !== 'ALL') {
-      list = list.filter((s) => s.status === filters.status)
-    }
-
-    // 6. Filtrado por método de pago
-    if (filters.paymentMethod && filters.paymentMethod !== 'ALL') {
-      list = list.filter((s) => s.paymentMethod === filters.paymentMethod)
-    }
-
-    // 7. Filtrado por tipo de documento generado
-    if (filters.documentType && filters.documentType !== 'ALL') {
-      list = list.filter((s) => s.documentType === filters.documentType)
-    }
-
-    // 8. Filtrado por rango de fecha
-    if (filters.startDate) {
-      const startMs = new Date(filters.startDate).getTime()
-      list = list.filter((s) => new Date(s.date).getTime() >= startMs)
-    }
-    if (filters.endDate) {
-      const endMs = new Date(filters.endDate).getTime() + 86400000 // Fin de día
-      list = list.filter((s) => new Date(s.date).getTime() <= endMs)
-    }
-
-    const total = list.length
-
-    // 9. Ordenamiento
-    const sortBy = filters.sortBy || 'date'
-    const sortDir = filters.sortDirection || 'desc'
-    list.sort((a, b) => {
-      let valA: any = a[sortBy]
-      let valB: any = b[sortBy]
-
-      if (sortBy === 'date') {
-        valA = new Date(a.date).getTime()
-        valB = new Date(b.date).getTime()
-      } else if (typeof valA === 'string') {
-        valA = valA.toLowerCase()
-        valB = valB.toLowerCase()
-      }
-
-      if (valA < valB) return sortDir === 'asc' ? -1 : 1
-      if (valA > valB) return sortDir === 'asc' ? 1 : -1
-      return 0
-    })
-
-    // 10. Paginación
+    const total = count !== null ? count : items.length
     const page = Math.max(1, filters.page || 1)
     const pageSize = Math.max(1, filters.pageSize || 10)
-    const totalPages = Math.ceil(total / pageSize) || 1
+    const totalPages = Math.ceil(items.length / pageSize) || 1
     const startIndex = (page - 1) * pageSize
-    const paginated = list.slice(startIndex, startIndex + pageSize)
+    const paginated = items.slice(startIndex, startIndex + pageSize)
 
     return {
       items: paginated,
-      total,
+      total: items.length,
       page,
       pageSize,
       totalPages,
@@ -122,358 +280,467 @@ export class SalesRepository {
    * Obtiene todas las ventas
    */
   async findAll(): Promise<Sale[]> {
-    const { data } = await supabaseMock.from('sales').select()
-    return (data as unknown as Sale[]) || []
+    const res = await this.findFiltered({ pageSize: 1000 })
+    return res.items
   }
 
   /**
-   * Obtiene los ítems normalizados relacionales de la venta desde la tabla sale_items
+   * Obtiene las líneas de una venta específica
    */
   async getItems(saleId: string): Promise<SaleItem[]> {
-    const { data: rawItems } = await supabaseMock.from('sale_items').select()
-    const allItems = (rawItems as unknown as Array<SaleItem & { saleId?: string }>) || []
-    return allItems.filter((i) => i.saleId === saleId)
+    const { data, error } = await supabaseClient
+      .from('sale_items')
+      .select(`
+        id,
+        product_id,
+        quantity,
+        unit_cost,
+        unit_price,
+        discount_percent,
+        tax_rate_percent,
+        tax_amount,
+        subtotal,
+        total,
+        products (
+          name,
+          sku,
+          barcode,
+          unit_type,
+          image_url
+        )
+      `)
+      .eq('sale_id', saleId)
+
+    if (error || !data) return []
+
+    return data.map((it: any) => {
+      const p = it.products || {}
+      return {
+        id: it.id,
+        productId: it.product_id,
+        productName: p.name || 'Producto',
+        sku: p.sku || 'SKU',
+        barcode: p.barcode || '',
+        unitOfMeasure: p.unit_type || 'UND',
+        imageUrl: p.image_url || '',
+        quantity: Number(it.quantity || 0),
+        unitPrice: Number(it.unit_price || 0),
+        unitCost: Number(it.unit_cost || 0),
+        discountPercent: Number(it.discount_percent || 0),
+        discountAmount: Math.round(Number(it.subtotal || 0) * (Number(it.discount_percent || 0) / 100)),
+        taxRatePercent: Number(it.tax_rate_percent || 0),
+        taxAmount: Number(it.tax_amount || 0),
+        subtotal: Number(it.subtotal || 0),
+        total: Number(it.total || 0),
+      }
+    })
   }
 
   /**
    * Busca venta por ID con sus líneas normalizadas
    */
   async findById(id: string): Promise<Sale | null> {
-    const sales = await this.findAll()
-    const sale = sales.find((s) => s.id === id) || null
-    if (!sale) return null
-    const items = await this.getItems(sale.id)
-    return {
-      ...sale,
-      items: items.length > 0 ? items : sale.items || [],
-    }
+    const { data, error } = await supabaseClient
+      .from('sales')
+      .select(`
+        id,
+        sale_number,
+        location_id,
+        customer_id,
+        seller_user_id,
+        cash_session_id,
+        subtotal_amount,
+        discount_amount,
+        tax_amount,
+        total_amount,
+        total_cost_amount,
+        payment_method,
+        status,
+        notes,
+        created_at,
+        updated_at,
+        customers (
+          id,
+          first_name,
+          last_name,
+          company_name,
+          document_type,
+          document_number,
+          customer_type,
+          customer_category
+        ),
+        locations (
+          id,
+          name,
+          code
+        ),
+        users (
+          id,
+          full_name,
+          email
+        ),
+        sale_items (
+          id,
+          product_id,
+          quantity,
+          unit_cost,
+          unit_price,
+          discount_percent,
+          tax_rate_percent,
+          tax_amount,
+          subtotal,
+          total,
+          products (
+            name,
+            sku,
+            barcode,
+            unit_type,
+            image_url
+          )
+        )
+      `)
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return this.mapDbRowToSale(data)
   }
 
   /**
-   * Obtiene el detalle completo relacional de la venta
+   * Obtiene el detalle relacional completo de la venta
    */
   async getDetail(id: string): Promise<SaleDetail | null> {
     const sale = await this.findById(id)
     if (!sale) return null
 
-    // 1. Información del cliente
-    const { data: rawCustomers } = await supabaseMock.from('customers').select()
-    const customers = (rawCustomers as unknown as Array<{
-      id: string
-      displayName: string
-      documentNumber: string
-      documentType: string
-      phone: string
-      email: string
-      address: string
-      city: string
-      creditLimit: number
-      currentBalance: number
-    }>) || []
-    const customer = customers.find((c) => c.id === sale.customerId)
+    // 1. Cliente
+    const { data: customerRow } = await supabaseClient
+      .from('customers')
+      .select('*')
+      .eq('id', sale.customerId)
+      .maybeSingle()
 
-    // 2. Factura relacionada
-    const { data: rawInvoices } = await supabaseMock.from('invoices').select()
-    const invoices = (rawInvoices as unknown as Array<{
-      id: string
-      invoiceNumber: string
-      date: string
-      dianStatus: string
-      dianCufe?: string
-      total: number
-      status: string
-      saleId?: string
-    }>) || []
-    const invoice = invoices.find(
-      (inv) => inv.id === sale.invoiceId || inv.saleId === sale.id
-    )
+    const customer = customerRow
+      ? {
+          id: customerRow.id,
+          displayName: customerRow.company_name || `${customerRow.first_name || ''} ${customerRow.last_name || ''}`.trim() || 'Cliente',
+          documentNumber: customerRow.document_number,
+          documentType: customerRow.document_type || 'CC',
+          phone: customerRow.phone || '',
+          email: customerRow.email || '',
+          address: customerRow.address || '',
+          city: customerRow.city || 'Medellín',
+          creditLimit: Number(customerRow.credit_limit || 0),
+          currentBalance: Number(customerRow.current_balance || 0),
+        }
+      : undefined
 
-    // 3. Remisión relacionada
-    const { data: rawRemissions } = await supabaseMock.from('remissions').select()
-    const remissions = (rawRemissions as unknown as Array<{
-      id: string
-      remissionNumber: string
-      date: string
-      status: string
-      driverName?: string
-      deliveredBy?: string
-      invoiceId?: string
-    }>) || []
-    const remission = remissions.find(
-      (rem) => rem.id === sale.remissionId || (invoice && rem.invoiceId === invoice.id)
-    )
+    // 2. Factura electrónica DIAN si existe
+    const { data: eInvoice } = await supabaseClient
+      .from('electronic_invoices')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .maybeSingle()
+
+    const invoice = eInvoice
+      ? {
+          id: eInvoice.id,
+          invoiceNumber: eInvoice.full_number || `${eInvoice.prefix}-${eInvoice.number}`,
+          date: eInvoice.created_at,
+          dianStatus: eInvoice.dian_status,
+          dianCufe: eInvoice.cufe,
+          total: Number(eInvoice.total_amount || 0),
+          status: 'PAID',
+        }
+      : undefined
+
+    // 3. Remisión relacionada si existe
+    const { data: rem } = await supabaseClient
+      .from('remissions')
+      .select('*')
+      .eq('sale_id', sale.id)
+      .maybeSingle()
+
+    const remission = rem
+      ? {
+          id: rem.id,
+          remissionNumber: rem.code,
+          date: rem.created_at,
+          status: rem.status,
+          driverName: rem.driver_name,
+        }
+      : undefined
 
     // 4. Movimientos de inventario generados
-    const { data: rawMovements } = await supabaseMock.from('inventory_movements').select()
-    const movements = (rawMovements as unknown as Array<{
-      id: string
-      movementNumber: string
-      type: string
-      productId: string
-      productName: string
-      sku: string
-      quantityOut: number
-      quantityIn: number
-      createdAt: string
-      sourceDocumentId?: string
-      sourceDocumentNumber?: string
-      notes?: string
-    }>) || []
-    const saleMovements = movements.filter(
-      (m) =>
-        m.sourceDocumentId === sale.id ||
-        m.sourceDocumentNumber === sale.saleNumber ||
-        m.notes?.includes(sale.saleNumber)
-    )
+    const { data: movs } = await supabaseClient
+      .from('inventory_movements')
+      .select(`
+        id,
+        consecutive,
+        movement_type,
+        product_id,
+        quantity_in,
+        quantity_out,
+        created_at,
+        document_reference,
+        reason,
+        products ( name, sku )
+      `)
+      .eq('document_reference', sale.saleNumber)
 
-    // 5. Auditoría de la venta
-    const { data: rawAudit } = await supabaseMock.from('audit_logs').select()
-    const allAudit = (rawAudit as unknown as Array<{
-      id: string
-      timestamp: string
-      user: string
-      action: string
-      details?: string
-      entityId?: string
-      oldValues?: Record<string, unknown>
-      newValues?: Record<string, unknown>
-    }>) || []
-    const saleAudit = allAudit
-      .filter(
-        (a) =>
-          a.entityId === sale.id ||
-          (a.details && (a.details.includes(sale.saleNumber) || a.details.includes(sale.id)))
-      )
-      .map((a) => ({
-        id: a.id,
-        timestamp: a.timestamp,
-        user: a.user,
-        action: a.action,
-        details: a.details || '',
-        oldValues: a.oldValues,
-        newValues: a.newValues,
-      }))
+    const saleMovements = (movs || []).map((m: any) => ({
+      id: m.id,
+      movementNumber: `MOV-${m.consecutive || m.id.slice(0, 6)}`,
+      type: m.movement_type,
+      productId: m.product_id,
+      productName: m.products?.name || 'Producto',
+      sku: m.products?.sku || 'SKU',
+      quantityIn: Number(m.quantity_in || 0),
+      quantityOut: Number(m.quantity_out || 0),
+      createdAt: m.created_at,
+      sourceDocumentId: sale.id,
+      sourceDocumentNumber: sale.saleNumber,
+      notes: m.reason || '',
+    }))
+
+    // 5. Auditoría
+    const { data: audits } = await supabaseClient
+      .from('audit_logs')
+      .select('*')
+      .eq('entity_name', 'sales')
+      .eq('entity_id', sale.id)
+      .order('created_at', { ascending: false })
+
+    const saleAudit = (audits || []).map((a: any) => ({
+      id: a.id,
+      timestamp: a.created_at,
+      user: a.user_name || 'Sistema',
+      action: a.action,
+      details: a.action,
+      oldValues: a.previous_value,
+      newValues: a.new_value,
+    }))
 
     return {
       ...sale,
       customer,
-      invoice: invoice
-        ? {
-            id: invoice.id,
-            invoiceNumber: invoice.invoiceNumber,
-            date: invoice.date,
-            dianStatus: invoice.dianStatus,
-            dianCufe: invoice.dianCufe,
-            total: invoice.total,
-            status: invoice.status,
-          }
-        : undefined,
-      remission: remission
-        ? {
-            id: remission.id,
-            remissionNumber: remission.remissionNumber,
-            date: remission.date,
-            status: remission.status,
-            driverName: remission.driverName,
-            deliveredBy: remission.deliveredBy,
-          }
-        : undefined,
+      invoice,
+      remission,
       inventoryMovements: saleMovements,
       auditLogs: saleAudit,
     }
   }
 
   /**
-   * Crea una nueva venta en la base de datos
+   * Crea una nueva venta en public.sales
    */
   async create(sale: Sale): Promise<Sale> {
-    const sales = (db.sales as unknown) as Sale[]
-    sales.unshift(sale)
-    return sale
+    const { data: authUser } = await supabaseClient.auth.getUser()
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = comp?.id
+
+    const { data: created, error } = await supabaseClient
+      .from('sales')
+      .insert({
+        company_id: companyId,
+        location_id: sale.locationId,
+        customer_id: sale.customerId,
+        seller_user_id: authUser.user?.id || sale.sellerId,
+        sale_number: sale.saleNumber,
+        subtotal_amount: sale.subtotal,
+        discount_amount: sale.discountTotal,
+        tax_amount: sale.taxTotal,
+        total_amount: sale.totalAmount,
+        total_cost_amount: sale.totalCost,
+        payment_method: mapDomainPaymentMethodToDb(sale.paymentMethod),
+        status: sale.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED',
+        notes: sale.notes,
+      })
+      .select()
+      .single()
+
+    if (error || !created) {
+      throw new Error(`Error al registrar venta: ${error?.message}`)
+    }
+
+    if (sale.items && sale.items.length > 0) {
+      const itemsPayload = sale.items.map((it) => ({
+        company_id: companyId,
+        sale_id: created.id,
+        product_id: it.productId,
+        quantity: it.quantity,
+        unit_cost: it.unitCost,
+        unit_price: it.unitPrice,
+        discount_percent: it.discountPercent,
+        tax_rate_percent: it.taxRatePercent,
+        tax_amount: it.taxAmount,
+        subtotal: it.subtotal,
+        total: it.total,
+      }))
+      await supabaseClient.from('sale_items').insert(itemsPayload)
+    }
+
+    return (await this.findById(created.id))!
   }
 
   /**
    * Actualiza una venta existente
    */
   async update(id: string, partial: Partial<Sale>): Promise<Sale | null> {
-    const sales = (db.sales as unknown) as Sale[]
-    const index = sales.findIndex((s) => s.id === id)
-    if (index === -1) return null
-
-    sales[index] = {
-      ...sales[index],
-      ...partial,
-      updatedAt: new Date().toISOString(),
+    const updates: any = { updated_at: new Date().toISOString() }
+    if (partial.status) {
+      updates.status = partial.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED'
     }
-    return sales[index]
+    if (partial.notes !== undefined) {
+      updates.notes = partial.notes
+    }
+
+    const { data, error } = await supabaseClient
+      .from('sales')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .maybeSingle()
+
+    if (error || !data) return null
+    return this.findById(id)
   }
 
   /**
-   * Registra los movimientos de salida de inventario (SALE_OUT) para Kardex
+   * Registra los movimientos de salida de inventario (SALE_OUT) para Kardex en PostgreSQL
    */
   async createInventoryMovements(
     sale: Sale,
     user: { userId: string; userName: string }
   ): Promise<void> {
-    const movements = (db.inventoryMovements as unknown) as Array<Record<string, unknown>>
-    const stockLevels = (db.stockLevels as unknown) as Array<{
-      productId: string
-      locationId: string
-      quantity: number
-      availableUnits: number
-    }>
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = comp?.id
 
     for (const item of sale.items) {
-      const movementId = `mov-sale-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
-      const movNumber = `MOV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`
+      const { data: stockRow } = await supabaseClient
+        .from('stock_levels')
+        .select('quantity, average_cost')
+        .eq('product_id', item.productId)
+        .eq('location_id', sale.locationId)
+        .maybeSingle()
 
-      // Buscar stock previo
-      const stockEntry = stockLevels.find(
-        (s) => s.productId === item.productId && s.locationId === sale.locationId
-      )
-      const previousStock = stockEntry ? stockEntry.availableUnits : 100
-      const resultingStock = Math.max(0, previousStock - item.quantity)
+      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
+      const newStock = Math.max(0, prevStock - item.quantity)
+      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
 
-      // Actualizar stock level agregado
-      if (stockEntry) {
-        stockEntry.quantity = Math.max(0, stockEntry.quantity - item.quantity)
-        stockEntry.availableUnits = resultingStock
-      }
-
-      // Insertar movimiento histórico en Kardex
-      movements.unshift({
-        id: movementId,
-        movementNumber: movNumber,
-        createdAt: new Date().toISOString(),
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
-        barcode: item.barcode,
-        locationId: sale.locationId,
-        locationName: sale.locationName,
-        type: 'VENTA',
-        quantityIn: 0,
-        quantityOut: item.quantity,
-        quantityDelta: -item.quantity,
-        previousStock,
-        resultingStock,
-        unitCost: item.unitCost,
-        totalValue: item.total,
-        sourceDocumentType: 'SALE',
-        sourceDocumentId: sale.id,
-        sourceDocumentNumber: sale.saleNumber,
-        userId: user.userId,
-        userName: user.userName,
-        notes: `Salida por venta comercial ${sale.saleNumber} - Cliente: ${sale.customerName}`,
+      await supabaseClient.from('inventory_movements').insert({
+        company_id: companyId,
+        product_id: item.productId,
+        location_id: sale.locationId,
+        movement_type: 'SALE_OUT',
+        quantity_in: 0,
+        quantity_out: item.quantity,
+        previous_stock: prevStock,
+        new_stock: newStock,
+        unit_cost: cost,
+        total_cost: item.quantity * cost,
+        document_type: 'SALE',
+        document_reference: sale.saleNumber,
+        reason: `Salida por venta comercial ${sale.saleNumber} - Cliente: ${sale.customerName}`,
+        user_id: user.userId || null,
       })
     }
   }
 
   /**
-   * Reversión de inventario por anulación de venta (SALE_RETURN / RETURN_IN)
+   * Reversión de inventario por anulación de venta
    */
   async reverseInventoryMovements(
     sale: Sale,
     reason: string,
     user: { userId: string; userName: string }
   ): Promise<void> {
-    const movements = (db.inventoryMovements as unknown) as Array<Record<string, unknown>>
-    const stockLevels = (db.stockLevels as unknown) as Array<{
-      productId: string
-      locationId: string
-      quantity: number
-      availableUnits: number
-    }>
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = comp?.id
 
     for (const item of sale.items) {
-      const movementId = `mov-ret-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
-      const movNumber = `MOV-REV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`
+      const { data: stockRow } = await supabaseClient
+        .from('stock_levels')
+        .select('quantity, average_cost')
+        .eq('product_id', item.productId)
+        .eq('location_id', sale.locationId)
+        .maybeSingle()
 
-      const stockEntry = stockLevels.find(
-        (s) => s.productId === item.productId && s.locationId === sale.locationId
-      )
-      const previousStock = stockEntry ? stockEntry.availableUnits : 50
-      const resultingStock = previousStock + item.quantity
+      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
+      const newStock = prevStock + item.quantity
+      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
 
-      if (stockEntry) {
-        stockEntry.quantity += item.quantity
-        stockEntry.availableUnits = resultingStock
-      }
-
-      movements.unshift({
-        id: movementId,
-        movementNumber: movNumber,
-        createdAt: new Date().toISOString(),
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
-        barcode: item.barcode,
-        locationId: sale.locationId,
-        locationName: sale.locationName,
-        type: 'DEVOLUCION_VENTA',
-        quantityIn: item.quantity,
-        quantityOut: 0,
-        quantityDelta: item.quantity,
-        previousStock,
-        resultingStock,
-        unitCost: item.unitCost,
-        totalValue: item.total,
-        sourceDocumentType: 'SALE_RETURN',
-        sourceDocumentId: sale.id,
-        sourceDocumentNumber: sale.saleNumber,
-        userId: user.userId,
-        userName: user.userName,
-        notes: `Reversión por anulación de venta ${sale.saleNumber}. Motivo: ${reason}`,
+      await supabaseClient.from('inventory_movements').insert({
+        company_id: companyId,
+        product_id: item.productId,
+        location_id: sale.locationId,
+        movement_type: 'POSITIVE_ADJUSTMENT',
+        quantity_in: item.quantity,
+        quantity_out: 0,
+        previous_stock: prevStock,
+        new_stock: newStock,
+        unit_cost: cost,
+        total_cost: item.quantity * cost,
+        document_type: 'SALE_RETURN',
+        document_reference: `REV-${sale.saleNumber}`,
+        reason: `Reversión por anulación de venta ${sale.saleNumber}. Motivo: ${reason}`,
+        user_id: user.userId || null,
       })
     }
   }
 
   /**
-   * Genera factura POS / Electrónica asociada a la venta
+   * Genera factura POS / Electrónica DIAN separada
    */
   async generateInvoice(
     sale: Sale,
     type: 'FACTURA_ELECTRONICA' | 'FACTURA_POS',
     user: { userId: string; userName: string }
   ): Promise<{ invoiceId: string; invoiceNumber: string }> {
-    const invoices = (db.invoices as unknown) as Array<Record<string, unknown>>
-    const invoiceId = `inv-${Date.now().toString().slice(-6)}`
-    const prefix = type === 'FACTURA_ELECTRONICA' ? 'FE' : 'POS'
-    const invoiceNumber = `${prefix}-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = comp?.id
 
-    invoices.unshift({
-      id: invoiceId,
-      invoiceNumber,
-      customerId: sale.customerId,
-      customerName: sale.customerName,
-      customerDoc: sale.customerDoc,
-      locationId: sale.locationId,
-      locationName: sale.locationName,
-      date: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-      subtotal: sale.subtotal,
-      taxTotal: sale.taxTotal,
-      total: sale.totalAmount,
-      pendingBalance: sale.paymentMethod === 'CREDITO' ? sale.totalAmount : 0,
-      status: sale.paymentMethod === 'CREDITO' ? 'PAYMENT_PENDING' : 'PAID',
-      paymentMethod: sale.paymentMethod,
-      dianStatus: type === 'FACTURA_ELECTRONICA' ? 'VALIDADA_DIAN' : 'PENDIENTE',
-      dianCufe:
-        type === 'FACTURA_ELECTRONICA'
-          ? Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-          : undefined,
-      itemsCount: sale.itemsCount,
-      saleId: sale.id,
-    })
+    if (type === 'FACTURA_ELECTRONICA') {
+      const prefix = 'FE'
+      const { data: lastInv } = await supabaseClient
+        .from('electronic_invoices')
+        .select('number')
+        .eq('prefix', prefix)
+        .order('number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
 
-    await this.update(sale.id, {
-      invoiceId,
-      invoiceNumber,
-      documentType: type,
-      status: 'INVOICED',
-    })
+      const nextNumber = lastInv ? Number(lastInv.number) + 1 : 1
+      const cufe = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
 
-    return { invoiceId, invoiceNumber }
+      const { data: created, error } = await supabaseClient
+        .from('electronic_invoices')
+        .insert({
+          company_id: companyId,
+          location_id: sale.locationId,
+          sale_id: sale.id,
+          customer_id: sale.customerId,
+          prefix,
+          number: nextNumber,
+          document_type: 'INVOICE',
+          cufe,
+          subtotal_amount: sale.subtotal,
+          tax_amount: sale.taxTotal,
+          total_amount: sale.totalAmount,
+          dian_status: 'PENDING',
+        })
+        .select()
+        .single()
+
+      if (error || !created) {
+        throw new Error(`Error al generar factura electrónica DIAN: ${error?.message}`)
+      }
+
+      return { invoiceId: created.id, invoiceNumber: `${prefix}-${nextNumber}` }
+    } else {
+      const invoiceNumber = `POS-${sale.saleNumber.slice(-4)}`
+      return { invoiceId: sale.id, invoiceNumber }
+    }
   }
 
   /**
@@ -484,39 +751,34 @@ export class SalesRepository {
     details: { deliveredBy?: string; driverName?: string; receivedBy?: string; notes?: string },
     user: { userId: string; userName: string }
   ): Promise<{ remissionId: string; remissionNumber: string }> {
-    const remissions = (db.remissions as unknown) as Array<Record<string, unknown>>
-    const remissionId = `rem-${Date.now().toString().slice(-6)}`
-    const remissionNumber = `REM-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = comp?.id
+    const code = `REM-${Date.now().toString().slice(-6)}`
 
-    remissions.unshift({
-      id: remissionId,
-      remissionNumber,
-      customerId: sale.customerId,
-      customerName: sale.customerName,
-      locationId: sale.locationId,
-      locationName: sale.locationName,
-      date: new Date().toISOString(),
-      status: 'DELIVERED',
-      itemsCount: sale.itemsCount,
-      totalUnits: sale.totalUnits,
-      invoiceId: sale.invoiceId,
-      deliveredBy: details.deliveredBy || 'Despacho Propio Super Más',
-      driverName: details.driverName || 'Conductor Asignado',
-      receivedBy: details.receivedBy || `${sale.customerName} (Recibido Conforme)`,
-      notes: details.notes || `Remisión generada por venta ${sale.saleNumber}`,
-    })
+    const { data: created, error } = await supabaseClient
+      .from('remissions')
+      .insert({
+        company_id: companyId,
+        code,
+        sale_id: sale.id,
+        customer_id: sale.customerId,
+        origin_location_id: sale.locationId,
+        status: 'CREATED',
+        driver_name: details.driverName || 'Conductor Asignado',
+        notes: details.notes || `Remisión generada por venta ${sale.saleNumber}`,
+      })
+      .select()
+      .single()
 
-    await this.update(sale.id, {
-      remissionId,
-      remissionNumber,
-      documentType: sale.documentType === 'FACTURA_ELECTRONICA' ? 'FACTURA_ELECTRONICA' : 'REMISION',
-    })
+    if (error || !created) {
+      throw new Error(`Error al generar remisión: ${error?.message}`)
+    }
 
-    return { remissionId, remissionNumber }
+    return { remissionId: created.id, remissionNumber: code }
   }
 
   /**
-   * Registra auditoría en audit_logs.json
+   * Registra auditoría en public.audit_logs
    */
   async logAudit(entry: {
     user: string
@@ -526,56 +788,55 @@ export class SalesRepository {
     oldValues?: Record<string, unknown>
     newValues?: Record<string, unknown>
   }): Promise<void> {
-    const auditLogs = (db.auditLogs as unknown) as Array<{
-      id: string
-      timestamp: string
-      user: string
-      action: string
-      details: string
-      entityId?: string
-      oldValues?: Record<string, unknown>
-      newValues?: Record<string, unknown>
-    }>
-    auditLogs.unshift({
-      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toISOString(),
-      user: entry.user,
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const { data: authUser } = await supabaseClient.auth.getUser()
+
+    await supabaseClient.from('audit_logs').insert({
+      company_id: comp?.id,
+      user_id: authUser.user?.id || null,
+      entity_name: 'sales',
+      entity_id: entry.entityId,
       action: entry.action,
-      details: entry.details,
-      entityId: entry.entityId,
-      oldValues: entry.oldValues,
-      newValues: entry.newValues,
+      previous_value: entry.oldValues || null,
+      new_value: entry.newValues || null,
     })
   }
 
   /**
-   * Calcula estadísticas clave del módulo Ventas
+   * Calcula estadísticas clave del módulo Ventas desde PostgreSQL
    */
   async getStats(): Promise<SaleStats> {
-    const sales = await this.findAll()
+    const { data: sales, error } = await supabaseClient
+      .from('sales')
+      .select('id, total_amount, status, customer_id, sale_items ( quantity )')
 
-    const nonCancelledSales = sales.filter((s) => s.status !== 'CANCELLED')
+    if (error || !sales) {
+      return {
+        periodTotalSales: 0,
+        periodSalesCount: 0,
+        averageTicket: 0,
+        totalUnitsSold: 0,
+        uniqueCustomersServed: 0,
+        pendingToInvoiceCount: 0,
+        cancelledSalesCount: 0,
+      }
+    }
 
-    const periodTotalSales = nonCancelledSales.reduce(
-      (sum, s) => sum + (s.totalAmount || 0),
-      0
-    )
-    const periodSalesCount = nonCancelledSales.length
-    const averageTicket =
-      periodSalesCount > 0 ? Math.round(periodTotalSales / periodSalesCount) : 0
+    const nonCancelled = sales.filter((s) => s.status !== 'CANCELLED')
+    const periodTotalSales = nonCancelled.reduce((sum, s) => sum + Number(s.total_amount || 0), 0)
+    const periodSalesCount = nonCancelled.length
+    const averageTicket = periodSalesCount > 0 ? Math.round(periodTotalSales / periodSalesCount) : 0
 
-    const totalUnitsSold = nonCancelledSales.reduce(
-      (sum, s) => sum + (s.totalUnits || 0),
-      0
-    )
+    let totalUnitsSold = 0
+    for (const s of nonCancelled) {
+      const items = (s.sale_items as any[]) || []
+      for (const it of items) {
+        totalUnitsSold += Number(it.quantity || 0)
+      }
+    }
 
-    const uniqueCustomers = new Set(nonCancelledSales.map((s) => s.customerId))
+    const uniqueCustomers = new Set(nonCancelled.map((s) => s.customer_id))
     const uniqueCustomersServed = uniqueCustomers.size
-
-    const pendingToInvoiceCount = sales.filter(
-      (s) => (s.status === 'PENDING' || s.status === 'CONFIRMED') && !s.invoiceId
-    ).length
-
     const cancelledSalesCount = sales.filter((s) => s.status === 'CANCELLED').length
 
     return {
@@ -584,7 +845,7 @@ export class SalesRepository {
       averageTicket,
       totalUnitsSold,
       uniqueCustomersServed,
-      pendingToInvoiceCount,
+      pendingToInvoiceCount: 0,
       cancelledSalesCount,
     }
   }

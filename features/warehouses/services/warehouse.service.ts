@@ -508,14 +508,12 @@ export class WarehouseService {
     return warehouseRepository.getAuditLogsByLocationId(locationId)
   }
 
-  async getWarehouseOverviewAnalytics(_locationId?: string): Promise<{
+  async getWarehouseOverviewAnalytics(locationId: string): Promise<{
     topSelling: { name: string; sku: string; sales: string; units: number }[]
     categoriesDistribution: { name: string; pct: string; value: string }[]
+    weeklyData: { day: string; sales: number; profit: number; ops: number }[]
   }> {
-    return {
-      topSelling: [],
-      categoriesDistribution: [],
-    }
+    return warehouseRepository.getWarehouseOverviewAnalytics(locationId)
   }
 }
 

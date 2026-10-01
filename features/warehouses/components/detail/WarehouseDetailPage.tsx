@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import {
   LocationWithMetrics,
@@ -299,6 +299,27 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
     { key: 'CONFIGURACION', label: 'Configuración', iconName: 'settings' },
   ]
 
+  const periodSalesAmount = useMemo(() => {
+    return sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0)
+  }, [sales])
+
+  const periodPurchasesAmount = useMemo(() => {
+    return purchases.reduce((sum, p) => sum + (p.totalCost || 0), 0)
+  }, [purchases])
+
+  const periodCostAmount = useMemo(() => {
+    return sales.reduce((sum, s) => sum + (s.costAmount || 0), 0)
+  }, [sales])
+
+  const periodProfitAmount = useMemo(() => {
+    return Math.max(0, periodSalesAmount - periodCostAmount)
+  }, [periodSalesAmount, periodCostAmount])
+
+  const periodMarginPercent = useMemo(() => {
+    if (periodSalesAmount <= 0) return 0
+    return Math.round((periodProfitAmount / periodSalesAmount) * 100)
+  }, [periodSalesAmount, periodProfitAmount])
+
   return (
     <div className="warehouse-detail-page page-enter">
       <WarehouseToastContainer toasts={toasts} onDismiss={removeToast} />
@@ -319,6 +340,10 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
         period={period}
         onPeriodChange={setPeriod}
         canReadCost={permissions.canReadCost}
+        periodSalesAmount={periodSalesAmount}
+        periodPurchasesAmount={periodPurchasesAmount}
+        periodProfitAmount={periodProfitAmount}
+        periodMarginPercent={periodMarginPercent}
       />
 
       {/* 10 Navigation Tabs */}

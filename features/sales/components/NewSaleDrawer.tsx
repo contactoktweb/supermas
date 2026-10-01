@@ -6,7 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { salesCalculationService } from '../services/sales-calculation.service'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface NewSaleDrawerProps {
   isOpen: boolean
@@ -49,7 +49,7 @@ export function NewSaleDrawer({
 
   // Form State
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('')
-  const [selectedLocationId, setSelectedLocationId] = useState<string>('loc-001')
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(locations[0]?.id || '')
   const [cart, setCart] = useState<CartItem[]>([])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO')
   const [documentType, setDocumentType] = useState<'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'>('FACTURA_POS')
@@ -75,10 +75,116 @@ export function NewSaleDrawer({
   }, [isOpen])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Data from mock-db
-  const allCustomers = useMemo(() => db.customers || [], [])
-  const allProducts = useMemo(() => db.products || [], [])
-  const allStockLevels = useMemo(() => db.stockLevels || [], [])
+  // Real data from Supabase
+  const [allCustomers, setAllCustomers] = useState<any[]>([])
+  const [allProducts, setAllProducts] = useState<any[]>([])
+  const [allStockLevels, setAllStockLevels] = useState<any[]>([])
+  const [loadingCatalog, setLoadingCatalog] = useState(false)
+
+  // Load active customers and products when drawer opens
+  useEffect(() => {
+    if (!isOpen) return
+    let isMounted = true
+    setLoadingCatalog(true)
+
+    Promise.all([
+      supabaseClient
+        .from('customers')
+        .select('id, first_name, last_name, company_name, document_number, phone, email, is_active, credit_limit, current_balance')
+        .eq('is_active', true)
+        .order('first_name', { ascending: true }),
+      supabaseClient
+        .from('products')
+        .select('id, name, sku, barcode, sale_price, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt')
+        .eq('is_active', true)
+        .order('name', { ascending: true }),
+    ])
+      .then(([custRes, prodRes]) => {
+        if (isMounted) {
+          const mappedCusts = (custRes.data || []).map((c: any) => ({
+            id: c.id,
+            displayName: c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente',
+            documentNumber: c.document_number,
+            phone: c.phone || '',
+            email: c.email || '',
+            creditLimit: Number(c.credit_limit || 0),
+            currentBalance: Number(c.current_balance || 0),
+            priceList: 'DEFAULT',
+            status: 'ACTIVE',
+          }))
+          setAllCustomers(mappedCusts)
+
+          const mappedProds = (prodRes.data || []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            barcode: p.barcode || '',
+            imageUrl: p.primary_image_url || '',
+            unitOfMeasure: p.unit_of_measure || 'UND',
+            status: 'ACTIVE',
+            prices: {
+              defaultPrice: Number(p.sale_price ?? p.public_sale_price ?? 0),
+              wholesalePrice: Number(p.wholesale_price ?? p.sale_price ?? 0),
+              specialPrice: Number(p.sale_price ?? 0),
+            },
+            tax: {
+              vatRate: p.is_tax_exempt ? 0 : Number(p.tax_rate_percent ?? 19),
+              isExempt: Boolean(p.is_tax_exempt),
+            },
+            cost: 0,
+          }))
+          setAllProducts(mappedProds)
+
+          if (mappedCusts.length > 0) {
+            setSelectedCustomerId((prev) => {
+              if (prev && mappedCusts.some((c: any) => c.id === prev)) return prev
+              const generic = mappedCusts.find((c: any) => c.documentNumber === '222222222222') || mappedCusts[0]
+              return generic.id
+            })
+          }
+        }
+      })
+      .catch((err) => console.error('Error cargando catálogo en NewSaleDrawer:', err))
+      .finally(() => {
+        if (isMounted) setLoadingCatalog(false)
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isOpen])
+
+  // Load real stock levels for selected location
+  useEffect(() => {
+    if (!isOpen || !selectedLocationId) return
+    let isMounted = true
+
+    async function loadStock() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('stock_levels')
+          .select('product_id, quantity, location_id')
+          .eq('location_id', selectedLocationId)
+
+        if (isMounted && !error && data) {
+          setAllStockLevels(
+            data.map((s: any) => ({
+              productId: s.product_id,
+              locationId: s.location_id,
+              availableUnits: Number(s.quantity || 0),
+            }))
+          )
+        }
+      } catch (err) {
+        console.error('Error cargando existencias por bodega en NewSaleDrawer:', err)
+      }
+    }
+    loadStock()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isOpen, selectedLocationId])
 
   // Reset form on open
   useEffect(() => {
@@ -86,17 +192,14 @@ export function NewSaleDrawer({
       setStep(1)
       setErrorMessage(null)
       setIsSubmitting(false)
-      // Preselect first location if not set
-      if (locations.length > 0 && !selectedLocationId) {
-        setSelectedLocationId(locations[0].id)
-      }
-      // Set default generic customer if no customer selected
-      const genericCust = allCustomers.find((c) => c.documentNumber === '222222222222')
-      if (genericCust && !selectedCustomerId) {
-        setSelectedCustomerId(genericCust.id)
+      if (locations.length > 0) {
+        setSelectedLocationId((prev) => {
+          if (prev && locations.some((l) => l.id === prev)) return prev
+          return locations[0].id
+        })
       }
     }
-  }, [isOpen, locations, allCustomers, selectedCustomerId, selectedLocationId])
+  }, [isOpen, locations])
 
   // Selected customer object
   const selectedCustomer = useMemo(() => {
@@ -137,7 +240,7 @@ export function NewSaleDrawer({
         const stockEntry = allStockLevels.find(
           (s) => s.productId === p.id && s.locationId === selectedLocationId
         )
-        const available = (stockEntry as any)?.availableUnits ?? (stockEntry as any)?.quantity ?? (p as any).availableUnits ?? 50
+        const available = Number((stockEntry as any)?.availableUnits ?? (stockEntry as any)?.quantity ?? 0)
         const priceList = (selectedCustomer?.priceList as any) || 'DEFAULT'
         const unitPrice = salesCalculationService.resolveUnitPrice(p as any, priceList, 1)
 

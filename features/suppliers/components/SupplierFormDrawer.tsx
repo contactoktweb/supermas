@@ -50,10 +50,13 @@ export function SupplierFormDrawer({
   // Form Fields - Información General
   const [documentType, setDocumentType] = useState<DocumentType>('NIT')
   const [documentNumber, setDocumentNumber] = useState('')
+  const [verificationDigit, setVerificationDigit] = useState('')
+  const [personType, setPersonType] = useState<'NATURAL' | 'JURIDICA'>('JURIDICA')
   const [businessName, setBusinessName] = useState('')
   const [commercialName, setCommercialName] = useState('')
   const [contactName, setContactName] = useState('')
   const [phone, setPhone] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
   const [city, setCity] = useState('')
@@ -75,10 +78,13 @@ export function SupplierFormDrawer({
     if (mode === 'edit' && supplier) {
       setDocumentType(supplier.documentType || 'NIT')
       setDocumentNumber(supplier.documentNumber || supplier.nit || '')
+      setVerificationDigit(supplier.verificationDigit || '')
+      setPersonType(supplier.personType || 'JURIDICA')
       setBusinessName(supplier.businessName || supplier.supplierName || '')
       setCommercialName(supplier.commercialName || '')
       setContactName(supplier.contactName || '')
       setPhone(supplier.phone || '')
+      setWhatsapp(supplier.whatsapp || '')
       setEmail(supplier.email || '')
       setAddress(supplier.address || '')
       setCity(supplier.city || '')
@@ -92,10 +98,13 @@ export function SupplierFormDrawer({
     } else if (mode === 'create') {
       setDocumentType('NIT')
       setDocumentNumber('')
+      setVerificationDigit('')
+      setPersonType('JURIDICA')
       setBusinessName('')
       setCommercialName('')
       setContactName('')
       setPhone('')
+      setWhatsapp('')
       setEmail('')
       setAddress('')
       setCity('Medellín')
@@ -119,10 +128,13 @@ export function SupplierFormDrawer({
     const formData = {
       documentType,
       documentNumber: documentNumber.trim(),
+      verificationDigit: verificationDigit.trim() || undefined,
+      personType,
       businessName: businessName.trim(),
       commercialName: commercialName.trim() || undefined,
       contactName: contactName.trim(),
       phone: phone.trim(),
+      whatsapp: whatsapp.trim() || undefined,
       email: email.trim().toLowerCase(),
       address: address.trim(),
       city: city.trim(),
@@ -280,10 +292,73 @@ export function SupplierFormDrawer({
             {/* TAB 1: INFORMACIÓN GENERAL */}
             {activeTab === 'general' && (
               <div className="page-enter">
+                {/* Tipo de Persona */}
+                <div style={{ marginBottom: 16 }}>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Tipo de persona <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        padding: '8px 14px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: personType === 'JURIDICA' ? 'var(--navy-subtle, #f0f7ff)' : 'transparent',
+                        borderColor: personType === 'JURIDICA' ? 'var(--navy, #1e3a8a)' : 'var(--border)',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="personType"
+                        value="JURIDICA"
+                        checked={personType === 'JURIDICA'}
+                        onChange={() => setPersonType('JURIDICA')}
+                      />
+                      <span style={{ fontWeight: personType === 'JURIDICA' ? 600 : 400 }}>Persona Jurídica (Empresa / NIT)</span>
+                    </label>
+
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        fontSize: 13,
+                        cursor: 'pointer',
+                        padding: '8px 14px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        background: personType === 'NATURAL' ? 'var(--navy-subtle, #f0f7ff)' : 'transparent',
+                        borderColor: personType === 'NATURAL' ? 'var(--navy, #1e3a8a)' : 'var(--border)',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="personType"
+                        value="NATURAL"
+                        checked={personType === 'NATURAL'}
+                        onChange={() => setPersonType('NATURAL')}
+                      />
+                      <span style={{ fontWeight: personType === 'NATURAL' ? 600 : 400 }}>Persona Natural (C.C. / RUT)</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1.2fr',
+                    gridTemplateColumns: '1fr 1.2fr 80px',
                     gap: 16,
                     marginBottom: 16,
                   }}
@@ -323,10 +398,33 @@ export function SupplierFormDrawer({
                       type="text"
                       className="filter-date-input"
                       style={{ width: '100%' }}
-                      placeholder="Ej. 900.421.882-1"
+                      placeholder="Ej. 900421882"
                       value={documentNumber}
                       onChange={(e) => setDocumentNumber(e.target.value)}
                       required
+                    />
+                  </div>
+
+                  {/* Dígito Verificación (DV) */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        marginBottom: 6,
+                      }}
+                    >
+                      DV
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={1}
+                      className="filter-date-input"
+                      style={{ width: '100%', textAlign: 'center' }}
+                      placeholder="1"
+                      value={verificationDigit}
+                      onChange={(e) => setVerificationDigit(e.target.value)}
                     />
                   </div>
                 </div>
@@ -349,7 +447,7 @@ export function SupplierFormDrawer({
                         marginBottom: 6,
                       }}
                     >
-                      Razón social <span style={{ color: '#dc2626' }}>*</span>
+                      Razón social / Nombre legal <span style={{ color: '#dc2626' }}>*</span>
                     </label>
                     <input
                       type="text"
@@ -388,7 +486,7 @@ export function SupplierFormDrawer({
                 <div
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: '1fr 1fr 1fr',
                     gap: 16,
                     marginBottom: 16,
                   }}
@@ -436,6 +534,28 @@ export function SupplierFormDrawer({
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       required
+                    />
+                  </div>
+
+                  {/* WhatsApp */}
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        marginBottom: 6,
+                      }}
+                    >
+                      WhatsApp comercial
+                    </label>
+                    <input
+                      type="text"
+                      className="filter-date-input"
+                      style={{ width: '100%' }}
+                      placeholder="Ej. +57 300 123 4567"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
                     />
                   </div>
                 </div>

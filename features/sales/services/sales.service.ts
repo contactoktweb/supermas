@@ -21,7 +21,7 @@ import {
   SalesUserContext,
   SaleItem,
 } from '../types'
-import { db, supabaseMock } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 const DEFAULT_USER: SalesUserContext = {
   userId: 'usr-admin-01',
@@ -109,13 +109,13 @@ export class SalesService {
     this.checkPermission(user, 'sales.create')
 
     // 0. Validar existencia de empresa configurada
-    const { data: rawCompany } = await supabaseMock.from('company_settings').select()
-    const company = Array.isArray(rawCompany) && rawCompany.length > 0 ? rawCompany[0] : (db.companySettings || null)
-    const hasCompany =
-      company &&
-      company.nit &&
-      (company.companyName || company.legalName || company.businessName)
-    if (!hasCompany) {
+    const { data: comp } = await supabaseClient
+      .from('companies')
+      .select('id, business_name, nit')
+      .limit(1)
+      .maybeSingle()
+
+    if (!comp?.nit && !comp?.business_name) {
       throw new Error('Configure la empresa antes de operar.')
     }
 
@@ -123,51 +123,83 @@ export class SalesService {
     const validated = createSaleSchema.parse(dto)
 
     // 2. Obtener cliente y validar existencia
-    const { data: rawCustomers } = await supabaseMock.from('customers').select()
-    const allCustomers = (rawCustomers as unknown as Array<{
-      id: string
-      displayName: string
-      documentNumber: string
-      customerType: 'NATURAL' | 'COMPANY'
-      category: string
-      priceList: 'DEFAULT' | 'WHOLESALE' | 'VIP'
-      creditLimit: number
-      currentBalance: number
-      status: string
-    }>) || []
-    const customer = allCustomers.find((c) => c.id === validated.customerId)
-    if (!customer) {
+    const { data: rawCustomer } = await supabaseClient
+      .from('customers')
+      .select('id, first_name, last_name, company_name, document_number, is_active, credit_limit, current_balance')
+      .eq('id', validated.customerId)
+      .maybeSingle()
+
+    if (!rawCustomer) {
       throw new Error(`El cliente seleccionado con ID "${validated.customerId}" no existe.`)
     }
-    if (customer.status === 'INACTIVE') {
-      throw new Error(`El cliente "${customer.displayName}" se encuentra inactivo. Active el cliente para registrar ventas.`)
+    if (!rawCustomer.is_active) {
+      const displayName = rawCustomer.company_name || `${rawCustomer.first_name || ''} ${rawCustomer.last_name || ''}`.trim()
+      throw new Error(`El cliente "${displayName}" se encuentra inactivo. Active el cliente para registrar ventas.`)
+    }
+
+    const customer = {
+      id: rawCustomer.id,
+      displayName: rawCustomer.company_name || `${rawCustomer.first_name || ''} ${rawCustomer.last_name || ''}`.trim() || 'Cliente',
+      documentNumber: rawCustomer.document_number,
+      customerType: 'NATURAL' as const,
+      category: 'GENERAL',
+      priceList: 'DEFAULT' as const,
+      creditLimit: Number(rawCustomer.credit_limit || 0),
+      currentBalance: Number(rawCustomer.current_balance || 0),
+      status: rawCustomer.is_active ? 'ACTIVE' : 'INACTIVE',
     }
 
     // 3. Obtener bodega y validar existencia
-    const { data: rawLocations } = await supabaseMock.from('locations').select()
-    const allLocations = (rawLocations as unknown as Array<{
-      id: string
-      name: string
-      code: string
-      type: string
-      status: string
-    }>) || []
-    const location = allLocations.find((l) => l.id === validated.locationId)
-    if (!location) {
+    const { data: rawLocation } = await supabaseClient
+      .from('locations')
+      .select('id, name, code, type, status')
+      .eq('id', validated.locationId)
+      .maybeSingle()
+
+    if (!rawLocation) {
       throw new Error(`La bodega o punto de venta con ID "${validated.locationId}" no existe.`)
     }
 
-    // 4. Obtener productos y stock disponible
-    const { data: rawProducts } = await supabaseMock.from('products').select()
-    const allProducts = (rawProducts as unknown as Array<any>) || []
+    const location = {
+      id: rawLocation.id,
+      name: rawLocation.name,
+      code: rawLocation.code,
+      type: rawLocation.type,
+      status: rawLocation.status,
+    }
 
-    const { data: rawStock } = await supabaseMock.from('stock_levels').select()
-    const allStock = (rawStock as unknown as Array<{
-      productId: string
-      locationId: string
-      availableUnits: number
-      quantity: number
-    }>) || []
+    // 4. Obtener productos y stock disponible
+    const productIds = validated.items.map((i) => i.productId)
+    const { data: rawProducts } = await supabaseClient
+      .from('products')
+      .select('id, name, sku, barcode, cost_price, public_sale_price, wholesale_price, tax_rate_percent, is_tax_exempt, is_active')
+      .in('id', productIds)
+
+    const allProducts = (rawProducts || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      sku: p.sku,
+      barcode: p.barcode,
+      costPrice: Number(p.cost_price || 0),
+      normalPrice: Number(p.public_sale_price || 0),
+      wholesalePrice: p.wholesale_price ? Number(p.wholesale_price) : undefined,
+      vatRatePercent: p.is_tax_exempt ? 0 : Number(p.tax_rate_percent || 19),
+      isExempt: Boolean(p.is_tax_exempt),
+      status: p.is_active ? 'ACTIVE' : 'INACTIVE',
+    }))
+
+    const { data: rawStock } = await supabaseClient
+      .from('stock_levels')
+      .select('product_id, location_id, quantity, reserved_quantity')
+      .eq('location_id', validated.locationId)
+      .in('product_id', productIds)
+
+    const allStock = (rawStock || []).map((s) => ({
+      productId: s.product_id,
+      locationId: s.location_id,
+      availableUnits: Math.max(0, Number(s.quantity || 0) - Number(s.reserved_quantity || 0)),
+      quantity: Number(s.quantity || 0),
+    }))
 
     const calculatedItems: SaleItem[] = []
 
@@ -184,7 +216,7 @@ export class SalesService {
       const stockLevel = allStock.find(
         (s) => s.productId === rawItem.productId && s.locationId === validated.locationId
       )
-      const availableUnits = stockLevel ? stockLevel.availableUnits : (product.availableUnits || 0)
+      const availableUnits = stockLevel ? stockLevel.availableUnits : 0
 
       if (availableUnits < rawItem.quantity) {
         throw new Error(
@@ -444,14 +476,6 @@ export class SalesService {
       throw new Error(`La venta con ID "${validated.saleId}" no existe.`)
     }
 
-    const movements = (db.inventoryMovements as unknown) as Array<Record<string, unknown>>
-    const stockLevels = (db.stockLevels as unknown) as Array<{
-      productId: string
-      locationId: string
-      availableUnits: number
-      quantity: number
-    }>
-
     for (const returnItem of validated.items) {
       const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
       if (!saleLine) {
@@ -461,43 +485,49 @@ export class SalesService {
         throw new Error(`La cantidad a devolver (${returnItem.quantity}) no puede superar la cantidad vendida (${saleLine.quantity}).`)
       }
 
-      // Revertir inventario
-      const stockEntry = stockLevels.find(
-        (s) => s.productId === returnItem.productId && s.locationId === sale.locationId
-      )
-      const previousStock = stockEntry ? stockEntry.availableUnits : 10
+      // Revertir inventario registrando movimiento CUSTOMER_RETURN en public.inventory_movements
+      // El trigger process_inventory_movement() de PostgreSQL actualiza automáticamente public.stock_levels
+      const { data: stockRow } = await supabaseClient
+        .from('stock_levels')
+        .select('quantity, average_cost')
+        .eq('product_id', returnItem.productId)
+        .eq('location_id', sale.locationId)
+        .maybeSingle()
+
+      const previousStock = stockRow ? Number(stockRow.quantity || 0) : 0
       const resultingStock = previousStock + returnItem.quantity
+      const unitCost = stockRow ? Number(stockRow.average_cost || 0) : Number(saleLine.unitCost || 0)
 
-      if (stockEntry) {
-        stockEntry.quantity += returnItem.quantity
-        stockEntry.availableUnits = resultingStock
+      const { data: authUser } = await supabaseClient.auth.getUser()
+      const { data: comp } = await supabaseClient
+        .from('companies')
+        .select('id')
+        .limit(1)
+        .maybeSingle()
+
+      const { error: movErr } = await supabaseClient
+        .from('inventory_movements')
+        .insert({
+          company_id: comp?.id,
+          product_id: returnItem.productId,
+          location_id: sale.locationId,
+          movement_type: 'CUSTOMER_RETURN',
+          quantity_in: returnItem.quantity,
+          quantity_out: 0,
+          previous_stock: previousStock,
+          new_stock: resultingStock,
+          unit_cost: unitCost,
+          total_cost: returnItem.quantity * unitCost,
+          document_type: 'SALE_RETURN',
+          document_reference: sale.saleNumber,
+          reason: `Devolución de venta ${sale.saleNumber}: ${returnItem.reason || validated.reason}`,
+          user_id: authUser?.user?.id || null,
+        })
+
+      if (movErr) {
+        console.error('Error insertando movimiento de devolución:', movErr)
+        throw new Error(`Error al registrar devolución en Kardex: ${movErr.message}`)
       }
-
-      movements.unshift({
-        id: `mov-ret-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-        movementNumber: `MOV-DEV-${new Date().getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`,
-        createdAt: new Date().toISOString(),
-        productId: returnItem.productId,
-        productName: saleLine.productName,
-        sku: saleLine.sku,
-        barcode: saleLine.barcode,
-        locationId: sale.locationId,
-        locationName: sale.locationName,
-        type: 'DEVOLUCION_VENTA',
-        quantityIn: returnItem.quantity,
-        quantityOut: 0,
-        quantityDelta: returnItem.quantity,
-        previousStock,
-        resultingStock,
-        unitCost: saleLine.unitCost,
-        totalValue: saleLine.unitPrice * returnItem.quantity,
-        sourceDocumentType: 'SALE_RETURN',
-        sourceDocumentId: sale.id,
-        sourceDocumentNumber: sale.saleNumber,
-        userId: user.userId,
-        userName: user.userName,
-        notes: `Devolución de mercancía por venta ${sale.saleNumber}. Motivo: ${returnItem.reason}`,
-      })
     }
 
     const updated = await this.repo.update(sale.id, {

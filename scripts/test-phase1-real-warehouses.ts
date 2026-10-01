@@ -20,7 +20,7 @@ import { supabaseClient } from '../lib/supabase/client'
 import { warehouseService } from '../features/warehouses/services/warehouse.service'
 import { warehouseRepository } from '../features/warehouses/repositories/warehouse.repository'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || 'SuperMas2026*SecureAdmin'
+const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
 
 interface TestResult {
   code: string

@@ -14,6 +14,8 @@ export const createSupplierSchema = z.object({
     .string({ message: 'El número de documento es obligatorio' })
     .min(3, { message: 'El documento debe contener al menos 3 caracteres' })
     .trim(),
+  verificationDigit: z.string().trim().optional(),
+  personType: z.enum(['NATURAL', 'JURIDICA']).default('JURIDICA'),
   businessName: z
     .string({ message: 'La razón social es obligatoria' })
     .min(3, { message: 'La razón social debe contener al menos 3 caracteres' })
@@ -27,6 +29,7 @@ export const createSupplierSchema = z.object({
     .string({ message: 'El teléfono es obligatorio' })
     .min(7, { message: 'Ingrese un teléfono de contacto válido' })
     .trim(),
+  whatsapp: z.string().trim().optional(),
   email: z
     .string({ message: 'El correo electrónico es obligatorio' })
     .email({ message: 'Formato de correo electrónico inválido' })

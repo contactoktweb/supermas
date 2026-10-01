@@ -1,12 +1,11 @@
-import { db } from '@/lib/supabase'
 import { InvoiceItem, InvoiceTaxSummary } from '../types'
 
 export class InvoiceCalculationService {
   /**
-   * Obtiene la tabla de configuración de impuestos de la DIAN desde db.taxConfigs
+   * Obtiene la tabla de configuración de impuestos de la DIAN
    */
   getTaxConfigs() {
-    return db.taxConfigs || [
+    return [
       { id: 'tax-19', name: 'IVA General 19%', code: 'IVA_19', ratePercent: 19, isDefault: true },
       { id: 'tax-5', name: 'IVA Reducido 5%', code: 'IVA_5', ratePercent: 5 },
       { id: 'tax-0', name: 'IVA 0% (Tarifa Cero)', code: 'IVA_0', ratePercent: 0 },

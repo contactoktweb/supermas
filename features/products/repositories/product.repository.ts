@@ -534,6 +534,49 @@ export class ProductRepository {
       }
     }
 
+    // Registrar inventario inicial en public.inventory_movements (Kardex inmutable)
+    if (Array.isArray((data as any).initialStock) && (data as any).initialStock.length > 0) {
+      const { data: authUser } = await supabaseClient.auth.getUser()
+      const currentUserId = authUser?.user?.id || null
+
+      for (const stockItem of (data as any).initialStock) {
+        const qty = Number(stockItem.quantity || 0)
+        if (qty > 0 && stockItem.locationId) {
+          const itemCost = Number(
+            stockItem.unitCost !== undefined && stockItem.unitCost !== null && stockItem.unitCost > 0
+              ? stockItem.unitCost
+              : costPrice
+          )
+          const totalCost = qty * itemCost
+
+          const movementPayload = {
+            company_id: resolvedCompanyId,
+            product_id: createdRow.id,
+            location_id: stockItem.locationId,
+            movement_type: 'POSITIVE_ADJUSTMENT',
+            quantity_in: qty,
+            quantity_out: 0,
+            previous_stock: 0,
+            new_stock: qty,
+            unit_cost: itemCost,
+            total_cost: totalCost,
+            document_type: 'INVENTARIO_INICIAL',
+            document_reference: `INV-INI-${createdRow.sku}`,
+            reason: 'Inventario inicial al registrar el producto',
+            user_id: currentUserId,
+          }
+
+          const { error: movErr } = await supabaseClient
+            .from('inventory_movements')
+            .insert(movementPayload)
+
+          if (movErr) {
+            console.error('Error al registrar inventario inicial en public.inventory_movements:', movErr)
+          }
+        }
+      }
+    }
+
     const createdProduct = await this.findById(createdRow.id)
     return createdProduct || mapDbToDomain({ ...createdRow, product_prices: pricesToPersist })
   }

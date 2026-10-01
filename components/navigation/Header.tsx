@@ -64,6 +64,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: 'Compras' },
     { label: 'Proveedores' },
   ],
+  '/cuentas-por-pagar': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Compras' },
+    { label: 'Cuentas por Pagar (CxP)' },
+  ],
   '/clientes': [
     { label: 'Inicio', href: '/' },
     { label: 'Ventas' },

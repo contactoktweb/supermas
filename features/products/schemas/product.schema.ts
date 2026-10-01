@@ -42,6 +42,14 @@ export const warehouseStockConfigSchema = z.object({
   criticalStock: z.coerce.number().min(0, 'El stock crítico no puede ser negativo').default(5),
 })
 
+export const initialStockItemSchema = z.object({
+  locationId: z.string().uuid('Identificador de bodega inválido'),
+  locationName: z.string().optional(),
+  locationCode: z.string().optional(),
+  quantity: z.coerce.number().min(0, 'La cantidad no puede ser negativa').default(0),
+  unitCost: z.coerce.number().min(0, 'El costo no puede ser negativo').optional().default(0),
+})
+
 export const baseProductFormSchema = z.object({
   name: z
     .string()
@@ -93,6 +101,7 @@ export const baseProductFormSchema = z.object({
   prices: z
     .array(priceTierSchema)
     .min(1, 'Debe registrar al menos un precio para el producto'),
+  costPrice: z.coerce.number().min(0, 'El costo base no puede ser negativo').optional().default(0),
   minStockThreshold: z.coerce
     .number()
     .min(0, 'El umbral mínimo no puede ser negativo')
@@ -103,6 +112,7 @@ export const baseProductFormSchema = z.object({
     .default(5),
   webSuperMas: z.boolean().default(true),
   webDistribuidora: z.boolean().default(false),
+  initialStock: z.array(initialStockItemSchema).optional().default([]),
   warehouseDistribution: z.array(warehouseStockConfigSchema).optional().default([]),
   auditReason: z.string().trim().optional(),
 })

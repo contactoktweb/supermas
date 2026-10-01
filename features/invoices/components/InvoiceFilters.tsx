@@ -1,11 +1,11 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import { InvoiceType, DIANStatus } from '../types'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface InvoiceFiltersProps {
   searchQuery: string
@@ -51,7 +51,29 @@ export function InvoiceFilters({
   onDateRangeChange,
   onResetFilters,
 }: InvoiceFiltersProps) {
-  const locations = db.locations || []
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; code?: string }>>([])
+
+  useEffect(() => {
+    let isMounted = true
+    async function loadLocations() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('locations')
+          .select('id, name, code')
+          .eq('status', 'ACTIVE')
+          .order('name', { ascending: true })
+        if (isMounted && !error && data) {
+          setLocations(data)
+        }
+      } catch (err) {
+        console.error('Error cargando bodegas en InvoiceFilters:', err)
+      }
+    }
+    loadLocations()
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const activeFiltersCount = [
     Boolean(searchQuery),
@@ -195,7 +217,7 @@ export function InvoiceFilters({
               { value: 'ALL', label: 'Todas las bodegas' },
               ...locations.map((loc) => ({
                 value: loc.id,
-                label: loc.name,
+                label: loc.code ? `[${loc.code}] ${loc.name}` : loc.name,
               })),
             ]}
             placeholder="Filtrar por bodega"

@@ -1,30 +1,29 @@
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 import { SupplierOption } from '../types'
 
 export class SupplierService {
   /**
-   * Obtiene la lista completa de proveedores registrados en la base de datos de Supabase.
+   * Obtiene la lista completa de proveedores activos desde PostgreSQL bajo RLS.
    */
   async list(): Promise<SupplierOption[]> {
-    const rawSuppliers = db.suppliers as unknown as {
-      id?: string
-      supplierId?: string
-      supplierName?: string
-      name?: string
-      nit?: string
-      phone?: string
-      email?: string
-      currentBalance?: number
-      status?: string
-    }[]
+    const { data, error } = await supabaseClient
+      .from('suppliers')
+      .select('id, name, legal_name, tax_id, phone, email, is_active')
+      .eq('is_active', true)
+      .order('name', { ascending: true })
 
-    return rawSuppliers.map((s) => ({
-      id: s.supplierId || s.id || `sup-${Math.random()}`,
-      name: s.supplierName || s.name || 'Proveedor sin nombre',
-      nit: s.nit || '',
+    if (error || !data) {
+      console.error('Error consultando proveedores en SupplierService:', error)
+      return []
+    }
+
+    return data.map((s) => ({
+      id: s.id,
+      name: s.name || s.legal_name || 'Proveedor sin nombre',
+      nit: s.tax_id || '',
       phone: s.phone || '',
       email: s.email || '',
-      currentBalance: s.currentBalance || 0,
+      currentBalance: 0,
     }))
   }
 
@@ -32,8 +31,22 @@ export class SupplierService {
    * Obtiene un proveedor por su ID.
    */
   async getById(id: string): Promise<SupplierOption | null> {
-    const suppliers = await this.list()
-    return suppliers.find((s) => s.id === id) || null
+    const { data, error } = await supabaseClient
+      .from('suppliers')
+      .select('id, name, legal_name, tax_id, phone, email')
+      .eq('id', id)
+      .single()
+
+    if (error || !data) return null
+
+    return {
+      id: data.id,
+      name: data.name || data.legal_name || 'Proveedor sin nombre',
+      nit: data.tax_id || '',
+      phone: data.phone || '',
+      email: data.email || '',
+      currentBalance: 0,
+    }
   }
 
   /**
@@ -41,12 +54,25 @@ export class SupplierService {
    */
   async search(query: string): Promise<SupplierOption[]> {
     const q = query.toLowerCase().trim()
-    const suppliers = await this.list()
-    if (!q) return suppliers
+    if (!q) return this.list()
 
-    return suppliers.filter(
-      (s) => s.name.toLowerCase().includes(q) || s.nit.includes(q)
-    )
+    const { data, error } = await supabaseClient
+      .from('suppliers')
+      .select('id, name, legal_name, tax_id, phone, email')
+      .eq('is_active', true)
+      .or(`name.ilike.%${q}%,legal_name.ilike.%${q}%,tax_id.ilike.%${q}%`)
+      .order('name', { ascending: true })
+
+    if (error || !data) return []
+
+    return data.map((s) => ({
+      id: s.id,
+      name: s.name || s.legal_name || 'Proveedor sin nombre',
+      nit: s.tax_id || '',
+      phone: s.phone || '',
+      email: s.email || '',
+      currentBalance: 0,
+    }))
   }
 }
 

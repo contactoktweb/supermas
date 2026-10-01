@@ -13,14 +13,9 @@ interface InventoryFiltersProps {
   hasActiveFilters: boolean
 }
 
-import { getDbLocationOptions } from '@/lib/supabase'
+import { inventoryService } from '../services/inventory.service'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
-
-const LOCATION_OPTIONS: SelectOption[] = [
-  { value: 'ALL', label: 'Todas las bodegas' },
-  ...getDbLocationOptions(),
-]
 
 const HEALTH_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todos los estados' },
@@ -61,6 +56,9 @@ export function InventoryFilters({
     return () => clearTimeout(timer)
   }, [searchInput, filters.query])
 
+  const [locationOptions, setLocationOptions] = useState<SelectOption[]>([
+    { value: 'ALL', label: 'Todas las bodegas' },
+  ])
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([
     { value: 'ALL', label: 'Todas las categorías' },
   ])
@@ -70,6 +68,21 @@ export function InventoryFilters({
 
   useEffect(() => {
     let isMounted = true
+
+    inventoryService
+      .getActiveLocations()
+      .then((locs) => {
+        if (isMounted) {
+          setLocationOptions([
+            { value: 'ALL', label: 'Todas las bodegas' },
+            ...locs.map((l) => ({
+              value: l.id,
+              label: l.code ? `[${l.code}] ${l.name}` : l.name,
+            })),
+          ])
+        }
+      })
+      .catch((err) => console.error('Error cargando bodegas para filtros:', err))
 
     categoryService
       .listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' })
@@ -140,7 +153,7 @@ export function InventoryFilters({
           <CustomSelect
             value={filters.locationId || 'ALL'}
             onChange={(val) => onFilterChange({ locationId: val, page: 1 })}
-            options={LOCATION_OPTIONS}
+            options={locationOptions}
             placeholder="Filtrar por bodega"
             size="sm"
             icon={<AppIcon name="warehouses" size={14} color="var(--navy)" />}

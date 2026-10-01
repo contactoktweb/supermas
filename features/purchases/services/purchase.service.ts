@@ -11,15 +11,26 @@ import {
 import { purchaseRepository } from '../repositories/purchase.repository'
 import { purchaseCalculationService } from './purchase-calculation.service'
 import { supplierService } from './supplier.service'
-import { createPurchaseSchema, registerPaymentSchema, cancelPurchaseSchema, receivePurchaseSchema } from '../schemas/purchase.schema'
-import { db } from '@/lib/supabase'
+import { locationService } from './location.service'
+import {
+  createPurchaseSchema,
+  registerPaymentSchema,
+  cancelPurchaseSchema,
+  receivePurchaseSchema,
+} from '../schemas/purchase.schema'
 
 export class PurchaseService {
-  private hasPermission(userContext?: UserPermissionContext, requiredPermission?: string): boolean {
+  private hasPermission(userContext?: UserPermissionContext, ...requiredPermissions: string[]): boolean {
     if (!userContext) return true // Default fallback
-    if (userContext.userRole === 'SUPERADMIN' || userContext.userRole === 'ADMIN' || userContext.userRole === 'ADMINISTRADOR') return true
-    if (!requiredPermission) return true
-    return userContext.permissions.includes(requiredPermission)
+    if (
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'ADMINISTRADOR'
+    )
+      return true
+    if (!requiredPermissions || requiredPermissions.length === 0) return true
+    const perms = Array.isArray(userContext.permissions) ? userContext.permissions : []
+    return requiredPermissions.some((req) => perms.includes(req))
   }
 
   private sanitizePurchaseForUser(purchase: Purchase, canReadCost: boolean): Purchase {
@@ -56,8 +67,8 @@ export class PurchaseService {
     params: PurchaseFilterParams,
     userContext?: UserPermissionContext
   ): Promise<PaginatedPurchasesResponse> {
-    if (!this.hasPermission(userContext, 'purchase.read')) {
-      throw new Error('No tienes permisos suficientes para consultar compras (purchase.read requerido)')
+    if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
+      throw new Error('No tienes permisos suficientes para consultar compras (purchases.read requerido)')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
@@ -79,7 +90,7 @@ export class PurchaseService {
    * Obtiene una compra por su ID con verificación de permisos y sanitización de costos.
    */
   async getById(id: string, userContext?: UserPermissionContext): Promise<Purchase | null> {
-    if (!this.hasPermission(userContext, 'purchase.read')) {
+    if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
       throw new Error('No tienes permisos para ver el detalle de compras')
     }
 
@@ -94,8 +105,8 @@ export class PurchaseService {
    * Crea una nueva compra en el sistema.
    */
   async create(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
-    if (!this.hasPermission(userContext, 'purchase.create')) {
-      throw new Error('No tienes permisos para crear compras (purchase.create requerido)')
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para crear compras (purchases.create requerido)')
     }
 
     // 1. Validar esquema con Zod
@@ -108,8 +119,7 @@ export class PurchaseService {
     }
 
     // 3. Verificar existencia de la bodega de destino
-    const locations = db.locations as unknown as { id: string; name: string; code: string }[]
-    const location = locations.find((l) => l.id === input.destinationLocationId)
+    const location = await locationService.getById(input.destinationLocationId)
     if (!location) {
       throw new Error(`La bodega de destino no existe (ID: ${input.destinationLocationId})`)
     }
@@ -125,7 +135,7 @@ export class PurchaseService {
     const status = input.saveAsDraft ? 'DRAFT' : 'PENDING_RECEPTION'
 
     const newPurchase: Purchase = {
-      id: `pur-${Date.now()}`,
+      id: '',
       purchaseNumber: autoCode,
       supplierInvoiceNumber: input.supplierInvoiceNumber.trim(),
       invoiceNumber: autoCode,
@@ -154,8 +164,8 @@ export class PurchaseService {
       taxTotal: totals.taxTotal,
       total: totals.total,
 
-      paidAmount: 0,
-      pendingBalance: totals.total,
+      paidAmount: input.paymentType === 'CONTADO' ? totals.total : 0,
+      pendingBalance: input.paymentType === 'CONTADO' ? 0 : totals.total,
 
       items: calculatedItems,
       payments: [],
@@ -174,7 +184,7 @@ export class PurchaseService {
         : [],
 
       createdByUserId: userContext?.userId || 'usr-001',
-      createdByUserName: userContext?.userName || 'Mauricio Andrade',
+      createdByUserName: userContext?.userName || 'Administrador',
       notes: input.notes?.trim() || undefined,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -213,20 +223,16 @@ export class PurchaseService {
       }
     }
 
-    if (!this.hasPermission(context, 'purchase.receive')) {
-      throw new Error('No tienes permisos para recibir compras (purchase.receive requerido)')
+    if (!this.hasPermission(context, 'purchases.create', 'purchase.receive', 'purchase.create')) {
+      throw new Error('No tienes permisos para recibir compras (purchases.create requerido)')
     }
 
     receivePurchaseSchema.parse(payload)
 
-    return purchaseRepository.receive(
-      payload.purchaseId,
-      payload,
-      {
-        id: context?.userId || 'usr-001',
-        name: context?.userName || 'Mauricio Andrade',
-      }
-    )
+    return purchaseRepository.receive(payload.purchaseId, payload, {
+      id: context?.userId || 'usr-001',
+      name: context?.userName || 'Administrador',
+    })
   }
 
   /**
@@ -236,15 +242,15 @@ export class PurchaseService {
     input: RegisterPaymentInput,
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
-    if (!this.hasPermission(userContext, 'purchase.payment')) {
-      throw new Error('No tienes permisos para registrar pagos (purchase.payment requerido)')
+    if (!this.hasPermission(userContext, 'treasury.create', 'purchases.create', 'purchase.payment')) {
+      throw new Error('No tienes permisos para registrar pagos (purchases.create / treasury.create requerido)')
     }
 
     registerPaymentSchema.parse(input)
 
     return purchaseRepository.registerPayment(input, {
       id: userContext?.userId || 'usr-001',
-      name: userContext?.userName || 'Mauricio Andrade',
+      name: userContext?.userName || 'Administrador',
     })
   }
 
@@ -256,15 +262,15 @@ export class PurchaseService {
     reason: string,
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
-    if (!this.hasPermission(userContext, 'purchase.cancel')) {
-      throw new Error('No tienes permisos para anular compras (purchase.cancel requerido)')
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.cancel')) {
+      throw new Error('No tienes permisos para anular compras (purchases.create requerido)')
     }
 
     cancelPurchaseSchema.parse({ purchaseId: id, reason })
 
     return purchaseRepository.cancel(id, reason, {
       id: userContext?.userId || 'usr-001',
-      name: userContext?.userName || 'Mauricio Andrade',
+      name: userContext?.userName || 'Administrador',
     })
   }
 
@@ -272,12 +278,12 @@ export class PurchaseService {
    * Obtiene estadísticas del módulo compras con control de acceso a costos.
    */
   async getPurchaseStats(userContext?: UserPermissionContext): Promise<PurchaseStats> {
-    if (!this.hasPermission(userContext, 'purchase.read')) {
+    if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
       throw new Error('No tienes permisos para ver estadísticas de compras')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
-    const rawStats = await purchaseRepository.getStats()
+    const rawStats = await purchaseRepository.getPurchaseStats(userContext)
 
     if (!canReadCost) {
       return {
@@ -299,72 +305,11 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<string> {
     const { items, isCostRedacted } = await this.list({ ...params, pageSize: 1000 }, userContext)
-
-    const headers = [
-      'Numero_Compra',
-      'Factura_Proveedor',
-      'Fecha',
-      'Proveedor',
-      'NIT',
-      'Bodega_Destino',
-      'Tipo_Pago',
-      'Estado',
-      'Total',
-      'Saldo_Pendiente',
-      'Usuario_Creador',
-    ]
-
-    const rows = items.map((p) => [
-      p.purchaseNumber,
-      p.supplierInvoiceNumber,
-      p.date.split('T')[0],
-      `"${p.supplierName.replace(/"/g, '""')}"`,
-      p.supplierNit,
-      `"${p.destinationLocationName}"`,
-      p.paymentType,
-      p.status,
-      isCostRedacted ? 'OCULTO' : p.total,
-      isCostRedacted ? 'OCULTO' : p.pendingBalance,
-      `"${p.createdByUserName}"`,
-    ])
-
-    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    return this.exportToCsv(items, isCostRedacted)
   }
 
   exportToCsv(items: Purchase[], isCostRedacted: boolean = false): string {
-    const headers = [
-      'Numero_Compra',
-      'Factura_Proveedor',
-      'Fecha',
-      'Proveedor',
-      'NIT',
-      'Bodega_Destino',
-      'Tipo_Pago',
-      'Estado',
-      'Total',
-      'Saldo_Pendiente',
-      'Usuario_Creador',
-    ]
-
-    const rows = items.map((p) => [
-      p.purchaseNumber,
-      p.supplierInvoiceNumber,
-      p.date.split('T')[0],
-      `"${p.supplierName.replace(/"/g, '""')}"`,
-      p.supplierNit,
-      `"${p.destinationLocationName}"`,
-      p.paymentType,
-      p.status,
-      isCostRedacted ? 'OCULTO' : p.total,
-      isCostRedacted ? 'OCULTO' : p.pendingBalance,
-      `"${p.createdByUserName}"`,
-    ])
-
-    return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-  }
-
-  async resetMocks(): Promise<void> {
-    await purchaseRepository.resetMocks()
+    return purchaseRepository.exportToCsv(items, isCostRedacted)
   }
 }
 

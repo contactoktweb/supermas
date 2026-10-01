@@ -30,7 +30,7 @@ import { productRepository } from '../features/products/repositories/product.rep
 import { categoryService } from '../features/categories/services/category.service'
 import { brandService } from '../features/brands/services/brand.service'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || 'SuperMas2026*SecureAdmin'
+const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
 
 interface TestResult {
   code: string

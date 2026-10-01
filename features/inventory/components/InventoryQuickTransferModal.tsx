@@ -6,7 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { ConsolidatedProductStock, QuickTransferInput } from '../types'
 import { quickTransferSchema } from '../schemas/inventory.schema'
-import { getDbLocationOptions } from '@/lib/supabase'
+import { inventoryService } from '../services/inventory.service'
 import { extractErrorMessage } from '@/lib/utils'
 
 interface InventoryQuickTransferModalProps {
@@ -18,8 +18,6 @@ interface InventoryQuickTransferModalProps {
   onSubmit: (data: QuickTransferInput) => Promise<void>
 }
 
-const LOCATION_OPTIONS: SelectOption[] = getDbLocationOptions()
-
 export function InventoryQuickTransferModal({
   isOpen,
   productId,
@@ -29,9 +27,10 @@ export function InventoryQuickTransferModal({
   onSubmit,
 }: InventoryQuickTransferModalProps) {
   const [mounted, setMounted] = useState(false)
+  const [locationOptions, setLocationOptions] = useState<SelectOption[]>([])
   const [selectedProductId, setSelectedProductId] = useState<string>(productId || '')
-  const [originId, setOriginId] = useState<string>(originLocationId || 'loc-01')
-  const [destinationId, setDestinationId] = useState<string>('loc-02')
+  const [originId, setOriginId] = useState<string>(originLocationId || '')
+  const [destinationId, setDestinationId] = useState<string>('')
   const [quantity, setQuantity] = useState<number>(10)
   const [notes, setNotes] = useState<string>('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -40,6 +39,34 @@ export function InventoryQuickTransferModal({
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+    inventoryService
+      .getActiveLocations()
+      .then((locs) => {
+        if (isMounted) {
+          const opts = locs.map((l) => ({
+            value: l.id,
+            label: l.code ? `[${l.code}] ${l.name}` : l.name,
+          }))
+          setLocationOptions(opts)
+          if (!originLocationId && opts.length > 0) {
+            setOriginId((prev) => prev || opts[0].value)
+          }
+          if (opts.length > 1) {
+            setDestinationId((prev) => prev || opts[1].value)
+          } else if (opts.length > 0) {
+            setDestinationId((prev) => prev || opts[0].value)
+          }
+        }
+      })
+      .catch((err) => console.error('Error cargando bodegas para transferencia:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [originLocationId])
 
   useEffect(() => {
     if (productId) setSelectedProductId(productId)
@@ -209,7 +236,7 @@ export function InventoryQuickTransferModal({
                 <CustomSelect
                   value={originId}
                   onChange={(val) => setOriginId(val)}
-                  options={LOCATION_OPTIONS}
+                  options={locationOptions}
                   size="md"
                 />
                 <span className="field-helper">
@@ -224,7 +251,7 @@ export function InventoryQuickTransferModal({
                 <CustomSelect
                   value={destinationId}
                   onChange={(val) => setDestinationId(val)}
-                  options={LOCATION_OPTIONS}
+                  options={locationOptions}
                   size="md"
                 />
                 <span className="field-helper">

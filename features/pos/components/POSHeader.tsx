@@ -9,6 +9,10 @@ interface POSHeaderProps {
   locationName?: string
   cashierName?: string
   cashRegisterNumber?: string
+  locations?: Array<{ id: string; code: string; name: string }>
+  selectedLocationId?: string
+  onLocationChange?: (locationId: string) => void
+  locationsLoading?: boolean
   onOpenDailySales: () => void
   onToggleFullscreen?: () => void
   isFullscreen?: boolean
@@ -21,6 +25,10 @@ export function POSHeader({
   locationName,
   cashierName,
   cashRegisterNumber,
+  locations = [],
+  selectedLocationId,
+  onLocationChange,
+  locationsLoading = false,
   onOpenDailySales,
   onToggleFullscreen,
   isFullscreen,
@@ -29,7 +37,7 @@ export function POSHeader({
 }: POSHeaderProps) {
   const [timeStr, setTimeStr] = useState<string>('')
 
-  const activeLocation = locationName || userContext?.locationName || 'Punto de Venta Centro'
+  const activeLocation = locationName || userContext?.locationName || 'Cargando sede...'
   const activeCashier = cashierName || userContext?.userName || 'Cajero Operativo'
   const activeRole = userContext?.userRole || 'Cajero'
   const activeRegister = cashRegisterNumber || userContext?.cashRegisterNumber || 'CAJA-01'
@@ -156,15 +164,52 @@ export function POSHeader({
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: 'rgba(255, 255, 255, 0.1)',
-              padding: '4px 10px',
+              background: 'rgba(255, 255, 255, 0.12)',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              padding: '2px 8px',
               borderRadius: 6,
               fontSize: 12,
               fontWeight: 600,
             }}
           >
             <AppIcon name="warehouse" size={14} color="#93c5fd" />
-            <span>{activeLocation}</span>
+            <label
+              htmlFor="pos-warehouse-select"
+              style={{ fontSize: 11, fontWeight: 700, color: '#93c5fd' }}
+            >
+              Bodega:
+            </label>
+            {locations.length > 0 ? (
+              <select
+                id="pos-warehouse-select"
+                value={selectedLocationId || userContext?.locationId || ''}
+                onChange={(e) => onLocationChange?.(e.target.value)}
+                disabled={locationsLoading}
+                aria-label="Seleccionar bodega en POS"
+                style={{
+                  background: 'transparent',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  outline: 'none',
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                }}
+              >
+                {locations.map((loc) => (
+                  <option
+                    key={loc.id}
+                    value={loc.id}
+                    style={{ background: '#0f172a', color: '#ffffff' }}
+                  >
+                    {loc.code ? `[${loc.code}] ` : ''}{loc.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span style={{ color: '#ffffff' }}>{activeLocation}</span>
+            )}
           </div>
 
           <div

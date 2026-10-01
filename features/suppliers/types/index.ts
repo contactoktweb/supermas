@@ -8,14 +8,18 @@ export type SupplierStatus = 'ACTIVE' | 'INACTIVE'
 export interface Supplier {
   id: string
   supplierId?: string                     // Alias retrocompatible
+  companyId?: string
   documentType: DocumentType
   documentNumber: string
+  verificationDigit?: string
   nit: string                             // Alias estándar tributario
   businessName: string                    // Razón Social
   commercialName?: string                 // Nombre Comercial
   supplierName?: string                   // Alias retrocompatible
+  personType?: 'NATURAL' | 'JURIDICA'
   contactName: string                     // Contacto principal
   phone: string
+  whatsapp?: string
   email: string
   address: string
   city: string
@@ -82,10 +86,13 @@ export interface PaginatedSuppliersResponse {
 export interface CreateSupplierInput {
   documentType: DocumentType
   documentNumber: string
+  verificationDigit?: string
   businessName: string
   commercialName?: string
+  personType?: 'NATURAL' | 'JURIDICA'
   contactName: string
   phone: string
+  whatsapp?: string
   email: string
   address: string
   city: string

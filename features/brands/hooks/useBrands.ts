@@ -8,6 +8,7 @@ import {
 } from '../types'
 import { brandService } from '../services/brand.service'
 import { BrandFormData } from '../schemas/brand.schema'
+import { extractErrorMessage } from '@/lib/utils'
 
 export function useBrands(initialFilters?: Partial<BrandFilters>) {
   const [brands, setBrands] = useState<BrandWithRelations[]>([])
@@ -44,7 +45,7 @@ export function useBrands(initialFilters?: Partial<BrandFilters>) {
       setStats(statsResult)
     } catch (err: any) {
       console.error('Error al cargar marcas:', err)
-      setError(err?.message || 'Error al cargar marcas desde la base de datos.')
+      setError(extractErrorMessage(err, 'Error al cargar marcas desde la base de datos.'))
     } finally {
       setIsLoading(false)
     }

@@ -7,6 +7,7 @@ import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { ConsolidatedProductStock, QuickTransferInput } from '../types'
 import { quickTransferSchema } from '../schemas/inventory.schema'
 import { getDbLocationOptions } from '@/lib/supabase'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface InventoryQuickTransferModalProps {
   isOpen: boolean
@@ -118,7 +119,7 @@ export function InventoryQuickTransferModal({
       await onSubmit(payload)
       onClose()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al iniciar la transferencia')
+      setErrorMsg(extractErrorMessage(err, 'Error al iniciar la transferencia'))
     } finally {
       setIsSubmitting(false)
     }
@@ -161,7 +162,7 @@ export function InventoryQuickTransferModal({
             {errorMsg && (
               <div className="form-error-banner">
                 <AppIcon name="warning" size={16} />
-                <span>{errorMsg}</span>
+                <span>{extractErrorMessage(errorMsg)}</span>
               </div>
             )}
 

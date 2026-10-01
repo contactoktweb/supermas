@@ -12,6 +12,7 @@ import {
   SupplierStatus,
 } from '../types'
 import { createSupplierSchema, updateSupplierSchema } from '../schemas/supplier.schema'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface SupplierFormDrawerProps {
   isOpen: boolean
@@ -148,11 +149,7 @@ export function SupplierFormDrawer({
       }
       onClose()
     } catch (err: any) {
-      if (err.errors && err.errors[0]) {
-        setError(err.errors[0].message)
-      } else {
-        setError(err.message || 'Error al guardar los datos del proveedor.')
-      }
+      setError(extractErrorMessage(err, 'Error al guardar los datos del proveedor.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -276,7 +273,7 @@ export function SupplierFormDrawer({
                 }}
               >
                 <AppIcon name="warning" size={16} />
-                <span>{error}</span>
+                <span>{extractErrorMessage(error)}</span>
               </div>
             )}
 

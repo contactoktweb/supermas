@@ -4,6 +4,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, LocationType, LocationStatus } from '../types'
 import { warehouseFormSchema, WarehouseFormData } from '../schemas/warehouse.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface WarehouseFormDrawerProps {
   mode: 'create' | 'edit'
@@ -170,15 +171,19 @@ export function WarehouseFormDrawer({
       await onSubmit(validated)
       onClose()
     } catch (err: any) {
-      if (err.errors) {
-        const fieldErrors: Record<string, string> = {}
-        err.errors.forEach((zError: any) => {
-          const path = zError.path.join('.')
-          fieldErrors[path] = zError.message
+      const cleanMessage = extractErrorMessage(err, 'Ocurrió un error al guardar')
+      const issues = err?.issues || err?.errors
+      if (Array.isArray(issues) && issues.length > 0) {
+        const fieldErrors: Record<string, string> = { general: cleanMessage }
+        issues.forEach((zError: any) => {
+          const path = Array.isArray(zError.path) ? zError.path.join('.') : String(zError.path || '')
+          if (path) {
+            fieldErrors[path] = zError.message
+          }
         })
         setErrors(fieldErrors)
       } else {
-        setErrors({ general: err.message || 'Ocurrió un error al guardar' })
+        setErrors({ general: cleanMessage })
       }
     } finally {
       setIsSubmitting(false)

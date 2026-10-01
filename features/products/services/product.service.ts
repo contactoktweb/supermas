@@ -11,6 +11,8 @@ import {
   ProductStockHealth,
   ProductAuditEntry,
   TaxRateConfig,
+  PriceTier,
+  ProductPrice,
 } from '../types'
 import { productRepository } from '../repositories/product.repository'
 import { productFormSchema, updateProductSchema } from '../schemas/product.schema'
@@ -52,6 +54,16 @@ export class ProductService {
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
     return this.sanitizeProductForUser(product, canReadCost)
+  }
+
+  /**
+   * Obtiene el detalle completo de un producto por ID (alias de getProduct).
+   */
+  async getProductById(
+    id: string,
+    userContext?: UserPermissionContext
+  ): Promise<Product | null> {
+    return this.getProduct(id, userContext)
   }
 
   /**
@@ -111,6 +123,7 @@ export class ProductService {
       isPublishedSupermas: validated.webSuperMas,
       isPublishedDistributor: validated.webDistribuidora,
       inventoryType: 'MERCHANDISE',
+      prices: validated.prices,
     })
 
     return created
@@ -172,6 +185,7 @@ export class ProductService {
       if (normalPrice !== undefined) updatePayload.publicSalePrice = normalPrice
       const wholesalePrice = validated.prices.find((p) => p.code === 'MAYORISTA')?.price
       if (wholesalePrice !== undefined) updatePayload.wholesalePrice = wholesalePrice
+      updatePayload.prices = validated.prices as any
     }
     if ((validated as any).estimatedCost !== undefined) {
       updatePayload.costPrice = (validated as any).estimatedCost
@@ -451,6 +465,59 @@ export class ProductService {
 
   async getTaxConfigs(): Promise<TaxRateConfig[]> {
     return productRepository.getTaxRates()
+  }
+
+  /**
+   * Obtiene todas las listas de precios reales de un producto desde PostgreSQL.
+   */
+  async getProductPrices(productId: string): Promise<ProductPrice[]> {
+    return productRepository.getProductPrices(productId)
+  }
+
+  /**
+   * Actualiza o inserta listas de precios vinculadas al producto respetando RLS y permisos.
+   */
+  async updateProductPrices(
+    productId: string,
+    prices: PriceTier[],
+    userContext?: UserPermissionContext
+  ): Promise<ProductPrice[]> {
+    const canUpdate =
+      !userContext ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.permissions.includes('*') ||
+      userContext.permissions.includes('products.update')
+
+    if (!canUpdate) {
+      throw new Error('No tiene permisos para modificar precios de productos.')
+    }
+
+    await productRepository.update(productId, { prices })
+    return productRepository.getProductPrices(productId)
+  }
+
+  /**
+   * Activa o desactiva una lista de precios específica para el producto.
+   */
+  async togglePriceListActive(
+    productId: string,
+    priceListCode: string,
+    isActive: boolean,
+    userContext?: UserPermissionContext
+  ): Promise<void> {
+    const canUpdate =
+      !userContext ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.permissions.includes('*') ||
+      userContext.permissions.includes('products.update')
+
+    if (!canUpdate) {
+      throw new Error('No tiene permisos para modificar listas de precios.')
+    }
+
+    return productRepository.togglePriceListActive(productId, priceListCode, isActive)
   }
 }
 

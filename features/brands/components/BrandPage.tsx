@@ -143,7 +143,7 @@ export function BrandPage() {
   }
 
   return (
-    <div className="warehouse-page-container">
+    <div className="brands-module-page page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <BrandHeader
         totalCount={totalCount}
         canCreate={permissions.canCreate}

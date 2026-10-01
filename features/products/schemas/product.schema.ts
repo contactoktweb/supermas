@@ -30,6 +30,10 @@ export const priceTierSchema = z.object({
     .number()
     .min(0, 'El precio no puede ser negativo'),
   minQuantity: z.coerce.number().min(1).optional().default(1),
+  isDefault: z.boolean().optional().default(false),
+  isActive: z.boolean().optional().default(true),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
 })
 
 export const warehouseStockConfigSchema = z.object({

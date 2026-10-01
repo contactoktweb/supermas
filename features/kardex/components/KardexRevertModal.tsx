@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { InventoryMovement } from '../types'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface KardexRevertModalProps {
   movement: InventoryMovement | null
@@ -48,7 +49,7 @@ export function KardexRevertModal({
       await onConfirm(movement.id, reason.trim())
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo generar la reversión del movimiento')
+      setError(extractErrorMessage(err, 'No se pudo generar la reversión del movimiento'))
     } finally {
       setIsSubmitting(false)
     }
@@ -125,7 +126,7 @@ export function KardexRevertModal({
           {error && (
             <div className="form-error-banner" style={{ marginTop: 12 }}>
               <AppIcon name="warning" size={14} />
-              <span>{error}</span>
+              <span>{extractErrorMessage(error)}</span>
             </div>
           )}
         </div>

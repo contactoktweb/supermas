@@ -29,13 +29,32 @@ export interface TaxRateConfig {
 }
 
 export interface PriceTier {
-  id: string
+  id?: string
   name: string
   code: string // e.g. 'NORMAL', 'MAYORISTA', 'DISTRIBUIDOR', 'SUPERMERCADO'
   price: number
   minQuantity?: number
   isDefault?: boolean
+  isActive?: boolean
+  startDate?: string | null
+  endDate?: string | null
   description?: string
+}
+
+export interface ProductPrice {
+  id: string
+  companyId: string
+  productId: string
+  priceListCode: string
+  priceListName: string
+  price: number
+  minQuantity: number
+  isDefault: boolean
+  isActive: boolean
+  startDate?: string | null
+  endDate?: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface WarehouseStockDetail {
@@ -227,12 +246,7 @@ export interface CreateProductInput {
   status: ProductStatus
   taxProfile: TaxProfile
   vatRatePercent: number
-  prices: {
-    code: string
-    name: string
-    price: number
-    minQuantity?: number
-  }[]
+  prices: PriceTier[]
   minStockThreshold?: number
   criticalStockThreshold?: number
   webSuperMas: boolean

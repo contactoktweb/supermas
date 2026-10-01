@@ -8,6 +8,7 @@ import {
 } from '../types'
 import { categoryService } from '../services/category.service'
 import { CategoryFormData } from '../schemas/category.schema'
+import { extractErrorMessage } from '@/lib/utils'
 
 export function useCategories(initialFilters?: Partial<CategoryFilters>) {
   const [categories, setCategories] = useState<CategoryWithRelations[]>([])
@@ -46,7 +47,7 @@ export function useCategories(initialFilters?: Partial<CategoryFilters>) {
       setStats(statsResult)
     } catch (err: any) {
       console.error('Error al cargar categorías:', err)
-      setError(err?.message || 'Error al cargar categorías desde la base de datos.')
+      setError(extractErrorMessage(err, 'Error al cargar categorías desde la base de datos.'))
     } finally {
       setIsLoading(false)
     }

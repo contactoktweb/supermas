@@ -16,6 +16,8 @@ import {
   UpdateProductInput,
   TaxRateConfig,
   ProductMovementSummary,
+  PriceTier,
+  ProductPrice,
 } from '../types'
 
 function mapDbToDomain(row: any): Product {
@@ -65,110 +67,137 @@ function mapDbToDomain(row: any): Product {
 
   const description = row.full_description || row.short_description || ''
 
-  return {
-    id: row.id,
-    companyId: row.company_id,
-    categoryId: row.category_id,
-    brandId: row.brand_id,
+  const rawPrices = Array.isArray(row.product_prices) ? row.product_prices : []
+    let mappedPrices: PriceTier[] = []
 
-    sku: row.sku,
-    barcode: row.barcode || '',
-    name: row.name,
-    slug: row.slug,
-    shortDescription: row.short_description || '',
-    fullDescription: row.full_description || '',
-    unitOfMeasure: row.unit_of_measure || 'UND',
+    if (rawPrices.length > 0) {
+      mappedPrices = rawPrices.map((pp: any) => ({
+        id: pp.id,
+        name: pp.price_list_name,
+        code: pp.price_list_code,
+        price: Number(pp.price ?? 0),
+        minQuantity: Number(pp.min_quantity ?? 1),
+        isDefault: Boolean(pp.is_default),
+        isActive: Boolean(pp.is_active),
+        startDate: pp.start_date || null,
+        endDate: pp.end_date || null,
+      }))
+    } else {
+      mappedPrices = [
+        {
+          id: 'tier-normal',
+          name: 'Precio Normal (Público)',
+          code: 'NORMAL',
+          price: publicSalePrice,
+          minQuantity: 1,
+          isDefault: true,
+          isActive: true,
+        },
+        {
+          id: 'tier-mayorista',
+          name: 'Precio Mayorista',
+          code: 'MAYORISTA',
+          price: wholesalePrice,
+          minQuantity: Number(row.min_wholesale_quantity ?? 6),
+          isDefault: false,
+          isActive: true,
+        },
+      ]
+    }
 
-    costPrice,
-    publicSalePrice,
-    wholesalePrice,
-    minWholesaleQuantity: Number(row.min_wholesale_quantity ?? 12),
-    taxRatePercent,
-    isTaxExempt,
+    const defaultPriceItem = mappedPrices.find((p) => p.code === 'NORMAL' || p.isDefault)
+    const mayoristaPriceItem = mappedPrices.find((p) => p.code === 'MAYORISTA')
+    const distributorPriceItem = mappedPrices.find((p) => p.code === 'DISTRIBUIDOR')
 
-    primaryImageUrl: row.primary_image_url || '',
-    secondaryImages: Array.isArray(row.secondary_images) ? row.secondary_images : [],
+    const resolvedNormalPrice = defaultPriceItem?.price ?? publicSalePrice
+    const resolvedWholesalePrice = mayoristaPriceItem?.price ?? wholesalePrice
+    const resolvedDistributorPrice = distributorPriceItem?.price ?? 0
 
-    minStockThreshold: minStock,
-    criticalStockThreshold: criticalStock,
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      categoryId: row.category_id,
+      brandId: row.brand_id,
 
-    isActive: Boolean(row.is_active),
-    isPublishedSupermas: Boolean(row.is_published_supermas),
-    isPublishedDistributor: Boolean(row.is_published_distributor),
-    inventoryType: row.inventory_type || 'MERCHANDISE',
-    accountingCategoryId: row.accounting_category_id || null,
+      sku: row.sku,
+      barcode: row.barcode || '',
+      name: row.name,
+      slug: row.slug,
+      shortDescription: row.short_description || '',
+      fullDescription: row.full_description || '',
+      unitOfMeasure: row.unit_of_measure || 'UND',
 
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
+      costPrice,
+      publicSalePrice: resolvedNormalPrice,
+      wholesalePrice: resolvedWholesalePrice,
+      minWholesaleQuantity: Number(row.min_wholesale_quantity ?? 6),
+      taxRatePercent,
+      isTaxExempt,
 
-    // Relaciones expandidas para presentación UI
-    category: categoryRel
-      ? {
-          id: categoryRel.id,
-          name: categoryRel.name,
-          code: categoryRel.code || undefined,
-          slug: categoryRel.slug || undefined,
-        }
-      : null,
-    brand: brandRel
-      ? {
-          id: brandRel.id,
-          name: brandRel.name,
-          slug: brandRel.slug || undefined,
-        }
-      : null,
-    categoryName: categoryRel?.name || '—',
-    brandName: brandRel?.name || '—',
+      primaryImageUrl: row.primary_image_url || '',
+      secondaryImages: Array.isArray(row.secondary_images) ? row.secondary_images : [],
 
-    // Campos de compatibilidad de vistas
-    imageUrl:
-      row.primary_image_url ||
-      'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80',
-    images: Array.isArray(row.secondary_images) ? row.secondary_images : [],
-    description,
-    status: row.is_active ? 'ACTIVE' : 'INACTIVE',
-    taxProfile: isTaxExempt
-      ? 'EXENTO'
-      : taxRatePercent === 5
-      ? 'IVA_5'
-      : taxRatePercent === 0
-      ? 'IVA_0'
-      : 'IVA_19',
-    vatRatePercent: taxRatePercent,
-    isExempt: isTaxExempt,
+      minStockThreshold: minStock,
+      criticalStockThreshold: criticalStock,
 
-    prices: [
-      {
-        id: 'tier-normal',
-        name: 'Precio Normal',
-        code: 'NORMAL',
-        price: publicSalePrice,
-        minQuantity: 1,
-        isDefault: true,
-      },
-      {
-        id: 'tier-mayorista',
-        name: 'Precio Mayorista',
-        code: 'MAYORISTA',
-        price: wholesalePrice,
-        minQuantity: Number(row.min_wholesale_quantity ?? 12),
-        isDefault: false,
-      },
-    ],
-    normalPrice: publicSalePrice,
-    distributorPrice: 0,
-    averageCost: costPrice,
-    inventoryValueAtCost: totalStock * costPrice,
-    profitMarginAmount,
-    profitMarginPercent,
-    totalStock,
-    availableUnits: totalStock,
-    stockHealth,
-    webSuperMas: Boolean(row.is_published_supermas),
-    webDistribuidora: Boolean(row.is_published_distributor),
-    webAvailability,
-    warehouseStock,
-  }
+      isActive: Boolean(row.is_active),
+      isPublishedSupermas: Boolean(row.is_published_supermas),
+      isPublishedDistributor: Boolean(row.is_published_distributor),
+      inventoryType: row.inventory_type || 'MERCHANDISE',
+      accountingCategoryId: row.accounting_category_id || null,
+
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+
+      category: categoryRel
+        ? {
+            id: categoryRel.id,
+            name: categoryRel.name,
+            code: categoryRel.code || undefined,
+            slug: categoryRel.slug || undefined,
+          }
+        : null,
+      brand: brandRel
+        ? {
+            id: brandRel.id,
+            name: brandRel.name,
+            slug: brandRel.slug || undefined,
+          }
+        : null,
+      categoryName: categoryRel?.name || '—',
+      brandName: brandRel?.name || '—',
+
+      imageUrl:
+        row.primary_image_url ||
+        'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&auto=format&fit=crop&q=80',
+      images: Array.isArray(row.secondary_images) ? row.secondary_images : [],
+      description,
+      status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+      taxProfile: isTaxExempt
+        ? 'EXENTO'
+        : taxRatePercent === 5
+        ? 'IVA_5'
+        : taxRatePercent === 0
+        ? 'IVA_0'
+        : 'IVA_19',
+      vatRatePercent: taxRatePercent,
+      isExempt: isTaxExempt,
+
+      prices: mappedPrices,
+      normalPrice: resolvedNormalPrice,
+      distributorPrice: resolvedDistributorPrice,
+      averageCost: costPrice,
+      inventoryValueAtCost: totalStock * costPrice,
+      profitMarginAmount,
+      profitMarginPercent,
+      totalStock,
+      availableUnits: totalStock,
+      stockHealth,
+      webSuperMas: Boolean(row.is_published_supermas),
+      webDistribuidora: Boolean(row.is_published_distributor),
+      webAvailability,
+      warehouseStock,
+    }
 }
 
 export class ProductRepository {
@@ -208,7 +237,8 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
+        stock_levels ( quantity, location_id ),
+        product_prices ( * )
       `,
       { count: 'exact' }
     )
@@ -311,7 +341,8 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
+        stock_levels ( quantity, location_id ),
+        product_prices ( * )
       `)
       .eq('id', id)
       .maybeSingle()
@@ -331,7 +362,8 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
+        stock_levels ( quantity, location_id ),
+        product_prices ( * )
       `)
       .eq('company_id', resolvedCompanyId)
       .ilike('sku', sku.trim())
@@ -353,7 +385,8 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
+        stock_levels ( quantity, location_id ),
+        product_prices ( * )
       `)
       .eq('company_id', resolvedCompanyId)
       .eq('barcode', barcode.trim())
@@ -362,6 +395,7 @@ export class ProductRepository {
     if (error || !row) return null
     return mapDbToDomain(row)
   }
+
 
   /**
    * Inserta un nuevo producto en public.products bajo RLS.
@@ -439,12 +473,7 @@ export class ProductRepository {
     const { data: createdRow, error } = await supabaseClient
       .from('products')
       .insert(insertPayload)
-      .select(`
-        *,
-        categories ( id, name, slug, code ),
-        brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
-      `)
+      .select()
       .single()
 
     if (error) {
@@ -452,7 +481,61 @@ export class ProductRepository {
       throw new Error(this.translateDbError(error))
     }
 
-    return mapDbToDomain(createdRow)
+    // Persistir listas de precios reales en public.product_prices vinculadas por product_id
+    const pricesToPersist: any[] = []
+    if (Array.isArray(data.prices) && data.prices.length > 0) {
+      data.prices.forEach((p) => {
+        pricesToPersist.push({
+          company_id: resolvedCompanyId,
+          product_id: createdRow.id,
+          price_list_code: p.code.trim().toUpperCase(),
+          price_list_name: p.name.trim(),
+          price: Number(p.price ?? 0),
+          min_quantity: Number(p.minQuantity ?? 1),
+          is_default: Boolean(p.isDefault ?? (p.code.toUpperCase() === 'NORMAL')),
+          is_active: Boolean(p.isActive !== undefined ? p.isActive : (p.price > 0 || p.code.toUpperCase() === 'NORMAL')),
+          start_date: p.startDate || null,
+          end_date: p.endDate || null,
+        })
+      })
+    } else {
+      pricesToPersist.push(
+        {
+          company_id: resolvedCompanyId,
+          product_id: createdRow.id,
+          price_list_code: 'NORMAL',
+          price_list_name: 'Precio Normal (Público)',
+          price: normalPrice,
+          min_quantity: 1,
+          is_default: true,
+          is_active: true,
+        },
+        {
+          company_id: resolvedCompanyId,
+          product_id: createdRow.id,
+          price_list_code: 'MAYORISTA',
+          price_list_name: 'Precio Mayorista',
+          price: wholesalePrice,
+          min_quantity: Number((data as any).minWholesaleQuantity ?? 6),
+          is_default: false,
+          is_active: true,
+        }
+      )
+    }
+
+    if (pricesToPersist.length > 0) {
+      const { error: pricesErr } = await supabaseClient
+        .from('product_prices')
+        .upsert(pricesToPersist, { onConflict: 'product_id,price_list_code' })
+
+      if (pricesErr) {
+        console.error('Error insertando product_prices en Supabase:', pricesErr)
+        throw new Error(this.translateDbError(pricesErr))
+      }
+    }
+
+    const createdProduct = await this.findById(createdRow.id)
+    return createdProduct || mapDbToDomain({ ...createdRow, product_prices: pricesToPersist })
   }
 
   async resetMocks(): Promise<void> {
@@ -537,12 +620,7 @@ export class ProductRepository {
       .from('products')
       .update(updatePayload)
       .eq('id', id)
-      .select(`
-        *,
-        categories ( id, name, slug, code ),
-        brands ( id, name, slug ),
-        stock_levels ( quantity, location_id )
-      `)
+      .select()
       .single()
 
     if (error) {
@@ -550,7 +628,35 @@ export class ProductRepository {
       throw new Error(this.translateDbError(error))
     }
 
-    return mapDbToDomain(updatedRow)
+    // Sincronizar listas de precios en public.product_prices si se proveen
+    if (Array.isArray(u.prices) && u.prices.length > 0) {
+      const resolvedCompanyId = updatedRow.company_id || (await this.resolveCompanyId())
+      const pricesToUpsert = u.prices.map((p: any) => ({
+        company_id: resolvedCompanyId,
+        product_id: id,
+        price_list_code: p.code.trim().toUpperCase(),
+        price_list_name: p.name.trim(),
+        price: Number(p.price ?? 0),
+        min_quantity: Number(p.minQuantity ?? 1),
+        is_default: Boolean(p.isDefault ?? (p.code.toUpperCase() === 'NORMAL')),
+        is_active: Boolean(p.isActive !== undefined ? p.isActive : (p.price > 0 || p.code.toUpperCase() === 'NORMAL')),
+        start_date: p.startDate || null,
+        end_date: p.endDate || null,
+        updated_at: new Date().toISOString(),
+      }))
+
+      const { error: pricesErr } = await supabaseClient
+        .from('product_prices')
+        .upsert(pricesToUpsert, { onConflict: 'product_id,price_list_code' })
+
+      if (pricesErr) {
+        console.error('Error actualizando product_prices en Supabase:', pricesErr)
+        throw new Error(this.translateDbError(pricesErr))
+      }
+    }
+
+    const reloaded = await this.findById(id)
+    return reloaded || mapDbToDomain(updatedRow)
   }
 
   /**
@@ -720,6 +826,62 @@ export class ProductRepository {
       locationName: m.locations?.name || 'Bodega General',
       userName: m.users?.full_name || 'Sistema',
     }))
+  }
+
+  /**
+   * Obtiene todas las listas de precios reales de un producto desde public.product_prices
+   */
+  async getProductPrices(productId: string): Promise<ProductPrice[]> {
+    const { data, error } = await supabaseClient
+      .from('product_prices')
+      .select('*')
+      .eq('product_id', productId)
+      .order('is_default', { ascending: false })
+      .order('price', { ascending: true })
+
+    if (error) {
+      console.error('Error consultando product_prices:', error)
+      return []
+    }
+
+    return (data || []).map((pp: any) => ({
+      id: pp.id,
+      companyId: pp.company_id,
+      productId: pp.product_id,
+      priceListCode: pp.price_list_code,
+      priceListName: pp.price_list_name,
+      price: Number(pp.price ?? 0),
+      minQuantity: Number(pp.min_quantity ?? 1),
+      isDefault: Boolean(pp.is_default),
+      isActive: Boolean(pp.is_active),
+      startDate: pp.start_date || null,
+      endDate: pp.end_date || null,
+      createdAt: pp.created_at,
+      updatedAt: pp.updated_at,
+    }))
+  }
+
+  /**
+   * Activa o desactiva una lista de precios específica
+   */
+  async togglePriceListActive(
+    productId: string,
+    priceListCode: string,
+    isActive: boolean
+  ): Promise<void> {
+    const { error } = await supabaseClient
+      .from('product_prices')
+      .update({
+        is_active: isActive,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('product_id', productId)
+      .eq('price_list_code', priceListCode.trim().toUpperCase())
+
+    if (error) {
+      console.error('Error modificando estado de lista de precio:', error)
+      throw new Error(this.translateDbError(error))
+    }
   }
 
   private slugify(name: string): string {

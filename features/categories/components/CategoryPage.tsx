@@ -145,7 +145,7 @@ export function CategoryPage() {
   }
 
   return (
-    <div className="warehouse-page-container">
+    <div className="categories-module-page page-enter" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <CategoryHeader
         totalCount={totalCount}
         canCreate={permissions.canCreate}

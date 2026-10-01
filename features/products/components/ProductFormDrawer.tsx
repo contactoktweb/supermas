@@ -13,11 +13,13 @@ import {
   TaxProfile,
   UnitOfMeasure,
   TaxRateConfig,
+  PriceTier,
 } from '../types'
 import { productFormSchema } from '../schemas/product.schema'
 import { productService } from '../services/product.service'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface ProductFormDrawerProps {
   isOpen: boolean
@@ -64,10 +66,26 @@ export function ProductFormDrawer({
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('UND')
   const [imageUrl, setImageUrl] = useState('')
 
-  // Prices State (Extensible structure)
+  // Prices State (Extensible structure backed by public.product_prices)
   const [normalPrice, setNormalPrice] = useState<number>(0)
+
   const [wholesalePrice, setWholesalePrice] = useState<number>(0)
+  const [minWholesaleQuantity, setMinWholesaleQuantity] = useState<number>(6)
+  const [isWholesaleActive, setIsWholesaleActive] = useState<boolean>(true)
+
   const [distributorPrice, setDistributorPrice] = useState<number>(0)
+  const [minDistributorQuantity, setMinDistributorQuantity] = useState<number>(24)
+  const [isDistributorActive, setIsDistributorActive] = useState<boolean>(false)
+
+  const [customPriceTiers, setCustomPriceTiers] = useState<PriceTier[]>([])
+  const [isAddingCustomTier, setIsAddingCustomTier] = useState<boolean>(false)
+  const [newTierCode, setNewTierCode] = useState<string>('')
+  const [newTierName, setNewTierName] = useState<string>('')
+  const [newTierPrice, setNewTierPrice] = useState<number>(0)
+  const [newTierMinQty, setNewTierMinQty] = useState<number>(1)
+  const [newTierStartDate, setNewTierStartDate] = useState<string>('')
+  const [newTierEndDate, setNewTierEndDate] = useState<string>('')
+
   const [estimatedCost, setEstimatedCost] = useState<number>(0)
 
   // Tax Profile State
@@ -146,9 +164,37 @@ export function ProductFormDrawer({
         setBrandId(initialProduct.brandId || (brandOptions[0]?.value ?? ''))
         setUnitOfMeasure(initialProduct.unitOfMeasure)
         setImageUrl(initialProduct.imageUrl || '')
-        setNormalPrice(initialProduct.normalPrice)
-        setWholesalePrice(initialProduct.wholesalePrice)
-        setDistributorPrice(initialProduct.distributorPrice || 0)
+        // Mapear listas de precios reales desde initialProduct.prices
+        const normalTier = initialProduct.prices?.find((p) => p.code === 'NORMAL' || p.isDefault)
+        const mayoristaTier = initialProduct.prices?.find((p) => p.code === 'MAYORISTA')
+        const distribuidorTier = initialProduct.prices?.find((p) => p.code === 'DISTRIBUIDOR')
+        const otherTiers = (initialProduct.prices || []).filter(
+          (p) => p.code !== 'NORMAL' && p.code !== 'MAYORISTA' && p.code !== 'DISTRIBUIDOR'
+        )
+
+        setNormalPrice(normalTier ? normalTier.price : initialProduct.normalPrice)
+
+        setWholesalePrice(
+          mayoristaTier ? mayoristaTier.price : initialProduct.wholesalePrice
+        )
+        setMinWholesaleQuantity(
+          mayoristaTier?.minQuantity || initialProduct.minWholesaleQuantity || 6
+        )
+        setIsWholesaleActive(mayoristaTier ? mayoristaTier.isActive !== false : true)
+
+        setDistributorPrice(
+          distribuidorTier ? distribuidorTier.price : (initialProduct.distributorPrice || 0)
+        )
+        setMinDistributorQuantity(distribuidorTier?.minQuantity || 24)
+        setIsDistributorActive(
+          distribuidorTier
+            ? distribuidorTier.isActive !== false
+            : Boolean(initialProduct.distributorPrice && initialProduct.distributorPrice > 0)
+        )
+
+        setCustomPriceTiers(otherTiers)
+        setIsAddingCustomTier(false)
+
         setEstimatedCost(initialProduct.averageCost || 0)
         setTaxProfile(initialProduct.taxProfile)
         setVatRatePercent(initialProduct.vatRatePercent)
@@ -170,7 +216,13 @@ export function ProductFormDrawer({
         setImageUrl('')
         setNormalPrice(0)
         setWholesalePrice(0)
+        setMinWholesaleQuantity(6)
+        setIsWholesaleActive(true)
         setDistributorPrice(0)
+        setMinDistributorQuantity(24)
+        setIsDistributorActive(false)
+        setCustomPriceTiers([])
+        setIsAddingCustomTier(false)
         setEstimatedCost(0)
         setTaxProfile('IVA_19')
         setVatRatePercent(19)
@@ -208,19 +260,48 @@ export function ProductFormDrawer({
     e.preventDefault()
     setErrors({})
 
-    const pricesPayload = [
-      { code: 'NORMAL', name: 'Precio Normal (Público)', price: Number(normalPrice), minQuantity: 1 },
-      { code: 'MAYORISTA', name: 'Precio Mayorista (Volumen)', price: Number(wholesalePrice) || Number(normalPrice), minQuantity: 6 },
+    const pricesPayload: PriceTier[] = [
+      {
+        code: 'NORMAL',
+        name: 'Precio Normal (Público)',
+        price: Number(normalPrice),
+        minQuantity: 1,
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        code: 'MAYORISTA',
+        name: 'Precio Mayorista',
+        price: Number(wholesalePrice) || Number(normalPrice),
+        minQuantity: Number(minWholesaleQuantity) || 6,
+        isDefault: false,
+        isActive: isWholesaleActive,
+      },
     ]
 
-    if (distributorPrice > 0) {
+    if (distributorPrice > 0 || isDistributorActive) {
       pricesPayload.push({
         code: 'DISTRIBUIDOR',
         name: 'Precio Distribuidor Especial',
         price: Number(distributorPrice),
-        minQuantity: 24,
+        minQuantity: Number(minDistributorQuantity) || 24,
+        isDefault: false,
+        isActive: isDistributorActive,
       })
     }
+
+    customPriceTiers.forEach((tier) => {
+      pricesPayload.push({
+        code: tier.code.trim().toUpperCase(),
+        name: tier.name.trim(),
+        price: Number(tier.price),
+        minQuantity: Number(tier.minQuantity || 1),
+        isDefault: false,
+        isActive: tier.isActive ?? true,
+        startDate: tier.startDate || null,
+        endDate: tier.endDate || null,
+      })
+    })
 
     const payload: CreateProductInput = {
       name: name.trim(),
@@ -256,15 +337,31 @@ export function ProductFormDrawer({
       )
       onClose()
     } catch (err: any) {
-      if (err.errors) {
-        const fieldErrors: Record<string, string> = {}
-        err.errors.forEach((zErr: any) => {
-          const field = zErr.path.join('.')
-          fieldErrors[field] = zErr.message
+      const cleanMessage = extractErrorMessage(err, 'Error al guardar el producto')
+      const issues = err?.issues || err?.errors
+      if (Array.isArray(issues) && issues.length > 0) {
+        const fieldErrors: Record<string, string> = { general: cleanMessage }
+        issues.forEach((zErr: any) => {
+          const field = Array.isArray(zErr.path) ? zErr.path.join('.') : String(zErr.path || '')
+          if (field) {
+            fieldErrors[field] = zErr.message
+          }
         })
         setErrors(fieldErrors)
+
+        // Cambiar automáticamente a la pestaña correspondiente al primer error
+        const firstField = issues[0]?.path?.[0]
+        if (firstField === 'prices' && activeTab !== 'prices') {
+          setActiveTab('prices')
+        } else if ((firstField === 'taxProfile' || firstField === 'vatRatePercent') && activeTab !== 'tax') {
+          setActiveTab('tax')
+        } else if ((firstField === 'webSuperMas' || firstField === 'webDistribuidora') && activeTab !== 'web') {
+          setActiveTab('web')
+        } else if (firstField === 'auditReason' && activeTab !== 'governance') {
+          setActiveTab('governance')
+        }
       } else {
-        setErrors({ general: err.message || 'Error al guardar el producto' })
+        setErrors({ general: cleanMessage })
       }
     } finally {
       setIsSubmitting(false)
@@ -373,7 +470,7 @@ export function ProductFormDrawer({
         {errors.general && (
           <div className="form-error-banner page-enter">
             <AppIcon name="warning" size={16} />
-            <span>{errors.general}</span>
+            <span>{extractErrorMessage(errors.general)}</span>
           </div>
         )}
 
@@ -507,67 +604,386 @@ export function ProductFormDrawer({
           )}
 
           {/* TAB 2: LISTAS DE PRECIOS EXTENSIBLES */}
+          {/* TAB 2: LISTAS DE PRECIOS EXTENSIBLES (public.product_prices) */}
           {activeTab === 'prices' && (
             <div className="form-tab-content page-enter">
               <div className="info-banner-compact">
                 <AppIcon name="sales" size={16} />
                 <span>
-                  Super Más utiliza un esquema extensible de listas de precios.
-                  Puedes definir precio normal, mayorista y tarifas para distribuidores.
+                  Super Más utiliza un esquema extensible de listas de precios (public.product_prices).
+                  Puedes definir precio normal, mayorista, distribuidor y listas personalizadas con cantidades mínimas y vigencia.
                 </span>
               </div>
 
-              <div className="form-field">
-                <label>
-                  Precio Normal de Venta (Público) <em>*</em>
-                </label>
-                <div className={`input-wrap ${errors.prices ? 'is-invalid' : ''}`}>
-                  <span className="input-prefix">$</span>
-                  <input
-                    type="number"
-                    value={normalPrice || ''}
-                    onChange={(e) => setNormalPrice(Number(e.target.value))}
-                    placeholder="0"
-                    min={0}
-                    step={100}
-                    required
-                  />
+              {/* LISTA 1: PRECIO NORMAL */}
+              <div className="drawer-section" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>Precio Normal de Venta (Público)</strong>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>Tarifa principal obligatoria — Aplica desde 1 unidad</div>
+                  </div>
+                  <span className="code-badge" style={{ background: '#e0f2fe', color: '#0369a1' }}>PREDETERMINADA</span>
                 </div>
-                {errors.prices && (
-                  <span className="field-error-text">{errors.prices}</span>
-                )}
+
+                <div className="form-field" style={{ marginBottom: 0 }}>
+                  <div className={`input-wrap ${errors.prices ? 'is-invalid' : ''}`}>
+                    <span className="input-prefix">$</span>
+                    <input
+                      type="number"
+                      value={normalPrice || ''}
+                      onChange={(e) => setNormalPrice(Number(e.target.value))}
+                      placeholder="0"
+                      min={0}
+                      step={100}
+                      required
+                    />
+                  </div>
+                  {errors.prices && (
+                    <span className="field-error-text">{errors.prices}</span>
+                  )}
+                </div>
               </div>
 
-              <div className="form-grid-2">
-                <div className="form-field">
-                  <label>Precio Mayorista (Mín. 6 unidades)</label>
-                  <div className="input-wrap">
-                    <span className="input-prefix">$</span>
-                    <input
-                      type="number"
-                      value={wholesalePrice || ''}
-                      onChange={(e) => setWholesalePrice(Number(e.target.value))}
-                      placeholder="0"
-                      min={0}
-                      step={100}
-                    />
+              {/* LISTA 2: PRECIO MAYORISTA */}
+              <div className="drawer-section" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>Precio Mayorista (Volumen)</strong>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>Descuento por volumen para clientes mayoristas</div>
                   </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={isWholesaleActive}
+                      onChange={(e) => setIsWholesaleActive(e.target.checked)}
+                    />
+                    <span>{isWholesaleActive ? 'Activa' : 'Inactiva'}</span>
+                  </label>
                 </div>
 
-                <div className="form-field">
-                  <label>Precio Distribuidor (Mín. 24 unidades)</label>
-                  <div className="input-wrap">
-                    <span className="input-prefix">$</span>
-                    <input
-                      type="number"
-                      value={distributorPrice || ''}
-                      onChange={(e) => setDistributorPrice(Number(e.target.value))}
-                      placeholder="0"
-                      min={0}
-                      step={100}
-                    />
+                <div className="form-grid-2">
+                  <div className="form-field">
+                    <label>Precio unitario mayorista</label>
+                    <div className="input-wrap">
+                      <span className="input-prefix">$</span>
+                      <input
+                        type="number"
+                        value={wholesalePrice || ''}
+                        onChange={(e) => setWholesalePrice(Number(e.target.value))}
+                        placeholder="0"
+                        min={0}
+                        step={100}
+                        disabled={!isWholesaleActive}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-field">
+                    <label>Cantidad mínima requerida</label>
+                    <div className="input-wrap">
+                      <input
+                        type="number"
+                        value={minWholesaleQuantity || ''}
+                        onChange={(e) => setMinWholesaleQuantity(Number(e.target.value))}
+                        placeholder="6"
+                        min={1}
+                        disabled={!isWholesaleActive}
+                      />
+                      <span className="input-suffix">uds</span>
+                    </div>
                   </div>
                 </div>
+              </div>
+
+              {/* LISTA 3: PRECIO DISTRIBUIDOR */}
+              <div className="drawer-section" style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', marginTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div>
+                    <strong style={{ fontSize: 15, color: 'var(--navy)' }}>Precio Distribuidor Especial</strong>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>Tarifa preferencial para distribución a gran escala</div>
+                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                    <input
+                      type="checkbox"
+                      checked={isDistributorActive}
+                      onChange={(e) => setIsDistributorActive(e.target.checked)}
+                    />
+                    <span>{isDistributorActive ? 'Activa' : 'Inactiva'}</span>
+                  </label>
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-field">
+                    <label>Precio distribuidor</label>
+                    <div className="input-wrap">
+                      <span className="input-prefix">$</span>
+                      <input
+                        type="number"
+                        value={distributorPrice || ''}
+                        onChange={(e) => setDistributorPrice(Number(e.target.value))}
+                        placeholder="0"
+                        min={0}
+                        step={100}
+                        disabled={!isDistributorActive}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-field">
+                    <label>Cantidad mínima requerida</label>
+                    <div className="input-wrap">
+                      <input
+                        type="number"
+                        value={minDistributorQuantity || ''}
+                        onChange={(e) => setMinDistributorQuantity(Number(e.target.value))}
+                        placeholder="24"
+                        min={1}
+                        disabled={!isDistributorActive}
+                      />
+                      <span className="input-suffix">uds</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* LISTAS PERSONALIZADAS EXTENSIBLES */}
+              <div className="drawer-section" style={{ marginTop: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h3 style={{ margin: 0 }}>Listas de Precios Personalizadas</h3>
+                  {!isAddingCustomTier && (
+                    <button
+                      type="button"
+                      className="outline-button"
+                      style={{ fontSize: 12, padding: '4px 10px' }}
+                      onClick={() => setIsAddingCustomTier(true)}
+                    >
+                      <AppIcon name="plus" size={14} />
+                      <span>Agregar lista</span>
+                    </button>
+                  )}
+                </div>
+
+                {customPriceTiers.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {customPriceTiers.map((tier) => (
+                      <div
+                        key={tier.code}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          background: '#fff',
+                          border: '1px solid #e2e8f0',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <strong>{tier.name}</strong>
+                            <span className="code-badge">{tier.code}</span>
+                            <span
+                              className={`status-indicator-pill ${
+                                tier.isActive !== false ? 'active' : 'inactive'
+                              }`}
+                              style={{ fontSize: 10, padding: '2px 6px' }}
+                            >
+                              {tier.isActive !== false ? 'Activa' : 'Inactiva'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            Mín. {tier.minQuantity || 1} uds
+                            {(tier.startDate || tier.endDate) && (
+                              <span>
+                                {' '}· Vigencia: {tier.startDate || 'Inicio'} a {tier.endDate || 'Indefinido'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <strong style={{ fontSize: 15, color: 'var(--navy)' }}>
+                            {productService.formatCurrency(tier.price)}
+                          </strong>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Alternar estado"
+                            onClick={() => {
+                              setCustomPriceTiers((prev) =>
+                                prev.map((t) =>
+                                  t.code === tier.code ? { ...t, isActive: !t.isActive } : t
+                                )
+                              )
+                            }}
+                          >
+                            <AppIcon name={tier.isActive !== false ? 'check' : 'close'} size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Eliminar lista"
+                            onClick={() => {
+                              setCustomPriceTiers((prev) => prev.filter((t) => t.code !== tier.code))
+                            }}
+                          >
+                            <AppIcon name="trash" size={14} color="#ef4444" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  !isAddingCustomTier && (
+                    <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: 13, border: '1px dashed #cbd5e1', borderRadius: '6px' }}>
+                      No hay listas personalizadas adicionales. Puedes crear tarifas como HORECA, INSTITUCIONAL o PROMOCIÓN.
+                    </div>
+                  )
+                )}
+
+                {/* Subformulario para agregar nueva lista personalizada */}
+                {isAddingCustomTier && (
+                  <div style={{ background: '#f1f5f9', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: 12 }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: 14, color: 'var(--navy)' }}>Nueva Lista de Precios</h4>
+                    <div className="form-grid-2">
+                      <div className="form-field">
+                        <label>Código único (ej: HORECA, INST) <em>*</em></label>
+                        <div className="input-wrap">
+                          <input
+                            value={newTierCode}
+                            onChange={(e) => setNewTierCode(e.target.value.toUpperCase())}
+                            placeholder="Ej: HORECA"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="form-field">
+                        <label>Nombre descriptivo <em>*</em></label>
+                        <div className="input-wrap">
+                          <input
+                            value={newTierName}
+                            onChange={(e) => setNewTierName(e.target.value)}
+                            placeholder="Ej: Hoteles y Restaurantes"
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-grid-2">
+                      <div className="form-field">
+                        <label>Precio unitario <em>*</em></label>
+                        <div className="input-wrap">
+                          <span className="input-prefix">$</span>
+                          <input
+                            type="number"
+                            value={newTierPrice || ''}
+                            onChange={(e) => setNewTierPrice(Number(e.target.value))}
+                            placeholder="0"
+                            min={0}
+                            step={100}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="form-field">
+                        <label>Cantidad mínima</label>
+                        <div className="input-wrap">
+                          <input
+                            type="number"
+                            value={newTierMinQty || ''}
+                            onChange={(e) => setNewTierMinQty(Number(e.target.value))}
+                            placeholder="1"
+                            min={1}
+                          />
+                          <span className="input-suffix">uds</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="form-grid-2">
+                      <div className="form-field">
+                        <label>Vigente desde (opcional)</label>
+                        <div className="input-wrap">
+                          <input
+                            type="date"
+                            value={newTierStartDate}
+                            onChange={(e) => setNewTierStartDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="form-field">
+                        <label>Vigente hasta (opcional)</label>
+                        <div className="input-wrap">
+                          <input
+                            type="date"
+                            value={newTierEndDate}
+                            onChange={(e) => setNewTierEndDate(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                      <button
+                        type="button"
+                        className="outline-button"
+                        style={{ fontSize: 13 }}
+                        onClick={() => {
+                          setIsAddingCustomTier(false)
+                          setNewTierCode('')
+                          setNewTierName('')
+                          setNewTierPrice(0)
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        className="solid-button"
+                        style={{ fontSize: 13, background: 'var(--navy)', color: '#fff' }}
+                        onClick={() => {
+                          const code = newTierCode.trim().toUpperCase()
+                          const name = newTierName.trim()
+                          if (!code || !name) {
+                            alert('El código y el nombre de la lista son obligatorios.')
+                            return
+                          }
+                          if (
+                            code === 'NORMAL' ||
+                            code === 'MAYORISTA' ||
+                            code === 'DISTRIBUIDOR' ||
+                            customPriceTiers.some((t) => t.code === code)
+                          ) {
+                            alert(`El código "${code}" ya está en uso. Elige un código diferente.`)
+                            return
+                          }
+                          setCustomPriceTiers((prev) => [
+                            ...prev,
+                            {
+                              code,
+                              name,
+                              price: Number(newTierPrice),
+                              minQuantity: Number(newTierMinQty) || 1,
+                              isDefault: false,
+                              isActive: true,
+                              startDate: newTierStartDate || null,
+                              endDate: newTierEndDate || null,
+                            },
+                          ])
+                          setIsAddingCustomTier(false)
+                          setNewTierCode('')
+                          setNewTierName('')
+                          setNewTierPrice(0)
+                          setNewTierStartDate('')
+                          setNewTierEndDate('')
+                        }}
+                      >
+                        Guardar Lista
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Costo estimado para simulación */}

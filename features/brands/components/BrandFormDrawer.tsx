@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { BrandWithRelations } from '../types'
 import { brandFormSchema, BrandFormData, slugify } from '../schemas/brand.schema'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface BrandFormDrawerProps {
   mode: 'create' | 'edit'
@@ -109,7 +110,7 @@ export function BrandFormDrawer({
       await onSubmit(result.data)
       onClose()
     } catch (err: any) {
-      setErrors({ form: err.message || 'Error al guardar la marca' })
+      setErrors({ form: extractErrorMessage(err, 'Error al guardar la marca') })
     } finally {
       setIsSubmitting(false)
     }
@@ -152,7 +153,7 @@ export function BrandFormDrawer({
             {errors.form && (
               <div className="form-error-banner" role="alert">
                 <AppIcon name="warning" size={16} />
-                <span>{errors.form}</span>
+                <span>{extractErrorMessage(errors.form)}</span>
               </div>
             )}
 

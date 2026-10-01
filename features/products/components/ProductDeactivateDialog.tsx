@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Product } from '../types'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface ProductDeactivateDialogProps {
   product: Product | null
@@ -43,7 +44,7 @@ export function ProductDeactivateDialog({
       await onConfirm(product.id, reason.trim() || 'Desactivación de producto desde catálogo')
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo desactivar el producto')
+      setError(extractErrorMessage(err, 'No se pudo desactivar el producto'))
     } finally {
       setIsSubmitting(false)
     }

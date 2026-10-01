@@ -4,6 +4,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseInventoryItem } from '../types'
 import { stockAdjustmentSchema, StockAdjustmentFormData } from '../schemas/warehouse.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface WarehouseAdjustStockModalProps {
   locationId: string
@@ -81,14 +82,17 @@ export function WarehouseAdjustStockModal({
       await onSubmit(validated)
       onClose()
     } catch (err: any) {
-      if (err.errors) {
-        const fieldErrors: Record<string, string> = {}
-        err.errors.forEach((zErr: any) => {
-          fieldErrors[zErr.path.join('.')] = zErr.message
+      const cleanMessage = extractErrorMessage(err, 'Error al procesar el ajuste de inventario')
+      const issues = err?.issues || err?.errors
+      if (Array.isArray(issues) && issues.length > 0) {
+        const fieldErrors: Record<string, string> = { general: cleanMessage }
+        issues.forEach((zErr: any) => {
+          const field = Array.isArray(zErr.path) ? zErr.path.join('.') : String(zErr.path || '')
+          if (field) fieldErrors[field] = zErr.message
         })
         setErrors(fieldErrors)
       } else {
-        setErrors({ general: err.message || 'Error al procesar el ajuste de inventario' })
+        setErrors({ general: cleanMessage })
       }
     } finally {
       setIsSubmitting(false)
@@ -164,7 +168,7 @@ export function WarehouseAdjustStockModal({
           {errors.general && (
             <div className="form-error-banner">
               <AppIcon name="warning" size={16} />
-              <span>{errors.general}</span>
+              <span>{extractErrorMessage(errors.general)}</span>
             </div>
           )}
 

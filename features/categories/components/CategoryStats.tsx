@@ -3,71 +3,122 @@
 import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { CategoryStats as CategoryStatsType } from '../types'
+import { useCountUp } from '@/features/warehouses/hooks/useCountUp'
 
 interface CategoryStatsProps {
   stats: CategoryStatsType
 }
 
-export function CategoryStats({ stats }: CategoryStatsProps) {
+interface CategoryKpiCardProps {
+  title: string
+  value: number
+  iconName: LightIconName
+  tone: 'blue' | 'teal' | 'amber' | 'red'
+  badge: string
+  note: string
+  subtext?: string
+  isPositive?: boolean
+  index: number
+}
+
+function CategoryKpiCard({
+  title,
+  value,
+  iconName,
+  tone,
+  badge,
+  note,
+  subtext,
+  isPositive = true,
+  index,
+}: CategoryKpiCardProps) {
+  const animatedValue = useCountUp(value, { decimals: 0, duration: 800 })
+
   return (
-    <section className="stats-grid" aria-label="Resumen de categorías">
-      <StatCard
-        title="Total Categorías"
-        value={stats.totalCategories}
-        note={`${stats.activeCategories} activas`}
-        iconName="layers"
-        tone="blue"
-      />
-      <StatCard
-        title="Categorías Raíz"
-        value={stats.rootCategories}
-        note="Nivel principal"
-        iconName="grid"
-        tone="teal"
-      />
-      <StatCard
-        title="Subcategorías"
-        value={stats.subcategories}
-        note="Niveles anidados"
-        iconName="table"
-        tone="blue"
-      />
-      <StatCard
-        title="Inactivas"
-        value={stats.inactiveCategories}
-        note={stats.inactiveCategories > 0 ? 'Deshabilitadas' : 'Catálogo 100% activo'}
-        iconName="powerOff"
-        tone={stats.inactiveCategories > 0 ? 'amber' : 'teal'}
-      />
-    </section>
+    <article
+      className={`dashboard-kpi-card tone-${tone}`}
+      style={{ animationDelay: `${index * 0.05}s` }}
+    >
+      <div className="kpi-card-header">
+        <div className={`kpi-icon-wrap ${tone}`}>
+          <AppIcon name={iconName} size={18} />
+        </div>
+        <span className="kpi-scope-badge">{badge}</span>
+      </div>
+
+      <div className="kpi-card-body">
+        <span className="kpi-card-title">{title}</span>
+        <div className="kpi-value-row">
+          <strong className="kpi-card-value">{animatedValue}</strong>
+        </div>
+      </div>
+
+      <div className="kpi-card-footer">
+        <span className={`kpi-trend-pill ${isPositive ? 'trend-positive' : 'trend-warning'}`}>
+          <AppIcon name={isPositive ? 'arrowUpRight' : 'arrowDownRight'} size={12} />
+          <span>{note}</span>
+        </span>
+        {subtext && <span className="kpi-subtext">{subtext}</span>}
+      </div>
+    </article>
   )
 }
 
-function StatCard({
-  title,
-  value,
-  note,
-  iconName,
-  tone,
-}: {
-  title: string
-  value: number
-  note: string
-  iconName: LightIconName
-  tone: 'blue' | 'teal' | 'amber' | 'red'
-}) {
+export function CategoryStats({ stats }: CategoryStatsProps) {
+  const activePercent =
+    stats.totalCategories > 0
+      ? Math.round((stats.activeCategories / stats.totalCategories) * 100)
+      : 0
+
   return (
-    <article className={`stat-card card-tone-${tone}`}>
-      <div className="stat-card-header">
-        <span className="stat-card-title">{title}</span>
-        <div className="stat-icon-wrapper">
-          <AppIcon name={iconName} size={18} />
-        </div>
-      </div>
-      <div className="stat-card-body">
-        <div className="stat-value">{value}</div>
-        <p className="stat-card-note">{note}</p>
-      </div>
-    </article>
+    <section className="stats-grid page-enter" aria-label="Resumen estadístico de categorías">
+      <CategoryKpiCard
+        title="Total Categorías"
+        value={stats.totalCategories}
+        iconName="layers"
+        tone="blue"
+        badge="Catálogo"
+        note={`${stats.activeCategories} activas (${activePercent}%)`}
+        subtext="Registradas en el ERP"
+        isPositive={true}
+        index={1}
+      />
+
+      <CategoryKpiCard
+        title="Categorías Raíz"
+        value={stats.rootCategories}
+        iconName="grid"
+        tone="teal"
+        badge="Jerarquía"
+        note="Nivel principal"
+        subtext="Estructura base"
+        isPositive={true}
+        index={2}
+      />
+
+      <CategoryKpiCard
+        title="Subcategorías"
+        value={stats.subcategories}
+        iconName="table"
+        tone="blue"
+        badge="Anidadas"
+        note="Niveles secundarios"
+        subtext="Segmentación fina"
+        isPositive={true}
+        index={3}
+      />
+
+      <CategoryKpiCard
+        title="Inactivas"
+        value={stats.inactiveCategories}
+        iconName="powerOff"
+        tone={stats.inactiveCategories > 0 ? 'amber' : 'teal'}
+        badge="Operativo"
+        note={stats.inactiveCategories > 0 ? 'Deshabilitadas' : 'Catálogo 100% activo'}
+        subtext={stats.inactiveCategories > 0 ? 'Ocultas en ventas' : 'Sin pendientes'}
+        isPositive={stats.inactiveCategories === 0}
+        index={4}
+      />
+    </section>
   )
 }

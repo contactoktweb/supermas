@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { BrandWithRelations, BrandDeleteCheck } from '../types'
 import { brandService } from '../services/brand.service'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface BrandDeleteDialogProps {
   brand: BrandWithRelations | null
@@ -38,7 +39,7 @@ export function BrandDeleteDialog({
       brandService
         .validateBrandDeletion(brand.id)
         .then((result) => setCheck(result))
-        .catch((err) => setError(err.message || 'Error al validar dependencias de la marca'))
+        .catch((err) => setError(extractErrorMessage(err, 'Error al validar dependencias de la marca')))
         .finally(() => setIsLoading(false))
     }
   }, [brand, isOpen])
@@ -53,7 +54,7 @@ export function BrandDeleteDialog({
       await onConfirm(brand.id)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo eliminar la marca.')
+      setError(extractErrorMessage(err, 'No se pudo eliminar la marca.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -66,7 +67,7 @@ export function BrandDeleteDialog({
       await onDeactivateAlternative(brand)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo desactivar la marca.')
+      setError(extractErrorMessage(err, 'No se pudo desactivar la marca.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -111,7 +112,7 @@ export function BrandDeleteDialog({
           ) : error ? (
             <div className="form-error-banner" role="alert">
               <AppIcon name="warning" size={16} />
-              <span>{error}</span>
+              <span>{extractErrorMessage(error)}</span>
             </div>
           ) : !check?.canDelete ? (
             <div className="blocked-action-notice">

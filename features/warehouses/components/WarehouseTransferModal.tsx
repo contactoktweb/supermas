@@ -5,6 +5,7 @@ import { LocationWithMetrics, WarehouseInventoryItem } from '../types'
 import { createTransferSchema, CreateTransferFormData } from '../schemas/warehouse.schema'
 import { warehouseRepository } from '../repositories/warehouse.repository'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface WarehouseTransferModalProps {
   originWarehouse: LocationWithMetrics | null
@@ -90,14 +91,17 @@ export function WarehouseTransferModal({
       await onSubmit(validated)
       onClose()
     } catch (err: any) {
-      if (err.errors) {
-        const fieldErrors: Record<string, string> = {}
-        err.errors.forEach((zErr: any) => {
-          fieldErrors[zErr.path.join('.')] = zErr.message
+      const cleanMessage = extractErrorMessage(err, 'Error al registrar transferencia')
+      const issues = err?.issues || err?.errors
+      if (Array.isArray(issues) && issues.length > 0) {
+        const fieldErrors: Record<string, string> = { general: cleanMessage }
+        issues.forEach((zErr: any) => {
+          const field = Array.isArray(zErr.path) ? zErr.path.join('.') : String(zErr.path || '')
+          if (field) fieldErrors[field] = zErr.message
         })
         setErrors(fieldErrors)
       } else {
-        setErrors({ general: err.message || 'Error al registrar transferencia' })
+        setErrors({ general: cleanMessage })
       }
     } finally {
       setIsSubmitting(false)
@@ -156,7 +160,7 @@ export function WarehouseTransferModal({
         {errors.general && (
           <div className="form-error-banner" role="alert">
             <AppIcon name="warning" size={16} />
-            <span>{errors.general}</span>
+            <span>{extractErrorMessage(errors.general)}</span>
           </div>
         )}
 

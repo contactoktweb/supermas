@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { WarehousePage } from '@/features/warehouses/components/WarehousePage'
 import { DashboardView } from '@/features/dashboard/components/DashboardView'
@@ -27,61 +28,22 @@ import { AuditPage } from '@/features/audit/components/AuditPage'
 import { UsersPage } from '@/features/users/components/UsersPage'
 import { RolesView } from '@/features/roles/components/RolesView'
 import { SettingsPage } from '@/features/settings/components/SettingsPage'
+import { CategoryPage } from '@/features/categories/components/CategoryPage'
+import { BrandPage } from '@/features/brands/components/BrandPage'
 import { Footer } from '@/components/Footer'
 import { APP_MODULES } from '@/components/navigation/modules'
+import { Sidebar } from '@/components/navigation/Sidebar'
 import { GlobalSearch } from '@/components/navigation/GlobalSearch'
 import { NotificationButton } from '@/components/navigation/NotificationButton'
 import { useAuth, LoginForm } from '@/features/auth'
 import { UserMini } from '@/components/navigation/UserMini'
-import { TopAvatar } from '@/components/navigation/TopAvatar'
 import { db } from '@/lib/supabase'
 
 const modules = APP_MODULES
 
-function Brand({compact=false}:{compact?:boolean}){return <div className={`brand ${compact?'brand-compact':''}`}><img src="/super-mas-logo.svg" alt="Super Más"/><span>ERP / POS</span></div>}
 
-function Sidebar({view,setView,open,close,logout}:{view:string;setView:(x:string)=>void;open:boolean;close:()=>void;logout:()=>void}){
-  return <>
-    {open && <div className="sidebar-backdrop" onClick={close} />}
-    <aside className={`sidebar ${open?'sidebar-open':''}`}>
-      <div className="sidebar-top">
-        <Brand compact/>
-        <button className="mobile-close icon-button" onClick={close} aria-label="Cerrar menú">
-          <AppIcon name="close" size={18}/>
-        </button>
-      </div>
-      <nav>
-        <p className="nav-caption">Menú principal</p>
-        {modules.map(([label,iconName])=>(
-          <button key={label} className={`nav-item ${view===label?'active':''}`} onClick={()=>{setView(label);close()}}>
-            <AppIcon name={iconName} size={18}/>
-            <span>{label}</span>
-            {label==='Alertas'&&<b>3</b>}
-          </button>
-        ))}
-      </nav>
-      <UserMini onLogout={logout} />
-    </aside>
-  </>
-}
 
-function Header({view,open,onNavigate}:{view:string;open:()=>void;onNavigate:(v:string)=>void}){
-  return <header className="topbar">
-    <button className="menu-trigger icon-button" onClick={open} aria-label="Abrir menú">
-      <AppIcon name="menu" size={20}/>
-    </button>
-    <div className="breadcrumbs">
-      <span>Inicio</span>
-      <AppIcon name="chevronRight" size={14}/>
-      <strong>{view}</strong>
-    </div>
-    <div className="top-actions">
-      <GlobalSearch onNavigate={onNavigate} />
-      <NotificationButton onNavigate={onNavigate} count={3} />
-      <TopAvatar />
-    </div>
-  </header>
-}
+import { Header } from '@/components/navigation/Header'
 
 function Stat({title,value,iconName='sales',tone='blue',note='+8.4%'}:{title:string;value:string;iconName?:LightIconName;tone?:string;note?:string}){
   return <article className="stat-card">
@@ -359,6 +321,7 @@ function AdminModule({name}:{name:string}){
 }
 
 function App(){
+  const router = useRouter();
   const { user, isAuthenticated, isLoading, signOut } = useAuth();
   const [view,setView]=useState('Dashboard');
   const [menu,setMenu]=useState(false);
@@ -370,23 +333,23 @@ function App(){
       if (v) {
         const found = APP_MODULES.find(([m]) => m.toLowerCase() === v.toLowerCase());
         if (found) {
+          if (found[2] && found[2] !== '/') {
+            router.replace(found[2]);
+            return;
+          }
           setView(found[0]);
         }
       }
     }
-  }, []);
+  }, [router]);
 
   const handleSetView = (targetView: string) => {
-    setView(targetView);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      if (targetView === 'Dashboard') {
-        url.searchParams.delete('view');
-      } else {
-        url.searchParams.set('view', targetView);
-      }
-      window.history.replaceState(null, '', url.toString());
+    const found = APP_MODULES.find(([m]) => m.toLowerCase() === targetView.toLowerCase());
+    if (found && found[2] && found[2] !== '/') {
+      router.push(found[2]);
+      return;
     }
+    setView(targetView);
   };
 
   if (isLoading) {
@@ -432,6 +395,10 @@ function App(){
 
   const content = view === 'Dashboard' ? (
     <DashboardView onNavigate={(targetView) => handleSetView(targetView)} />
+  ) : view === 'Categorías' ? (
+    <CategoryPage />
+  ) : view === 'Marcas' ? (
+    <BrandPage />
   ) : view === 'Bodegas' ? (
     <WarehousePage />
   ) : view === 'Productos' ? (
@@ -491,14 +458,12 @@ function App(){
   return (
     <div className="app-shell">
       <Sidebar
-        view={view}
-        setView={handleSetView}
         open={menu}
-        close={()=>setMenu(false)}
-        logout={signOut}
+        onClose={() => setMenu(false)}
+        onLogout={signOut}
       />
       <div className="main-area">
-        <Header view={view} open={()=>setMenu(true)} onNavigate={handleSetView}/>
+        <Header onOpenMenu={() => setMenu(true)} />
         <main className="dashboard-content">
           {content}
           <Footer isDark={false}/>

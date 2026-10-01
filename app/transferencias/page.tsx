@@ -1,16 +1,9 @@
 'use client'
 
-import React, { useState, Suspense } from 'react'
+import React, { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { TransferPage } from '@/features/transfers/components/TransferPage'
-import { Footer } from '@/components/Footer'
-import { AppIcon } from '@/components/ui/Icon'
-import Link from 'next/link'
-import { APP_MODULES } from '@/components/navigation/modules'
-import { GlobalSearch } from '@/components/navigation/GlobalSearch'
-import { NotificationButton } from '@/components/navigation/NotificationButton'
-
-const modules = APP_MODULES
+import { AppShell } from '@/components/navigation/AppShell'
 
 function TransferContent() {
   const searchParams = useSearchParams()
@@ -28,86 +21,11 @@ function TransferContent() {
 }
 
 export default function TransferRoutePage() {
-  const [menu, setMenu] = useState(false)
-
   return (
-    <div className="app-shell">
-      {menu && <div className="sidebar-backdrop" onClick={() => setMenu(false)} />}
-      
-      {/* Sidebar */}
-      <aside className={`sidebar ${menu ? 'sidebar-open' : ''}`}>
-        <div className="sidebar-top">
-          <div className="brand brand-compact">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/super-mas-logo.svg" alt="Super Más" />
-            <span>ERP / POS</span>
-          </div>
-          <button
-            className="mobile-close icon-button"
-            onClick={() => setMenu(false)}
-            aria-label="Cerrar menú"
-          >
-            <AppIcon name="close" size={18} />
-          </button>
-        </div>
-
-
-        <nav className="nav-list">
-          {modules.map(([m, icon, href]) => (
-            <Link
-              key={m}
-              href={href}
-              className={`nav-item ${m === 'Transferencias' ? 'active' : ''}`}
-            >
-              <AppIcon name={icon} size={16} />
-              <span>{m}</span>
-            </Link>
-          ))}
-        </nav>
-      </aside>
-
-      {/* Main Area */}
-      <div className="main-area">
-        {/* Topbar */}
-        <header className="topbar">
-          <button
-            className="menu-button icon-button"
-            onClick={() => setMenu(true)}
-            aria-label="Abrir menú"
-          >
-            <AppIcon name="menu" size={20} />
-          </button>
-
-          <GlobalSearch />
-
-          <div className="topbar-actions">
-            <div className="active-tag">
-              <span className="live-dot" />
-              <span>Sistema en línea</span>
-            </div>
-
-            <NotificationButton count={3} />
-
-            <div className="avatar-chip">
-              <div className="user-avatar-initials">MA</div>
-              <div>
-                <strong>Mauricio Arango</strong>
-                <span>Logística</span>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Dynamic Content */}
-        <main className="dashboard-content">
-          <Suspense fallback={<div style={{ padding: 32 }}>Cargando módulo de transferencias...</div>}>
-            <TransferContent />
-          </Suspense>
-        </main>
-
-        {/* Footer with Mandatory Attribution */}
-        <Footer />
-      </div>
-    </div>
+    <AppShell>
+      <Suspense fallback={<div style={{ padding: 32 }}>Cargando módulo de transferencias...</div>}>
+        <TransferContent />
+      </Suspense>
+    </AppShell>
   )
 }

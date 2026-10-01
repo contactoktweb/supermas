@@ -7,6 +7,7 @@ import { CategoryWithRelations } from '../types'
 import { categoryFormSchema, CategoryFormData, slugify } from '../schemas/category.schema'
 import { categoryService, CategorySelectOption } from '../services/category.service'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface CategoryFormDrawerProps {
   mode: 'create' | 'edit'
@@ -134,7 +135,7 @@ export function CategoryFormDrawer({
       await onSubmit(result.data)
       onClose()
     } catch (err: any) {
-      setErrors({ form: err.message || 'Error al guardar la categoría' })
+      setErrors({ form: extractErrorMessage(err, 'Error al guardar la categoría') })
     } finally {
       setIsSubmitting(false)
     }
@@ -186,7 +187,7 @@ export function CategoryFormDrawer({
             {errors.form && (
               <div className="form-error-banner" role="alert">
                 <AppIcon name="warning" size={16} />
-                <span>{errors.form}</span>
+                <span>{extractErrorMessage(errors.form)}</span>
               </div>
             )}
 

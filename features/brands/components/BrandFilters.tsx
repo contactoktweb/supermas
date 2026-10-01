@@ -104,7 +104,7 @@ export function BrandFilters({
         {hasActiveFilters && (
           <button
             type="button"
-            className="btn btn-ghost btn-sm reset-filters-btn"
+            className="outline-button compact"
             onClick={onResetFilters}
             title="Restablecer filtros"
           >

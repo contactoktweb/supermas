@@ -9,6 +9,7 @@ import { StockAdjustmentInput, ConsolidatedProductStock, InventoryStockLevel } f
 import { stockAdjustmentSchema } from '../schemas/inventory.schema'
 import { getDbLocationOptions } from '@/lib/supabase'
 import { useAuth } from '@/features/auth'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface InventoryAdjustModalProps {
   isOpen: boolean
@@ -127,7 +128,7 @@ export function InventoryAdjustModal({
       await onSubmit(payload)
       onClose()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al procesar el ajuste de inventario')
+      setErrorMsg(extractErrorMessage(err, 'Error al procesar el ajuste de inventario'))
     } finally {
       setIsSubmitting(false)
     }
@@ -170,7 +171,7 @@ export function InventoryAdjustModal({
             {errorMsg && (
               <div className="form-error-banner">
                 <AppIcon name="warning" size={16} />
-                <span>{errorMsg}</span>
+                <span>{extractErrorMessage(errorMsg)}</span>
               </div>
             )}
 

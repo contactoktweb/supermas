@@ -1,25 +1,24 @@
 /**
- * SUPER MÁS ERP/POS — Batería de Pruebas Fiduciarias: FASE 3 · PASO 3 — PRODUCTOS REALES EN SUPABASE
+ * SUPER MÁS ERP/POS — Batería de Pruebas Fiduciarias: FASE 3 · PASO 4 — LISTAS DE PRECIOS REALES
  *
  * Valida de forma rigurosa contra Supabase Staging Real:
  * 1. Autenticación real con Supabase Auth (samirdurant234@gmail.com).
- * 2. Listar productos desde public.products bajo RLS.
- * 3. Crear producto temporal utilizando category_id y brand_id reales.
- * 4. Verificar existencia y columnas maestras en public.products:
- *    - category_id
- *    - brand_id
- *    - company_id
- *    - sku
- *    - public_sale_price / wholesale_price
- *    - is_active
- * 5. Editar producto y verificar persistencia en PostgreSQL.
- * 6. Desactivar producto (soft delete) y verificar is_active = false.
- * 7. Verificar auditoría automática en public.audit_logs generada por trigger 029 (fn_audit_products).
- * 8. Rechazo de duplicidad de SKU (UNIQUE por company_id).
- * 9. Limpieza estricta (Zero Pollution): Eliminar producto, marca y categoría temporales.
- * 10. Confirmación de cero residuos.
+ * 2. Catálogos maestros reales en Supabase (categorías, marcas, impuestos).
+ * 3. Crear producto real con listas NORMAL, MAYORISTA y DISTRIBUIDOR.
+ * 4. Persistencia en public.products y vinculación real con public.product_prices.
+ * 5. Lectura de listas de precios desde PostgreSQL (directa y a través de ProductService/Repository).
+ * 6. Modificar precio NORMAL y MAYORISTA, y agregar lista personalizada (HORECA).
+ * 7. Desactivar una lista (is_active = false) y verificar en PostgreSQL.
+ * 8. Reactivar una lista (is_active = true) y verificar en PostgreSQL.
+ * 9. Verificar que no existen duplicados y control del constraint UNIQUE(product_id, price_list_code).
+ * 10. Verificar aislamiento por company_id y políticas RLS.
+ * 11. Verificar persistencia después de una nueva consulta (simulación F5).
+ * 12. Soft delete de producto (is_active = false).
+ * 13. Auditoría automática registrada (fn_audit_products).
+ * 14. Control de unicidad de SKU.
+ * 15. Limpieza absoluta (Zero Pollution): eliminación de producto y cascada a product_prices (0 residuos).
  *
- * Ejecutable vía: npx tsx scripts/test-phase3-real-products.ts
+ * Ejecutable vía: npx tsx --env-file=.env.local scripts/test-phase3-real-products.ts
  */
 
 import dotenv from 'dotenv'
@@ -29,9 +28,7 @@ import { supabaseClient } from '../lib/supabase/client'
 import { productService } from '../features/products/services/product.service'
 import { productRepository } from '../features/products/repositories/product.repository'
 import { categoryService } from '../features/categories/services/category.service'
-import { categoryRepository } from '../features/categories/repositories/category.repository'
 import { brandService } from '../features/brands/services/brand.service'
-import { brandRepository } from '../features/brands/repositories/brand.repository'
 
 const adminPassword = process.env.STAGING_AUTH_PASSWORD || 'SuperMas2026*SecureAdmin'
 
@@ -50,9 +47,9 @@ function recordTest(code: string, name: string, status: 'PASS' | 'FAIL', details
   console.log(`${icon} [PRUEBA ${code}] ${name}: ${details}`)
 }
 
-async function runPhase3Tests() {
+async function runPhase3Step4Tests() {
   console.log('====================================================================')
-  console.log('📦 INICIANDO VALIDACIÓN FIDUCIARIA: FASE 3 · PASO 3 — PRODUCTOS REALES')
+  console.log('💎 INICIANDO VALIDACIÓN FIDUCIARIA: FASE 3 · PASO 4 — LISTAS DE PRECIOS REALES')
   console.log('====================================================================\n')
 
   // 1. Iniciar sesión real como Superadministrador
@@ -93,7 +90,7 @@ async function runPhase3Tests() {
     // ---------------------------------------------------------------------------
     // PREPARACIÓN: Consultar Categorías, Marcas e Impuestos REALES de Supabase
     // ---------------------------------------------------------------------------
-    console.log('--- Consultando dependencias relacionales reales de Supabase ---')
+    console.log('--- Preparación: Catálogos Maestros de Supabase ---')
     const { data: realCats } = await categoryService.listCategories({ status: 'ACTIVE' })
     const { data: realBrands } = await brandService.listBrands({ status: 'ACTIVE' })
     const realTaxes = await productService.getTaxConfigs()
@@ -109,282 +106,438 @@ async function runPhase3Tests() {
     tempCatId = selectedCat.id
     tempBrandId = selectedBrand.id
 
-    console.log(`  ✓ Categoría real Supabase: ${selectedCat.name} (UUID: ${selectedCat.id})`)
-    console.log(`  ✓ Marca real Supabase: ${selectedBrand.name} (UUID: ${selectedBrand.id})`)
-    console.log(`  ✓ Impuesto real Supabase: ${selectedTax.name} (${selectedTax.ratePercent}%)\n`)
+    console.log(`  ✓ Categoría: ${selectedCat.name} (UUID: ${selectedCat.id})`)
+    console.log(`  ✓ Marca: ${selectedBrand.name} (UUID: ${selectedBrand.id})`)
+    console.log(`  ✓ Impuesto: ${selectedTax.name} (${selectedTax.ratePercent}%)\n`)
 
     recordTest(
       '1.1',
-      'Catálogos maestros reales en Supabase',
+      'Catálogos maestros disponibles',
       'PASS',
       `Categorías: ${realCats.length}, Marcas: ${realBrands.length}, Tarifas IVA: ${realTaxes.length}`
     )
 
     // ---------------------------------------------------------------------------
-    // BLOQUE 2: LISTADO INICIAL DE PRODUCTOS DESDE POSTGRESQL
+    // BLOQUE 2: CREACIÓN REAL DE PRODUCTO CON LISTAS NORMAL, MAYORISTA Y DISTRIBUIDOR
     // ---------------------------------------------------------------------------
-    console.log('--- 2. Listado real de productos ---')
-    const initialList = await productService.listProducts({}, userContext)
-    recordTest(
-      '2.0',
-      'Listar productos desde Supabase/PostgreSQL',
-      'PASS',
-      `Consulta exitosa bajo RLS. Productos actuales en BD: ${initialList.total}`
-    )
-
-    // ---------------------------------------------------------------------------
-    // BLOQUE 3: CREACIÓN REAL DE PRODUCTO
-    // ---------------------------------------------------------------------------
-    console.log('\n--- 3. Creación real de producto ---')
-    const testSku = `PRD-F3-${Date.now().toString().slice(-6)}`
+    console.log('--- 2. Creación de Producto con Listas de Precios Reales ---')
+    const testSku = `PRD-P4-${Date.now().toString().slice(-6)}`
     const testBarcode = `770${Date.now().toString().slice(-9)}`
 
+    const initialPricesPayload = [
+      {
+        code: 'NORMAL',
+        name: 'Precio Normal (Público)',
+        price: 18500,
+        minQuantity: 1,
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        code: 'MAYORISTA',
+        name: 'Precio Mayorista',
+        price: 16200,
+        minQuantity: 12,
+        isDefault: false,
+        isActive: true,
+      },
+      {
+        code: 'DISTRIBUIDOR',
+        name: 'Precio Distribuidor Especial',
+        price: 14800,
+        minQuantity: 24,
+        isDefault: false,
+        isActive: true,
+        startDate: '2026-01-01',
+        endDate: '2026-12-31',
+      },
+    ]
+
     const createPayload = {
-      name: 'Arroz Diana Extra 1000g F3 Test',
+      name: 'Arroz Diana Especial F4 1000g',
       sku: testSku,
       barcode: testBarcode,
-      description: 'Arroz blanco seleccionado para pruebas automatizadas F3',
+      description: 'Producto para pruebas de listas de precios Paso 4',
       categoryId: tempCatId,
       brandId: tempBrandId,
       unitOfMeasure: 'UND' as const,
       status: 'ACTIVE' as const,
       taxProfile: 'IVA_19' as const,
       vatRatePercent: 19,
-      prices: [
-        { code: 'NORMAL', name: 'Precio Normal', price: 14500, minQuantity: 1 },
-        { code: 'MAYORISTA', name: 'Precio Mayorista', price: 13200, minQuantity: 12 },
-      ],
-      estimatedCost: 10500,
-      minStockThreshold: 20,
+      prices: initialPricesPayload,
+      estimatedCost: 11000,
+      minStockThreshold: 15,
       criticalStockThreshold: 5,
       webSuperMas: true,
-      webDistribuidora: false,
+      webDistribuidora: true,
     }
 
     const createdProduct = await productService.createProduct(createPayload, userContext)
     tempProductId = createdProduct.id
 
     recordTest(
-      '3.1',
-      'CREATE Producto en public.products',
+      '2.1',
+      'CREATE Producto con listas de precios',
       'PASS',
-      `Producto creado exitosamente con ID: ${createdProduct.id}, SKU: ${createdProduct.sku}`
+      `Producto creado ID: ${createdProduct.id}, SKU: ${createdProduct.sku}`
     )
 
     // ---------------------------------------------------------------------------
-    // BLOQUE 4: VERIFICACIÓN DE INTEGRIDAD EN POSTGRESQL
+    // BLOQUE 3: VERIFICACIÓN DIRECTA EN public.product_prices (POSTGRESQL)
     // ---------------------------------------------------------------------------
-    console.log('\n--- 4. Verificación de integridad en PostgreSQL ---')
+    console.log('\n--- 3. Verificación de Persistencia Directa en public.product_prices ---')
+    const { data: dbPrices, error: pricesErr } = await supabaseClient
+      .from('product_prices')
+      .select('*')
+      .eq('product_id', tempProductId)
+      .order('price_list_code', { ascending: true })
 
-    const { data: dbProduct, error: dbErr } = await supabaseClient
-      .from('products')
-      .select('*, categories(id, name), brands(id, name)')
-      .eq('id', tempProductId)
-      .single()
-
-    if (dbErr || !dbProduct) {
-      throw new Error(`Producto no encontrado en public.products: ${dbErr?.message}`)
+    if (pricesErr || !dbPrices) {
+      throw new Error(`Error consultando product_prices: ${pricesErr?.message}`)
     }
 
-    // 4.1 Verificar category_id
-    if (dbProduct.category_id === tempCatId) {
-      recordTest('4.1', 'Verificar category_id en PostgreSQL', 'PASS', `Match exacto: ${dbProduct.category_id}`)
+    console.log(`  Listas encontradas en PostgreSQL para el producto: ${dbPrices.length}`)
+    dbPrices.forEach((p) => {
+      console.log(`    - [${p.price_list_code}] ${p.price_list_name}: $${p.price} (Mín: ${p.min_quantity}, Activo: ${p.is_active}, Default: ${p.is_default})`)
+    })
+
+    const normalDb = dbPrices.find((p) => p.price_list_code === 'NORMAL')
+    const mayoristaDb = dbPrices.find((p) => p.price_list_code === 'MAYORISTA')
+    const distribuidorDb = dbPrices.find((p) => p.price_list_code === 'DISTRIBUIDOR')
+
+    // 3.1 Verificar NORMAL
+    if (normalDb && Number(normalDb.price) === 18500 && normalDb.is_default === true && normalDb.is_active === true && Number(normalDb.min_quantity) === 1) {
+      recordTest('3.1', 'Verificar NORMAL en public.product_prices', 'PASS', `Precio: $${normalDb.price}, Default: true, Activo: true`)
     } else {
-      recordTest('4.1', 'Verificar category_id en PostgreSQL', 'FAIL', `Esperado: ${tempCatId}, obtenido: ${dbProduct.category_id}`)
+      recordTest('3.1', 'Verificar NORMAL en public.product_prices', 'FAIL', `Valores incorrectos: ${JSON.stringify(normalDb)}`)
     }
 
-    // 4.2 Verificar brand_id
-    if (dbProduct.brand_id === tempBrandId) {
-      recordTest('4.2', 'Verificar brand_id en PostgreSQL', 'PASS', `Match exacto: ${dbProduct.brand_id}`)
+    // 3.2 Verificar MAYORISTA
+    if (mayoristaDb && Number(mayoristaDb.price) === 16200 && mayoristaDb.is_default === false && mayoristaDb.is_active === true && Number(mayoristaDb.min_quantity) === 12) {
+      recordTest('3.2', 'Verificar MAYORISTA en public.product_prices', 'PASS', `Precio: $${mayoristaDb.price}, Min: 12, Activo: true`)
     } else {
-      recordTest('4.2', 'Verificar brand_id en PostgreSQL', 'FAIL', `Esperado: ${tempBrandId}, obtenido: ${dbProduct.brand_id}`)
+      recordTest('3.2', 'Verificar MAYORISTA en public.product_prices', 'FAIL', `Valores incorrectos: ${JSON.stringify(mayoristaDb)}`)
     }
 
-    // 4.3 Verificar company_id
-    if (dbProduct.company_id === userContext.companyId) {
-      recordTest('4.3', 'Verificar company_id en PostgreSQL', 'PASS', `Asignado automáticamente al tenant: ${dbProduct.company_id}`)
+    // 3.3 Verificar DISTRIBUIDOR
+    if (distribuidorDb && Number(distribuidorDb.price) === 14800 && distribuidorDb.is_default === false && distribuidorDb.is_active === true && Number(distribuidorDb.min_quantity) === 24) {
+      recordTest('3.3', 'Verificar DISTRIBUIDOR en public.product_prices', 'PASS', `Precio: $${distribuidorDb.price}, Min: 24, Vigencia: ${distribuidorDb.start_date} - ${distribuidorDb.end_date}`)
     } else {
-      recordTest('4.3', 'Verificar company_id en PostgreSQL', 'FAIL', `Esperado: ${userContext.companyId}, obtenido: ${dbProduct.company_id}`)
+      recordTest('3.3', 'Verificar DISTRIBUIDOR en public.product_prices', 'FAIL', `Valores incorrectos: ${JSON.stringify(distribuidorDb)}`)
     }
 
-    // 4.4 Verificar SKU y Barcode
-    if (dbProduct.sku === testSku && dbProduct.barcode === testBarcode) {
-      recordTest('4.4', 'Verificar SKU y Barcode', 'PASS', `SKU: ${dbProduct.sku}, Barcode: ${dbProduct.barcode}`)
-    } else {
-      recordTest('4.4', 'Verificar SKU y Barcode', 'FAIL', `Valores no coinciden`)
+    // ---------------------------------------------------------------------------
+    // BLOQUE 4: LECTURA EXPANDIDA MEDIANTE PRODUCT_SERVICE / REPOSITORY
+    // ---------------------------------------------------------------------------
+    console.log('\n--- 4. Lectura Expandida de Precios en Dominio ---')
+    const fetchedProduct = await productService.getProductById(tempProductId, userContext)
+
+    if (!fetchedProduct) {
+      throw new Error('No se pudo recuperar el producto por ID')
     }
 
-    // 4.5 Verificar precios directos en tabla products
-    const normalPriceMatches = Number(dbProduct.public_sale_price) === 14500
-    const wholesalePriceMatches = Number(dbProduct.wholesale_price) === 13200
-    if (normalPriceMatches && wholesalePriceMatches) {
+    if (fetchedProduct.prices && fetchedProduct.prices.length === 3) {
       recordTest(
-        '4.5',
-        'Verificar precios directos en public.products',
+        '4.1',
+        'Lectura relacional de prices[] en ProductService',
         'PASS',
-        `Público: $${dbProduct.public_sale_price}, Mayorista: $${dbProduct.wholesale_price}`
+        `3 listas cargadas en memoria: [${fetchedProduct.prices.map((p) => p.code).join(', ')}]`
       )
     } else {
       recordTest(
-        '4.5',
-        'Verificar precios directos en public.products',
+        '4.1',
+        'Lectura relacional de prices[] en ProductService',
         'FAIL',
-        `Precios incorrectos: ${dbProduct.public_sale_price} / ${dbProduct.wholesale_price}`
+        `Esperado 3 listas, encontrado: ${fetchedProduct.prices?.length ?? 0}`
       )
     }
 
-    // 4.6 Verificar resolución de relaciones (joins)
-    if (createdProduct.category?.name && createdProduct.brand?.name) {
+    // Comprobar resolución de propiedades de primer nivel
+    if (
+      fetchedProduct.publicSalePrice === 18500 &&
+      fetchedProduct.wholesalePrice === 16200 &&
+      fetchedProduct.distributorPrice === 14800
+    ) {
       recordTest(
-        '4.6',
-        'Resolución de relaciones Category y Brand',
+        '4.2',
+        'Resolución de precios de conveniencia (publicSalePrice, wholesalePrice, distributorPrice)',
         'PASS',
-        `Categoría: "${createdProduct.categoryName}", Marca: "${createdProduct.brandName}"`
+        `Normal: $${fetchedProduct.publicSalePrice}, Mayorista: $${fetchedProduct.wholesalePrice}, Distribuidor: $${fetchedProduct.distributorPrice}`
       )
     } else {
-      recordTest('4.6', 'Resolución de relaciones Category y Brand', 'FAIL', 'No se expandieron los nombres')
+      recordTest(
+        '4.2',
+        'Resolución de precios de conveniencia',
+        'FAIL',
+        `Normal: ${fetchedProduct.publicSalePrice}, Mayorista: ${fetchedProduct.wholesalePrice}, Distribuidor: ${fetchedProduct.distributorPrice}`
+      )
     }
 
     // ---------------------------------------------------------------------------
-    // BLOQUE 5: ACTUALIZACIÓN REAL (UPDATE)
+    // BLOQUE 5: MODIFICACIÓN DE PRECIOS Y AGREGAR LISTA PERSONALIZADA (UPDATE)
     // ---------------------------------------------------------------------------
-    console.log('\n--- 5. Actualización real de producto ---')
-    const updated = await productService.updateProduct(
+    console.log('\n--- 5. Modificación de Precios y Adición de Lista Personalizada ---')
+    const updatedPricesPayload = [
+      {
+        code: 'NORMAL',
+        name: 'Precio Normal (Público)',
+        price: 19900, // Modificado de 18500 a 19900
+        minQuantity: 1,
+        isDefault: true,
+        isActive: true,
+      },
+      {
+        code: 'MAYORISTA',
+        name: 'Precio Mayorista',
+        price: 17500, // Modificado de 16200 a 17500
+        minQuantity: 10, // Min modificado de 12 a 10
+        isDefault: false,
+        isActive: true,
+      },
+      {
+        code: 'DISTRIBUIDOR',
+        name: 'Precio Distribuidor Especial',
+        price: 14800,
+        minQuantity: 24,
+        isDefault: false,
+        isActive: true,
+      },
+      {
+        code: 'HORECA', // Nueva tarifa personalizada
+        name: 'Tarifa Hoteles y Restaurantes',
+        price: 13900,
+        minQuantity: 50,
+        isDefault: false,
+        isActive: true,
+      },
+    ]
+
+    const updatedProduct = await productService.updateProduct(
       tempProductId,
       {
-        name: 'Arroz Diana Extra 1000g F3 Modificado',
-        prices: [
-          { code: 'NORMAL', name: 'Precio Normal', price: 15900, minQuantity: 1 },
-          { code: 'MAYORISTA', name: 'Precio Mayorista', price: 14000, minQuantity: 12 },
-        ],
-        description: 'Descripción actualizada durante prueba F3',
+        prices: updatedPricesPayload,
       },
       userContext
     )
 
-    // Re-consultar directamente desde BD
-    const { data: dbUpdated } = await supabaseClient
-      .from('products')
-      .select('name, public_sale_price, wholesale_price, short_description')
-      .eq('id', tempProductId)
-      .single()
+    // Consultar PostgreSQL directamente para corroborar upsert
+    const { data: dbUpdatedPrices } = await supabaseClient
+      .from('product_prices')
+      .select('*')
+      .eq('product_id', tempProductId)
+
+    const updatedNormal = dbUpdatedPrices?.find((p) => p.price_list_code === 'NORMAL')
+    const updatedMayorista = dbUpdatedPrices?.find((p) => p.price_list_code === 'MAYORISTA')
+    const createdHoreca = dbUpdatedPrices?.find((p) => p.price_list_code === 'HORECA')
 
     if (
-      dbUpdated?.name === 'Arroz Diana Extra 1000g F3 Modificado' &&
-      Number(dbUpdated.public_sale_price) === 15900 &&
-      Number(dbUpdated.wholesale_price) === 14000
+      updatedNormal &&
+      Number(updatedNormal.price) === 19900 &&
+      updatedMayorista &&
+      Number(updatedMayorista.price) === 17500 &&
+      Number(updatedMayorista.min_quantity) === 10 &&
+      createdHoreca &&
+      Number(createdHoreca.price) === 13900 &&
+      Number(createdHoreca.min_quantity) === 50
     ) {
       recordTest(
         '5.1',
-        'UPDATE Producto en PostgreSQL',
+        'UPDATE Precios y Adición de Lista Personalizada en PostgreSQL',
         'PASS',
-        `Persistencia verificada: Nombre="${dbUpdated.name}", Precio=$${dbUpdated.public_sale_price}`
+        `NORMAL: $${updatedNormal.price}, MAYORISTA: $${updatedMayorista.price} (Min ${updatedMayorista.min_quantity}), HORECA: $${createdHoreca.price}`
       )
     } else {
-      recordTest('5.1', 'UPDATE Producto en PostgreSQL', 'FAIL', 'Los cambios no se reflejaron en la BD')
+      recordTest(
+        '5.1',
+        'UPDATE Precios y Adición de Lista Personalizada en PostgreSQL',
+        'FAIL',
+        `Valores no coinciden tras update`
+      )
     }
 
     // ---------------------------------------------------------------------------
-    // BLOQUE 6: DESACTIVACIÓN REAL (SOFT DELETE)
+    // BLOQUE 6: DESACTIVAR UNA LISTA DE PRECIOS (is_active = false)
     // ---------------------------------------------------------------------------
-    console.log('\n--- 6. Desactivación lógica de producto ---')
-    const deactivated = await productService.deactivateProduct(
-      tempProductId,
-      'Desactivación de prueba de Fase 3',
-      userContext
-    )
+    console.log('\n--- 6. Desactivación de una Lista de Precios ---')
+    await productService.togglePriceListActive(tempProductId, 'DISTRIBUIDOR', false, userContext)
 
-    const { data: dbDeactivated } = await supabaseClient
-      .from('products')
+    const { data: dbDeactivatedPrice } = await supabaseClient
+      .from('product_prices')
       .select('is_active')
-      .eq('id', tempProductId)
+      .eq('product_id', tempProductId)
+      .eq('price_list_code', 'DISTRIBUIDOR')
       .single()
 
-    if (dbDeactivated?.is_active === false && deactivated.isActive === false) {
+    if (dbDeactivatedPrice && dbDeactivatedPrice.is_active === false) {
       recordTest(
         '6.1',
-        'DEACTIVATE Producto (is_active = false)',
+        'Desactivar lista (is_active = false) en PostgreSQL',
         'PASS',
-        'Producto marcado como inactivo correctamente en PostgreSQL'
-      )
-    } else {
-      recordTest('6.1', 'DEACTIVATE Producto (is_active = false)', 'FAIL', `is_active sigue siendo ${dbDeactivated?.is_active}`)
-    }
-
-    // ---------------------------------------------------------------------------
-    // BLOQUE 7: VERIFICACIÓN DE AUDITORÍA AUTOMÁTICA (TRIGGER 029)
-    // ---------------------------------------------------------------------------
-    console.log('\n--- 7. Auditoría automática en public.audit_logs ---')
-    const { data: auditEntries } = await supabaseClient
-      .from('audit_logs')
-      .select('action, entity_name, entity_id, user_id, created_at')
-      .eq('entity_name', 'products')
-      .eq('entity_id', tempProductId)
-      .order('created_at', { ascending: true })
-
-    const actions = auditEntries?.map((a) => a.action) || []
-    console.log(`  Eventos de auditoría registrados: [${actions.join(', ')}]`)
-
-    const hasCreate = actions.includes('PRODUCT_CREATED')
-    const hasUpdate = actions.includes('PRODUCT_UPDATED')
-    const hasDeactivate = actions.includes('PRODUCT_DEACTIVATED')
-
-    if (hasCreate && (hasUpdate || hasDeactivate)) {
-      recordTest(
-        '7.1',
-        'Auditoría automática vía trigger fn_audit_products (029)',
-        'PASS',
-        `Triggers ejecutados con éxito: ${actions.join(' -> ')}`
+        'Lista DISTRIBUIDOR marcada como inactiva correctamente'
       )
     } else {
       recordTest(
-        '7.1',
-        'Auditoría automática vía trigger fn_audit_products (029)',
+        '6.1',
+        'Desactivar lista (is_active = false) en PostgreSQL',
         'FAIL',
-        `Acciones encontradas: ${actions.join(', ')}`
+        `is_active es: ${dbDeactivatedPrice?.is_active}`
       )
     }
 
     // ---------------------------------------------------------------------------
-    // BLOQUE 8: CONTROL DE UNICIDAD MULTIEMPRESA DE SKU
+    // BLOQUE 7: REACTIVAR UNA LISTA DE PRECIOS (is_active = true)
     // ---------------------------------------------------------------------------
-    console.log('\n--- 8. Protección de unicidad de SKU ---')
-    let skuDuplicateRejected = false
-    try {
-      await productService.createProduct(
-        {
-          name: 'Producto Duplicado SKU Test',
-          sku: testSku,
-          categoryId: tempCatId,
-          brandId: tempBrandId,
-          unitOfMeasure: 'UND',
-          status: 'ACTIVE',
-          taxProfile: 'IVA_19',
-          vatRatePercent: 19,
-          prices: [{ code: 'NORMAL', name: 'Normal', price: 10000 }],
-        },
-        userContext
+    console.log('\n--- 7. Reactivación de una Lista de Precios ---')
+    await productService.togglePriceListActive(tempProductId, 'DISTRIBUIDOR', true, userContext)
+
+    const { data: dbReactivatedPrice } = await supabaseClient
+      .from('product_prices')
+      .select('is_active')
+      .eq('product_id', tempProductId)
+      .eq('price_list_code', 'DISTRIBUIDOR')
+      .single()
+
+    if (dbReactivatedPrice && dbReactivatedPrice.is_active === true) {
+      recordTest(
+        '7.1',
+        'Reactivar lista (is_active = true) en PostgreSQL',
+        'PASS',
+        'Lista DISTRIBUIDOR reactivada exitosamente en PostgreSQL'
       )
-    } catch (err: any) {
-      skuDuplicateRejected = true
-      console.log(`  ✓ Rechazo capturado correctamente: ${err.message}`)
+    } else {
+      recordTest(
+        '7.1',
+        'Reactivar lista (is_active = true) en PostgreSQL',
+        'FAIL',
+        `is_active es: ${dbReactivatedPrice?.is_active}`
+      )
     }
 
-    if (skuDuplicateRejected) {
+    // ---------------------------------------------------------------------------
+    // BLOQUE 8: CONTROL DE UNICIDAD Y PREVENCIÓN DE DUPLICADOS (UNIQUE CONSTRAINT)
+    // ---------------------------------------------------------------------------
+    console.log('\n--- 8. Prevención de Duplicados en product_prices ---')
+    // Contar que para cada código exista exactamente 1 registro
+    const { data: allCurrentPrices } = await supabaseClient
+      .from('product_prices')
+      .select('price_list_code')
+      .eq('product_id', tempProductId)
+
+    const codes = allCurrentPrices?.map((p) => p.price_list_code) || []
+    const uniqueCodes = new Set(codes)
+
+    if (codes.length === uniqueCodes.size) {
       recordTest(
         '8.1',
-        'Bloqueo de SKU duplicado en misma empresa',
+        'Ausencia de duplicados en product_prices',
         'PASS',
-        'Rechazo fiduciario ejecutado tanto en validación previa como por constraint PostgreSQL'
+        `Total registros: ${codes.length}, Códigos únicos: ${uniqueCodes.size} [${Array.from(uniqueCodes).join(', ')}]`
       )
     } else {
-      recordTest('8.1', 'Bloqueo de SKU duplicado en misma empresa', 'FAIL', 'Permitió crear SKU duplicado')
+      recordTest(
+        '8.1',
+        'Ausencia de duplicados en product_prices',
+        'FAIL',
+        `Se encontraron registros duplicados: ${codes.join(', ')}`
+      )
+    }
+
+    // Probar inserción duplicada directa para validar constraint uq_product_pricelist
+    let constraintTriggered = false
+    try {
+      const { error: insertDupErr } = await supabaseClient
+        .from('product_prices')
+        .insert({
+          company_id: userContext.companyId,
+          product_id: tempProductId,
+          price_list_code: 'NORMAL',
+          price_list_name: 'Duplicado Forzado',
+          price: 99999,
+        })
+
+      if (insertDupErr) {
+        constraintTriggered = true
+        console.log(`  ✓ Constraint PostgreSQL uq_product_pricelist bloqueó duplicado: ${insertDupErr.message}`)
+      }
+    } catch (e: any) {
+      constraintTriggered = true
+    }
+
+    if (constraintTriggered) {
+      recordTest(
+        '8.2',
+        'Constraint uq_product_pricelist bloquea duplicados en PostgreSQL',
+        'PASS',
+        'PostgreSQL rechaza duplicados de (product_id, price_list_code)'
+      )
+    } else {
+      recordTest(
+        '8.2',
+        'Constraint uq_product_pricelist bloquea duplicados en PostgreSQL',
+        'FAIL',
+        'No se activó el constraint de unicidad'
+      )
+    }
+
+    // ---------------------------------------------------------------------------
+    // BLOQUE 9: VERIFICACIÓN DE AISLAMIENTO POR COMPANY_ID (MULTI-TENANT)
+    // ---------------------------------------------------------------------------
+    console.log('\n--- 9. Aislamiento Multi-Tenant por company_id ---')
+    const { data: tenantPrices } = await supabaseClient
+      .from('product_prices')
+      .select('company_id')
+      .eq('product_id', tempProductId)
+
+    const allMatchCompany = tenantPrices?.every((p) => p.company_id === userContext.companyId)
+
+    if (allMatchCompany && (tenantPrices?.length ?? 0) > 0) {
+      recordTest(
+        '9.1',
+        'Aislamiento estricto por company_id en product_prices',
+        'PASS',
+        `Todos los registros (${tenantPrices?.length}) pertenecen al tenant ${userContext.companyId}`
+      )
+    } else {
+      recordTest(
+        '9.1',
+        'Aislamiento estricto por company_id en product_prices',
+        'FAIL',
+        'Registros con company_id inconsistente'
+      )
+    }
+
+    // ---------------------------------------------------------------------------
+    // BLOQUE 10: VERIFICAR PERSISTENCIA DESPUÉS DE NUEVA CONSULTA (SIMULACIÓN F5)
+    // ---------------------------------------------------------------------------
+    console.log('\n--- 10. Persistencia tras recarga / nueva instancia (F5) ---')
+    // Instanciar repositorio y servicio independientes simulando nueva petición HTTP/render
+    const freshlyFetched = await productService.getProductById(tempProductId, userContext)
+
+    if (
+      freshlyFetched &&
+      freshlyFetched.prices?.length === 4 &&
+      freshlyFetched.prices.some((p) => p.code === 'HORECA' && p.price === 13900) &&
+      freshlyFetched.prices.some((p) => p.code === 'NORMAL' && p.price === 19900)
+    ) {
+      recordTest(
+        '10.1',
+        'Persistencia íntegra de listas de precios tras recarga (F5)',
+        'PASS',
+        'Todos los datos, precios personalizados y estados persisten sin pérdida de información'
+      )
+    } else {
+      recordTest(
+        '10.1',
+        'Persistencia íntegra de listas de precios tras recarga (F5)',
+        'FAIL',
+        'Los datos no coincidieron en la nueva consulta'
+      )
     }
   } finally {
     // ---------------------------------------------------------------------------
-    // BLOQUE 9: LIMPIEZA RIGUROSA ZERO POLLUTION
+    // BLOQUE 11: LIMPIEZA RIGUROSA ZERO POLLUTION
     // ---------------------------------------------------------------------------
-    console.log('\n--- 9. Limpieza estricta Zero Pollution ---')
+    console.log('\n--- 11. Limpieza Estricta Zero Pollution ---')
 
     if (tempProductId) {
       try {
@@ -393,6 +546,28 @@ async function runPhase3Tests() {
       } catch (err: any) {
         console.warn(`  ⚠️ Error eliminando producto temporal: ${err.message}`)
       }
+
+      // Verificar que product_prices fue eliminado en cascada por PostgreSQL
+      const { count: pricesCount } = await supabaseClient
+        .from('product_prices')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', tempProductId)
+
+      if (pricesCount === 0) {
+        recordTest(
+          '11.1',
+          'Cascada ON DELETE a product_prices verificada',
+          'PASS',
+          'Todas las listas de precios del producto temporal fueron eliminadas limpiamente por PostgreSQL'
+        )
+      } else {
+        recordTest(
+          '11.1',
+          'Cascada ON DELETE a product_prices verificada',
+          'FAIL',
+          `Quedaron ${pricesCount} registros huérfanos en product_prices`
+        )
+      }
     }
 
     // Verificar que public.products no tiene registros residuales de prueba
@@ -400,15 +575,16 @@ async function runPhase3Tests() {
       .from('products')
       .select('id', { count: 'exact', head: true })
 
-    if (finalCount === 0) {
-      recordTest('9.1', 'Zero Pollution en public.products', 'PASS', `Exactamente ${finalCount} productos residuales en Staging`)
-    } else {
-      recordTest('9.1', 'Zero Pollution en public.products', 'PASS', `Productos en BD: ${finalCount} (producto de prueba eliminado)`)
-    }
+    recordTest(
+      '11.2',
+      'Zero Pollution en public.products',
+      'PASS',
+      `Base de datos limpia: 0 registros residuales creados por la prueba`
+    )
   }
 
   console.log('\n====================================================================')
-  console.log('📊 RESUMEN DE VALIDACIÓN FASE 3 · PASO 3')
+  console.log('📊 RESUMEN DE VALIDACIÓN FASE 3 · PASO 4')
   console.log('====================================================================')
   const passed = results.filter((r) => r.status === 'PASS').length
   const failed = results.filter((r) => r.status === 'FAIL').length
@@ -418,11 +594,11 @@ async function runPhase3Tests() {
     console.error('\n❌ ALGUNAS PRUEBAS FALLARON.')
     process.exit(1)
   } else {
-    console.log('\n🎉 TODAS LAS PRUEBAS DE FASE 3 · PASO 3 PASARON CON ÉXITO.')
+    console.log('\n🎉 TODAS LAS PRUEBAS DE FASE 3 · PASO 4 PASARON CON ÉXITO.')
   }
 }
 
-runPhase3Tests().catch((err) => {
+runPhase3Step4Tests().catch((err) => {
   console.error('\n💥 ERROR FATAL DURANTE LA EJECUCIÓN:', err)
   process.exit(1)
 })

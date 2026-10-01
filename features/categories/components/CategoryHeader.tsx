@@ -19,25 +19,22 @@ export function CategoryHeader({
   isLoading,
 }: CategoryHeaderProps) {
   return (
-    <div className="section-header page-header flex-between">
+    <header className="page-heading page-enter">
       <div>
-        <div className="header-badge-row">
-          <span className="badge badge-accent">Catálogo ERP / POS</span>
-          <span className="badge badge-muted">{totalCount} categorías</span>
-        </div>
-        <h1 className="page-title">Categorías de Productos</h1>
-        <p className="page-subtitle">
+        <p className="eyebrow">Catálogo Central &bull; {totalCount} categorías registradas</p>
+        <h1>Categorías de Productos</h1>
+        <p className="welcome-subtitle">
           Organiza el catálogo en categorías jerárquicas y subcategorías para inventario, ventas y ecommerce.
         </p>
       </div>
 
-      <div className="header-actions">
+      <div className="heading-actions">
         <button
           type="button"
-          className="btn btn-secondary icon-button-text"
+          className="outline-button"
           onClick={onRefreshClick}
           disabled={isLoading}
-          title="Actualizar lista"
+          title="Actualizar lista de categorías"
         >
           <AppIcon name="refresh" size={16} className={isLoading ? 'spin' : ''} />
           <span>Actualizar</span>
@@ -46,14 +43,15 @@ export function CategoryHeader({
         {canCreate && (
           <button
             type="button"
-            className="btn btn-primary icon-button-text"
+            className="primary-button"
             onClick={onCreateClick}
+            title="Crear nueva categoría o subcategoría"
           >
             <AppIcon name="plus" size={16} />
-            <span>Nueva Categoría</span>
+            <span>Nueva categoría</span>
           </button>
         )}
       </div>
-    </div>
+    </header>
   )
 }

@@ -369,10 +369,34 @@ export function ProductDetailDrawer({
               <h3>Listas de Precios Vigentes</h3>
               <div className="price-tiers-table">
                 {product.prices.map((tier) => (
-                  <div key={tier.id} className="price-tier-row">
-                    <div>
-                      <strong>{tier.name}</strong>
-                      <small>Desde {tier.minQuantity || 1} unidades</small>
+                  <div key={tier.id || tier.code} className="price-tier-row">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong>{tier.name}</strong>
+                        <span className="code-badge">{tier.code}</span>
+                        {tier.isDefault && (
+                          <span className="category-pill-tag" style={{ fontSize: 11 }}>
+                            Predeterminada
+                          </span>
+                        )}
+                        <span
+                          className={`status-indicator-pill ${
+                            tier.isActive !== false ? 'active' : 'inactive'
+                          }`}
+                          style={{ fontSize: 10, padding: '2px 6px' }}
+                        >
+                          {tier.isActive !== false ? 'Activa' : 'Inactiva'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#64748b' }}>
+                        <span>Mín. {tier.minQuantity || 1} uds</span>
+                        {(tier.startDate || tier.endDate) && (
+                          <span>
+                            Vigencia: {tier.startDate ? tier.startDate.slice(0, 10) : 'Inicio'} a{' '}
+                            {tier.endDate ? tier.endDate.slice(0, 10) : 'Indefinido'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <strong className="price-primary">
                       {productService.formatCurrency(tier.price)}

@@ -7,6 +7,7 @@ import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { PhysicalCountSession, PhysicalCountItem } from '../types'
 import { inventoryService } from '../services/inventory.service'
 import { getDbLocationOptions } from '@/lib/supabase'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface InventoryPhysicalCountModalProps {
   isOpen: boolean
@@ -127,7 +128,7 @@ export function InventoryPhysicalCountModal({
       })
       onClose()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Error al aplicar ajustes por conteo')
+      setErrorMsg(extractErrorMessage(err, 'Error al aplicar ajustes por conteo'))
     } finally {
       setIsApplying(false)
     }
@@ -179,7 +180,7 @@ export function InventoryPhysicalCountModal({
           {errorMsg && (
             <div className="form-error-banner">
               <AppIcon name="warning" size={16} />
-              <span>{errorMsg}</span>
+              <span>{extractErrorMessage(errorMsg)}</span>
             </div>
           )}
 

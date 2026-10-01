@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseDeactivationCheck } from '../types'
 import { warehouseService } from '../services/warehouse.service'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface WarehouseDeactivateDialogProps {
   warehouse: LocationWithMetrics | null
@@ -36,7 +37,7 @@ export function WarehouseDeactivateDialog({
           setCheck(result)
         })
         .catch((err) => {
-          setError(err.message || 'Error al validar condiciones de desactivación')
+          setError(extractErrorMessage(err, 'Error al validar condiciones de desactivación'))
         })
         .finally(() => {
           setIsLoading(false)
@@ -54,7 +55,7 @@ export function WarehouseDeactivateDialog({
       await onConfirm(warehouse.id)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo desactivar la bodega.')
+      setError(extractErrorMessage(err, 'No se pudo desactivar la bodega.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -99,7 +100,7 @@ export function WarehouseDeactivateDialog({
           ) : error ? (
             <div className="form-error-banner" role="alert">
               <AppIcon name="warning" size={16} />
-              <span>{error}</span>
+              <span>{extractErrorMessage(error)}</span>
             </div>
           ) : check && !check.canDeactivate ? (
             <div className="blocker-warning-box" role="alert">

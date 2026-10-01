@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CategoryWithRelations, CategoryDeleteCheck } from '../types'
 import { categoryService } from '../services/category.service'
+import { extractErrorMessage } from '@/lib/utils'
 
 interface CategoryDeleteDialogProps {
   category: CategoryWithRelations | null
@@ -38,7 +39,7 @@ export function CategoryDeleteDialog({
       categoryService
         .validateCategoryDeletion(category.id)
         .then((result) => setCheck(result))
-        .catch((err) => setError(err.message || 'Error al validar dependencias de la categoría'))
+        .catch((err) => setError(extractErrorMessage(err, 'Error al validar dependencias de la categoría')))
         .finally(() => setIsLoading(false))
     }
   }, [category, isOpen])
@@ -53,7 +54,7 @@ export function CategoryDeleteDialog({
       await onConfirm(category.id)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo eliminar la categoría.')
+      setError(extractErrorMessage(err, 'No se pudo eliminar la categoría.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -66,7 +67,7 @@ export function CategoryDeleteDialog({
       await onDeactivateAlternative(category)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'No se pudo desactivar la categoría.')
+      setError(extractErrorMessage(err, 'No se pudo desactivar la categoría.'))
     } finally {
       setIsSubmitting(false)
     }
@@ -111,7 +112,7 @@ export function CategoryDeleteDialog({
           ) : error ? (
             <div className="form-error-banner" role="alert">
               <AppIcon name="warning" size={16} />
-              <span>{error}</span>
+              <span>{extractErrorMessage(error)}</span>
             </div>
           ) : !check?.canDelete ? (
             <div className="blocked-action-notice">

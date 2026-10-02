@@ -127,7 +127,14 @@ export class SalesRepository {
       totalProfit,
       profitMarginPercent,
       paymentMethod: mapDbPaymentMethodToDomain(s.payment_method),
-      paymentStatus: 'PAID',
+      paymentStatus: s.payment_status === 'PENDING' || (s.payment_method === 'CREDIT' && Number(s.paid_amount || 0) <= 0)
+        ? 'PENDING'
+        : (s.payment_status === 'PARTIAL' || (Number(s.paid_amount || 0) > 0 && Number(s.paid_amount || 0) < totalAmount - 0.01))
+        ? 'PARTIALLY_PAID'
+        : 'PAID',
+      paidAmount: Number(s.paid_amount !== undefined && s.paid_amount !== null ? s.paid_amount : (s.payment_method === 'CREDIT' ? 0 : totalAmount)),
+      dueDate: s.due_date || s.created_at,
+      paymentTerms: s.payment_terms || (s.payment_method === 'CREDIT' ? 'CREDITO' : 'CONTADO'),
       status: mapDbStatusToDomain(s.status),
       documentType: 'FACTURA_POS',
       notes: s.notes || undefined,
@@ -539,13 +546,19 @@ export class SalesRepository {
     const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
     const companyId = comp?.id
 
+    const isCredit = sale.paymentMethod === 'CREDITO';
+    const paidAmount = isCredit ? 0 : sale.totalAmount;
+    const paymentStatus = isCredit ? 'PENDING' : 'PAID';
+    const paymentTerms = isCredit ? 'CREDITO' : 'CONTADO';
+    const dueDate = sale.dueDate || (sale.date ? sale.date.split('T')[0] : new Date().toISOString().split('T')[0]);
+
     const { data: created, error } = await supabaseClient
       .from('sales')
       .insert({
         company_id: companyId,
         location_id: sale.locationId,
         customer_id: sale.customerId,
-        seller_user_id: authUser.user?.id || sale.sellerId,
+        seller_user_id: authUser.user?.id || (sale.sellerId && sale.sellerId.length === 36 ? sale.sellerId : null),
         sale_number: sale.saleNumber,
         subtotal_amount: sale.subtotal,
         discount_amount: sale.discountTotal,
@@ -553,6 +566,10 @@ export class SalesRepository {
         total_amount: sale.totalAmount,
         total_cost_amount: sale.totalCost,
         payment_method: mapDomainPaymentMethodToDb(sale.paymentMethod),
+        paid_amount: paidAmount,
+        payment_status: paymentStatus,
+        payment_terms: paymentTerms,
+        due_date: dueDate,
         status: sale.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED',
         notes: sale.notes,
       })
@@ -578,6 +595,85 @@ export class SalesRepository {
         total: it.total,
       }))
       await supabaseClient.from('sale_items').insert(itemsPayload)
+    }
+
+    if (isCredit) {
+      const { data: custRow } = await supabaseClient
+        .from('customers')
+        .select('current_balance')
+        .eq('id', sale.customerId)
+        .maybeSingle();
+      if (custRow) {
+        const newBal = Number(custRow.current_balance || 0) + sale.totalAmount;
+        await supabaseClient
+          .from('customers')
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq('id', sale.customerId);
+      }
+    } else {
+      try {
+        if (sale.paymentMethod === 'EFECTIVO') {
+          const { data: openSession } = await supabaseClient
+            .from('cash_sessions')
+            .select('id')
+            .eq('status', 'OPEN')
+            .limit(1)
+            .maybeSingle();
+          if (openSession?.id) {
+            await supabaseClient.from('cash_movements').insert({
+              session_id: openSession.id,
+              type: 'SALE_CASH',
+              amount: sale.totalAmount,
+              reason: 'Venta contado ' + sale.saleNumber,
+              authorized_by_user_id: authUser.user?.id || null,
+            });
+          }
+        } else if (sale.paymentMethod === 'TRANSFERENCIA' || sale.paymentMethod === 'TARJETA') {
+          const { data: bankAccount } = await supabaseClient
+            .from('bank_accounts')
+            .select('id, current_balance')
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          if (bankAccount?.id) {
+            const newBal = Number(bankAccount.current_balance || 0) + sale.totalAmount;
+            await supabaseClient
+              .from('bank_accounts')
+              .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+              .eq('id', bankAccount.id);
+
+            await supabaseClient.from('bank_movements').insert({
+              company_id: companyId,
+              location_id: sale.locationId,
+              bank_account_id: bankAccount.id,
+              movement_number: 'MOV-VTA-' + Date.now().toString().slice(-6),
+              movement_date: dueDate,
+              movement_type: 'DEBIT',
+              amount: sale.totalAmount,
+              balance_after: newBal,
+              concept: 'Ingreso venta contado ' + sale.saleNumber,
+              is_reconciled: true,
+              created_by_user_id: authUser.user?.id || null,
+            });
+
+            await supabaseClient.from('treasury_receipts').insert({
+              company_id: companyId,
+              location_id: sale.locationId,
+              receipt_number: 'TES-REC-' + Date.now().toString().slice(-6),
+              customer_id: sale.customerId,
+              bank_account_id: bankAccount.id,
+              amount: sale.totalAmount,
+              receipt_date: dueDate,
+              payment_method: sale.paymentMethod === 'TARJETA' ? 'TARJETA' : 'TRANSFERENCIA',
+              status: 'COLLECTED',
+              notes: 'Recaudo venta contado ' + sale.saleNumber,
+              created_by_user_id: authUser.user?.id || null,
+            });
+          }
+        }
+      } catch (finErr) {
+        console.warn('Advertencia registrando movimiento financiero de venta:', finErr);
+      }
     }
 
     return (await this.findById(created.id))!

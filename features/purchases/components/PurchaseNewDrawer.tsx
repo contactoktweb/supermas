@@ -9,6 +9,8 @@ import {
   SupplierOption,
   PurchasePaymentType,
   CreatePurchaseInput,
+  UpdatePurchaseInput,
+  Purchase,
 } from '../types'
 import { LocationOption } from '../services/location.service'
 import { purchaseCalculationService } from '../services/purchase-calculation.service'
@@ -20,6 +22,8 @@ interface PurchaseNewDrawerProps {
   locations: LocationOption[]
   onClose: () => void
   onSubmit: (input: CreatePurchaseInput) => Promise<void>
+  onUpdate?: (purchaseId: string, input: UpdatePurchaseInput) => Promise<void>
+  initialPurchase?: Purchase | null
 }
 
 interface ProductSearchResult {
@@ -41,6 +45,8 @@ export function PurchaseNewDrawer({
   locations,
   onClose,
   onSubmit,
+  onUpdate,
+  initialPurchase,
 }: PurchaseNewDrawerProps) {
   const [mounted, setMounted] = useState(false)
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
@@ -81,18 +87,30 @@ export function PurchaseNewDrawer({
     setMounted(true)
   }, [])
 
-  // Sync default options when loaded
+  // Sync initialPurchase or default options when loaded
   useEffect(() => {
-    if (!supplierId && suppliers.length > 0) {
-      setSupplierId(suppliers[0].id)
+    if (initialPurchase) {
+      setSupplierId(initialPurchase.supplierId || "")
+      setDestinationLocationId(initialPurchase.destinationLocationId || initialPurchase.locationId || "")
+      setDate(initialPurchase.date ? initialPurchase.date.split("T")[0] : new Date().toISOString().split("T")[0])
+      setSupplierInvoiceNumber(initialPurchase.supplierInvoiceNumber || "")
+      setPaymentType(initialPurchase.paymentType || "CONTADO")
+      setDueDate(initialPurchase.dueDate ? initialPurchase.dueDate.split("T")[0] : "")
+      setNotes(initialPurchase.notes || "")
+      setItems(initialPurchase.items || [])
+      setStep(1)
+    } else {
+      setSupplierId(suppliers[0]?.id || "")
+      setDestinationLocationId(locations[0]?.id || "")
+      setDate(new Date().toISOString().split("T")[0])
+      setSupplierInvoiceNumber("")
+      setPaymentType("CONTADO")
+      setDueDate("")
+      setNotes("")
+      setItems([])
+      setStep(1)
     }
-  }, [suppliers, supplierId])
-
-  useEffect(() => {
-    if (!destinationLocationId && locations.length > 0) {
-      setDestinationLocationId(locations[0].id)
-    }
-  }, [locations, destinationLocationId])
+  }, [initialPurchase, suppliers, locations, isOpen])
 
   // Reactive product search
   useEffect(() => {
@@ -326,7 +344,11 @@ export function PurchaseNewDrawer({
         attachment: attachment || undefined,
       }
 
-      await onSubmit(payload)
+      if (initialPurchase && onUpdate) {
+        await onUpdate(initialPurchase.id, payload)
+      } else {
+        await onSubmit(payload)
+      }
       onClose()
     } catch (err: any) {
       setError(err.message || 'Error al guardar la orden de compra.')
@@ -373,7 +395,7 @@ export function PurchaseNewDrawer({
                   color: 'var(--navy)',
                 }}
               >
-                Nueva Compra a Proveedor
+                {initialPurchase ? `Editar Borrador • ${initialPurchase.purchaseNumber}` : "Nueva Compra a Proveedor"}
               </h2>
             </div>
           </div>
@@ -1505,7 +1527,7 @@ export function PurchaseNewDrawer({
                   title="Guardar orden en borrador sin emitir"
                 >
                   <AppIcon name="edit" size={14} />
-                  <span>Guardar Borrador</span>
+                  <span>{initialPurchase ? "Actualizar Borrador" : "Guardar Borrador"}</span>
                 </button>
 
                 <button
@@ -1516,7 +1538,7 @@ export function PurchaseNewDrawer({
                   title="Aprobar y emitir orden de compra"
                 >
                   <AppIcon name="check" size={14} />
-                  <span>{isSubmitting ? 'Guardando...' : 'Aprobar y Emitir'}</span>
+                  <span>{isSubmitting ? "Guardando..." : initialPurchase ? "Confirmar Orden" : "Aprobar y Emitir"}</span>
                 </button>
               </>
             )}

@@ -21,6 +21,7 @@ export interface Customer {
   customerType: CustomerType
   documentType: CustomerDocumentType
   documentNumber: string
+  verificationDigit?: string
   firstName?: string
   lastName?: string
   businessName?: string
@@ -236,6 +237,7 @@ export interface CreateCustomerDTO {
   customerType: CustomerType
   documentType: CustomerDocumentType
   documentNumber: string
+  verificationDigit?: string
   firstName?: string
   lastName?: string
   businessName?: string
@@ -260,6 +262,7 @@ export interface UpdateCustomerDTO {
   customerType?: CustomerType
   documentType?: CustomerDocumentType
   documentNumber?: string
+  verificationDigit?: string
   firstName?: string
   lastName?: string
   businessName?: string

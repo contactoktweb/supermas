@@ -30,6 +30,7 @@ export const createCustomerSchema = z
       .min(3, 'El número de documento debe tener al menos 3 caracteres')
       .max(30, 'El número de documento no puede exceder 30 caracteres')
       .transform((val) => val.trim()),
+    verificationDigit: z.string().max(1).optional(),
     firstName: z.string().optional(),
     lastName: z.string().optional(),
     businessName: z.string().optional(),
@@ -82,6 +83,7 @@ export const updateCustomerSchema = z.object({
   customerType: customerTypeSchema.optional(),
   documentType: customerDocumentTypeSchema.optional(),
   documentNumber: z.string().min(3).max(30).optional(),
+  verificationDigit: z.string().max(1).optional(),
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   businessName: z.string().optional(),

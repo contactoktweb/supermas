@@ -353,136 +353,33 @@ export class POSRepository {
     const activeSession = await this.getActiveSession(undefined, receipt.locationId)
     const sessionId = activeSession?.id || null
 
-    // 2. Calcular costo total de la venta a partir de las líneas
-    let totalCostAmount = 0
-    if (saleData.items) {
-      for (const it of saleData.items) {
-        totalCostAmount += (Number(it.unitCost || 0) * Number(it.quantity || 0))
-      }
+    // 2. Ejecución atómica exclusiva en PostgreSQL mediante fn_execute_pos_sale
+    const { data: rpcResult, error: rpcErr } = await supabaseClient.rpc("fn_execute_pos_sale", {
+      p_company_id: companyId,
+      p_location_id: receipt.locationId,
+      p_customer_id: saleData.customerId || null,
+      p_seller_user_id: sellerUserId,
+      p_cash_session_id: sessionId,
+      p_sale_number: receipt.saleNumber,
+      p_payment_method: mapPaymentMethodToDb(receipt.paymentMethod),
+      p_notes: saleData.notes || `Venta rápida POS ${receipt.saleNumber}`,
+      p_items: (saleData.items || []).map((it: any) => ({
+        product_id: it.productId,
+        quantity: it.quantity,
+        unit_price: it.unitPrice,
+        discount_percent: it.discountPercent || 0,
+        tax_rate_percent: it.taxRatePercent || 0,
+      })),
+    })
+
+    if (rpcErr) {
+      console.error('Error al procesar venta POS en fn_execute_pos_sale:', rpcErr)
+      throw new Error(`Error al procesar venta POS: ${rpcErr.message}`)
     }
 
-    // 3. Insertar venta en public.sales
-    const { data: createdSale, error: saleErr } = await supabaseClient
-      .from('sales')
-      .insert({
-        company_id: companyId,
-        location_id: receipt.locationId,
-        customer_id: saleData.customerId,
-        seller_user_id: sellerUserId,
-        cash_session_id: sessionId,
-        sale_number: receipt.saleNumber,
-        subtotal_amount: receipt.subtotal,
-        discount_amount: receipt.discountTotal,
-        tax_amount: receipt.taxTotal,
-        total_amount: receipt.totalAmount,
-        total_cost_amount: totalCostAmount,
-        payment_method: mapPaymentMethodToDb(receipt.paymentMethod),
-        status: 'ISSUED',
-        notes: saleData.notes || `Venta rápida POS ${receipt.saleNumber}`,
-      })
-      .select()
-      .single()
-
-    if (saleErr || !createdSale) {
-      console.error('Error insertando venta en public.sales:', saleErr)
-      throw new Error(`Error al procesar venta POS en base de datos: ${saleErr?.message}`)
+    if (!rpcResult?.success) {
+      throw new Error('Error al procesar venta POS: la transacción no retornó confirmación de éxito.')
     }
-
-    // 4. Insertar líneas en public.sale_items
-    const saleItemsPayload = (saleData.items || []).map((it: any) => ({
-      company_id: companyId,
-      sale_id: createdSale.id,
-      product_id: it.productId,
-      quantity: it.quantity,
-      unit_cost: it.unitCost || 0,
-      unit_price: it.unitPrice,
-      discount_percent: it.discountPercent || 0,
-      tax_rate_percent: it.taxRatePercent || 0,
-      tax_amount: it.taxAmount || 0,
-      subtotal: it.subtotal,
-      total: it.total,
-    }))
-
-    if (saleItemsPayload.length > 0) {
-      const { error: itemsErr } = await supabaseClient
-        .from('sale_items')
-        .insert(saleItemsPayload)
-
-      if (itemsErr) {
-        console.error('Error insertando líneas de venta:', itemsErr)
-        throw new Error(`Error guardando detalles de la venta: ${itemsErr.message}`)
-      }
-    }
-
-    // 5. Registrar movimientos SALE_OUT en public.inventory_movements
-    // El trigger process_inventory_movement() descontará el stock y validará existencias.
-    for (const item of saleData.items) {
-      // Consultar existencias previas
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', item.productId)
-        .eq('location_id', receipt.locationId)
-        .maybeSingle()
-
-      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const newStock = Math.max(0, prevStock - Number(item.quantity || 0))
-      const unitCost = stockRow ? Number(stockRow.average_cost || 0) : Number(item.unitCost || 0)
-
-      const { error: movErr } = await supabaseClient
-        .from('inventory_movements')
-        .insert({
-          company_id: companyId,
-          product_id: item.productId,
-          location_id: receipt.locationId,
-          movement_type: 'SALE_OUT',
-          quantity_in: 0,
-          quantity_out: item.quantity,
-          previous_stock: prevStock,
-          new_stock: newStock,
-          unit_cost: unitCost,
-          total_cost: Number(item.quantity) * unitCost,
-          document_type: 'POS_SALE',
-          document_reference: receipt.saleNumber,
-          reason: `Venta POS mostrador ${receipt.saleNumber}`,
-          user_id: sellerUserId,
-        })
-
-      if (movErr) {
-        console.error('Error registrando salida de inventario por venta:', movErr)
-        throw new Error(`Error actualizando Kardex por venta: ${movErr.message}`)
-      }
-    }
-
-    // 6. Si el pago es en efectivo y hay caja abierta, registrar movimiento en public.cash_movements
-    if (receipt.paymentMethod === 'EFECTIVO' && sessionId) {
-      await supabaseClient
-        .from('cash_movements')
-        .insert({
-          session_id: sessionId,
-          type: 'SALE_CASH',
-          amount: receipt.totalAmount,
-          reason: `Ingreso por venta POS ${receipt.saleNumber}`,
-          authorized_by_user_id: sellerUserId,
-        })
-    }
-
-    // 7. Registro de auditoría en public.audit_logs
-    await supabaseClient
-      .from('audit_logs')
-      .insert({
-        company_id: companyId,
-        user_id: sellerUserId,
-        entity_name: 'sales',
-        entity_id: createdSale.id,
-        action: 'POS_SALE_COMPLETED',
-        new_value: {
-          saleNumber: receipt.saleNumber,
-          totalAmount: receipt.totalAmount,
-          paymentMethod: receipt.paymentMethod,
-          itemsCount: receipt.itemsCount,
-        },
-      })
   }
 
   /**

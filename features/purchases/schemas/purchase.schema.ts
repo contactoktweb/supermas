@@ -2,8 +2,8 @@ import { z } from 'zod'
 
 export const purchaseItemInputSchema = z.object({
   productId: z.string().min(1, 'El producto es obligatorio'),
-  productName: z.string().min(1, 'El nombre del producto es obligatorio'),
-  sku: z.string().min(1, 'El SKU es obligatorio'),
+  productName: z.string().optional(),
+  sku: z.string().optional(),
   barcode: z.string().optional(),
   unitOfMeasure: z.string().default('UND'),
   imageUrl: z.string().optional(),
@@ -48,17 +48,29 @@ export const createPurchaseSchema = z.object({
   }
 )
 
+export const updatePurchaseSchema = createPurchaseSchema
+
 export const registerPaymentSchema = z.object({
   purchaseId: z.string().min(1, 'El ID de compra es obligatorio'),
   amount: z.number().positive('El monto del abono debe ser mayor a 0'),
-  paymentMethod: z.enum(['TRANSFERENCIA', 'EFECTIVO', 'CONSIGNACION', 'CHEQUE', 'OTRO']),
+  paymentMethod: z.string().min(1, 'El medio de pago es obligatorio'),
+  bankAccountId: z.string().optional(),
   reference: z.string().min(2, 'La referencia o comprobante de pago es obligatoria').trim(),
+  date: z.string().optional(),
   notes: z.string().max(300).optional(),
+})
+
+export const receivePurchaseItemSchema = z.object({
+  itemId: z.string().min(1, 'El ID del ítem es obligatorio'),
+  productId: z.string().optional(),
+  quantityReceived: z.number().positive('La cantidad a recibir debe ser mayor a 0'),
 })
 
 export const receivePurchaseSchema = z.object({
   purchaseId: z.string().min(1, 'El ID de la compra es obligatorio'),
   notes: z.string().max(500).optional(),
+  supplierRemissionNumber: z.string().max(100).optional(),
+  receivedItems: z.array(receivePurchaseItemSchema).optional(),
 })
 
 export const cancelPurchaseSchema = z.object({
@@ -67,6 +79,7 @@ export const cancelPurchaseSchema = z.object({
 })
 
 export type CreatePurchaseFormData = z.infer<typeof createPurchaseSchema>
+export type UpdatePurchaseFormData = z.infer<typeof updatePurchaseSchema>
 export type RegisterPaymentFormData = z.infer<typeof registerPaymentSchema>
 export type ReceivePurchaseFormData = z.infer<typeof receivePurchaseSchema>
 export type CancelPurchaseFormData = z.infer<typeof cancelPurchaseSchema>

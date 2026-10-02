@@ -49,15 +49,25 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'COMPRAS',
     items: [
       { id: 'proveedores', label: 'Proveedores', icon: 'suppliers', path: '/proveedores', permission: 'suppliers.read' },
-      { id: 'compras', label: 'Compras', icon: 'purchases', path: '/compras', permission: 'purchases.read' },
+      { id: 'compras', label: 'Órdenes de compra', icon: 'purchases', path: '/compras', permission: 'purchases.read' },
+      { id: 'recepciones', label: 'Recepciones', icon: 'warehouse', path: '/recepciones', permission: 'purchases.read' },
       { id: 'cuentas-por-pagar', label: 'Cuentas por Pagar', icon: 'wallet', path: '/cuentas-por-pagar', permission: 'purchases.read' },
+    ],
+  },
+  {
+    id: 'clientes-cartera',
+    title: 'CLIENTES Y CARTERA',
+    items: [
+      { id: 'clientes', label: 'Clientes', icon: 'customers', path: '/clientes', permission: 'customers.read' },
+      { id: 'cuentas-por-cobrar', label: 'Cuentas por cobrar', icon: 'wallet', path: '/cuentas-por-cobrar', permission: 'customers.read' },
+      { id: 'pagos-recibidos', label: 'Pagos recibidos', icon: 'receipt', path: '/pagos-recibidos', permission: 'customers.read' },
+      { id: 'estado-de-cuenta', label: 'Estado de cuenta', icon: 'fileText', path: '/estado-de-cuenta', permission: 'customers.read' },
     ],
   },
   {
     id: 'ventas',
     title: 'VENTAS',
     items: [
-      { id: 'clientes', label: 'Clientes', icon: 'customers', path: '/clientes', permission: 'customers.read' },
       { id: 'ventas', label: 'Ventas', icon: 'sales', path: '/ventas', permission: 'sales.read' },
       { id: 'pos', label: 'POS', icon: 'pos', path: '/pos', permission: 'pos.access' },
       { id: 'facturacion', label: 'Facturación', icon: 'invoices', path: '/facturacion', permission: 'invoices.read' },

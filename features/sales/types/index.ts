@@ -58,6 +58,9 @@ export interface Sale {
   paymentStatus: PaymentStatus
   status: SaleStatus
   documentType: SaleDocumentType
+  paidAmount?: number
+  dueDate?: string
+  paymentTerms?: string
   invoiceId?: string
   invoiceNumber?: string
   remissionId?: string

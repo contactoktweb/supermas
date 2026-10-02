@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 export interface LocationOption {
   id: string
@@ -10,11 +11,21 @@ export interface LocationOption {
 }
 
 export class LocationService {
+  private client: SupabaseClient
+
+  constructor(client: SupabaseClient = supabaseClient) {
+    this.client = client
+  }
+
+  withClient(client: SupabaseClient): LocationService {
+    return new LocationService(client)
+  }
+
   /**
    * Obtiene la lista de ubicaciones/bodegas activas desde PostgreSQL bajo RLS.
    */
   async list(): Promise<LocationOption[]> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('locations')
       .select('id, code, name, type, city, status')
       .eq('status', 'ACTIVE')
@@ -39,7 +50,7 @@ export class LocationService {
    * Obtiene una bodega específica por ID.
    */
   async getById(id: string): Promise<LocationOption | null> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('locations')
       .select('id, code, name, type, city, status')
       .eq('id', id)

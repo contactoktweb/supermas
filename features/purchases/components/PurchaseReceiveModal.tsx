@@ -9,7 +9,12 @@ interface PurchaseReceiveModalProps {
   purchase: Purchase | null
   isOpen: boolean
   onClose: () => void
-  onConfirm: (purchaseId: string, notes?: string) => Promise<void>
+  onConfirm: (
+    purchaseId: string,
+    notes?: string,
+    remission?: string,
+    items?: { itemId: string; quantityReceived: number }[]
+  ) => Promise<void>
 }
 
 export function PurchaseReceiveModal({
@@ -20,20 +25,76 @@ export function PurchaseReceiveModal({
 }: PurchaseReceiveModalProps) {
   const [mounted, setMounted] = useState(false)
   const [notes, setNotes] = useState('')
+  const [remission, setRemission] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [quantitiesToReceive, setQuantitiesToReceive] = useState<Record<string, number>>({})
 
   useEffect(() => {
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (purchase) {
+      const initial: Record<string, number> = {}
+      purchase.items.forEach((it) => {
+        const remaining = Math.max(0, it.quantity - (it.receivedQuantity || 0))
+        initial[it.id] = remaining
+      })
+      setQuantitiesToReceive(initial)
+      setNotes('')
+      setRemission('')
+      setError(null)
+    }
+  }, [purchase])
+
   if (!isOpen || !purchase || !mounted) return null
+
+  const handleQtyChange = (itemId: string, maxRemaining: number, val: string) => {
+    const num = parseFloat(val)
+    if (isNaN(num)) {
+      setQuantitiesToReceive((prev) => ({ ...prev, [itemId]: 0 }))
+      return
+    }
+    const safeNum = Math.min(Math.max(0, num), maxRemaining)
+    setQuantitiesToReceive((prev) => ({ ...prev, [itemId]: safeNum }))
+  }
 
   const handleConfirm = async () => {
     setError(null)
+
+    // Validar que al menos un ítem tenga cantidad > 0
+    const itemsToReceive: { itemId: string; quantityReceived: number }[] = []
+    let totalQty = 0
+
+    for (const it of purchase.items) {
+      const qty = quantitiesToReceive[it.id] || 0
+      const remaining = Math.max(0, it.quantity - (it.receivedQuantity || 0))
+
+      if (qty > remaining + 0.001) {
+        setError(`La cantidad a recibir de ${it.productName} no puede superar el saldo pendiente (${remaining}).`)
+        return
+      }
+
+      if (qty > 0) {
+        itemsToReceive.push({ itemId: it.id, quantityReceived: qty })
+        totalQty += qty
+      }
+    }
+
+    if (itemsToReceive.length === 0 || totalQty <= 0) {
+      setError('Debe indicar al menos una unidad a recibir en esta entrega.')
+      return
+    }
+
     setIsSubmitting(true)
     try {
-      await onConfirm(purchase.id, notes.trim() || undefined)
+      await onConfirm(
+        purchase.id,
+        notes.trim() || undefined,
+        remission.trim() || undefined,
+        itemsToReceive
+      )
       onClose()
     } catch (err: any) {
       setError(err.message || 'Error al registrar la recepción de inventario.')
@@ -42,7 +103,7 @@ export function PurchaseReceiveModal({
     }
   }
 
-  const totalUnits = purchase.items.reduce((acc, it) => acc + it.quantity, 0)
+  const totalUnitsToReceive = Object.values(quantitiesToReceive).reduce((acc, q) => acc + (q || 0), 0)
 
   return createPortal(
     <div
@@ -55,7 +116,7 @@ export function PurchaseReceiveModal({
       <div
         className="product-drawer product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: 540, width: '92vw' }}
+        style={{ maxWidth: 640, width: '94vw' }}
       >
         {/* Header */}
         <div className="drawer-header" style={{ padding: '16px 20px' }}>
@@ -77,7 +138,7 @@ export function PurchaseReceiveModal({
             </div>
             <div>
               <span className="product-category-eyebrow">
-                Recepción Física en Bodega
+                Recepción de Mercancía en Bodega
               </span>
               <h3
                 id="receive-modal-title"
@@ -88,7 +149,7 @@ export function PurchaseReceiveModal({
                   color: 'var(--navy)',
                 }}
               >
-                Ingresar Mercancía al Inventario
+                Acta de Entrada física al Inventario
               </h3>
             </div>
           </div>
@@ -169,7 +230,7 @@ export function PurchaseReceiveModal({
               }}
             >
               <span style={{ color: 'var(--muted)' }}>Proveedor:</span>
-              <span>{purchase.supplierName}</span>
+              <span>{purchase.supplierName} ({purchase.supplierNit})</span>
             </div>
             <div
               style={{
@@ -194,56 +255,145 @@ export function PurchaseReceiveModal({
                 marginTop: 6,
               }}
             >
-              <span style={{ color: 'var(--muted)' }}>Total a ingresar:</span>
+              <span style={{ color: 'var(--muted)' }}>Total a recibir en esta acta:</span>
               <strong style={{ color: '#16a34a' }}>
-                {totalUnits} unidades ({purchase.items.length} referencias)
+                {totalUnitsToReceive} unidades
               </strong>
             </div>
           </div>
 
           {/* List of items to receive */}
           <div style={{ marginBottom: 16 }}>
-            <span
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: 'var(--navy)',
-                display: 'block',
-                marginBottom: 8,
-              }}
-            >
-              Detalle de productos a ingresar:
-            </span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: 'var(--navy)',
+                }}
+              >
+                Productos y cantidades a recibir (Parcial / Total):
+              </span>
+              <button
+                type="button"
+                className="outline-button"
+                style={{ fontSize: 11, padding: '2px 8px', height: 26 }}
+                onClick={() => {
+                  const allMax: Record<string, number> = {}
+                  purchase.items.forEach((it) => {
+                    allMax[it.id] = Math.max(0, it.quantity - (it.receivedQuantity || 0))
+                  })
+                  setQuantitiesToReceive(allMax)
+                }}
+              >
+                Recibir todo el saldo pendiente
+              </button>
+            </div>
+
             <div
               style={{
-                maxHeight: 140,
+                maxHeight: 180,
                 overflowY: 'auto',
                 border: '1px solid var(--border)',
                 borderRadius: 6,
               }}
             >
-              {purchase.items.map((it) => (
-                <div
-                  key={it.id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #f1f5f9',
-                    fontSize: 12,
-                  }}
-                >
-                  <div>
-                    <strong>{it.productName}</strong>
-                    <div style={{ fontSize: 10, color: 'var(--muted)' }}>
-                      SKU: {it.sku}
+              {purchase.items.map((it) => {
+                const remaining = Math.max(0, it.quantity - (it.receivedQuantity || 0))
+                const currentReceiveVal = quantitiesToReceive[it.id] ?? remaining
+
+                return (
+                  <div
+                    key={it.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      borderBottom: '1px solid #f1f5f9',
+                      fontSize: 12,
+                      background: remaining === 0 ? '#f8fafc' : '#fff',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+                      <strong style={{ display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {it.productName}
+                      </strong>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                        SKU: {it.sku} | Pedido: <b>{it.quantity}</b> | Ya recibido: <b>{it.receivedQuantity || 0}</b> | Pendiente: <b style={{ color: remaining > 0 ? '#ea580c' : '#16a34a' }}>{remaining}</b>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <label style={{ fontSize: 11, color: 'var(--muted)' }}>Recibir:</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max={remaining}
+                        step="1"
+                        disabled={remaining === 0}
+                        value={currentReceiveVal}
+                        onChange={(e) => handleQtyChange(it.id, remaining, e.target.value)}
+                        style={{
+                          width: 70,
+                          padding: '4px 6px',
+                          border: '1px solid var(--border)',
+                          borderRadius: 6,
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          color: '#16a34a',
+                          background: remaining === 0 ? '#e2e8f0' : '#fff',
+                        }}
+                      />
+                      <span style={{ fontSize: 11, color: 'var(--muted)', width: 30 }}>{it.unitOfMeasure}</span>
                     </div>
                   </div>
-                  <strong style={{ color: '#16a34a' }}>
-                    +{it.quantity} {it.unitOfMeasure}
-                  </strong>
-                </div>
-              ))}
+                )
+              })}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  marginBottom: 6,
+                }}
+              >
+                No. Remisión / Guía Proveedor
+              </label>
+              <input
+                type="text"
+                className="filter-date-input"
+                style={{ width: '100%', fontSize: 12 }}
+                placeholder="Ej. REM-98234"
+                value={remission}
+                onChange={(e) => setRemission(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  marginBottom: 6,
+                }}
+              >
+                Observaciones de recepción
+              </label>
+              <input
+                type="text"
+                className="filter-date-input"
+                style={{ width: '100%', fontSize: 12 }}
+                placeholder="Estado del empaque, precintos..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
             </div>
           </div>
 
@@ -252,49 +402,23 @@ export function PurchaseReceiveModal({
               background: '#eff6ff',
               border: '1px solid #bfdbfe',
               borderRadius: 8,
-              padding: 12,
-              fontSize: 12,
+              padding: 10,
+              fontSize: 11,
               color: '#1e40af',
-              marginBottom: 16,
             }}
           >
             <strong>Efecto en el sistema:</strong>
-            <ul style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+            <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
               <li>
-                Aumenta el stock en <code>stock_levels</code> para la bodega destino.
+                Ingreso al Kardex inmutable bajo movimiento <code>PURCHASE_ENTRY</code>.
               </li>
               <li>
-                Genera registros inmutables en Kardex (<code>inventory_movements</code>).
+                Actualización del inventario y recálculo automático del Costo Promedio Ponderado.
               </li>
               <li>
-                Recalcula el Costo Promedio Ponderado de cada producto.
+                Generación del acta fiduciaria de recepción con número consecutivo auditable.
               </li>
             </ul>
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: 12,
-                fontWeight: 700,
-                marginBottom: 6,
-              }}
-            >
-              Observaciones de recepción (opcional)
-            </label>
-            <textarea
-              className="filter-date-input"
-              style={{
-                width: '100%',
-                minHeight: 50,
-                fontFamily: 'inherit',
-                fontSize: 12,
-              }}
-              placeholder="Estado del empaque, lote recibido, precinto de seguridad..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
           </div>
         </div>
 
@@ -322,11 +446,11 @@ export function PurchaseReceiveModal({
             type="button"
             className="primary-button"
             onClick={handleConfirm}
-            disabled={isSubmitting}
+            disabled={isSubmitting || totalUnitsToReceive <= 0}
             style={{ background: '#16a34a', borderColor: '#16a34a' }}
           >
             <AppIcon name="check" size={14} />
-            <span>{isSubmitting ? 'Ingresando...' : 'Confirmar Recepción'}</span>
+            <span>{isSubmitting ? 'Procesando entrada...' : `Confirmar Ingreso (${totalUnitsToReceive} un)`}</span>
           </button>
         </div>
       </div>

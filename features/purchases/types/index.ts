@@ -3,8 +3,15 @@
  */
 
 export type PurchaseStatus =
+  | 'BORRADOR'
+  | 'CONFIRMADA'
+  | 'RECIBIDA_PARCIALMENTE'
+  | 'RECIBIDA'
+  | 'CANCELADA'
   | 'DRAFT'              // Borrador de compra no emitido
   | 'PENDING_RECEPTION' // Emitida, pendiente de recibir mercancía
+  | 'CONFIRMED'         // Confirmada
+  | 'PARTIALLY_RECEIVED'// Recibida parcialmente
   | 'RECEIVED'          // Mercancía recibida físicamente en bodega
   | 'PAYMENT_PENDING'   // Recibida con saldo pendiente de pago (Crédito)
   | 'PAID'              // Pagada totalmente
@@ -64,9 +71,10 @@ export interface PurchaseAttachment {
 
 export interface PurchaseReceptionInfo {
   receivedAt: string
-  receivedByUserId: string
+  receivedByUserId?: string
   receivedByUserName: string
   notes?: string
+  receptionNumber?: string
 }
 
 export interface PurchaseCancellationInfo {
@@ -78,16 +86,15 @@ export interface PurchaseCancellationInfo {
 
 export interface Purchase {
   id: string
-  purchaseNumber: string             // e.g. "COM-0002184"
-  supplierInvoiceNumber: string      // e.g. "FAC-89214"
-  // Compatibilidad con WarehousePurchaseRecord:
-  invoiceNumber?: string             // Alias de purchaseNumber / supplierInvoiceNumber
+  purchaseNumber: string             // e.g. "COM-000001"
+  supplierInvoiceNumber: string      // Factura comercial del proveedor
+  invoiceNumber?: string             // Alias
   locationId?: string                // Alias de destinationLocationId
   totalCost?: number                 // Alias de total
   paymentTerms?: 'CONTADO' | 'CREDITO'
   itemsCount?: number
 
-  date: string                       // Fecha de compra / emisión
+  date: string                       // Fecha de emisión
   supplierId: string
   supplierName: string
   supplierNit: string
@@ -116,9 +123,12 @@ export interface Purchase {
 
   receptionInfo?: PurchaseReceptionInfo
   cancellationInfo?: PurchaseCancellationInfo
+  confirmedAt?: string
+  confirmedByUserId?: string
+  confirmedByUserName?: string
 
-  createdByUserId: string
-  createdByUserName: string
+  createdByUserId?: string
+  createdByUserName?: string
   notes?: string
   createdAt: string
   updatedAt: string
@@ -161,10 +171,10 @@ export interface PurchaseStats {
 
 export interface CreatePurchaseItemInput {
   productId: string
-  productName: string
-  sku: string
+  productName?: string
+  sku?: string
   barcode?: string
-  unitOfMeasure: string
+  unitOfMeasure?: string
   imageUrl?: string
   quantity: number
   unitCost: number
@@ -191,21 +201,76 @@ export interface CreatePurchaseInput {
   }
 }
 
+export interface UpdatePurchaseInput {
+  supplierId: string
+  supplierInvoiceNumber: string
+  destinationLocationId: string
+  date: string
+  paymentType: PurchasePaymentType
+  dueDate?: string
+  notes?: string
+  items: CreatePurchaseItemInput[]
+  saveAsDraft?: boolean
+  attachment?: {
+    fileName: string
+    fileType: string
+    fileSize: number
+    url: string
+  }
+}
+
 export interface RegisterPaymentInput {
   purchaseId: string
   amount: number
-  paymentMethod: PaymentMethod
+  paymentMethod: PaymentMethod | string
+  bankAccountId?: string
   reference: string
   notes?: string
+  date?: string
+}
+
+export interface ReceivePurchaseItemInput {
+  itemId: string
+  productId?: string
+  quantityReceived: number
 }
 
 export interface ReceivePurchaseInput {
   purchaseId: string
   notes?: string
-  receivedItems?: {
-    itemId: string
-    quantityReceived: number
-  }[]
+  supplierRemissionNumber?: string
+  receivedItems?: ReceivePurchaseItemInput[]
+}
+
+export interface PurchaseReceiptItem {
+  id: string
+  receptionId: string
+  purchaseItemId: string
+  productId: string
+  productName?: string
+  sku?: string
+  quantityReceived: number
+  unitCost: number
+  createdAt: string
+}
+
+export interface PurchaseReceipt {
+  id: string
+  receptionNumber: string
+  purchaseId: string
+  purchaseNumber?: string
+  supplierId?: string
+  supplierName?: string
+  locationId: string
+  locationName?: string
+  locationCode?: string
+  receptionDate: string
+  receivedByUserId?: string
+  receivedByUserName?: string
+  supplierRemissionNumber?: string
+  notes?: string
+  createdAt: string
+  items: PurchaseReceiptItem[]
 }
 
 export interface CancelPurchaseInput {

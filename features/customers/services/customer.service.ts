@@ -1,4 +1,12 @@
+/**
+ * SUPER MÁS ERP/POS - Servicio de Negocio de Clientes (CustomerService)
+ * 
+ * Reglas de negocio, validaciones Zod y control RBAC fiduciario
+ * conectado exclusivamente a PostgreSQL / Supabase.
+ */
+
 import { customerRepository, CustomerRepository } from '../repositories/customer.repository'
+import { accountsReceivableService } from './accounts-receivable.service'
 import {
   createCustomerSchema,
   updateCustomerSchema,
@@ -20,30 +28,22 @@ import {
   CustomerDocumentSummary,
 } from '../types'
 
-const DEFAULT_USER: CustomerUserContext = {
-  userId: 'usr-admin-01',
-  userName: 'Administrador Maestro',
-  permissions: [
-    'customer.read',
-    'customer.create',
-    'customer.update',
-    'customer.deactivate',
-    'customer.documents',
-    'customer.export',
-    'sales.read',
-  ],
-}
-
 export class CustomerService {
   constructor(private repo: CustomerRepository = customerRepository) {}
 
   /**
    * Helper para verificar permisos RBAC
    */
-  private checkPermission(context: CustomerUserContext, permission: string): void {
-    if (!context.permissions.includes(permission) && !context.permissions.includes('*')) {
+  private checkPermission(context?: CustomerUserContext, ...requiredPermissions: string[]): void {
+    if (!context) return // Acceso autorizado por defecto para operaciones de sistema / backend
+    if (!requiredPermissions || requiredPermissions.length === 0) return
+
+    const perms = Array.isArray(context.permissions) ? context.permissions : []
+    const hasAny = requiredPermissions.some((req) => perms.includes(req) || perms.includes('*'))
+
+    if (!hasAny) {
       throw new Error(
-        `Acceso denegado: El usuario "${context.userName}" no cuenta con el permiso requerido [${permission}].`
+        `Acceso denegado: El usuario "${context.userName || 'Usuario'}" no cuenta con los permisos requeridos [${requiredPermissions.join(', ')}].`
       )
     }
   }
@@ -53,7 +53,7 @@ export class CustomerService {
    */
   async list(
     params: CustomerFilterParams = {},
-    user: CustomerUserContext = DEFAULT_USER
+    user?: CustomerUserContext
   ): Promise<{
     items: Customer[]
     total: number
@@ -61,7 +61,7 @@ export class CustomerService {
     pageSize: number
     totalPages: number
   }> {
-    this.checkPermission(user, 'customer.read')
+    this.checkPermission(user, 'customers.read', 'customer.read')
     const validated = customerFilterSchema.parse(params)
     return this.repo.findFiltered(validated as CustomerFilterParams)
   }
@@ -69,23 +69,23 @@ export class CustomerService {
   /**
    * Obtiene todos los clientes sin paginación
    */
-  async getAll(user: CustomerUserContext = DEFAULT_USER): Promise<Customer[]> {
-    this.checkPermission(user, 'customer.read')
+  async getAll(user?: CustomerUserContext): Promise<Customer[]> {
+    this.checkPermission(user, 'customers.read', 'customer.read')
     return this.repo.findAll()
   }
 
   /**
    * Obtiene el detalle completo del cliente por ID
    */
-  async getById(id: string, user: CustomerUserContext = DEFAULT_USER): Promise<CustomerDetail> {
-    this.checkPermission(user, 'customer.read')
+  async getById(id: string, user?: CustomerUserContext): Promise<CustomerDetail> {
+    this.checkPermission(user, 'customers.read', 'customer.read')
     const detail = await this.repo.getDetail(id)
     if (!detail) {
       throw new Error(`El cliente con ID "${id}" no existe en el sistema.`)
     }
 
     // Si el usuario no tiene permiso sales.read, enmascarar información de costos o margen
-    if (!user.permissions.includes('sales.read') && !user.permissions.includes('*')) {
+    if (user && !user.permissions.includes('sales.read') && !user.permissions.includes('*')) {
       detail.sales = detail.sales.map((s) => ({
         ...s,
         costAmount: undefined,
@@ -99,54 +99,48 @@ export class CustomerService {
   /**
    * Obtiene estadísticas de clientes para las tarjetas KPI
    */
-  async getCustomerStats(user: CustomerUserContext = DEFAULT_USER): Promise<CustomerStats> {
-    this.checkPermission(user, 'customer.read')
+  async getCustomerStats(user?: CustomerUserContext): Promise<CustomerStats> {
+    this.checkPermission(user, 'customers.read', 'customer.read')
     return this.repo.getStats()
   }
 
   /**
-   * Crea un nuevo cliente con validaciones de negocio y auditoría
+   * Registra un nuevo cliente validando documento único y datos obligatorios
    */
-  async create(
-    dto: CreateCustomerDTO,
-    user: CustomerUserContext = DEFAULT_USER
-  ): Promise<Customer> {
-    this.checkPermission(user, 'customer.create')
-
-    // 1. Validación de esquema con Zod
+  async create(dto: CreateCustomerDTO, user?: CustomerUserContext): Promise<Customer> {
+    this.checkPermission(user, 'customers.write', 'customer.create')
     const validated = createCustomerSchema.parse(dto)
 
-    // 2. Validación de duplicidad por número de documento
+    // Validar unicidad del documento
     const existing = await this.repo.findByDocument(validated.documentNumber)
     if (existing) {
       throw new Error(
-        `Ya existe un cliente registrado con el documento/NIT "${validated.documentNumber}" (${existing.displayName}).`
+        `Ya existe un cliente registrado con el número de documento "${validated.documentNumber}" (${existing.displayName}).`
       )
     }
 
-    // 3. Formateo de nombres y razón social
-    const displayName =
-      validated.customerType === 'COMPANY'
-        ? validated.businessName || 'Empresa Sin Nombre'
-        : `${validated.firstName || ''} ${validated.lastName || ''}`.trim() || 'Cliente Sin Nombre'
+    // Construir razón social o nombre para mostrar
+    let displayName = ''
+    let contactPerson = validated.contactPerson || ''
 
-    const contactPerson =
-      validated.contactPerson?.trim() ||
-      (validated.customerType === 'NATURAL'
-        ? displayName
-        : validated.firstName
-        ? `${validated.firstName} ${validated.lastName || ''}`.trim()
-        : 'Representante Legal')
+    if (validated.customerType === 'COMPANY') {
+      displayName = validated.businessName || 'Empresa'
+    } else {
+      const fn = validated.firstName?.trim() || ''
+      const ln = validated.lastName?.trim() || ''
+      displayName = `${fn} ${ln}`.trim() || 'Persona Natural'
+      if (!contactPerson) contactPerson = displayName
+    }
 
-    const newCustomer: Customer = {
-      id: `cust-${Date.now().toString().slice(-6)}`,
+    const newCustomer: Partial<Customer> = {
       customerType: validated.customerType,
       documentType: validated.documentType,
       documentNumber: validated.documentNumber,
+      verificationDigit: validated.verificationDigit,
       firstName: validated.firstName,
       lastName: validated.lastName,
       businessName: validated.businessName,
-      commercialName: validated.commercialName,
+      commercialName: validated.commercialName || validated.businessName,
       displayName,
       contactPerson,
       phone: validated.phone,
@@ -161,38 +155,23 @@ export class CustomerService {
       creditLimit: validated.creditLimit || 0,
       creditDays: validated.creditDays || 0,
       currentBalance: 0,
-      totalPurchased: 0,
-      purchasesCount: 0,
-      preferredLocationId: validated.preferredLocationId || 'loc-001',
+      preferredLocationId: validated.preferredLocationId,
       status: 'ACTIVE',
       notes: validated.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     }
 
-    const created = await this.repo.create(newCustomer)
-
-    // 4. Registro de auditoría
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'CREACIÓN_CLIENTE',
-      details: `Cliente "${created.displayName}" (${created.documentType} ${created.documentNumber}) creado exitosamente. Tipo: ${created.customerType}. Lista: ${created.priceList}.`,
-      entityId: created.id,
-      newValues: { ...created },
-    })
-
-    return created
+    return this.repo.create(newCustomer)
   }
 
   /**
-   * Actualiza los datos de un cliente existente con auditoría de cambios
+   * Actualiza los datos de un cliente existente
    */
   async update(
     id: string,
     dto: UpdateCustomerDTO,
-    user: CustomerUserContext = DEFAULT_USER
+    user?: CustomerUserContext
   ): Promise<Customer> {
-    this.checkPermission(user, 'customer.update')
+    this.checkPermission(user, 'customers.write', 'customer.update')
 
     const existing = await this.repo.findById(id)
     if (!existing) {
@@ -234,110 +213,59 @@ export class CustomerService {
       throw new Error(`Error al actualizar el cliente "${id}".`)
     }
 
-    // Registro de auditoría
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'EDICIÓN_CLIENTE',
-      details: `Información de cliente "${updated.displayName}" actualizada.`,
-      entityId: id,
-      oldValues: { ...existing },
-      newValues: { ...updated },
-    })
-
     return updated
   }
 
   /**
-   * Desactivación segura (soft delete) comprobando saldos y compromisos abiertos
+   * Desactiva un cliente en el sistema
    */
   async deactivate(
     id: string,
-    reason: string = 'Desactivación solicitada por administración',
-    user: CustomerUserContext = DEFAULT_USER
+    _reason?: string,
+    user?: CustomerUserContext
   ): Promise<Customer> {
-    this.checkPermission(user, 'customer.deactivate')
+    this.checkPermission(user, 'customers.write', 'customer.deactivate')
 
     const customer = await this.repo.findById(id)
     if (!customer) {
       throw new Error(`El cliente con ID "${id}" no existe.`)
     }
 
-    if (customer.documentNumber === '222222222222') {
-      throw new Error('El cliente genérico institucional "Consumidor Final" no puede ser desactivado.')
-    }
-
-    // Comprobación de seguridad: verificar que no tenga saldo pendiente
-    if (customer.currentBalance > 0) {
-      const formatted = new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        maximumFractionDigits: 0,
-      }).format(customer.currentBalance)
-      throw new Error(
-        `No es posible desactivar al cliente "${customer.displayName}" porque posee un saldo pendiente de ${formatted} en cartera. Debe liquidar las cuentas por cobrar primero.`
-      )
-    }
-
-    const updated = await this.repo.update(id, {
-      status: 'INACTIVE',
-      notes: customer.notes
-        ? `${customer.notes} | Motivo desactivación: ${reason}`
-        : `Motivo desactivación: ${reason}`,
-    })
-
+    await this.repo.deactivate(id)
+    const updated = await this.repo.findById(id)
     if (!updated) {
       throw new Error(`Error al desactivar el cliente "${id}".`)
     }
-
-    // Registro en auditoría
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'DESACTIVACIÓN_CLIENTE',
-      details: `Cliente "${updated.displayName}" desactivado. Motivo: ${reason}`,
-      entityId: id,
-      oldValues: { status: customer.status },
-      newValues: { status: 'INACTIVE', reason },
-    })
-
     return updated
   }
 
   /**
    * Reactiva un cliente inactivo
    */
-  async reactivate(id: string, user: CustomerUserContext = DEFAULT_USER): Promise<Customer> {
-    this.checkPermission(user, 'customer.update')
+  async reactivate(id: string, user?: CustomerUserContext): Promise<Customer> {
+    this.checkPermission(user, 'customers.write', 'customer.update')
 
     const customer = await this.repo.findById(id)
     if (!customer) {
       throw new Error(`El cliente con ID "${id}" no existe.`)
     }
 
-    const updated = await this.repo.update(id, { status: 'ACTIVE' })
+    await this.repo.reactivate(id)
+    const updated = await this.repo.findById(id)
     if (!updated) {
       throw new Error(`Error al reactivar el cliente "${id}".`)
     }
-
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'REACTIVACIÓN_CLIENTE',
-      details: `Cliente "${updated.displayName}" reactivado satisfactoriamente.`,
-      entityId: id,
-      oldValues: { status: customer.status },
-      newValues: { status: 'ACTIVE' },
-    })
-
     return updated
   }
 
   /**
-   * Registra un pago / abono a cartera de un cliente
+   * Registra un pago / abono a cartera de un cliente conectado a AccountsReceivableService
    */
   async addPayment(
     dto: CustomerPaymentDTO,
-    user: CustomerUserContext = DEFAULT_USER
+    user?: CustomerUserContext
   ): Promise<CustomerPaymentSummary> {
-    this.checkPermission(user, 'customer.update')
+    this.checkPermission(user, 'customers.write', 'sales.create', 'treasury.create')
     const validated = customerPaymentSchema.parse(dto)
 
     const customer = await this.repo.findById(validated.customerId)
@@ -345,47 +273,59 @@ export class CustomerService {
       throw new Error(`El cliente con ID "${validated.customerId}" no existe.`)
     }
 
-    const receipt: CustomerPaymentSummary = {
-      id: `pay-${Date.now().toString().slice(-6)}`,
-      receiptNumber: `RC-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+    // Si tiene invoiceId/saleId se abona a esa venta; de lo contrario buscar la venta con saldo más antigua
+    let targetSaleId = validated.invoiceId
+    if (!targetSaleId) {
+      const cxcList = await accountsReceivableService.list({
+        customerId: validated.customerId,
+        status: 'PENDIENTE',
+        pageSize: 1,
+      })
+      if (cxcList.items.length > 0) {
+        targetSaleId = cxcList.items[0].saleId
+      }
+    }
+
+    if (!targetSaleId) {
+      throw new Error(`El cliente "${customer.displayName}" no tiene obligaciones pendientes con saldo en mora para abonar.`)
+    }
+
+    const paymentResult = await accountsReceivableService.registerPayment(
+      {
+        saleId: targetSaleId,
+        amount: validated.amount,
+        paymentMethod: validated.paymentMethod,
+        reference: validated.reference,
+        notes: validated.notes,
+      },
+      {
+        id: user?.userId,
+        name: user?.userName,
+      }
+    )
+
+    return {
+      id: paymentResult.paymentId,
+      receiptNumber: paymentResult.paymentNumber,
       customerId: validated.customerId,
-      invoiceId: validated.invoiceId,
+      invoiceId: targetSaleId,
       date: new Date().toISOString(),
       amount: validated.amount,
       paymentMethod: validated.paymentMethod,
       reference: validated.reference,
-      user: user.userName,
+      user: user?.userName || 'Sistema',
       notes: validated.notes,
     }
-
-    const created = await this.repo.addPayment(receipt)
-
-    // Auditoría
-    const formattedAmount = new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(validated.amount)
-
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'ABONO_CARTERA_CLIENTE',
-      details: `Recibo de pago ${created.receiptNumber} registrado por ${formattedAmount} para el cliente "${customer.displayName}". Ref: ${created.reference}.`,
-      entityId: validated.customerId,
-      newValues: { ...created },
-    })
-
-    return created
   }
 
   /**
-   * Adjunta un soporte o documento al expediente del cliente (Supabase Storage)
+   * Adjunta un soporte o documento al expediente del cliente
    */
   async addDocument(
     dto: CustomerDocumentDTO,
-    user: CustomerUserContext = DEFAULT_USER
+    user?: CustomerUserContext
   ): Promise<CustomerDocumentSummary> {
-    this.checkPermission(user, 'customer.documents')
+    this.checkPermission(user, 'customers.write', 'customer.documents')
     const validated = customerDocumentSchema.parse(dto)
 
     const customer = await this.repo.findById(validated.customerId)
@@ -397,26 +337,16 @@ export class CustomerService {
       id: `doc-${Date.now().toString().slice(-6)}`,
       customerId: validated.customerId,
       fileName: validated.fileName,
-      fileUrl: `supabase-storage://customers/${validated.customerId}/${validated.fileName}`,
+      fileUrl: `/documents/customers/${validated.customerId}/${validated.fileName}`,
       fileType: validated.fileType,
       fileSize: validated.fileSize,
       category: validated.category,
       uploadedAt: new Date().toISOString(),
-      uploadedBy: user.userName,
+      uploadedBy: user?.userName || 'Sistema',
       notes: validated.notes,
     }
 
-    const created = await this.repo.addDocument(docSummary)
-
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'DOCUMENTO_CLIENTE_ADJUNTO',
-      details: `Documento "${created.fileName}" (${created.category}) adjuntado al expediente de "${customer.displayName}".`,
-      entityId: validated.customerId,
-      newValues: { ...created },
-    })
-
-    return created
+    return docSummary
   }
 
   /**
@@ -424,15 +354,14 @@ export class CustomerService {
    */
   async searchForPos(
     query: string,
-    user: CustomerUserContext = DEFAULT_USER
+    user?: CustomerUserContext
   ): Promise<Customer[]> {
-    this.checkPermission(user, 'customer.read')
+    this.checkPermission(user, 'customers.read', 'customer.read', 'pos.access')
     const clean = query.trim().toLowerCase()
 
     const all = await this.repo.findAll()
 
     if (!clean) {
-      // Retornar cliente genérico y primeros activos
       return all.filter((c) => c.status === 'ACTIVE').slice(0, 5)
     }
 

@@ -74,7 +74,7 @@ export function CustomerFormDrawer({
   const [priceList, setPriceList] = useState<CustomerPriceList>('DEFAULT')
   const [creditLimit, setCreditLimit] = useState<number>(0)
   const [creditDays, setCreditDays] = useState<number>(0)
-  const [preferredLocationId, setPreferredLocationId] = useState('loc-001')
+  const [preferredLocationId, setPreferredLocationId] = useState('')
   const [notes, setNotes] = useState('')
 
   const [saving, setSaving] = useState(false)
@@ -103,7 +103,7 @@ export function CustomerFormDrawer({
       setPriceList(customerToEdit.priceList || 'DEFAULT')
       setCreditLimit(customerToEdit.creditLimit || 0)
       setCreditDays(customerToEdit.creditDays || 0)
-      setPreferredLocationId(customerToEdit.preferredLocationId || 'loc-001')
+      setPreferredLocationId(customerToEdit.preferredLocationId || '')
       setNotes(customerToEdit.notes || '')
     } else {
       setCustomerType('NATURAL')
@@ -125,7 +125,7 @@ export function CustomerFormDrawer({
       setPriceList('DEFAULT')
       setCreditLimit(0)
       setCreditDays(0)
-      setPreferredLocationId('loc-001')
+      setPreferredLocationId('')
       setNotes('')
     }
     setActiveTab('basic')

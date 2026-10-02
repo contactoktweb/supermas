@@ -1,12 +1,17 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { SupabaseClient } from '@supabase/supabase-js'
 import {
   Purchase,
   PurchaseFilterParams,
   PurchaseStats,
   PurchaseItem,
   PurchasePayment,
+  PurchaseReceipt,
+  PurchaseReceiptItem,
   ReceivePurchaseInput,
   RegisterPaymentInput,
+  CreatePurchaseInput,
+  UpdatePurchaseInput,
 } from '../types'
 
 /**
@@ -17,6 +22,8 @@ function mapDbRowToPurchase(row: any): Purchase {
   const loc = row.locations || {}
   const rawItems = (row.purchase_items as any[]) || []
   const rawPayments = (row.supplier_payments as any[]) || []
+  const confirmedUser = row.confirmed_by_user || {}
+  const receivedUser = row.received_by_user || {}
 
   const items: PurchaseItem[] = rawItems.map((it) => {
     const p = it.products || {}
@@ -28,9 +35,9 @@ function mapDbRowToPurchase(row: any): Purchase {
       sku: p.sku || 'SKU',
       barcode: p.barcode || undefined,
       unitOfMeasure: p.unit_of_measure || 'UND',
-      imageUrl: p.image_url || undefined,
+      imageUrl: p.primary_image_url || p.image_url || undefined,
       quantity: Number(it.quantity || 0),
-      receivedQuantity: row.inventory_status === 'RECEIVED' ? Number(it.quantity || 0) : 0,
+      receivedQuantity: Number(it.received_quantity || 0),
       unitCost: Number(it.unit_cost || 0),
       discountPercent: Number(it.discount_percent || 0),
       discountAmount: Number(it.discount_amount || 0),
@@ -42,18 +49,21 @@ function mapDbRowToPurchase(row: any): Purchase {
     }
   })
 
-  const payments: PurchasePayment[] = rawPayments.map((pay) => ({
-    id: pay.id,
-    purchaseId: pay.purchase_id || row.id,
-    date: pay.payment_date || pay.created_at,
-    amount: Number(pay.amount || 0),
-    paymentMethod: (pay.payment_method as any) || 'TRANSFERENCIA',
-    reference: pay.transaction_reference || 'N/A',
-    notes: pay.notes || undefined,
-    registeredByUserId: pay.created_by_user_id || 'usr-001',
-    registeredByUserName: 'Administrador',
-    createdAt: pay.created_at,
-  }))
+  const payments: PurchasePayment[] = rawPayments.map((pay) => {
+    const payUser = pay.created_by_user || {}
+    return {
+      id: pay.id,
+      purchaseId: pay.purchase_id || row.id,
+      date: pay.payment_date || pay.created_at,
+      amount: Number(pay.amount || 0),
+      paymentMethod: (pay.payment_method as any) || 'TRANSFERENCIA',
+      reference: pay.transaction_reference || 'N/A',
+      notes: pay.notes || undefined,
+      registeredByUserId: pay.created_by_user_id || undefined,
+      registeredByUserName: payUser.full_name || undefined,
+      createdAt: pay.created_at,
+    }
+  })
 
   const subtotal = Number(row.subtotal_amount || 0)
   const discountTotal = Number(row.discount_amount || 0)
@@ -62,21 +72,24 @@ function mapDbRowToPurchase(row: any): Purchase {
   const paidAmount = Number(row.paid_amount || 0)
   const pendingBalance = Math.max(0, total - paidAmount)
 
-  let status: Purchase['status'] = 'PENDING_RECEPTION'
-  if (row.inventory_status === 'CANCELLED') {
-    status = 'CANCELLED'
-  } else if (row.inventory_status === 'RECEIVED') {
+  let status: Purchase['status'] = 'CONFIRMADA'
+  const invStatus = (row.inventory_status || '').toUpperCase()
+  if (invStatus === 'CANCELLED' || invStatus === 'CANCELADA') {
+    status = 'CANCELADA'
+  } else if (invStatus === 'DRAFT' || invStatus === 'BORRADOR') {
+    status = 'BORRADOR'
+  } else if (invStatus === 'PARTIALLY_RECEIVED' || invStatus === 'RECIBIDA_PARCIALMENTE') {
+    status = 'RECIBIDA_PARCIALMENTE'
+  } else if (invStatus === 'RECEIVED' || invStatus === 'RECIBIDA') {
     if (row.payment_status === 'PAID' || pendingBalance <= 0) {
       status = 'PAID'
     } else if (paidAmount > 0) {
       status = 'PAYMENT_PENDING'
     } else {
-      status = 'RECEIVED'
+      status = 'RECIBIDA'
     }
-  } else if (row.inventory_status === 'DRAFT') {
-    status = 'DRAFT'
   } else {
-    status = 'PENDING_RECEPTION'
+    status = 'CONFIRMADA'
   }
 
   return {
@@ -109,45 +122,157 @@ function mapDbRowToPurchase(row: any): Purchase {
     items,
     payments,
     attachments: [],
-    createdByUserId: row.created_by_user_id || 'usr-001',
-    createdByUserName: 'Administrador',
+    createdByUserId: row.confirmed_by_user_id || undefined,
+    createdByUserName: confirmedUser.full_name || undefined,
     notes: row.notes || undefined,
+    confirmedAt: row.confirmed_at || undefined,
+    confirmedByUserId: row.confirmed_by_user_id || undefined,
+    confirmedByUserName: confirmedUser.full_name || undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
     receptionInfo: row.received_at
       ? {
           receivedAt: row.received_at,
           receivedByUserId: row.received_by_user_id || undefined,
-          receivedByUserName: 'Recepción Bodega',
+          receivedByUserName: receivedUser.full_name || 'Recepción Bodega',
           notes: 'Mercancía recibida en bodega',
         }
       : undefined,
   }
 }
 
+/**
+ * Mapea errores de PostgreSQL / RPC a errores comprensibles de dominio
+ */
+export function parsePurchaseDatabaseError(error: any): Error {
+  if (!error) return new Error('Error desconocido en la base de datos.')
+
+  const msg = error.message || String(error)
+  const code = error.code || ''
+
+  if (msg.includes('proveedor no existe o pertenece a otra empresa')) {
+    return new Error('El proveedor seleccionado no existe o pertenece a otra empresa.')
+  }
+  if (msg.includes('proveedor seleccionado se encuentra inactivo')) {
+    return new Error('El proveedor seleccionado se encuentra inactivo.')
+  }
+  if (msg.includes('bodega de destino no existe o pertenece a otra empresa')) {
+    return new Error('La bodega de destino no existe o pertenece a otra empresa.')
+  }
+  if (msg.includes('bodega de destino seleccionada se encuentra inactiva')) {
+    return new Error('La bodega de destino seleccionada se encuentra inactiva.')
+  }
+  if (msg.includes('bodega de destino no tiene habilitadas operaciones de compra')) {
+    return new Error('La bodega de destino no tiene habilitadas operaciones de compra (allow_purchases = false).')
+  }
+  if (msg.includes('usuario no tiene acceso a la bodega seleccionada')) {
+    return new Error('No tienes acceso autorizado a la bodega de destino seleccionada.')
+  }
+  if (msg.includes('No tienes permisos suficientes para registrar compras')) {
+    return new Error('No tienes permisos para registrar compras (purchases.create requerido).')
+  }
+  if (msg.includes('No tienes permisos para modificar compras')) {
+    return new Error('No tienes permisos para modificar compras (purchases.create requerido).')
+  }
+  if (msg.includes('No tienes permisos para confirmar compras')) {
+    return new Error('No tienes permisos para confirmar compras (purchases.create requerido).')
+  }
+  if (msg.includes('No tienes permisos para anular compras')) {
+    return new Error('No tienes permisos para anular compras (purchases.create requerido).')
+  }
+  if (msg.includes('Debe incluir al menos un producto')) {
+    return new Error('Debe incluir al menos un producto en la orden de compra.')
+  }
+  if (msg.includes('La cantidad de cada producto debe ser estrictamente mayor a 0')) {
+    return new Error(msg)
+  }
+  if (msg.includes('El costo unitario no puede ser negativo')) {
+    return new Error(msg)
+  }
+  if (msg.includes('no existe o pertenece a otra empresa') && msg.includes('producto')) {
+    return new Error(msg)
+  }
+  if (msg.includes('se encuentra inactivo') && msg.includes('producto')) {
+    return new Error(msg)
+  }
+  if (msg.includes('Solo las órdenes de compra en borrador pueden ser modificadas')) {
+    return new Error(msg)
+  }
+  if (msg.includes('La orden de compra ya fue confirmada')) {
+    return new Error(msg)
+  }
+  if (msg.includes('está confirmada y es inmutable')) {
+    return new Error('La orden de compra ya fue confirmada y no puede ser modificada. Para cambiar productos o costos debe cancelarse y emitirse una nueva.')
+  }
+  if (msg.includes('No se pueden eliminar líneas de una orden de compra')) {
+    return new Error('No se pueden eliminar líneas de una orden de compra confirmada.')
+  }
+  if (msg.includes('No está permitido anular órdenes con mercancía recibida') || msg.includes('tiene ítems con cantidades recibidas')) {
+    return new Error('No está permitido anular órdenes con mercancía recibida en bodega. Debe tramitarse devolución a proveedor.')
+  }
+  if (msg.includes('Exceso de recepción:')) {
+    return new Error(msg)
+  }
+  if (msg.includes('No se puede recibir una orden en estado BORRADOR')) {
+    return new Error('No se puede recibir una orden en estado BORRADOR. Debe confirmarse primero.')
+  }
+  if (msg.includes('No se puede recibir una orden en estado CANCELADA')) {
+    return new Error('No se puede recibir una orden en estado CANCELADA.')
+  }
+  if (msg.includes('La orden de compra ya ha sido RECIBIDA')) {
+    return new Error('La orden de compra ya ha sido RECIBIDA en su totalidad.')
+  }
+  if (msg.includes('La cantidad a recibir debe ser estrictamente mayor a 0')) {
+    return new Error(msg)
+  }
+  if (msg.includes('No tienes permisos suficientes para registrar recepciones')) {
+    return new Error('No tienes permisos suficientes para registrar recepciones (purchases.create requerido).')
+  }
+  if (msg.includes('no pertenece a la orden de compra')) {
+    return new Error(msg)
+  }
+  if (code === '23505' && msg.includes('purchase_number')) {
+    return new Error('El número de orden de compra ya existe en esta empresa.')
+  }
+  if (code === '42501') {
+    return new Error(`Permiso denegado por políticas de seguridad: ${msg}`)
+  }
+
+  return new Error(msg)
+}
+
 export class PurchaseRepository {
+  private client: SupabaseClient
+
+  constructor(client: SupabaseClient = supabaseClient) {
+    this.client = client
+  }
+
+  withClient(client: SupabaseClient): PurchaseRepository {
+    return new PurchaseRepository(client)
+  }
   /**
-   * Resuelve el company_id activo del usuario autenticado
+   * Resuelve el company_id activo del usuario autenticado de forma estricta
    */
-  private async resolveCompanyId(): Promise<string> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    if (comp?.id) return comp.id
+  async resolveCompanyId(): Promise<string> {
+    const { data: authData } = await this.client.auth.getUser()
+    if (authData.user) {
+      const { data: userProfile } = await this.client
+        .from('users')
+        .select('company_id')
+        .eq('id', authData.user.id)
+        .maybeSingle()
 
-    const { data: userProfile } = await supabaseClient
-      .from('users')
-      .select('company_id')
-      .limit(1)
-      .single()
-
-    if (userProfile?.company_id) return userProfile.company_id
-    throw new Error('No se pudo resolver la empresa activa del usuario.')
+      if (userProfile?.company_id) return userProfile.company_id
+    }
+    throw new Error('No se pudo resolver la empresa activa del usuario autenticado.')
   }
 
   /**
    * Consulta compras con filtros dinámicos, ordenamiento y paginación reales desde PostgreSQL
    */
   async findAll(params: PurchaseFilterParams): Promise<{ data: Purchase[]; total: number }> {
-    let query = supabaseClient.from('purchases').select(
+    let query = this.client.from('purchases').select(
       `
         id,
         purchase_number,
@@ -166,10 +291,22 @@ export class PurchaseRepository {
         inventory_status,
         invoice_attachment_url,
         notes,
+        confirmed_at,
+        confirmed_by_user_id,
         created_at,
         updated_at,
         received_at,
         received_by_user_id,
+        confirmed_by_user:users!confirmed_by_user_id (
+          id,
+          full_name,
+          email
+        ),
+        received_by_user:users!received_by_user_id (
+          id,
+          full_name,
+          email
+        ),
         suppliers (
           id,
           name,
@@ -188,6 +325,7 @@ export class PurchaseRepository {
           id,
           product_id,
           quantity,
+          received_quantity,
           unit_cost,
           discount_percent,
           discount_amount,
@@ -201,7 +339,7 @@ export class PurchaseRepository {
             sku,
             barcode,
             unit_of_measure,
-            image_url
+            primary_image_url
           )
         ),
         supplier_payments (
@@ -212,7 +350,11 @@ export class PurchaseRepository {
           transaction_reference,
           notes,
           created_by_user_id,
-          created_at
+          created_at,
+          created_by_user:users!created_by_user_id (
+            id,
+            full_name
+          )
         )
       `,
       { count: 'exact' }
@@ -239,20 +381,22 @@ export class PurchaseRepository {
     // 4. Filtro por estado
     if (params.status && params.status !== 'ALL') {
       const st = params.status as string
-      if (st === 'DRAFT') {
-        query = query.eq('inventory_status', 'DRAFT')
-      } else if (st === 'PENDING_RECEPTION' || st === 'PENDING') {
-        query = query.eq('inventory_status', 'PENDING')
-      } else if (st === 'RECEIVED') {
-        query = query.eq('inventory_status', 'RECEIVED')
-      } else if (st === 'CANCELLED') {
-        query = query.eq('inventory_status', 'CANCELLED')
+      if (st === 'DRAFT' || st === 'BORRADOR') {
+        query = query.in('inventory_status', ['DRAFT', 'BORRADOR'])
+      } else if (st === 'CONFIRMED' || st === 'CONFIRMADA' || st === 'PENDING_RECEPTION' || st === 'PENDING') {
+        query = query.in('inventory_status', ['CONFIRMED', 'CONFIRMADA', 'PENDING', 'PENDING_RECEPTION'])
+      } else if (st === 'PARTIALLY_RECEIVED' || st === 'RECIBIDA_PARCIALMENTE') {
+        query = query.in('inventory_status', ['PARTIALLY_RECEIVED', 'RECIBIDA_PARCIALMENTE'])
+      } else if (st === 'RECEIVED' || st === 'RECIBIDA') {
+        query = query.in('inventory_status', ['RECEIVED', 'RECIBIDA'])
+      } else if (st === 'CANCELLED' || st === 'CANCELADA') {
+        query = query.in('inventory_status', ['CANCELLED', 'CANCELADA'])
       } else if (st === 'PAYMENT_PENDING' || st === 'PARTIAL') {
-        query = query.eq('payment_status', 'PENDING').neq('inventory_status', 'CANCELLED')
+        query = query.eq('payment_status', 'PARTIAL').not('inventory_status', 'in', '("CANCELLED","CANCELADA")')
       } else if (st === 'PAID') {
-        query = query.eq('payment_status', 'PAID').neq('inventory_status', 'CANCELLED')
+        query = query.eq('payment_status', 'PAID').not('inventory_status', 'in', '("CANCELLED","CANCELADA")')
       } else if (st === 'OVERDUE') {
-        query = query.eq('payment_status', 'OVERDUE').neq('inventory_status', 'CANCELLED')
+        query = query.eq('payment_status', 'OVERDUE').not('inventory_status', 'in', '("CANCELLED","CANCELADA")')
       }
     }
 
@@ -309,7 +453,7 @@ export class PurchaseRepository {
    * Obtiene una compra por su ID con relaciones completas
    */
   async findById(id: string): Promise<Purchase | null> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('purchases')
       .select(
         `
@@ -330,10 +474,22 @@ export class PurchaseRepository {
         inventory_status,
         invoice_attachment_url,
         notes,
+        confirmed_at,
+        confirmed_by_user_id,
         created_at,
         updated_at,
         received_at,
         received_by_user_id,
+        confirmed_by_user:users!confirmed_by_user_id (
+          id,
+          full_name,
+          email
+        ),
+        received_by_user:users!received_by_user_id (
+          id,
+          full_name,
+          email
+        ),
         suppliers (
           id,
           name,
@@ -352,6 +508,7 @@ export class PurchaseRepository {
           id,
           product_id,
           quantity,
+          received_quantity,
           unit_cost,
           discount_percent,
           discount_amount,
@@ -365,7 +522,7 @@ export class PurchaseRepository {
             sku,
             barcode,
             unit_of_measure,
-            image_url
+            primary_image_url
           )
         ),
         supplier_payments (
@@ -376,7 +533,11 @@ export class PurchaseRepository {
           transaction_reference,
           notes,
           created_by_user_id,
-          created_at
+          created_at,
+          created_by_user:users!created_by_user_id (
+            id,
+            full_name
+          )
         )
       `
       )
@@ -389,478 +550,281 @@ export class PurchaseRepository {
   }
 
   /**
-   * Registra una nueva compra en PostgreSQL bajo RLS (compra + ítems)
+   * Registra una nueva orden de compra en PostgreSQL mediante la RPC atómica fn_create_purchase_order
    */
-  async create(purchase: Purchase): Promise<Purchase> {
-    const companyId = await this.resolveCompanyId()
+  async create(input: CreatePurchaseInput | Purchase): Promise<Purchase> {
+    const supplierId = 'supplierId' in input ? input.supplierId : (input as any).supplierId
+    const destinationLocationId =
+      'destinationLocationId' in input
+        ? input.destinationLocationId
+        : (input as any).locationId || (input as any).destinationLocationId
+    const supplierInvoiceNumber =
+      'supplierInvoiceNumber' in input
+        ? input.supplierInvoiceNumber
+        : (input as any).supplierInvoiceNumber || (input as any).invoiceNumber
+    const date = 'date' in input ? input.date : (input as any).date
+    const paymentType = 'paymentType' in input ? input.paymentType : (input as any).paymentType || 'CONTADO'
+    const dueDate = input.dueDate
+    const notes = input.notes
+    const saveAsDraft =
+      'saveAsDraft' in input
+        ? input.saveAsDraft
+        : (input as any).status === 'BORRADOR' || (input as any).status === 'DRAFT'
 
-    const issueDate = purchase.date
-      ? purchase.date.split('T')[0]
-      : new Date().toISOString().split('T')[0]
+    const itemsPayload = (input.items || []).map((it: any) => ({
+      product_id: it.productId,
+      quantity: Number(it.quantity),
+      unit_cost: Number(it.unitCost),
+      discount_percent: Number(it.discountPercent || 0),
+      tax_rate_percent: Number(it.taxRatePercent !== undefined ? it.taxRatePercent : 19),
+    }))
 
-    let dueDate = purchase.dueDate ? purchase.dueDate.split('T')[0] : null
-    if (!dueDate) {
-      if (purchase.paymentType === 'CONTADO') {
-        dueDate = issueDate
-      } else {
-        const d = new Date()
-        d.setDate(d.getDate() + 30)
-        dueDate = d.toISOString().split('T')[0]
-      }
+    const { data: createdId, error } = await this.client.rpc('fn_create_purchase_order', {
+      p_supplier_id: supplierId,
+      p_location_id: destinationLocationId,
+      p_supplier_invoice_number: (supplierInvoiceNumber || '').trim(),
+      p_issue_date: date ? date.split('T')[0] : null,
+      p_due_date: dueDate ? dueDate.split('T')[0] : null,
+      p_payment_terms: paymentType,
+      p_notes: notes || null,
+      p_save_as_draft: Boolean(saveAsDraft),
+      p_items: itemsPayload,
+    })
+
+    if (error || !createdId) {
+      console.error('Error ejecutando fn_create_purchase_order:', error)
+      throw parsePurchaseDatabaseError(error)
     }
 
-    const isPaid = purchase.paymentType === 'CONTADO'
-    const inventoryStatus =
-      purchase.status === 'RECEIVED'
-        ? 'RECEIVED'
-        : purchase.status === 'DRAFT'
-        ? 'DRAFT'
-        : 'PENDING'
-
-    // 1. Insertar cabecera de compra en public.purchases
-    const { data: purchaseRow, error: purchaseError } = await supabaseClient
-      .from('purchases')
-      .insert({
-        company_id: companyId,
-        purchase_number: purchase.purchaseNumber,
-        supplier_invoice_number: purchase.supplierInvoiceNumber,
-        supplier_id: purchase.supplierId,
-        location_id: purchase.destinationLocationId || purchase.locationId,
-        issue_date: issueDate,
-        due_date: dueDate,
-        subtotal_amount: purchase.subtotal,
-        discount_amount: purchase.discountTotal || 0,
-        tax_amount: purchase.taxTotal,
-        total_amount: purchase.total,
-        paid_amount: isPaid ? purchase.total : 0,
-        payment_terms: purchase.paymentType,
-        payment_status: isPaid ? 'PAID' : 'PENDING',
-        inventory_status: inventoryStatus,
-        notes: purchase.notes || null,
-      })
-      .select()
-      .single()
-
-    if (purchaseError || !purchaseRow) {
-      console.error('Error insertando compra en public.purchases:', purchaseError)
-      throw new Error(`Error registrando compra: ${purchaseError?.message || 'Error desconocido'}`)
-    }
-
-    // 2. Insertar líneas en public.purchase_items
-    if (purchase.items && purchase.items.length > 0) {
-      const itemsPayload = purchase.items.map((it) => ({
-        company_id: companyId,
-        purchase_id: purchaseRow.id,
-        product_id: it.productId,
-        quantity: it.quantity,
-        unit_cost: it.unitCost,
-        discount_percent: it.discountPercent || 0,
-        discount_amount: it.discountAmount || 0,
-        tax_rate_percent: it.taxRatePercent,
-        tax_amount: it.taxAmount,
-        subtotal: it.subtotal,
-        total: it.total,
-      }))
-
-      const { error: itemsError } = await supabaseClient
-        .from('purchase_items')
-        .insert(itemsPayload)
-
-      if (itemsError) {
-        console.error('Error insertando líneas de compra en public.purchase_items:', itemsError)
-        throw new Error(`Error registrando líneas de compra: ${itemsError.message}`)
-      }
-    }
-
-    // 3. Si la compra es de contado, registrar el pago en public.supplier_payments y egreso de caja si aplica
-    if (isPaid && purchase.total > 0) {
-      const { error: payError } = await supabaseClient.from('supplier_payments').insert({
-        company_id: companyId,
-        location_id: purchaseRow.location_id,
-        purchase_id: purchaseRow.id,
-        payment_number: `PAG-${Date.now().toString().slice(-6)}`,
-        payment_date: issueDate,
-        amount: purchase.total,
-        payment_method: 'EFECTIVO',
-        transaction_reference: `CONTADO-${purchaseRow.purchase_number}`,
-        notes: 'Pago de contado al registrar la orden de compra',
-        created_by_user_id:
-          purchase.createdByUserId && purchase.createdByUserId.length === 36
-            ? purchase.createdByUserId
-            : null,
-      })
-
-      if (payError) {
-        console.error('Error insertando pago de contado en supplier_payments:', payError)
-      }
-
-      // Movimiento financiero en caja si existe sesión abierta
-      const { data: openSession } = await supabaseClient
-        .from('cash_sessions')
-        .select('id')
-        .eq('status', 'OPEN')
-        .limit(1)
-        .maybeSingle()
-
-      if (openSession?.id) {
-        await supabaseClient.from('cash_movements').insert({
-          session_id: openSession.id,
-          type: 'EXPENSE',
-          amount: purchase.total,
-          reason: `Egreso por compra de contado ${purchaseRow.purchase_number}`,
-          authorized_by_user_id:
-            purchase.createdByUserId && purchase.createdByUserId.length === 36
-              ? purchase.createdByUserId
-              : null,
-        })
-      }
-    }
-
-    // Si la compra se creó directamente recibida (por ejemplo en carga inicial), procesar recepción
-    if (inventoryStatus === 'RECEIVED') {
-      await this.receive(purchaseRow.id, { purchaseId: purchaseRow.id }, { id: 'sys', name: 'Sistema' })
-    }
-
-    const created = await this.findById(purchaseRow.id)
+    const created = await this.findById(createdId)
     if (!created) {
-      throw new Error('Compra creada pero no pudo ser consultada tras el registro.')
+      throw new Error('Orden de compra creada pero no pudo ser consultada tras el registro.')
     }
 
     return created
   }
 
   /**
-   * Recibe físicamente una compra en bodega:
-   * Genera los movimientos en public.inventory_movements, lo cual dispara
-   * automáticamente el trigger process_inventory_movement() en PostgreSQL
-   * para actualizar el stock y el costo promedio ponderado de esa bodega específica.
+   * Actualiza una orden de compra en estado BORRADOR mediante la RPC fn_update_purchase_order
+   */
+  async update(purchaseId: string, input: UpdatePurchaseInput): Promise<Purchase> {
+    const itemsPayload = (input.items || []).map((it: any) => ({
+      product_id: it.productId,
+      quantity: Number(it.quantity),
+      unit_cost: Number(it.unitCost),
+      discount_percent: Number(it.discountPercent || 0),
+      tax_rate_percent: Number(it.taxRatePercent !== undefined ? it.taxRatePercent : 19),
+    }))
+
+    const { data: updatedId, error } = await this.client.rpc('fn_update_purchase_order', {
+      p_purchase_id: purchaseId,
+      p_supplier_id: input.supplierId,
+      p_location_id: input.destinationLocationId,
+      p_supplier_invoice_number: input.supplierInvoiceNumber.trim(),
+      p_issue_date: input.date ? input.date.split('T')[0] : null,
+      p_due_date: input.dueDate ? input.dueDate.split('T')[0] : null,
+      p_payment_terms: input.paymentType,
+      p_notes: input.notes || null,
+      p_save_as_draft: Boolean(input.saveAsDraft),
+      p_items: itemsPayload,
+    })
+
+    if (error || !updatedId) {
+      console.error('Error ejecutando fn_update_purchase_order:', error)
+      throw parsePurchaseDatabaseError(error)
+    }
+
+    const updated = await this.findById(purchaseId)
+    if (!updated) {
+      throw new Error('Orden de compra actualizada pero no pudo ser consultada.')
+    }
+
+    return updated
+  }
+
+  /**
+   * Confirma formalmente una orden de compra en estado BORRADOR
+   */
+  async confirm(purchaseId: string, _user?: { id: string; name: string }): Promise<Purchase> {
+    const { error } = await this.client.rpc('fn_confirm_purchase_order', {
+      p_purchase_id: purchaseId,
+    })
+
+    if (error) {
+      console.error('Error ejecutando fn_confirm_purchase_order:', error)
+      throw parsePurchaseDatabaseError(error)
+    }
+
+    const updated = await this.findById(purchaseId)
+    if (!updated) throw new Error('Error recuperando orden confirmada.')
+    return updated
+  }
+
+  /**
+   * Anula una orden de compra siempre y cuando la mercancía no haya sido recibida
+   */
+  async cancel(purchaseId: string, reason: string, _user?: { id: string; name: string }): Promise<Purchase> {
+    const { error } = await this.client.rpc('fn_cancel_purchase_order', {
+      p_purchase_id: purchaseId,
+      p_reason: reason,
+    })
+
+    if (error) {
+      console.error('Error ejecutando fn_cancel_purchase_order:', error)
+      throw parsePurchaseDatabaseError(error)
+    }
+
+    const updated = await this.findById(purchaseId)
+    if (!updated) throw new Error('Error recuperando compra anulada.')
+    return updated
+  }
+
+  /**
+   * Recepción física de mercancía mediante RPC atómica fn_receive_purchase_order.
    */
   async receive(
     purchaseId: string,
     input: ReceivePurchaseInput,
-    user: { id: string; name: string }
+    _user?: { id: string; name: string }
   ): Promise<Purchase> {
-    const { data: purchaseRow, error: pError } = await supabaseClient
-      .from('purchases')
-      .select(
-        `
-        id,
-        company_id,
-        purchase_number,
-        supplier_invoice_number,
-        location_id,
-        inventory_status,
-        payment_status,
-        payment_terms,
-        total_amount,
-        paid_amount,
-        purchase_items (
-          id,
-          product_id,
-          quantity,
-          unit_cost,
-          total
-        )
-      `
-      )
-      .eq('id', purchaseId)
-      .single()
+    let itemsToReceive = input.receivedItems
 
-    if (pError || !purchaseRow) {
-      throw new Error(`Compra no encontrada (ID: ${purchaseId})`)
-    }
-
-    if (purchaseRow.inventory_status === 'RECEIVED') {
-      throw new Error('Esta compra ya ha sido recibida previamente.')
-    }
-
-    if (purchaseRow.inventory_status === 'CANCELLED') {
-      throw new Error('No es posible recibir una compra que ha sido anulada.')
-    }
-
-    const items = (purchaseRow.purchase_items as any[]) || []
-    if (items.length === 0) {
-      throw new Error('La compra no tiene productos para recibir en inventario.')
-    }
-
-    // 1. Obtener niveles de stock actuales para calcular previous_stock y new_stock
-    const productIds = items.map((it) => it.product_id)
-    const { data: currentStocks } = await supabaseClient
-      .from('stock_levels')
-      .select('product_id, quantity')
-      .eq('location_id', purchaseRow.location_id)
-      .in('product_id', productIds)
-
-    const stockMap = new Map<string, number>()
-    for (const s of currentStocks || []) {
-      stockMap.set(s.product_id, Number(s.quantity) || 0)
-    }
-
-    // Registrar cada entrada de inventario en public.inventory_movements
-    const movementsPayload = items.map((it) => {
-      const prevStock = stockMap.get(it.product_id) || 0
-      const qty = Number(it.quantity)
-      return {
-        company_id: purchaseRow.company_id,
-        location_id: purchaseRow.location_id,
-        product_id: it.product_id,
-        movement_type: 'PURCHASE_ENTRY',
-        quantity_in: qty,
-        quantity_out: 0,
-        previous_stock: prevStock,
-        new_stock: prevStock + qty,
-        unit_cost: Number(it.unit_cost),
-        total_cost: qty * Number(it.unit_cost),
-        document_type: 'PURCHASE_INVOICE',
-        document_reference: purchaseRow.purchase_number,
-        reason: `Entrada física por recepción de compra ${purchaseRow.purchase_number} (Factura proveedor: ${purchaseRow.supplier_invoice_number})`,
-        user_id: user.id && user.id.length === 36 ? user.id : null,
+    if (!itemsToReceive || itemsToReceive.length === 0) {
+      const current = await this.findById(purchaseId)
+      if (current) {
+        itemsToReceive = current.items
+          .map((it) => ({
+            itemId: it.id,
+            quantityReceived: Math.max(0, it.quantity - (it.receivedQuantity || 0)),
+          }))
+          .filter((it) => it.quantityReceived > 0)
       }
+    }
+
+    if (!itemsToReceive || itemsToReceive.length === 0) {
+      throw new Error('Debe indicar al menos una unidad a recibir en esta entrega.')
+    }
+
+    const payloadItems = itemsToReceive.map((it) => ({
+      item_id: it.itemId,
+      quantity_received: it.quantityReceived,
+    }))
+
+    const { data: rpcResult, error } = await this.client.rpc('fn_receive_purchase_order', {
+      p_purchase_id: purchaseId,
+      p_supplier_remission_number: input.supplierRemissionNumber?.trim() || null,
+      p_notes: input.notes?.trim() || null,
+      p_items: payloadItems,
     })
 
-    const { error: movError } = await supabaseClient
-      .from('inventory_movements')
-      .insert(movementsPayload)
-
-    if (movError) {
-      console.error('Error insertando movimientos de Kardex en recepción:', movError)
-      throw new Error(`Error ingresando inventario en Kardex: ${movError.message}`)
-    }
-
-    // 2. Actualizar estado de la compra en public.purchases
-    const { error: updateError } = await supabaseClient
-      .from('purchases')
-      .update({
-        inventory_status: 'RECEIVED',
-        received_at: new Date().toISOString(),
-        received_by_user_id: user.id && user.id.length === 36 ? user.id : null,
-        notes: input.notes ? `[RECEPCIÓN: ${input.notes}]` : undefined,
-      })
-      .eq('id', purchaseId)
-
-    if (updateError) {
-      console.error('Error actualizando estado de compra a RECEIVED:', updateError)
-      throw new Error(`Error actualizando estado de la compra: ${updateError.message}`)
-    }
-
-    // 3. Sincronizar catálogo maestro de productos con el nuevo costo promedio ponderado de stock_levels
-    for (const it of items) {
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('average_cost')
-        .eq('product_id', it.product_id)
-        .eq('location_id', purchaseRow.location_id)
-        .maybeSingle()
-
-      if (stockRow?.average_cost) {
-        await supabaseClient
-          .from('products')
-          .update({ cost_price: stockRow.average_cost })
-          .eq('id', it.product_id)
-      }
+    if (error) {
+      console.error('Error ejecutando fn_receive_purchase_order:', error)
+      throw parsePurchaseDatabaseError(error)
     }
 
     const updated = await this.findById(purchaseId)
-    if (!updated) {
-      throw new Error('Error recuperando la compra tras la recepción.')
+    if (!updated) throw new Error('Error recuperando compra tras recepción.')
+    if (rpcResult?.reception_number && updated.receptionInfo) {
+      updated.receptionInfo.receptionNumber = rpcResult.reception_number
     }
-
     return updated
   }
 
   /**
-   * Registra un abono o pago a proveedor (Cuentas por Pagar)
+   * Registra un abono o pago a proveedor (reservado para Fase 5.3 CxP mediante RPC atómica).
    */
   async registerPayment(
-    input: RegisterPaymentInput,
-    user: { id: string; name: string }
+    _input: RegisterPaymentInput,
+    _user?: { id: string; name: string }
   ): Promise<Purchase> {
-    const { data: purchaseRow, error: pError } = await supabaseClient
-      .from('purchases')
-      .select('id, company_id, location_id, purchase_number, total_amount, paid_amount, payment_status, inventory_status')
-      .eq('id', input.purchaseId)
-      .single()
-
-    if (pError || !purchaseRow) {
-      throw new Error(`Compra no encontrada (ID: ${input.purchaseId})`)
-    }
-
-    if (purchaseRow.inventory_status === 'CANCELLED') {
-      throw new Error('No se pueden registrar pagos a una compra anulada.')
-    }
-
-    const currentTotal = Number(purchaseRow.total_amount || 0)
-    const currentPaid = Number(purchaseRow.paid_amount || 0)
-    const currentPending = currentTotal - currentPaid
-
-    if (currentPending <= 0) {
-      throw new Error('Esta compra ya se encuentra totalmente pagada.')
-    }
-
-    if (input.amount <= 0) {
-      throw new Error('El valor a pagar debe ser mayor a 0.')
-    }
-
-    if (input.amount > currentPending + 0.01) {
-      throw new Error(
-        `El valor a pagar ($${input.amount.toLocaleString('es-CO')}) supera el saldo pendiente ($${currentPending.toLocaleString('es-CO')}).`
-      )
-    }
-
-    // 1. Insertar comprobante en public.supplier_payments
-    const { error: payError } = await supabaseClient
-      .from('supplier_payments')
-      .insert({
-        company_id: purchaseRow.company_id,
-        location_id: purchaseRow.location_id,
-        purchase_id: purchaseRow.id,
-        payment_number: `PAG-${Date.now().toString().slice(-6)}`,
-        payment_date: new Date().toISOString().split('T')[0],
-        amount: input.amount,
-        payment_method: input.paymentMethod || 'TRANSFERENCIA',
-        transaction_reference: input.reference || null,
-        notes: input.notes || null,
-        created_by_user_id: user.id && user.id.length === 36 ? user.id : null,
-      })
-
-    if (payError) {
-      console.error('Error insertando pago a proveedor:', payError)
-      throw new Error(`Error registrando comprobante de pago: ${payError.message}`)
-    }
-
-    // Registrar egreso financiero en caja o banco según corresponda
-    try {
-      if (input.paymentMethod === 'EFECTIVO') {
-        const { data: openSession } = await supabaseClient
-          .from('cash_sessions')
-          .select('id')
-          .eq('status', 'OPEN')
-          .limit(1)
-          .maybeSingle()
-
-        if (openSession?.id) {
-          await supabaseClient.from('cash_movements').insert({
-            session_id: openSession.id,
-            type: 'EXPENSE',
-            amount: input.amount,
-            reason: `Abono a proveedor compra ${purchaseRow.purchase_number}`,
-            authorized_by_user_id: user.id && user.id.length === 36 ? user.id : null,
-          })
-        }
-      } else if (input.paymentMethod === 'TRANSFERENCIA' || input.paymentMethod === 'CONSIGNACION') {
-        const { data: bankAccount } = await supabaseClient
-          .from('bank_accounts')
-          .select('id, current_balance')
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle()
-
-        if (bankAccount?.id) {
-          const newBalance = Math.max(0, Number(bankAccount.current_balance) - input.amount)
-          await supabaseClient
-            .from('bank_accounts')
-            .update({ current_balance: newBalance, updated_at: new Date().toISOString() })
-            .eq('id', bankAccount.id)
-
-          await supabaseClient.from('bank_movements').insert({
-            company_id: purchaseRow.company_id,
-            location_id: purchaseRow.location_id,
-            bank_account_id: bankAccount.id,
-            movement_number: `MOV-PAG-${Date.now().toString().slice(-6)}`,
-            movement_date: new Date().toISOString().split('T')[0],
-            movement_type: 'CREDIT',
-            amount: input.amount,
-            balance_after: newBalance,
-            concept: `Pago a proveedor compra ${purchaseRow.purchase_number}`,
-            reference: input.reference || null,
-            is_reconciled: true,
-            created_by_user_id: user.id && user.id.length === 36 ? user.id : null,
-          })
-        }
-      }
-    } catch (finErr) {
-      console.warn('Advertencia al registrar egreso financiero en tesorería/caja:', finErr)
-    }
-
-    // 2. Calcular nuevo saldo y estado
-    const newPaidAmount = currentPaid + input.amount
-    const newStatus = newPaidAmount >= currentTotal - 0.01 ? 'PAID' : 'PARTIAL'
-
-    // 3. Actualizar public.purchases
-    const { error: updateError } = await supabaseClient
-      .from('purchases')
-      .update({
-        paid_amount: newPaidAmount,
-        payment_status: newStatus,
-      })
-      .eq('id', purchaseRow.id)
-
-    if (updateError) {
-      console.error('Error actualizando saldo de la compra:', updateError)
-      throw new Error(`Error actualizando saldo de la compra: ${updateError.message}`)
-    }
-
-    const updated = await this.findById(purchaseRow.id)
-    if (!updated) {
-      throw new Error('Error recuperando compra tras registro de pago.')
-    }
-
-    return updated
+    throw new Error('El registro de pagos a proveedores está reservado para la Fase 5.3 (Cuentas por Pagar - CxP).')
   }
 
   /**
-   * Anula una compra siempre y cuando la mercancía no haya sido recibida físicamente
+   * Consulta las actas de recepción de una compra con sus líneas y productos
    */
-  async cancel(purchaseId: string, reason: string, _user: { id: string; name: string }): Promise<Purchase> {
-    const { data: purchaseRow, error: pError } = await supabaseClient
-      .from('purchases')
-      .select('id, purchase_number, inventory_status, notes')
-      .eq('id', purchaseId)
-      .single()
+  async getReceipts(purchaseId?: string): Promise<PurchaseReceipt[]> {
+    let query = this.client
+      .from('purchase_receipts')
+      .select(`
+        id,
+        reception_number,
+        purchase_id,
+        location_id,
+        reception_date,
+        received_by_user_id,
+        supplier_remission_number,
+        notes,
+        created_at,
+        locations ( id, name, code ),
+        purchases ( id, purchase_number, supplier_id, suppliers ( id, name, legal_name ) ),
+        purchase_receipt_items (
+          id,
+          purchase_item_id,
+          product_id,
+          quantity_received,
+          unit_cost,
+          created_at,
+          products ( id, name, sku, barcode )
+        ),
+        users:received_by_user_id ( id, full_name )
+      `)
+      .order('reception_date', { ascending: false })
 
-    if (pError || !purchaseRow) {
-      throw new Error(`Compra no encontrada (ID: ${purchaseId})`)
+    if (purchaseId) {
+      query = query.eq('purchase_id', purchaseId)
     }
 
-    if (purchaseRow.inventory_status === 'RECEIVED') {
-      throw new Error(
-        `Compras inmutables: No está permitido anular compras cuya mercancía ya fue recibida en bodega (Compra: ${purchaseRow.purchase_number}). Debe tramitarse devolución a proveedor.`
-      )
+    const { data, error } = await query
+    if (error) {
+      console.error('Error consultando purchase_receipts:', error)
+      return []
     }
 
-    const { error: updateError } = await supabaseClient
-      .from('purchases')
-      .update({
-        inventory_status: 'CANCELLED',
-        payment_status: 'CANCELLED',
-        notes: `${purchaseRow.notes || ''} [ANULADA: ${reason.trim()}]`,
-      })
-      .eq('id', purchaseId)
+    return (data || []).map((row: any) => {
+      const items: PurchaseReceiptItem[] = (row.purchase_receipt_items || []).map((it: any) => ({
+        id: it.id,
+        receptionId: row.id,
+        purchaseItemId: it.purchase_item_id,
+        productId: it.product_id,
+        productName: it.products?.name || 'Producto',
+        sku: it.products?.sku || '',
+        quantityReceived: Number(it.quantity_received) || 0,
+        unitCost: Number(it.unit_cost) || 0,
+        createdAt: it.created_at,
+      }))
 
-    if (updateError) {
-      console.error('Error cancelando compra:', updateError)
-      throw new Error(`Error cancelando compra: ${updateError.message}`)
-    }
-
-    const updated = await this.findById(purchaseId)
-    if (!updated) {
-      throw new Error('Error recuperando compra anulada.')
-    }
-
-    return updated
+      return {
+        id: row.id,
+        receptionNumber: row.reception_number,
+        purchaseId: row.purchase_id,
+        purchaseNumber: row.purchases?.purchase_number || '',
+        supplierId: row.purchases?.supplier_id,
+        supplierName: row.purchases?.suppliers?.name || row.purchases?.suppliers?.legal_name || 'Proveedor',
+        locationId: row.location_id,
+        locationName: row.locations?.name || 'Bodega',
+        locationCode: row.locations?.code || '',
+        receptionDate: row.reception_date,
+        receivedByUserId: row.received_by_user_id,
+        receivedByUserName: row.users?.full_name || 'Almacenista',
+        supplierRemissionNumber: row.supplier_remission_number || undefined,
+        notes: row.notes || undefined,
+        createdAt: row.created_at,
+        items,
+      }
+    })
   }
 
   /**
    * Obtiene estadísticas globales de compras desde PostgreSQL
    */
   async getPurchaseStats(_userContext?: any): Promise<PurchaseStats> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('purchases')
       .select('id, total_amount, paid_amount, payment_status, inventory_status, due_date')
-      .neq('inventory_status', 'CANCELLED')
+      .neq('inventory_status', 'CANCELADA')
 
     if (error || !data) {
-      console.error('Error consultando estadísticas de compras:', error)
       return {
         totalPurchasedPeriod: 0,
         pendingReceptionCount: 0,
@@ -891,9 +855,9 @@ export class PurchaseRepository {
       totalPaidAmount += paid
       totalPendingAmount += pending
 
-      if (p.inventory_status === 'PENDING' || p.inventory_status === 'DRAFT') {
+      if (p.inventory_status === 'PENDING' || p.inventory_status === 'DRAFT' || p.inventory_status === 'BORRADOR') {
         pendingPurchasesCount++
-      } else if (p.inventory_status === 'RECEIVED') {
+      } else if (p.inventory_status === 'RECEIVED' || p.inventory_status === 'RECIBIDA') {
         receivedPurchasesCount++
       }
 

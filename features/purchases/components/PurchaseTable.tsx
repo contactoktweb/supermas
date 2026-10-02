@@ -20,6 +20,7 @@ interface PurchaseTableProps {
   onPageSizeChange: (size: number) => void
   onSelectPurchase: (purchase: Purchase) => void
   onEditDraft?: (purchase: Purchase) => void
+  onConfirmPurchase?: (purchase: Purchase) => void
   onReceivePurchase?: (purchase: Purchase) => void
   onRegisterPayment?: (purchase: Purchase) => void
   onViewAttachment?: (purchase: Purchase) => void
@@ -32,16 +33,24 @@ export function getPurchaseStatusBadge(status: PurchaseStatus) {
   let badgeClass = 'type-badge-blue'
 
   switch (status) {
+    case 'BORRADOR':
     case 'DRAFT':
       label = 'Borrador'
       icon = 'edit'
       badgeClass = 'type-badge-blue'
       break
+    case 'CONFIRMADA':
     case 'PENDING_RECEPTION':
-      label = 'Por recibir'
+      label = 'Confirmada'
       icon = 'clock'
       badgeClass = 'type-badge-amber'
       break
+    case 'RECIBIDA_PARCIALMENTE':
+      label = 'Recibida Parcial'
+      icon = 'clock'
+      badgeClass = 'type-badge-purple'
+      break
+    case 'RECIBIDA':
     case 'RECEIVED':
       label = 'Recibida'
       icon = 'check'
@@ -57,6 +66,7 @@ export function getPurchaseStatusBadge(status: PurchaseStatus) {
       icon = 'check'
       badgeClass = 'type-badge-green'
       break
+    case 'CANCELADA':
     case 'CANCELLED':
       label = 'Anulada'
       icon = 'close'
@@ -103,6 +113,7 @@ export function PurchaseTable({
   onPageSizeChange,
   onSelectPurchase,
   onEditDraft,
+  onConfirmPurchase,
   onReceivePurchase,
   onRegisterPayment,
   onViewAttachment,
@@ -283,11 +294,26 @@ export function PurchaseTable({
             ) : (
               purchases.map((p) => {
                 const hasAttachment = p.attachments && p.attachments.length > 0
-              const canReceive = p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT'
-              const canPay = p.pendingBalance > 0 && p.status !== 'CANCELLED'
-              const canEdit = p.status === 'DRAFT'
-              const canCancel =
-                p.status !== 'RECEIVED' && p.status !== 'CANCELLED' && p.status !== 'PAID'
+                const canConfirm = p.status === 'BORRADOR' || p.status === 'DRAFT'
+                const canReceive =
+                  p.status === 'CONFIRMADA' ||
+                  p.status === 'PENDING_RECEPTION' ||
+                  p.status === 'RECIBIDA_PARCIALMENTE' ||
+                  p.status === 'BORRADOR' ||
+                  p.status === 'DRAFT'
+                const canPay =
+                  p.pendingBalance > 0 &&
+                  p.status !== 'CANCELLED' &&
+                  p.status !== 'CANCELADA'
+                const canEdit = p.status === 'BORRADOR' || p.status === 'DRAFT'
+                const hasReceivedItems = p.items?.some((it) => (it.receivedQuantity || 0) > 0)
+                const canCancel =
+                  p.status !== 'RECIBIDA' &&
+                  p.status !== 'RECEIVED' &&
+                  p.status !== 'CANCELLED' &&
+                  p.status !== 'CANCELADA' &&
+                  p.status !== 'PAID' &&
+                  !hasReceivedItems
 
               return (
                 <tr
@@ -413,6 +439,20 @@ export function PurchaseTable({
                           aria-label="Editar borrador"
                         >
                           <AppIcon name="edit" size={15} />
+                        </button>
+                      )}
+
+                      {/* Confirmar Orden */}
+                      {canConfirm && onConfirmPurchase && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => onConfirmPurchase(p)}
+                          title="Confirmar orden de compra"
+                          aria-label="Confirmar orden"
+                          style={{ color: '#2563eb' }}
+                        >
+                          <AppIcon name="check" size={15} />
                         </button>
                       )}
 

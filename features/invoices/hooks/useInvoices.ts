@@ -16,7 +16,7 @@ import {
 
 export function useInvoices() {
   const [userContext] = useState<InvoiceUserContext>({
-    userId: 'usr-admin-01',
+    userId: '',
     userName: 'Admin Mauricio',
     userRole: 'Administrador',
     permissions: [

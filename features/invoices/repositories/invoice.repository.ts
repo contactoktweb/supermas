@@ -579,6 +579,17 @@ export class InvoiceRepository {
     // Si se ajusta inventario, registrar reingreso en inventory_movements
     if (adjustInventory && creditNote.items && creditNote.items.length > 0) {
       for (const item of creditNote.items) {
+        const { data: stockRow } = await supabaseClient
+          .from('stock_levels')
+          .select('quantity, average_cost')
+          .eq('product_id', item.productId)
+          .eq('location_id', creditNote.locationId)
+          .maybeSingle()
+
+        const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
+        const newStock = prevStock + Number(item.quantity || 0)
+        const unitCost = stockRow ? Number(stockRow.average_cost || 0) : (item.unitCost || item.unitPrice * 0.7)
+
         await supabaseClient.from('inventory_movements').insert({
           company_id: companyId,
           product_id: item.productId,
@@ -586,10 +597,10 @@ export class InvoiceRepository {
           movement_type: 'CUSTOMER_RETURN',
           quantity_in: item.quantity,
           quantity_out: 0,
-          previous_stock: 0,
-          new_stock: item.quantity,
-          unit_cost: item.unitCost || item.unitPrice * 0.7,
-          total_cost: item.quantity * (item.unitCost || item.unitPrice * 0.7),
+          previous_stock: prevStock,
+          new_stock: newStock,
+          unit_cost: unitCost,
+          total_cost: Number(item.quantity) * unitCost,
           document_type: 'CREDIT_NOTE',
           document_reference: `${prefix}-${nextNumber}`,
           reason: `Reingreso por Nota Crédito a Factura ${originalInvoiceId}`,

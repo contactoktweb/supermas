@@ -7,10 +7,13 @@ import {
   PurchaseStats as PurchaseStatsType,
   SupplierOption,
   CreatePurchaseInput,
+  UpdatePurchaseInput,
+  ReceivePurchaseInput,
   RegisterPaymentInput,
   UserPermissionContext,
 } from '../types'
 import { LocationOption } from '../services/location.service'
+import { useAuth } from '@/features/auth/hooks/useAuth'
 import { purchaseService } from '../services/purchase.service'
 import { supplierService } from '../services/supplier.service'
 import { locationService } from '../services/location.service'
@@ -35,6 +38,16 @@ interface PurchasesPageProps {
 }
 
 export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
+  const { user } = useAuth()
+  const effectiveUserContext: UserPermissionContext | undefined = user
+    ? {
+        userId: user.id,
+        userName: user.fullName || user.email,
+        userRole: user.roleCode,
+        permissions: user.permissions || [],
+      }
+    : userContext
+
   // 1. Data States
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [total, setTotal] = useState(0)
@@ -69,6 +82,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   // 3. Modals & Drawers
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
   const [isNewDrawerOpen, setIsNewDrawerOpen] = useState(false)
+  const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [receiveModalPurchase, setReceiveModalPurchase] = useState<Purchase | null>(null)
   const [paymentModalPurchase, setPaymentModalPurchase] = useState<Purchase | null>(null)
   const [cancelModalPurchase, setCancelModalPurchase] = useState<Purchase | null>(null)
@@ -115,7 +129,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     setLoading(true)
     setError(null)
     try {
-      const resp = await purchaseService.list(filters, userContext)
+      const resp = await purchaseService.list(filters, effectiveUserContext)
       setPurchases(resp.items)
       setTotal(resp.total)
       setTotalPages(resp.totalPages)
@@ -125,20 +139,20 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     } finally {
       setLoading(false)
     }
-  }, [filters, userContext])
+  }, [filters, effectiveUserContext])
 
   // 7. Fetch Stats
   const fetchStats = useCallback(async () => {
     setStatsLoading(true)
     try {
-      const data = await purchaseService.getPurchaseStats(userContext)
+      const data = await purchaseService.getPurchaseStats(effectiveUserContext)
       setStats(data)
     } catch (err) {
       console.error('Error cargando estadísticas de compras:', err)
     } finally {
       setStatsLoading(false)
     }
-  }, [userContext])
+  }, [effectiveUserContext])
 
   // Trigger loads
   useEffect(() => {
@@ -189,22 +203,72 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Action: Create Purchase
   const handleCreatePurchase = async (input: CreatePurchaseInput) => {
-    const created = await purchaseService.createPurchase(input, userContext)
+    const created = await purchaseService.createPurchase(input, effectiveUserContext)
     addToast(
-      'Compra Registrada',
-      `La orden ${created.purchaseNumber} fue registrada con éxito (${created.status === 'DRAFT' ? 'Borrador' : 'Emitida'}).`,
-      'success'
+      "Compra Registrada",
+      `La orden ${created.purchaseNumber} fue registrada con éxito (${created.status === "BORRADOR" || created.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
+      "success"
     )
     fetchPurchases()
     fetchStats()
   }
 
+  // Action: Update Purchase (Draft)
+  const handleUpdatePurchase = async (purchaseId: string, input: UpdatePurchaseInput) => {
+    const updated = await purchaseService.updatePurchase(purchaseId, input, effectiveUserContext)
+    addToast(
+      "Compra Actualizada",
+      `La orden ${updated.purchaseNumber} fue actualizada con éxito (${updated.status === "BORRADOR" || updated.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
+      "success"
+    )
+    fetchPurchases()
+    fetchStats()
+  }
+
+  // Action: Confirm Draft Purchase
+  const handleConfirmOrder = async (purchase: Purchase) => {
+    try {
+      const confirmed = await purchaseService.confirmOrder(purchase.id, effectiveUserContext)
+      addToast(
+        'Orden Confirmada',
+        `La orden ${confirmed.purchaseNumber} fue confirmada exitosamente. Lista para recepción.`,
+        'success'
+      )
+      if (selectedPurchase?.id === purchase.id) {
+        setSelectedPurchase(confirmed)
+      }
+      fetchPurchases()
+      fetchStats()
+    } catch (err: any) {
+      addToast('Error al confirmar', err.message || 'No se pudo confirmar la orden.', 'error')
+    }
+  }
+
   // Action: Receive Purchase (Inventory & Kardex entry)
-  const handleConfirmReceive = async (purchaseId: string, notes?: string) => {
-    const received = await purchaseService.receivePurchase(purchaseId, notes, userContext)
+  const handleConfirmReceive = async (
+    purchaseId: string,
+    notes?: string,
+    remission?: string,
+    items?: { itemId: string; quantityReceived: number }[]
+  ) => {
+    const received = await purchaseService.receivePurchase(
+      {
+        purchaseId,
+        notes,
+        supplierRemissionNumber: remission,
+        receivedItems: items?.map((i) => ({
+          itemId: i.itemId,
+          quantityReceived: i.quantityReceived,
+        })),
+      },
+      effectiveUserContext
+    )
+    const recNum = received.receptionInfo?.receptionNumber
     addToast(
       'Mercancía Recibida',
-      `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`,
+      recNum
+        ? `Acta ${recNum} generada con éxito. Inventario ingresado a Kardex en ${received.destinationLocationName}.`
+        : `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`,
       'success'
     )
     // Update active drawer if open
@@ -217,7 +281,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Action: Register Payment
   const handleConfirmPayment = async (input: RegisterPaymentInput) => {
-    const updated = await purchaseService.registerPayment(input, userContext)
+    const updated = await purchaseService.registerPayment(input, effectiveUserContext)
     addToast(
       'Pago Registrado',
       `Se registró el abono a la factura. Nuevo saldo pendiente: $${updated.pendingBalance.toLocaleString('es-CO')}.`,
@@ -232,7 +296,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Action: Cancel Purchase
   const handleConfirmCancel = async (purchaseId: string, reason: string) => {
-    const cancelled = await purchaseService.cancelPurchase(purchaseId, reason, userContext)
+    const cancelled = await purchaseService.cancelPurchase(purchaseId, reason, effectiveUserContext)
     addToast(
       'Compra Anulada',
       `La orden ${cancelled.purchaseNumber} fue anulada correctamente.`,
@@ -345,6 +409,8 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
             setFilters((prev) => ({ ...prev, pageSize: s, page: 1 }))
           }}
           onSelectPurchase={(p) => setSelectedPurchase(p)}
+          onEditDraft={(p) => { setEditingPurchase(p); setIsNewDrawerOpen(true); }}
+          onConfirmPurchase={handleConfirmOrder}
           onReceivePurchase={(p) => setReceiveModalPurchase(p)}
           onRegisterPayment={(p) => setPaymentModalPurchase(p)}
           onCancelPurchase={(p) => setCancelModalPurchase(p)}
@@ -360,8 +426,13 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         isOpen={isNewDrawerOpen}
         suppliers={suppliers}
         locations={locations}
-        onClose={() => setIsNewDrawerOpen(false)}
+        initialPurchase={editingPurchase}
+        onClose={() => {
+          setIsNewDrawerOpen(false)
+          setEditingPurchase(null)
+        }}
         onSubmit={handleCreatePurchase}
+        onUpdate={handleUpdatePurchase}
       />
 
       {/* Detalle de Compra */}
@@ -369,8 +440,14 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         purchase={selectedPurchase}
         isOpen={Boolean(selectedPurchase)}
         isCostRedacted={isCostRedacted}
-        userContext={userContext}
+        userContext={effectiveUserContext}
         onClose={() => setSelectedPurchase(null)}
+        onEditDraft={(p) => {
+          setSelectedPurchase(null)
+          setEditingPurchase(p)
+          setIsNewDrawerOpen(true)
+        }}
+        onConfirm={handleConfirmOrder}
         onReceive={(p) => {
           setSelectedPurchase(null)
           setReceiveModalPurchase(p)

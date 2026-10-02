@@ -3,25 +3,53 @@ import {
   PurchaseFilterParams,
   PaginatedPurchasesResponse,
   PurchaseStats,
+  PurchaseReceipt,
   CreatePurchaseInput,
+  UpdatePurchaseInput,
   ReceivePurchaseInput,
   RegisterPaymentInput,
   UserPermissionContext,
 } from '../types'
-import { purchaseRepository } from '../repositories/purchase.repository'
-import { purchaseCalculationService } from './purchase-calculation.service'
-import { supplierService } from './supplier.service'
-import { locationService } from './location.service'
+import { purchaseRepository, PurchaseRepository } from '../repositories/purchase.repository'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { supplierService, SupplierService } from './supplier.service'
+import { locationService, LocationService } from './location.service'
 import {
   createPurchaseSchema,
+  updatePurchaseSchema,
   registerPaymentSchema,
   cancelPurchaseSchema,
   receivePurchaseSchema,
 } from '../schemas/purchase.schema'
 
 export class PurchaseService {
+  private repository: PurchaseRepository
+  private supplierService: SupplierService
+  private locationService: LocationService
+
+  constructor(
+    repository: PurchaseRepository = purchaseRepository,
+    supplierSvc: SupplierService = supplierService,
+    locationSvc: LocationService = locationService
+  ) {
+    this.repository = repository
+    this.supplierService = supplierSvc
+    this.locationService = locationSvc
+  }
+
+  withRepository(repository: PurchaseRepository): PurchaseService {
+    return new PurchaseService(repository, this.supplierService, this.locationService)
+  }
+
+  withClient(client: SupabaseClient): PurchaseService {
+    return new PurchaseService(
+      new PurchaseRepository(client),
+      new SupplierService(client),
+      new LocationService(client)
+    )
+  }
   private hasPermission(userContext?: UserPermissionContext, ...requiredPermissions: string[]): boolean {
-    if (!userContext) return true // Default fallback
+    if (!userContext) return true // Default fallback en contexto local/test
     if (
       userContext.userRole === 'SUPERADMIN' ||
       userContext.userRole === 'ADMIN' ||
@@ -72,7 +100,7 @@ export class PurchaseService {
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
-    const response = await purchaseRepository.findAll(params)
+    const response = await this.repository.findAll(params)
 
     const items = response.data.map((p) => this.sanitizePurchaseForUser(p, canReadCost))
 
@@ -94,7 +122,7 @@ export class PurchaseService {
       throw new Error('No tienes permisos para ver el detalle de compras')
     }
 
-    const purchase = await purchaseRepository.findById(id)
+    const purchase = await this.repository.findById(id)
     if (!purchase) return null
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
@@ -102,7 +130,7 @@ export class PurchaseService {
   }
 
   /**
-   * Crea una nueva compra en el sistema.
+   * Crea una nueva orden de compra en el sistema.
    */
   async create(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
@@ -113,84 +141,32 @@ export class PurchaseService {
     createPurchaseSchema.parse(input)
 
     // 2. Verificar existencia del proveedor
-    const supplier = await supplierService.getById(input.supplierId)
+    const supplier = await this.supplierService.getById(input.supplierId)
     if (!supplier) {
-      throw new Error(`El proveedor seleccionado no existe (ID: ${input.supplierId})`)
+      throw new Error(`El proveedor seleccionado no existe o no está activo (ID: ${input.supplierId})`)
     }
 
     // 3. Verificar existencia de la bodega de destino
-    const location = await locationService.getById(input.destinationLocationId)
+    const location = await this.locationService.getById(input.destinationLocationId)
     if (!location) {
-      throw new Error(`La bodega de destino no existe (ID: ${input.destinationLocationId})`)
+      throw new Error(`La bodega de destino no existe o no está activa (ID: ${input.destinationLocationId})`)
     }
 
-    // 4. Calcular líneas e impuestos con el motor matemático
-    const calculatedItems = input.items.map((itemInput) =>
-      purchaseCalculationService.calculateLineItem(itemInput)
-    )
-    const totals = purchaseCalculationService.calculateTotals(calculatedItems)
-
-    const nowIso = new Date().toISOString()
-    const autoCode = `COM-${String(Date.now()).slice(-6)}`
-    const status = input.saveAsDraft ? 'DRAFT' : 'PENDING_RECEPTION'
-
-    const newPurchase: Purchase = {
-      id: '',
-      purchaseNumber: autoCode,
-      supplierInvoiceNumber: input.supplierInvoiceNumber.trim(),
-      invoiceNumber: autoCode,
-      locationId: location.id,
-      totalCost: totals.total,
-      paymentTerms: input.paymentType,
-      itemsCount: calculatedItems.reduce((acc, i) => acc + i.quantity, 0),
-
-      date: input.date || nowIso,
-      supplierId: supplier.id,
-      supplierName: supplier.name,
-      supplierNit: supplier.nit,
-      supplierPhone: supplier.phone,
-      supplierEmail: supplier.email,
-
-      destinationLocationId: location.id,
-      destinationLocationName: location.name,
-      destinationLocationCode: location.code,
-
-      paymentType: input.paymentType,
-      dueDate: input.paymentType === 'CREDITO' ? input.dueDate : undefined,
-      status,
-
-      subtotal: totals.subtotal,
-      discountTotal: totals.discountTotal,
-      taxTotal: totals.taxTotal,
-      total: totals.total,
-
-      paidAmount: input.paymentType === 'CONTADO' ? totals.total : 0,
-      pendingBalance: input.paymentType === 'CONTADO' ? 0 : totals.total,
-
-      items: calculatedItems,
-      payments: [],
-      attachments: input.attachment
-        ? [
-            {
-              id: `att-${Date.now()}`,
-              fileName: input.attachment.fileName,
-              fileType: input.attachment.fileType,
-              fileSize: input.attachment.fileSize,
-              url: input.attachment.url,
-              uploadedAt: nowIso,
-              uploadedBy: userContext?.userName || 'Administrador',
-            },
-          ]
-        : [],
-
-      createdByUserId: userContext?.userId || 'usr-001',
-      createdByUserName: userContext?.userName || 'Administrador',
-      notes: input.notes?.trim() || undefined,
-      createdAt: nowIso,
-      updatedAt: nowIso,
+    // 4. Validar líneas y cantidades
+    if (!input.items || input.items.length === 0) {
+      throw new Error('Debe agregar al menos un producto a la compra')
     }
 
-    return purchaseRepository.create(newPurchase)
+    for (const it of input.items) {
+      if (it.quantity <= 0) {
+        throw new Error(`La cantidad debe ser mayor a 0 para el producto ${it.productName || it.productId}`)
+      }
+      if (it.unitCost < 0) {
+        throw new Error(`El costo unitario no puede ser negativo para el producto ${it.productName || it.productId}`)
+      }
+    }
+
+    return this.repository.create(input)
   }
 
   async createPurchase(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
@@ -198,7 +174,95 @@ export class PurchaseService {
   }
 
   /**
-   * Recibe físicamente una compra e ingresa la mercancía al inventario y Kardex.
+   * Actualiza una orden de compra en estado BORRADOR.
+   */
+  async updatePurchase(
+    purchaseId: string,
+    input: UpdatePurchaseInput,
+    userContext?: UserPermissionContext
+  ): Promise<Purchase> {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para modificar compras (purchases.create requerido)')
+    }
+
+    updatePurchaseSchema.parse(input)
+
+    const existing = await this.repository.findById(purchaseId)
+    if (!existing) {
+      throw new Error(`Orden de compra no encontrada (ID: ${purchaseId})`)
+    }
+
+    if (existing.status !== 'BORRADOR' && existing.status !== 'DRAFT') {
+      throw new Error(`Solo las órdenes de compra en estado borrador pueden ser editadas (Estado actual: ${existing.status})`)
+    }
+
+    const supplier = await this.supplierService.getById(input.supplierId)
+    if (!supplier) {
+      throw new Error(`El proveedor seleccionado no existe o no está activo (ID: ${input.supplierId})`)
+    }
+
+    const location = await this.locationService.getById(input.destinationLocationId)
+    if (!location) {
+      throw new Error(`La bodega de destino no existe o no está activa (ID: ${input.destinationLocationId})`)
+    }
+
+    if (!input.items || input.items.length === 0) {
+      throw new Error('Debe agregar al menos un producto a la orden de compra')
+    }
+
+    for (const it of input.items) {
+      if (it.quantity <= 0) {
+        throw new Error(`La cantidad debe ser mayor a 0 para el producto ${it.productName || it.productId}`)
+      }
+      if (it.unitCost < 0) {
+        throw new Error(`El costo unitario no puede ser negativo para el producto ${it.productName || it.productId}`)
+      }
+    }
+
+    return this.repository.update(purchaseId, input)
+  }
+
+  /**
+   * Confirma formalmente una orden de compra en estado BORRADOR.
+   */
+  async confirmOrder(purchaseId: string, userContext?: UserPermissionContext): Promise<Purchase> {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para confirmar órdenes de compra (purchases.create requerido)')
+    }
+
+    return this.repository.confirm(purchaseId)
+  }
+
+  /**
+   * Anula una orden de compra antes de ser recibida.
+   */
+  async cancelPurchase(
+    id: string,
+    reason: string,
+    userContext?: UserPermissionContext
+  ): Promise<Purchase> {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.cancel')) {
+      throw new Error('No tienes permisos para anular compras (purchases.create requerido)')
+    }
+
+    cancelPurchaseSchema.parse({ purchaseId: id, reason })
+
+    return this.repository.cancel(id, reason)
+  }
+
+  /**
+   * Consulta las actas de recepción física de mercancía.
+   */
+  async getReceipts(purchaseId?: string, userContext?: UserPermissionContext): Promise<PurchaseReceipt[]> {
+    if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
+      throw new Error('No tienes permisos para consultar recepciones (purchases.read requerido)')
+    }
+
+    return this.repository.getReceipts(purchaseId)
+  }
+
+  /**
+   * Recibe físicamente una compra (reservado para Fase 5.2).
    */
   async receivePurchase(
     inputOrId: ReceivePurchaseInput | string,
@@ -229,10 +293,7 @@ export class PurchaseService {
 
     receivePurchaseSchema.parse(payload)
 
-    return purchaseRepository.receive(payload.purchaseId, payload, {
-      id: context?.userId || 'usr-001',
-      name: context?.userName || 'Administrador',
-    })
+    return this.repository.receive(payload.purchaseId, payload)
   }
 
   /**
@@ -248,30 +309,7 @@ export class PurchaseService {
 
     registerPaymentSchema.parse(input)
 
-    return purchaseRepository.registerPayment(input, {
-      id: userContext?.userId || 'usr-001',
-      name: userContext?.userName || 'Administrador',
-    })
-  }
-
-  /**
-   * Anula una compra antes de ser recibida.
-   */
-  async cancelPurchase(
-    id: string,
-    reason: string,
-    userContext?: UserPermissionContext
-  ): Promise<Purchase> {
-    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.cancel')) {
-      throw new Error('No tienes permisos para anular compras (purchases.create requerido)')
-    }
-
-    cancelPurchaseSchema.parse({ purchaseId: id, reason })
-
-    return purchaseRepository.cancel(id, reason, {
-      id: userContext?.userId || 'usr-001',
-      name: userContext?.userName || 'Administrador',
-    })
+    return this.repository.registerPayment(input)
   }
 
   /**
@@ -283,7 +321,7 @@ export class PurchaseService {
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
-    const rawStats = await purchaseRepository.getPurchaseStats(userContext)
+    const rawStats = await this.repository.getPurchaseStats(userContext)
 
     if (!canReadCost) {
       return {
@@ -309,7 +347,7 @@ export class PurchaseService {
   }
 
   exportToCsv(items: Purchase[], isCostRedacted: boolean = false): string {
-    return purchaseRepository.exportToCsv(items, isCostRedacted)
+    return this.repository.exportToCsv(items, isCostRedacted)
   }
 }
 

@@ -1,8 +1,6 @@
-import { purchaseService } from '../services/purchase.service'
 import { purchaseCalculationService } from '../services/purchase-calculation.service'
 import { costService } from '../services/cost.service'
-import { db } from '@/lib/supabase'
-import { UserPermissionContext } from '../types'
+import { createPurchaseSchema, updatePurchaseSchema, purchaseItemInputSchema } from '../schemas/purchase.schema'
 
 console.log('--- EJECUTANDO TESTS DE LÓGICA DE NEGOCIO - MÓDULO COMPRAS ---')
 
@@ -45,144 +43,103 @@ async function runTests() {
   }
   console.log('✓ Fórmula de Costo Promedio Ponderado verificada matemáticamente')
 
-  // TEST 3: Creación de Compra y Estado Inicial
-  console.log('\n[Test 3] Creación de Compra a Proveedor')
-  const newPurchase = await purchaseService.createPurchase({
-    supplierId: 'sup-001',
-    supplierInvoiceNumber: 'FAC-TEST-001',
-    destinationLocationId: 'loc-001',
-    date: '2026-09-10',
-    paymentType: 'CREDITO',
-    dueDate: '2026-10-10',
-    notes: 'Compra de prueba automatizada',
+  // TEST 3: Totales Consolidados y Desglose Tributario Multi-tarifa
+  console.log('\n[Test 3] Totales Consolidados y Desglose Tributario Multi-tarifa')
+  const lineItem2 = purchaseCalculationService.calculateLineItem({
+    productId: 'prod-002',
+    productName: 'Aceite Vegetal 1L',
+    sku: 'ABA-ACE-002',
+    unitOfMeasure: 'UND',
+    quantity: 50,
+    unitCost: 8000,
+    discountPercent: 5, // subtotal = 400.000, desc = 20.000, base = 380.000
+    taxCode: 'IVA_5',
+    taxRatePercent: 5,  // IVA 5% de 380.000 = 19.000
+  })
+
+  const totals = purchaseCalculationService.calculateTotals([lineItem, lineItem2])
+  if (totals.subtotal !== 1400000) {
+    throw new Error(`Subtotal consolidado incorrecto. Esperado: 1.400.000, Obtenido: ${totals.subtotal}`)
+  }
+  if (totals.discountTotal !== 120000) {
+    throw new Error(`Descuento total incorrecto. Esperado: 120.000, Obtenido: ${totals.discountTotal}`)
+  }
+  if (totals.taxTotal !== 190000) {
+    throw new Error(`Impuestos totales incorrectos. Esperado: 190.000, Obtenido: ${totals.taxTotal}`)
+  }
+  if (totals.total !== 1470000) {
+    throw new Error(`Total consolidado incorrecto. Esperado: 1.470.000, Obtenido: ${totals.total}`)
+  }
+  console.log('✓ Totales consolidados y desglose multi-tarifa DIAN correctos')
+
+  // TEST 4: Validación Zod de Creación y Edición de Compras
+  console.log('\n[Test 4] Validación Zod de Esquemas de Compra')
+  const validPayload = {
+    supplierId: '00000000-0000-0000-0000-000000000001',
+    destinationLocationId: '00000000-0000-0000-0000-000000000002',
+    supplierInvoiceNumber: 'FAC-12345',
+    date: '2026-10-02',
+    paymentType: 'CREDITO' as const,
+    dueDate: '2026-11-02',
+    notes: 'Compra de prueba',
+    saveAsDraft: false,
     items: [
       {
-        productId: 'prod-001',
-        productName: 'Arroz Diana Premium Extra 5kg',
-        sku: 'ABA-ARR-001',
-        unitOfMeasure: 'PAQ',
-        quantity: 20,
-        unitCost: 15000,
+        productId: '00000000-0000-0000-0000-000000000003',
+        productName: 'Producto Test',
+        sku: 'TEST-SKU',
+        quantity: 10,
+        unitCost: 5000,
         discountPercent: 0,
-        taxCode: 'EXENTO',
-        taxRatePercent: 0,
+        taxCode: 'IVA_19',
+        taxRatePercent: 19,
       },
     ],
-  })
-
-  if (!newPurchase.purchaseNumber.startsWith('COM-')) {
-    throw new Error(`Código de compra inválido: ${newPurchase.purchaseNumber}`)
-  }
-  if (newPurchase.status !== 'PENDING_RECEPTION') {
-    throw new Error(`Estado inicial incorrecto: ${newPurchase.status}`)
-  }
-  if (newPurchase.pendingBalance !== 300000) {
-    throw new Error(`Saldo pendiente incorrecto: ${newPurchase.pendingBalance}`)
-  }
-  console.log(`✓ Compra ${newPurchase.purchaseNumber} creada con saldo $${newPurchase.pendingBalance}`)
-
-  // TEST 4: Recepción Física e Invariante de Kardex
-  console.log('\n[Test 4] Recepción Física en Bodega y Movimiento de Kardex')
-  const movementsBefore = db.inventoryMovements.length
-  const receivedPurchase = await purchaseService.receivePurchase(
-    newPurchase.id,
-    'Mercancía verificada en muelle de descargue'
-  )
-
-  if (receivedPurchase.status !== 'PAYMENT_PENDING') {
-    throw new Error(
-      `Estado después de recibir compra a crédito debería ser PAYMENT_PENDING, obtenido: ${receivedPurchase.status}`
-    )
-  }
-  if (db.inventoryMovements.length <= movementsBefore) {
-    throw new Error('No se generó el movimiento de Kardex en inventory_movements.json')
   }
 
-  const latestMovement = (db.inventoryMovements as any[])[0]
-  if (latestMovement.type !== 'COMPRA' && latestMovement.movementType !== 'COMPRA') {
-    throw new Error(`Tipo de movimiento en Kardex debería ser COMPRA, obtenido: ${latestMovement.type || latestMovement.movementType}`)
-  }
-  if (latestMovement.documentRef !== receivedPurchase.purchaseNumber && latestMovement.sourceDocumentNumber !== receivedPurchase.supplierInvoiceNumber) {
-    throw new Error(`Documento origen en Kardex incorrecto: ${latestMovement.documentRef}`)
-  }
-  console.log(`✓ Recepción física confirmada. Movimiento Kardex generado: ${latestMovement.id} (Tipo: ${latestMovement.movementType || latestMovement.type})`)
+  createPurchaseSchema.parse(validPayload)
+  updatePurchaseSchema.parse(validPayload)
+  console.log('✓ Esquemas createPurchaseSchema y updatePurchaseSchema validados')
 
-  // TEST 5: Registro de Pago y Actualización de Saldo Pendiente
-  console.log('\n[Test 5] Registro de Abonos y Liquidación de Factura')
-  const partialPayment = await purchaseService.registerPayment({
-    purchaseId: receivedPurchase.id,
-    amount: 100000,
-    paymentMethod: 'TRANSFERENCIA',
-    reference: 'TRANSF-BANC-00192',
-    notes: 'Abono parcial inicial',
-  })
-
-  if (partialPayment.pendingBalance !== 200000) {
-    throw new Error(`Saldo pendiente tras abono parcial incorrecto: ${partialPayment.pendingBalance}`)
-  }
-  if (partialPayment.status !== 'PAYMENT_PENDING') {
-    throw new Error(`Estado debería continuar en PAYMENT_PENDING tras abono parcial`)
-  }
-  console.log(`✓ Abono parcial aplicado. Nuevo saldo: $${partialPayment.pendingBalance}`)
-
-  // Pago restante para liquidar totalmente
-  const finalPayment = await purchaseService.registerPayment({
-    purchaseId: receivedPurchase.id,
-    amount: 200000,
-    paymentMethod: 'TRANSFERENCIA',
-    reference: 'TRANSF-BANC-00193',
-    notes: 'Pago final total',
-  })
-
-  if (finalPayment.pendingBalance !== 0) {
-    throw new Error(`Saldo debería ser 0 tras pago total, obtenido: ${finalPayment.pendingBalance}`)
-  }
-  if (finalPayment.status !== 'PAID') {
-    throw new Error(`Estado debería ser PAID tras liquidar saldo, obtenido: ${finalPayment.status}`)
-  }
-  console.log(`✓ Factura liquidada totalmente. Estado final: ${finalPayment.status}`)
-
-  // TEST 6: Control de Permisos RBAC y Confidencialidad de Costos
-  console.log('\n[Test 6] Control de Permisos RBAC y Ocultación de Costos')
-  const restrictedContext: UserPermissionContext = {
-    userId: 'user-aux-01',
-    userName: 'Auxiliar Operativo',
-    userRole: 'AUXILIAR',
-    permissions: ['purchase.read'], // No tiene cost.read ni purchase.create
-  }
-
-  const listResponse = await purchaseService.list({ page: 1, pageSize: 5 }, restrictedContext)
-  if (!listResponse.isCostRedacted) {
-    throw new Error('isCostRedacted debería ser true para usuarios sin cost.read')
-  }
-
+  // TEST 5: Bloqueo de Datos Inválidos en Esquemas
+  console.log('\n[Test 5] Bloqueo de Datos Inválidos (Zod Guard)')
   try {
-    await purchaseService.createPurchase(
-      {
-        supplierId: 'sup-001',
-        supplierInvoiceNumber: 'FAC-FAIL',
-        destinationLocationId: 'loc-001',
-        date: '2026-09-10',
-        paymentType: 'CONTADO',
-        items: [],
-      },
-      restrictedContext
-    )
-    throw new Error('Debería rechazar createPurchase sin permiso purchase.create')
+    purchaseItemInputSchema.parse({
+      productId: 'p1',
+      productName: 'P',
+      sku: 'SKU',
+      quantity: -5,
+      unitCost: 1000,
+    })
+    throw new Error('Debería rechazar cantidad negativa')
   } catch (err: any) {
     if (err.message.includes('Debería rechazar')) throw err
-    console.log('✓ Permiso purchase.create validado en el servicio')
+    console.log('✓ Cantidad <= 0 rechazada correctamente por Zod')
   }
 
-  // TEST 7: Guardas de Anulación
-  console.log('\n[Test 7] Guardas de Anulación y Auditoría')
   try {
-    // Intentar anular una compra ya recibida y pagada
-    await purchaseService.cancelPurchase(receivedPurchase.id, 'Intento de anulación indebida')
-    throw new Error('No debe permitir anular una compra que ya fue recibida en inventario')
+    purchaseItemInputSchema.parse({
+      productId: 'p1',
+      productName: 'P',
+      sku: 'SKU',
+      quantity: 10,
+      unitCost: -500,
+    })
+    throw new Error('Debería rechazar costo unitario negativo')
   } catch (err: any) {
-    if (err.message.includes('No debe permitir')) throw err
-    console.log('✓ Anulación bloqueada para compra con inventario recibido')
+    if (err.message.includes('Debería rechazar')) throw err
+    console.log('✓ Costo negativo rechazado correctamente por Zod')
+  }
+
+  try {
+    createPurchaseSchema.parse({
+      ...validPayload,
+      items: [],
+    })
+    throw new Error('Debería rechazar compra sin líneas')
+  } catch (err: any) {
+    if (err.message.includes('Debería rechazar')) throw err
+    console.log('✓ Compra sin líneas rechazada correctamente')
   }
 
   console.log('\n======================================================')

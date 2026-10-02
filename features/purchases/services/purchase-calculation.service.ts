@@ -45,8 +45,8 @@ export class PurchaseCalculationService {
     return {
       id: id || `item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       productId: input.productId,
-      productName: input.productName,
-      sku: input.sku,
+      productName: input.productName || 'Producto',
+      sku: input.sku || 'SKU',
       barcode: input.barcode,
       unitOfMeasure: input.unitOfMeasure || 'UND',
       imageUrl: input.imageUrl,

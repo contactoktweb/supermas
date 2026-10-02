@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomerStats } from './CustomerStats'
 import { CustomerFilters } from './CustomerFilters'
@@ -12,7 +12,7 @@ import { CustomerDeactivateModal } from './CustomerDeactivateModal'
 import { useCustomers } from '../hooks/useCustomers'
 import { useCustomerDetail } from '../hooks/useCustomerDetail'
 import { Customer, CreateCustomerDTO, UpdateCustomerDTO, CustomerPaymentDTO } from '../types'
-import { db } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface CustomersPageProps {
   onNavigate?: (view: string) => void
@@ -61,17 +61,20 @@ export function CustomersPage({ onNavigate }: CustomersPageProps) {
     refresh: refreshDetail,
   } = useCustomerDetail(selectedCustomerIdForDetail)
 
-  // Locations for drawer
-  const locations = db.locations.map((l) => ({
-    id: l.id,
-    name: l.name,
-    code: l.code,
-  }))
+  // Locations & Cities from real database
+  const [locations, setLocations] = useState<Array<{ id: string; name: string; code: string }>>([])
 
-  // Extract unique cities
-  const cities = Array.from(
-    new Set((db.customers as unknown as Customer[]).map((c) => c.city).filter(Boolean))
-  )
+  useEffect(() => {
+    async function loadLocations() {
+      const { data } = await supabaseClient.from('locations').select('id, name, code').eq('is_active', true)
+      if (data) {
+        setLocations(data.map((l: any) => ({ id: l.id, name: l.name, code: l.code })))
+      }
+    }
+    loadLocations()
+  }, [])
+
+  const cities = Array.from(new Set(customers.map((c) => c.city).filter(Boolean)))
 
   // Handlers
   const handleOpenCreate = () => {

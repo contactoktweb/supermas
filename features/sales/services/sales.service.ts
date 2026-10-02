@@ -24,7 +24,7 @@ import {
 import { supabaseClient } from '@/lib/supabase/client'
 
 const DEFAULT_USER: SalesUserContext = {
-  userId: 'usr-admin-01',
+  userId: '',
   userName: 'Admin Mauricio',
   userRole: 'Administrador Maestro',
   maxAllowedDiscountPercent: 25,
@@ -125,7 +125,7 @@ export class SalesService {
     // 2. Obtener cliente y validar existencia
     const { data: rawCustomer } = await supabaseClient
       .from('customers')
-      .select('id, first_name, last_name, company_name, document_number, is_active, credit_limit, current_balance')
+      .select('id, first_name, last_name, company_name, document_number, is_active, credit_limit, current_balance, credit_days')
       .eq('id', validated.customerId)
       .maybeSingle()
 
@@ -247,15 +247,29 @@ export class SalesService {
     const totals = salesCalculationService.calculateSaleTotals(calculatedItems)
 
     // 6. Validar cupo de crédito si el método de pago es CREDITO
+    let saleDueDate = new Date().toISOString().split('T')[0]
     if (validated.paymentMethod === 'CREDITO') {
-      const newTotalDebt = customer.currentBalance + totals.totalAmount
-      if (customer.creditLimit > 0 && newTotalDebt > customer.creditLimit) {
-        const formatMoney = (n: number) =>
-          new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
+      const formatMoney = (n: number) =>
+        new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
+
+      if (customer.creditLimit <= 0) {
         throw new Error(
-          `La venta excede el cupo de crédito aprobado para "${customer.displayName}". Cupo: ${formatMoney(customer.creditLimit)}, Saldo actual: ${formatMoney(customer.currentBalance)}, Venta: ${formatMoney(totals.totalAmount)}.`
+          `El cliente "${customer.displayName}" no tiene cupo de crédito aprobado (Cupo: $0). Configure el límite de crédito en la ficha del cliente.`
         )
       }
+
+      const newTotalDebt = customer.currentBalance + totals.totalAmount
+      if (newTotalDebt > customer.creditLimit) {
+        const available = Math.max(0, customer.creditLimit - customer.currentBalance)
+        throw new Error(
+          `La venta excede el cupo de crédito aprobado para "${customer.displayName}". Cupo: ${formatMoney(customer.creditLimit)}, Saldo actual: ${formatMoney(customer.currentBalance)}, Crédito disponible: ${formatMoney(available)}, Total venta: ${formatMoney(totals.totalAmount)}.`
+        )
+      }
+
+      const creditDays = Math.max(1, Number(rawCustomer.credit_days || 30))
+      const due = new Date()
+      due.setDate(due.getDate() + creditDays)
+      saleDueDate = due.toISOString().split('T')[0]
     }
 
     // 7. Generar código y objeto de venta
@@ -281,6 +295,9 @@ export class SalesService {
       ...totals,
       paymentMethod: validated.paymentMethod,
       paymentStatus: validated.paymentMethod === 'CREDITO' ? 'PENDING' : 'PAID',
+      paidAmount: validated.paymentMethod === 'CREDITO' ? 0 : totals.totalAmount,
+      dueDate: saleDueDate,
+      paymentTerms: validated.paymentMethod === 'CREDITO' ? 'CREDITO' : 'CONTADO',
       status: validated.documentTypeToGenerate === 'FACTURA_POS' || validated.documentTypeToGenerate === 'FACTURA_ELECTRONICA'
         ? 'INVOICED'
         : 'CONFIRMED',

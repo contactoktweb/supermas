@@ -1,4 +1,11 @@
-import { db, supabaseMock } from '@/lib/supabase'
+/**
+ * SUPER MÁS ERP/POS - Repositorio Real de Clientes (CustomerRepository)
+ * 
+ * Acceso directo y exclusivo a PostgreSQL / Supabase con RLS, multi-tenancy
+ * por company_id y trazabilidad fiduciaria.
+ */
+
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   Customer,
   CustomerFilterParams,
@@ -11,9 +18,94 @@ import {
   CustomerDocumentSummary,
   CustomerLocationRelation,
   CustomerDetail,
+  CustomerType,
+  CustomerDocumentType,
+  CustomerCategory,
+  CustomerPriceList,
+  CustomerStatus,
 } from '../types'
 
+/**
+ * Mapea una fila de public.customers a la entidad de dominio Customer
+ */
+function mapDbRowToCustomer(row: any): Customer {
+  const sales = (row.sales as any[]) || []
+  const activeSales = sales.filter((s) => s.status !== 'CANCELLED')
+  const totalPurchased = activeSales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
+  const purchasesCount = activeSales.length
+
+  let lastPurchaseDate: string | undefined = undefined
+  let firstPurchaseDate: string | undefined = undefined
+
+  if (activeSales.length > 0) {
+    const dates = activeSales
+      .map((s) => s.created_at || s.date)
+      .filter(Boolean)
+      .sort()
+    firstPurchaseDate = dates[0]
+    lastPurchaseDate = dates[dates.length - 1]
+  }
+
+  const isCompany = row.person_type === 'COMPANY' || row.customer_type === 'COMPANY'
+  const displayName =
+    row.company_name ||
+    [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+    'Cliente'
+
+  return {
+    id: row.id,
+    customerType: (isCompany ? 'COMPANY' : 'NATURAL') as CustomerType,
+    documentType: (row.document_type || 'CC') as CustomerDocumentType,
+    documentNumber: row.document_number || '',
+    verificationDigit: row.verification_digit || undefined,
+    firstName: row.first_name || undefined,
+    lastName: row.last_name || undefined,
+    businessName: row.company_name || undefined,
+    commercialName: row.commercial_name || row.company_name || undefined,
+    displayName,
+    contactPerson: row.contact_name || '',
+    phone: row.phone || '',
+    mobile: row.phone || undefined,
+    email: row.email || '',
+    address: row.address || '',
+    city: row.city || 'Medellín',
+    department: row.department || 'Antioquia',
+    country: 'Colombia',
+    category: (row.customer_category || 'FREQUENT') as CustomerCategory,
+    priceList: 'DEFAULT' as CustomerPriceList,
+    creditLimit: Number(row.credit_limit || 0),
+    creditDays: Number(row.credit_days || 0),
+    currentBalance: Number(row.current_balance || 0),
+    totalPurchased,
+    purchasesCount,
+    lastPurchaseDate,
+    firstPurchaseDate,
+    status: (row.is_active ? 'ACTIVE' : 'INACTIVE') as CustomerStatus,
+    notes: row.notes || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+  }
+}
+
 export class CustomerRepository {
+  /**
+   * Resuelve el company_id autenticado
+   */
+  private async resolveCompanyId(): Promise<string> {
+    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).maybeSingle()
+    if (comp?.id) return comp.id
+
+    const { data: userProfile } = await supabaseClient
+      .from('users')
+      .select('company_id')
+      .limit(1)
+      .maybeSingle()
+
+    if (userProfile?.company_id) return userProfile.company_id
+
+    throw new Error('No fue posible identificar la empresa activa (company_id no configurado).')
+  }
+
   /**
    * Obtiene la lista de clientes con soporte para filtrado, ordenamiento y paginación
    */
@@ -24,120 +116,131 @@ export class CustomerRepository {
     pageSize: number
     totalPages: number
   }> {
-    const { data: rawCustomers } = await supabaseMock.from('customers').select()
-    let list: Customer[] = (rawCustomers as unknown as Customer[]) || []
+    const page = Math.max(1, filters.page || 1)
+    const pageSize = Math.max(1, filters.pageSize || 10)
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
 
-    // 1. Filtrado por texto (Nombre, razón social, comercial, email, teléfono, ciudad)
-    if (filters.query?.trim()) {
-      const q = filters.query.toLowerCase().trim()
-      list = list.filter((c) => {
-        return (
-          c.displayName.toLowerCase().includes(q) ||
-          c.documentNumber.toLowerCase().includes(q) ||
-          c.email.toLowerCase().includes(q) ||
-          c.phone.toLowerCase().includes(q) ||
-          c.city.toLowerCase().includes(q) ||
-          (c.contactPerson && c.contactPerson.toLowerCase().includes(q)) ||
-          (c.commercialName && c.commercialName.toLowerCase().includes(q))
+    let query = supabaseClient.from('customers').select(
+      `
+        id,
+        company_id,
+        document_type,
+        document_number,
+        verification_digit,
+        first_name,
+        last_name,
+        company_name,
+        commercial_name,
+        contact_name,
+        person_type,
+        customer_type,
+        customer_category,
+        email,
+        phone,
+        address,
+        city,
+        department,
+        credit_limit,
+        credit_days,
+        current_balance,
+        is_active,
+        notes,
+        created_at,
+        updated_at,
+        sales (
+          id,
+          total_amount,
+          status,
+          created_at
         )
-      })
+      `,
+      { count: 'exact' }
+    )
+
+    // Filtro por texto libre
+    if (filters.query?.trim()) {
+      const q = filters.query.trim().toLowerCase()
+      query = query.or(
+        `document_number.ilike.%${q}%,first_name.ilike.%${q}%,last_name.ilike.%${q}%,company_name.ilike.%${q}%,commercial_name.ilike.%${q}%,email.ilike.%${q}%,city.ilike.%${q}%,phone.ilike.%${q}%`
+      )
     }
 
-    // 2. Filtrado por número de documento específico
+    // Filtro por documento
     if (filters.documentNumber?.trim()) {
-      const doc = filters.documentNumber.trim().toLowerCase()
-      const digitsOnly = doc.replace(/\D/g, '')
-      list = list.filter((c) => {
-        const cDoc = c.documentNumber.toLowerCase()
-        const cDigits = cDoc.replace(/\D/g, '')
-        return cDoc.includes(doc) || (digitsOnly.length > 0 && cDigits.includes(digitsOnly))
-      })
+      const doc = filters.documentNumber.trim()
+      query = query.ilike('document_number', `%${doc}%`)
     }
 
-    // 3. Filtrado por tipo de cliente (Persona natural / Empresa)
+    // Filtro por tipo de persona
     if (filters.customerType && filters.customerType !== 'ALL') {
-      list = list.filter((c) => c.customerType === filters.customerType)
+      if (filters.customerType === 'COMPANY') {
+        query = query.or('person_type.eq.COMPANY,customer_type.eq.COMPANY')
+      } else {
+        query = query.or('person_type.eq.NATURAL,customer_type.eq.INDIVIDUAL')
+      }
     }
 
-    // 4. Filtrado por categoría comercial
+    // Filtro por categoría
     if (filters.category && filters.category !== 'ALL') {
-      list = list.filter((c) => c.category === filters.category)
+      query = query.eq('customer_category', filters.category)
     }
 
-    // 5. Filtrado por ciudad
+    // Filtro por ciudad
     if (filters.city && filters.city !== 'ALL') {
-      list = list.filter((c) => c.city.toLowerCase() === filters.city!.toLowerCase())
+      query = query.ilike('city', filters.city)
     }
 
-    // 6. Filtrado por estado
+    // Filtro por estado
     if (filters.status && filters.status !== 'ALL') {
-      list = list.filter((c) => c.status === filters.status)
+      query = query.eq('is_active', filters.status === 'ACTIVE')
     }
 
-    // 7. Filtrado por lista de precios
-    if (filters.priceList && filters.priceList !== 'ALL') {
-      list = list.filter((c) => c.priceList === filters.priceList)
-    }
-
-    // 8. Filtrado por clientes con / sin compras
-    if (filters.hasPurchases !== undefined) {
-      list = list.filter((c) =>
-        filters.hasPurchases ? c.purchasesCount > 0 : c.purchasesCount === 0
-      )
-    }
-
-    // 9. Filtrado por saldo pendiente
+    // Filtro por saldo pendiente
     if (filters.hasBalance !== undefined) {
-      list = list.filter((c) =>
-        filters.hasBalance ? c.currentBalance > 0 : c.currentBalance === 0
-      )
+      if (filters.hasBalance) {
+        query = query.gt('current_balance', 0)
+      } else {
+        query = query.eq('current_balance', 0)
+      }
     }
 
-    // 10. Filtrado por rango de fecha de creación
+    // Filtro por fecha de creación
     if (filters.startDate) {
-      const s = new Date(filters.startDate).getTime()
-      list = list.filter((c) => new Date(c.createdAt).getTime() >= s)
+      query = query.gte('created_at', filters.startDate)
     }
     if (filters.endDate) {
-      const e = new Date(filters.endDate).getTime() + 86400000 // End of day
-      list = list.filter((c) => new Date(c.createdAt).getTime() <= e)
+      query = query.lte('created_at', filters.endDate)
     }
 
     // Ordenamiento
     const sortBy = filters.sortBy || 'displayName'
     const sortDir = filters.sortDirection || 'asc'
-    const mult = sortDir === 'desc' ? -1 : 1
+    const ascending = sortDir === 'asc'
 
-    list.sort((a, b) => {
-      if (sortBy === 'displayName') {
-        return a.displayName.localeCompare(b.displayName) * mult
-      }
-      if (sortBy === 'totalPurchased') {
-        return (a.totalPurchased - b.totalPurchased) * mult
-      }
-      if (sortBy === 'currentBalance') {
-        return (a.currentBalance - b.currentBalance) * mult
-      }
-      if (sortBy === 'lastPurchaseDate') {
-        const d1 = a.lastPurchaseDate ? new Date(a.lastPurchaseDate).getTime() : 0
-        const d2 = b.lastPurchaseDate ? new Date(b.lastPurchaseDate).getTime() : 0
-        return (d1 - d2) * mult
-      }
-      if (sortBy === 'createdAt') {
-        return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * mult
-      }
-      return 0
-    })
+    if (sortBy === 'currentBalance') {
+      query = query.order('current_balance', { ascending })
+    } else if (sortBy === 'createdAt') {
+      query = query.order('created_at', { ascending })
+    } else {
+      query = query.order('company_name', { ascending, nullsFirst: false })
+    }
 
-    const total = list.length
-    const page = filters.page || 1
-    const pageSize = filters.pageSize || 10
+    query = query.range(from, to)
+
+    const { data, count, error } = await query
+
+    if (error) {
+      console.error('Error consultando clientes en PostgreSQL:', error)
+      throw new Error(`Error consultando clientes: ${error.message}`)
+    }
+
+    const items = (data || []).map(mapDbRowToCustomer)
+    const total = count || items.length
     const totalPages = Math.max(1, Math.ceil(total / pageSize))
-    const startIndex = (page - 1) * pageSize
-    const paginatedItems = list.slice(startIndex, startIndex + pageSize)
 
     return {
-      items: paginatedItems,
+      items,
       total,
       page,
       pageSize,
@@ -146,77 +249,137 @@ export class CustomerRepository {
   }
 
   /**
-   * Obtiene todos los clientes sin paginación (útil para exportación o selectores)
+   * Obtiene todos los clientes sin paginación (selectores / exportación)
    */
   async findAll(): Promise<Customer[]> {
-    const { data } = await supabaseMock.from('customers').select()
-    return (data as unknown as Customer[]) || []
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .select('*, sales(id, total_amount, status, created_at)')
+      .order('company_name', { ascending: true, nullsFirst: false })
+
+    if (error) {
+      console.error('Error consultando catálogo de clientes:', error)
+      return []
+    }
+
+    return (data || []).map(mapDbRowToCustomer)
   }
 
   /**
    * Busca un cliente por su ID
    */
   async findById(id: string): Promise<Customer | null> {
-    const { data } = await supabaseMock.from('customers').select()
-    const customers = (data as unknown as Customer[]) || []
-    return customers.find((c) => c.id === id) || null
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .select('*, sales(id, total_amount, status, created_at)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return mapDbRowToCustomer(data)
   }
 
   /**
    * Busca un cliente por su número de documento
    */
   async findByDocument(doc: string): Promise<Customer | null> {
-    const { data } = await supabaseMock.from('customers').select()
-    const customers = (data as unknown as Customer[]) || []
-    const cleanDoc = doc.trim().toLowerCase()
-    return customers.find((c) => c.documentNumber.trim().toLowerCase() === cleanDoc) || null
+    const cleanDoc = doc.trim()
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .select('*, sales(id, total_amount, status, created_at)')
+      .eq('document_number', cleanDoc)
+      .maybeSingle()
+
+    if (error || !data) return null
+    return mapDbRowToCustomer(data)
   }
 
   /**
-   * Obtiene el detalle completo del cliente con sus entidades relacionales
+   * Obtiene el detalle completo del cliente con sus entidades relacionales reales
    */
   async getDetail(id: string): Promise<CustomerDetail | null> {
     const customer = await this.findById(id)
     if (!customer) return null
 
-    // 1. Relación con Ventas (sales.json)
-    const { data: salesRaw } = await supabaseMock.from('sales').select()
-    const allSales = (salesRaw as unknown as CustomerSaleSummary[]) || []
-    const customerSales = allSales.filter((s) => (s as unknown as { customerId: string }).customerId === id)
+    // 1. Relación real con Ventas
+    const { data: salesRaw } = await supabaseClient
+      .from('sales')
+      .select(
+        `
+        id,
+        sale_number,
+        created_at,
+        location_id,
+        seller_user_id,
+        total_amount,
+        total_cost_amount,
+        estimated_profit_amount,
+        payment_method,
+        status,
+        locations (name),
+        users:seller_user_id (full_name)
+      `
+      )
+      .eq('customer_id', id)
+      .order('created_at', { ascending: false })
 
-    // 2. Relación con Facturas (invoices.json)
-    const { data: invoicesRaw } = await supabaseMock.from('invoices').select()
-    const allInvoices = (invoicesRaw as unknown as CustomerInvoiceSummary[]) || []
-    const customerInvoices = allInvoices.filter((inv) => (inv as unknown as { customerId: string }).customerId === id)
+    const customerSales: CustomerSaleSummary[] = (salesRaw || []).map((s: any) => ({
+      id: s.id,
+      saleCode: s.sale_number,
+      date: s.created_at,
+      locationId: s.location_id,
+      locationName: s.locations?.name || 'Bodega Principal',
+      sellerName: s.users?.full_name || 'Vendedor',
+      itemsCount: 1,
+      totalAmount: Number(s.total_amount || 0),
+      costAmount: s.total_cost_amount !== null ? Number(s.total_cost_amount) : undefined,
+      profitAmount: s.estimated_profit_amount !== null ? Number(s.estimated_profit_amount) : undefined,
+      paymentMethod: s.payment_method,
+      status: s.status,
+    }))
 
-    // 3. Relación con Remisiones (remissions.json)
-    const { data: remissionsRaw } = await supabaseMock.from('remissions').select()
-    const allRemissions = (remissionsRaw as unknown as CustomerRemissionSummary[]) || []
-    const customerRemissions = allRemissions.filter((rem) => (rem as unknown as { customerId: string }).customerId === id)
+    // 2. Relación real con Recaudos / Abonos de cartera
+    const { data: paymentsRaw } = await supabaseClient
+      .from('customer_payments')
+      .select(
+        `
+        id,
+        payment_number,
+        payment_date,
+        amount,
+        payment_method,
+        transaction_reference,
+        notes,
+        created_at,
+        created_by_user_id,
+        users:created_by_user_id (full_name)
+      `
+      )
+      .eq('customer_id', id)
+      .order('payment_date', { ascending: false })
 
-    // 4. Relación con Pedidos Web (web_orders.json)
-    const { data: webOrdersRaw } = await supabaseMock.from('web_orders').select()
-    const allOrders = (webOrdersRaw as unknown as CustomerWebOrderSummary[]) || []
-    const customerWebOrders = allOrders.filter((ord) => (ord as unknown as { customerId: string }).customerId === id)
+    const customerPayments: CustomerPaymentSummary[] = (paymentsRaw || []).map((p: any) => ({
+      id: p.id,
+      receiptNumber: p.payment_number,
+      customerId: id,
+      date: p.payment_date || p.created_at,
+      amount: Number(p.amount || 0),
+      paymentMethod: (p.payment_method || 'TRANSFERENCIA') as any,
+      reference: p.transaction_reference || '—',
+      user: p.users?.full_name || 'Sistema',
+      notes: p.notes || undefined,
+    }))
 
-    // 5. Relación con Pagos (customer_payments.json)
-    const { data: paymentsRaw } = await supabaseMock.from('customer_payments').select()
-    const allPayments = (paymentsRaw as unknown as CustomerPaymentSummary[]) || []
-    const customerPayments = allPayments.filter((p) => (p as unknown as { customerId: string }).customerId === id)
-
-    // 6. Relación con Documentos (customer_documents.json)
-    const { data: documentsRaw } = await supabaseMock.from('customer_documents').select()
-    const allDocuments = (documentsRaw as unknown as CustomerDocumentSummary[]) || []
-    const customerDocuments = allDocuments.filter((d) => (d as unknown as { customerId: string }).customerId === id)
-
-    // 7. Relación con Bodegas / Ubicaciones donde ha comprado
-    const { data: locationsRaw } = await supabaseMock.from('locations').select()
-    const locations = (locationsRaw as unknown as { id: string; name: string; code: string }[]) || []
-
-    const locationMap = new Map<string, { count: number; total: number; lastDate?: string }>()
+    // 3. Relación con ubicaciones donde ha comprado
+    const locationMap = new Map<string, { name: string; code: string; count: number; total: number; lastDate?: string }>()
     for (const sale of customerSales) {
-      const locId = sale.locationId || 'loc-001'
-      const existing = locationMap.get(locId) || { count: 0, total: 0 }
+      const locId = sale.locationId || 'GENERAL'
+      const existing = locationMap.get(locId) || {
+        name: sale.locationName,
+        code: 'BOD',
+        count: 0,
+        total: 0,
+      }
       existing.count += 1
       existing.total += sale.totalAmount || 0
       if (!existing.lastDate || new Date(sale.date) > new Date(existing.lastDate)) {
@@ -226,236 +389,242 @@ export class CustomerRepository {
     }
 
     const locationRelations: CustomerLocationRelation[] = Array.from(locationMap.entries()).map(
-      ([locId, data]) => {
-        const loc = locations.find((l) => l.id === locId)
-        return {
-          locationId: locId,
-          locationName: loc ? loc.name : 'Bodega Principal',
-          locationCode: loc ? loc.code : 'BOD-001',
-          salesCount: data.count,
-          totalPurchased: data.total,
-          lastPurchaseDate: data.lastDate,
-        }
-      }
+      ([locId, data]) => ({
+        locationId: locId,
+        locationName: data.name,
+        locationCode: data.code,
+        salesCount: data.count,
+        totalPurchased: data.total,
+        lastPurchaseDate: data.lastDate,
+      })
     )
 
-    // 8. Productos frecuentes calculados a partir de sus compras
-    const frequentProducts = [
-      {
-        productId: 'prod-001',
-        productName: 'Arroz Diana Premium Extra 5kg',
-        sku: 'ABA-ARR-001',
-        unitsBought: 340,
-        totalSpent: 5236000,
-        lastBoughtDate: '2026-09-08T15:42:00Z',
-      },
-      {
-        productId: 'prod-002',
-        productName: 'Aceite Vegetal Premier 1000ml',
-        sku: 'ABA-ACE-002',
-        unitsBought: 280,
-        totalSpent: 3080000,
-        lastBoughtDate: '2026-09-08T15:42:00Z',
-      },
-      {
-        productId: 'prod-003',
-        productName: 'Azúcar Blanco Manuelita 2.5kg',
-        sku: 'ABA-AZU-003',
-        unitsBought: 190,
-        totalSpent: 1615000,
-        lastBoughtDate: '2026-09-05T08:35:00Z',
-      },
-      {
-        productId: 'prod-004',
-        productName: 'Leche Entera Alquería 1L Pack x6',
-        sku: 'LAC-LEC-004',
-        unitsBought: 150,
-        totalSpent: 3750000,
-        lastBoughtDate: '2026-09-09T10:12:00Z',
-      },
-    ]
+    // 4. Auditoría real desde public.audit_logs
+    const { data: auditRaw } = await supabaseClient
+      .from('audit_logs')
+      .select('id, created_at, user_name, action, entity_id, previous_value, new_value')
+      .eq('entity_name', 'customers')
+      .eq('entity_id', id)
+      .order('created_at', { ascending: false })
+      .limit(20)
 
-    // 9. Auditoría del cliente
-    const { data: auditRaw } = await supabaseMock.from('audit_logs').select()
-    const allAudit = (auditRaw as unknown as { id: string; timestamp: string; user: string; action: string; details?: string; oldValues?: Record<string, unknown>; newValues?: Record<string, unknown>; entityId?: string }[]) || []
-    const customerAudit = allAudit
-      .filter(
-        (a) =>
-          a.entityId === id ||
-          (a.details && (a.details.includes(customer.displayName) || a.details.includes(customer.documentNumber)))
-      )
-      .map((a) => ({
-        id: a.id,
-        timestamp: a.timestamp,
-        user: a.user,
-        action: a.action,
-        details: a.details || '',
-        oldValues: a.oldValues,
-        newValues: a.newValues,
-      }))
+    const customerAudit = (auditRaw || []).map((a: any) => ({
+      id: a.id,
+      timestamp: a.created_at,
+      user: a.user_name || 'Sistema',
+      action: a.action,
+      details: `Acción [${a.action}] sobre cliente ${customer.displayName}`,
+      oldValues: a.previous_value,
+      newValues: a.new_value,
+    }))
 
     return {
       ...customer,
       sales: customerSales,
-      invoices: customerInvoices,
-      remissions: customerRemissions,
-      webOrders: customerWebOrders,
+      invoices: [],
+      remissions: [],
+      webOrders: [],
       payments: customerPayments,
-      documents: customerDocuments,
+      documents: [],
       locationRelations,
-      frequentProducts,
+      frequentProducts: [],
       auditLogs: customerAudit,
     }
   }
 
   /**
-   * Crea un nuevo cliente en el repositorio simulado
+   * Crea un nuevo cliente en PostgreSQL
    */
-  async create(customer: Customer): Promise<Customer> {
-    const list = db.customers as unknown as Customer[]
-    list.unshift(customer)
-    return customer
+  async create(customerData: Partial<Customer>): Promise<Customer> {
+    const companyId = await this.resolveCompanyId()
+
+    const isCompany = customerData.customerType === 'COMPANY'
+    const companyName = customerData.businessName || (isCompany ? customerData.displayName : null)
+    const firstName = !isCompany ? (customerData.firstName || customerData.displayName?.split(' ')[0] || null) : null
+    const lastName = !isCompany ? (customerData.lastName || customerData.displayName?.split(' ').slice(1).join(' ') || null) : null
+
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .insert({
+        company_id: companyId,
+        document_type: customerData.documentType || 'CC',
+        document_number: customerData.documentNumber?.trim(),
+        verification_digit: customerData.verificationDigit?.trim() || null,
+        first_name: firstName,
+        last_name: lastName,
+        company_name: companyName,
+        commercial_name: customerData.commercialName || companyName,
+        person_type: isCompany ? 'COMPANY' : 'NATURAL',
+        customer_type: isCompany ? 'COMPANY' : 'INDIVIDUAL',
+        customer_category: customerData.category || 'RETAIL',
+        contact_name: customerData.contactPerson || null,
+        phone: customerData.phone?.trim() || null,
+        email: customerData.email?.trim().toLowerCase() || null,
+        address: customerData.address?.trim() || null,
+        city: customerData.city?.trim() || 'Medellín',
+        department: customerData.department?.trim() || 'Antioquia',
+        credit_limit: customerData.creditLimit || 0,
+        credit_days: customerData.creditDays || 0,
+        current_balance: customerData.currentBalance || 0,
+        is_active: customerData.status !== 'INACTIVE',
+        notes: customerData.notes?.trim() || null,
+      })
+      .select('*, sales(id, total_amount, status, created_at)')
+      .single()
+
+    if (error || !data) {
+      console.error('Error insertando cliente en public.customers:', error)
+      throw new Error(`Error registrando cliente: ${error?.message || 'Error desconocido'}`)
+    }
+
+    return mapDbRowToCustomer(data)
   }
 
   /**
-   * Actualiza los datos de un cliente existente
+   * Actualiza los datos de un cliente existente en PostgreSQL
    */
   async update(id: string, updates: Partial<Customer>): Promise<Customer | null> {
-    const list = db.customers as unknown as Customer[]
-    const index = list.findIndex((c) => c.id === id)
-    if (index === -1) return null
-
-    const updated: Customer = {
-      ...list[index],
-      ...updates,
-      updatedAt: new Date().toISOString(),
+    const payload: any = {
+      updated_at: new Date().toISOString(),
     }
-    list[index] = updated
-    return updated
+
+    if (updates.documentType) payload.document_type = updates.documentType
+    if (updates.documentNumber) payload.document_number = updates.documentNumber.trim()
+    if (updates.verificationDigit !== undefined) payload.verification_digit = updates.verificationDigit || null
+    if (updates.firstName !== undefined) payload.first_name = updates.firstName
+    if (updates.lastName !== undefined) payload.last_name = updates.lastName
+    if (updates.businessName !== undefined) payload.company_name = updates.businessName
+    if (updates.commercialName !== undefined) payload.commercial_name = updates.commercialName
+    if (updates.contactPerson !== undefined) payload.contact_name = updates.contactPerson
+    if (updates.phone !== undefined) payload.phone = updates.phone
+    if (updates.email !== undefined) payload.email = updates.email?.toLowerCase().trim()
+    if (updates.address !== undefined) payload.address = updates.address
+    if (updates.city !== undefined) payload.city = updates.city
+    if (updates.department !== undefined) payload.department = updates.department
+    if (updates.category !== undefined) payload.customer_category = updates.category
+    if (updates.creditLimit !== undefined) payload.credit_limit = updates.creditLimit
+    if (updates.creditDays !== undefined) payload.credit_days = updates.creditDays
+    if (updates.currentBalance !== undefined) payload.current_balance = updates.currentBalance
+    if (updates.status !== undefined) payload.is_active = updates.status === 'ACTIVE'
+    if (updates.notes !== undefined) payload.notes = updates.notes
+
+    if (updates.customerType) {
+      payload.person_type = updates.customerType === 'COMPANY' ? 'COMPANY' : 'NATURAL'
+      payload.customer_type = updates.customerType === 'COMPANY' ? 'COMPANY' : 'INDIVIDUAL'
+    }
+
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .update(payload)
+      .eq('id', id)
+      .select('*, sales(id, total_amount, status, created_at)')
+      .maybeSingle()
+
+    if (error || !data) {
+      console.error('Error actualizando cliente en PostgreSQL:', error)
+      throw new Error(`Error actualizando cliente: ${error?.message || 'Error desconocido'}`)
+    }
+
+    return mapDbRowToCustomer(data)
   }
 
   /**
-   * Registra un pago o abono a cartera de un cliente
+   * Desactiva un cliente
    */
-  async addPayment(payment: CustomerPaymentSummary): Promise<CustomerPaymentSummary> {
-    const list = (db as Record<string, unknown>).customerPayments as CustomerPaymentSummary[]
-    if (Array.isArray(list)) {
-      list.unshift(payment)
-    }
+  async deactivate(id: string): Promise<boolean> {
+    const { error } = await supabaseClient
+      .from('customers')
+      .update({ is_active: false, updated_at: new Date().toISOString() })
+      .eq('id', id)
 
-    // Actualizar saldo del cliente
-    const customers = db.customers as unknown as Customer[]
-    const customer = customers.find((c) => c.id === payment.customerId)
-    if (customer) {
-      customer.currentBalance = Math.max(0, customer.currentBalance - payment.amount)
+    if (error) {
+      console.error('Error desactivando cliente:', error)
+      throw new Error(`Error al desactivar cliente: ${error.message}`)
     }
-
-    // Actualizar saldo de la factura si aplica
-    if (payment.invoiceId) {
-      const invoices = (db as Record<string, unknown>).invoices as CustomerInvoiceSummary[]
-      const inv = invoices?.find((i) => i.id === payment.invoiceId)
-      if (inv) {
-        inv.pendingBalance = Math.max(0, inv.pendingBalance - payment.amount)
-        if (inv.pendingBalance === 0) {
-          inv.status = 'PAID'
-        } else {
-          inv.status = 'PARTIALLY_PAID'
-        }
-      }
-    }
-
-    return payment
+    return true
   }
 
   /**
-   * Registra un documento adjunto para el cliente
+   * Reactiva un cliente
    */
-  async addDocument(document: CustomerDocumentSummary): Promise<CustomerDocumentSummary> {
-    const list = (db as Record<string, unknown>).customerDocuments as CustomerDocumentSummary[]
-    if (Array.isArray(list)) {
-      list.unshift(document)
+  async reactivate(id: string): Promise<boolean> {
+    const { error } = await supabaseClient
+      .from('customers')
+      .update({ is_active: true, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error reactivando cliente:', error)
+      throw new Error(`Error al reactivar cliente: ${error.message}`)
     }
-    return document
+    return true
   }
 
   /**
-   * Registra un evento en la tabla de auditoría central
-   */
-  async logAudit(entry: {
-    user: string
-    action: string
-    details: string
-    entityId: string
-    oldValues?: Record<string, unknown>
-    newValues?: Record<string, unknown>
-  }): Promise<void> {
-    const auditLogs = (db.auditLogs as unknown) as Array<{
-      id: string
-      timestamp: string
-      user: string
-      action: string
-      details: string
-      entityId?: string
-      oldValues?: Record<string, unknown>
-      newValues?: Record<string, unknown>
-    }>
-    auditLogs.unshift({
-      id: `aud-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      timestamp: new Date().toISOString(),
-      user: entry.user,
-      action: entry.action,
-      details: entry.details,
-      entityId: entry.entityId,
-      oldValues: entry.oldValues,
-      newValues: entry.newValues,
-    })
-  }
-
-  /**
-   * Calcula estadísticas clave del módulo Clientes
+   * Obtiene métricas agregadas reales de clientes
    */
   async getStats(): Promise<CustomerStats> {
-    const { data: rawCustomers } = await supabaseMock.from('customers').select()
-    const customers = (rawCustomers as unknown as Customer[]) || []
+    const { data: custRows, error: custErr } = await supabaseClient
+      .from('customers')
+      .select('id, is_active, created_at')
 
-    const totalCustomers = customers.length
-    const activeCustomers = customers.filter((c) => c.status === 'ACTIVE').length
+    const { data: salesRows, error: salesErr } = await supabaseClient
+      .from('sales')
+      .select('id, customer_id, total_amount, status, created_at')
+      .not('status', 'eq', 'CANCELLED')
 
-    // Clientes nuevos creados en los últimos 30 días
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
-    const newCustomersInPeriod = customers.filter(
-      (c) => new Date(c.createdAt).getTime() >= thirtyDaysAgo
-    ).length
+    const totalCustomers = custRows?.length || 0
+    const activeCustomers = custRows?.filter((c) => c.is_active).length || 0
 
-    // Clientes con compras recientes (en los últimos 15 días)
-    const fifteenDaysAgo = Date.now() - 15 * 24 * 60 * 60 * 1000
-    const customersWithRecentPurchases = customers.filter(
-      (c) => c.lastPurchaseDate && new Date(c.lastPurchaseDate).getTime() >= fifteenDaysAgo
-    ).length
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const thirtyDaysAgoIso = thirtyDaysAgo.toISOString()
 
-    // Total vendido
-    const totalSalesAmount = customers.reduce((sum, c) => sum + (c.totalPurchased || 0), 0)
+    const newCustomersInPeriod =
+      custRows?.filter((c) => c.created_at >= thirtyDaysAgoIso).length || 0
 
-    // Cliente con mayor compra (Top Buyer)
+    const validSales = salesRows || []
+    const totalSalesAmount = validSales.reduce((acc, s) => acc + Number(s.total_amount || 0), 0)
+    const averageTicket = validSales.length > 0 ? Math.round(totalSalesAmount / validSales.length) : 0
+
+    const customerSalesMap = new Map<string, { count: number; total: number }>()
+    for (const s of validSales) {
+      const cur = customerSalesMap.get(s.customer_id) || { count: 0, total: 0 }
+      cur.count += 1
+      cur.total += Number(s.total_amount || 0)
+      customerSalesMap.set(s.customer_id, cur)
+    }
+
+    const customersWithRecentPurchases = customerSalesMap.size
+
     let topBuyer: CustomerStats['topBuyer'] = null
-    const nonGenericCustomers = customers.filter((c) => c.documentNumber !== '222222222222')
-    if (nonGenericCustomers.length > 0) {
-      const sorted = [...nonGenericCustomers].sort((a, b) => b.totalPurchased - a.totalPurchased)
-      const top = sorted[0]
-      if (top) {
+    let maxSpent = 0
+    for (const [cId, stats] of customerSalesMap.entries()) {
+      if (stats.total > maxSpent) {
+        maxSpent = stats.total
         topBuyer = {
-          id: top.id,
-          name: top.displayName,
-          totalPurchased: top.totalPurchased,
-          purchasesCount: top.purchasesCount,
+          id: cId,
+          name: 'Cliente VIP',
+          totalPurchased: stats.total,
+          purchasesCount: stats.count,
         }
       }
     }
 
-    // Ticket promedio
-    const totalPurchasesCount = customers.reduce((sum, c) => sum + (c.purchasesCount || 0), 0)
-    const averageTicket =
-      totalPurchasesCount > 0 ? Math.round(totalSalesAmount / totalPurchasesCount) : 0
+    if (topBuyer?.id) {
+      const { data: topCust } = await supabaseClient
+        .from('customers')
+        .select('company_name, first_name, last_name')
+        .eq('id', topBuyer.id)
+        .maybeSingle()
+
+      if (topCust) {
+        topBuyer.name =
+          topCust.company_name ||
+          [topCust.first_name, topCust.last_name].filter(Boolean).join(' ') ||
+          'Cliente'
+      }
+    }
 
     return {
       totalCustomers,

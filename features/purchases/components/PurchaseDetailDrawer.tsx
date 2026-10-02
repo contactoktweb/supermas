@@ -12,6 +12,8 @@ interface PurchaseDetailDrawerProps {
   isCostRedacted: boolean
   userContext?: UserPermissionContext
   onClose: () => void
+  onEditDraft?: (purchase: Purchase) => void
+  onConfirm?: (purchase: Purchase) => void
   onReceive?: (purchase: Purchase) => void
   onRegisterPayment?: (purchase: Purchase) => void
   onCancel?: (purchase: Purchase) => void
@@ -24,6 +26,8 @@ export function PurchaseDetailDrawer({
   isCostRedacted,
   userContext,
   onClose,
+  onEditDraft,
+  onConfirm,
   onReceive,
   onRegisterPayment,
   onCancel,
@@ -59,14 +63,28 @@ export function PurchaseDetailDrawer({
     })
   }
 
+  const canEdit =
+    purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
+  const canConfirm =
+    purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
   const canReceive =
-    purchase.status === 'PENDING_RECEPTION' || purchase.status === 'DRAFT'
+    purchase.status === 'CONFIRMADA' ||
+    purchase.status === 'PENDING_RECEPTION' ||
+    purchase.status === 'RECIBIDA_PARCIALMENTE' ||
+    purchase.status === 'BORRADOR' ||
+    purchase.status === 'DRAFT'
   const canPay =
-    purchase.pendingBalance > 0 && purchase.status !== 'CANCELLED'
+    purchase.pendingBalance > 0 &&
+    purchase.status !== 'CANCELLED' &&
+    purchase.status !== 'CANCELADA'
+  const hasReceivedItems = purchase.items?.some((it) => (it.receivedQuantity || 0) > 0)
   const canCancel =
     purchase.status !== 'RECEIVED' &&
+    purchase.status !== 'RECIBIDA' &&
     purchase.status !== 'CANCELLED' &&
-    purchase.status !== 'PAID'
+    purchase.status !== 'CANCELADA' &&
+    purchase.status !== 'PAID' &&
+    !hasReceivedItems
 
   return createPortal(
     <div
@@ -162,6 +180,33 @@ export function PurchaseDetailDrawer({
               >
                 <AppIcon name="kardex" size={15} />
                 <span>Ver Kardex</span>
+              </button>
+            )}
+
+            {/* Editar Borrador */}
+            {canEdit && onEditDraft && (
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => onEditDraft(purchase)}
+                title="Editar borrador de orden de compra"
+              >
+                <AppIcon name="edit" size={15} />
+                <span>Editar borrador</span>
+              </button>
+            )}
+
+            {/* Confirmar Orden */}
+            {canConfirm && onConfirm && (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => onConfirm(purchase)}
+                title="Confirmar orden de compra (no modifica inventario)"
+                style={{ background: '#2563eb' }}
+              >
+                <AppIcon name="check" size={15} />
+                <span>Confirmar orden</span>
               </button>
             )}
 

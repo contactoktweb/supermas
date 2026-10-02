@@ -19,7 +19,7 @@ import {
 import { salesRepository } from '@/features/sales/repositories/sales.repository'
 
 const DEFAULT_ADMIN_USER: InvoiceUserContext = {
-  userId: 'usr-admin-01',
+  userId: '',
   userName: 'Admin Mauricio',
   userRole: 'Administrador',
   permissions: [

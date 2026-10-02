@@ -55,7 +55,7 @@ const DEFAULT_COLUMN_VISIBILITY: InventoryColumnVisibility = {
 }
 
 const DEFAULT_USER_CONTEXT: UserPermissionContext = {
-  userId: 'usr-admin-01',
+  userId: '',
   userRole: 'ADMIN',
   permissions: ['inventory.read', 'inventory.adjust', 'inventory.transfer', 'cost.read'],
 }

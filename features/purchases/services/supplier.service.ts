@@ -1,12 +1,23 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { SupabaseClient } from '@supabase/supabase-js'
 import { SupplierOption } from '../types'
 
 export class SupplierService {
+  private client: SupabaseClient
+
+  constructor(client: SupabaseClient = supabaseClient) {
+    this.client = client
+  }
+
+  withClient(client: SupabaseClient): SupplierService {
+    return new SupplierService(client)
+  }
+
   /**
    * Obtiene la lista completa de proveedores activos desde PostgreSQL bajo RLS.
    */
   async list(): Promise<SupplierOption[]> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('suppliers')
       .select('id, name, legal_name, tax_id, phone, email, is_active')
       .eq('is_active', true)
@@ -31,7 +42,7 @@ export class SupplierService {
    * Obtiene un proveedor por su ID.
    */
   async getById(id: string): Promise<SupplierOption | null> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('suppliers')
       .select('id, name, legal_name, tax_id, phone, email')
       .eq('id', id)
@@ -56,7 +67,7 @@ export class SupplierService {
     const q = query.toLowerCase().trim()
     if (!q) return this.list()
 
-    const { data, error } = await supabaseClient
+    const { data, error } = await this.client
       .from('suppliers')
       .select('id, name, legal_name, tax_id, phone, email')
       .eq('is_active', true)

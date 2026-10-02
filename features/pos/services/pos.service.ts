@@ -11,7 +11,7 @@ import {
 } from '../types'
 
 const DEFAULT_POS_USER: POSUserContext = {
-  userId: 'usr-cajero-01',
+  userId: '',
   userName: 'Cajero Principal',
   userRole: 'Cajero Operativo',
   locationId: '',

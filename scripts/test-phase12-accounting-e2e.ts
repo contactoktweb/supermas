@@ -23,10 +23,12 @@
 
 import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const DATABASE_URL = process.env.DATABASE_URL || ''
+const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || ''
 
 if (!DATABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('❌ ERROR: Variables de entorno requeridas no disponibles.')
@@ -95,11 +97,11 @@ async function runPhase12TestSuite() {
       [companyAId]
     )
     if (compBRes.rows.length === 0) {
-      const newB = await pgClient.query(
-        `INSERT INTO public.companies (business_name, trade_name, tax_id, email, status)
-         VALUES ('Empresa B Test ${runId}', 'Empresa B', '900${runId.slice(-4)}-2', 'empresaB.${runId}@test.com', 'ACTIVE')
-         RETURNING id;`
-      )
+      const newB = await pgClient.query(`
+        INSERT INTO public.companies (id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code, address, city, department, country, currency, status)
+        VALUES (gen_random_uuid(), 'Empresa B Temporal E2E Contabilidad', 'Empresa B E2E', '900${runId.slice(-4)}-2', '1', 'RESPONSABLE_DE_IVA', '4711', 'Calle 10 # 20-30', 'Medellín', 'Antioquia', 'Colombia', 'COP', 'ACTIVE')
+        RETURNING id;
+      `)
       companyBId = newB.rows[0].id
       companyBCreated = true
     } else {
@@ -868,6 +870,8 @@ async function runPhase12TestSuite() {
         await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
         await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
       }
+
+      await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 
       // Verificación de residuo 0
       const resEntries = await pgClient.query(`SELECT count(*) as count FROM public.accounting_entries WHERE concept LIKE '%${runId}%';`)

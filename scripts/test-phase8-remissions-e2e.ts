@@ -23,6 +23,8 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import pg from 'pg'
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
 
 interface TestResult {
   code: string
@@ -47,7 +49,7 @@ async function runPhase8TestSuite() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  const databaseUrl = process.env.DATABASE_URL
+  const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey || !databaseUrl) {
     throw new Error('Variables de entorno incompletas en .env.local')
@@ -89,12 +91,23 @@ async function runPhase8TestSuite() {
     if (compARes.rows.length === 0) throw new Error('No hay empresas activas en staging.')
     companyAId = compARes.rows[0].id
 
+    let isTempCompanyB = false
+    let companyBId: string
     const compBRes = await pgClient.query(
       `SELECT id FROM public.companies WHERE id != $1 AND status = 'ACTIVE' LIMIT 1;`,
       [companyAId]
     )
-    if (compBRes.rows.length === 0) throw new Error('No se encontró una segunda empresa activa.')
-    companyBId = compBRes.rows[0].id
+    if (compBRes.rows.length === 0) {
+      const insB = await pgClient.query(`
+        INSERT INTO public.companies (id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code, address, city, department, country, currency, status)
+        VALUES (gen_random_uuid(), 'Empresa B Temporal E2E', 'Empresa B E2E', '999888777', '1', 'RESPONSABLE_DE_IVA', '4711', 'Calle 10 # 20-30', 'Medellín', 'Antioquia', 'Colombia', 'COP', 'ACTIVE')
+        RETURNING id;
+      `)
+      companyBId = insB.rows[0].id
+      isTempCompanyB = true
+    } else {
+      companyBId = compBRes.rows[0].id
+    }
 
     // 2. Crear Bodegas de prueba
     const locA = await pgClient.query(
@@ -714,6 +727,11 @@ async function runPhase8TestSuite() {
 
     // Eliminar bodegas temporales
     await pgClient.query(`DELETE FROM public.locations WHERE id IN ($1, $2);`, [locAId, locBId])
+
+    if (isTempCompanyB) {
+      await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
+      await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
+    }
 
     await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 

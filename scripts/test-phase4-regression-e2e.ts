@@ -37,7 +37,7 @@ async function runPhase4RegressionSuite() {
   console.log('🚀 INICIANDO AUDITORÍA TÉCNICA Y SUITE E2E FASE 4.2.1 — SUPER MÁS ERP/POS')
   console.log('================================================================================\n')
 
-  const connStr = process.env.DATABASE_URL || process.env.DIRECT_URL
+  const connStr = process.env.DIRECT_URL || process.env.DATABASE_URL
   const client = new Client({
     connectionString: connStr,
     ssl: { rejectUnauthorized: false },
@@ -84,12 +84,11 @@ async function runPhase4RegressionSuite() {
     } else {
       const newComp = await client.query(`
         INSERT INTO public.companies (
-          business_name, trade_name, tax_id, verification_digit, tax_regime,
-          address, city, department, country, phone, email, invoice_email, status
+          id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code,
+          address, city, department, country, currency, status
         ) VALUES (
-          'Empresa B Aislamiento P4', 'Empresa B', '900999${runId}', '1', 'RESPONSABLE_DE_IVA',
-          'Calle 10 # 20-30', 'Bogotá', 'Bogotá D.C.', 'Colombia', '3001112233',
-          'b${runId}@test.com', 'fact${runId}@test.com', 'ACTIVE'
+          gen_random_uuid(), 'Empresa B Aislamiento P4', 'Empresa B', '900999${runId}', '1', 'RESPONSABLE_DE_IVA', '4711',
+          'Calle 10 # 20-30', 'Bogotá', 'Bogotá D.C.', 'Colombia', 'COP', 'ACTIVE'
         ) RETURNING id;
       `)
       companyBId = newComp.rows[0].id
@@ -553,6 +552,9 @@ async function runPhase4RegressionSuite() {
     // 10. Sedes y cajas temporales creadas para el test
     await client.query("DELETE FROM public.locations WHERE code LIKE '%" + runId + "%';")
     await client.query("DELETE FROM public.cash_registers WHERE code LIKE '%" + runId + "%';")
+    if (companyBId && companyBId !== companyAId) {
+      await client.query("DELETE FROM public.audit_logs WHERE company_id = $1;", [companyBId])
+    }
     await client.query("DELETE FROM public.companies WHERE tax_id LIKE '%" + runId + "%';")
 
     await client.query('COMMIT;')

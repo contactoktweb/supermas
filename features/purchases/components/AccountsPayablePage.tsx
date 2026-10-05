@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { AppIcon } from '@/components/ui/Icon'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import {
   accountsPayableService,
@@ -14,6 +14,100 @@ import { SupplierOption } from '../types'
 import { AccountsPayableTable } from './accounts-payable/AccountsPayableTable'
 import { AccountsPayablePaymentModal } from './accounts-payable/AccountsPayablePaymentModal'
 import { AccountsPayableHistoryModal } from './accounts-payable/AccountsPayableHistoryModal'
+
+function useCountUp(target: number, duration: number = 600) {
+  const [count, setCount] = useState(target)
+
+  useEffect(() => {
+    let startTimestamp: number | null = null
+    const startVal = 0
+    const endVal = target
+    if (endVal === 0) {
+      setCount(0)
+      return
+    }
+
+    let animationFrameId: number
+
+    const step = (timestamp: number) => {
+      if (!startTimestamp) startTimestamp = timestamp
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1)
+      setCount(Math.floor(progress * (endVal - startVal) + startVal))
+      if (progress < 1) {
+        animationFrameId = requestAnimationFrame(step)
+      } else {
+        setCount(endVal)
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(animationFrameId)
+  }, [target, duration])
+
+  return count
+}
+
+interface CxpStatCardProps {
+  title: string
+  value: string | number
+  iconName: LightIconName
+  tone: 'blue' | 'red' | 'teal' | 'amber' | 'purple'
+  badge: string
+  note?: string
+  isPositive?: boolean
+  subtext?: string
+  index: number
+}
+
+function CxpStatCard({
+  title,
+  value,
+  iconName,
+  tone,
+  badge,
+  note,
+  isPositive = true,
+  subtext,
+  index,
+}: CxpStatCardProps) {
+  return (
+    <article
+      className={`dashboard-kpi-card tone-${tone}`}
+      style={{ animationDelay: `${index * 0.05}s` }}
+    >
+      <div className="kpi-card-header">
+        <div className={`kpi-icon-wrap ${tone}`}>
+          <AppIcon name={iconName} size={18} />
+        </div>
+        <span className="kpi-scope-badge">{badge}</span>
+      </div>
+
+      <div className="kpi-card-body">
+        <span className="kpi-card-title">{title}</span>
+        <div className="kpi-value-row">
+          <strong className="kpi-card-value">{value}</strong>
+        </div>
+      </div>
+
+      <div className="kpi-card-footer">
+        {note && (
+          <span
+            className={`kpi-trend-pill ${
+              isPositive ? 'trend-positive' : 'trend-warning'
+            }`}
+          >
+            <AppIcon
+              name={isPositive ? 'arrowUpRight' : 'warning'}
+              size={12}
+            />
+            <span>{note}</span>
+          </span>
+        )}
+        {subtext && <span className="kpi-subtext">{subtext}</span>}
+      </div>
+    </article>
+  )
+}
 
 export function AccountsPayablePage() {
   const [items, setItems] = useState<AccountPayableItem[]>([])
@@ -29,8 +123,11 @@ export function AccountsPayablePage() {
     'ALL' | 'PENDIENTE' | 'PARCIAL' | 'VENCIDA' | 'PAGADA'
   >('ALL')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(15)
   const [totalPages, setTotalPages] = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [sortField, setSortField] = useState('dueDate')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
   // Filter options
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([])
@@ -70,12 +167,30 @@ export function AccountsPayablePage() {
           locationId,
           status,
           page,
-          pageSize: 15,
+          pageSize,
         }),
         accountsPayableService.getStats(),
       ])
 
-      setItems(res.items)
+      // Sort items
+      let sortedItems = [...res.items]
+      sortedItems.sort((a, b) => {
+        let comp = 0
+        if (sortField === 'purchaseNumber') {
+          comp = a.purchaseNumber.localeCompare(b.purchaseNumber)
+        } else if (sortField === 'supplierName') {
+          comp = a.supplierName.localeCompare(b.supplierName)
+        } else if (sortField === 'dueDate') {
+          comp = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        } else if (sortField === 'originalAmount') {
+          comp = a.originalAmount - b.originalAmount
+        } else if (sortField === 'pendingBalance') {
+          comp = a.pendingBalance - b.pendingBalance
+        }
+        return sortDirection === 'desc' ? -comp : comp
+      })
+
+      setItems(sortedItems)
       setTotalPages(res.totalPages)
       setTotalCount(res.total)
       setIsCostRedacted(res.isCostRedacted)
@@ -85,14 +200,14 @@ export function AccountsPayablePage() {
     } finally {
       setLoading(false)
     }
-  }, [query, supplierId, locationId, status, page])
+  }, [query, supplierId, locationId, status, page, pageSize, sortField, sortDirection])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
   const formatCurrency = (val: number) => {
-    if (isCostRedacted) return '••••••'
+    if (isCostRedacted) return 'Confidencial'
     return new Intl.NumberFormat('es-CO', {
       style: 'currency',
       currency: 'COP',
@@ -100,242 +215,195 @@ export function AccountsPayablePage() {
     }).format(val)
   }
 
-  const supplierOptions = [
-    { value: 'ALL', label: 'Todos los proveedores' },
-    ...suppliers.map((s) => ({ value: s.id, label: s.name })),
-  ]
+  // Animated KPI numbers
+  const animPendingBalance = useCountUp(stats?.totalPendingBalance || 0)
+  const animOverdueBalance = useCountUp(stats?.totalOverdueBalance || 0)
+  const animPaidThisMonth = useCountUp(stats?.paidThisMonth || 0)
+  const currentPortion = Math.max(
+    0,
+    (stats?.totalPendingBalance || 0) - (stats?.totalOverdueBalance || 0)
+  )
+  const animCurrentBalance = useCountUp(currentPortion)
 
-  const locationOptions = [
-    { value: 'ALL', label: 'Todas las bodegas' },
-    ...locations.map((l) => ({ value: l.id, label: `${l.name} (${l.code})` })),
-  ]
+  // Filter check
+  const activeFilterCount = [
+    Boolean(query.trim()),
+    supplierId !== 'ALL',
+    locationId !== 'ALL',
+    status !== 'ALL',
+  ].filter(Boolean).length
+  const hasActiveFilters = activeFilterCount > 0
+
+  const handleResetFilters = () => {
+    setQuery('')
+    setSupplierId('ALL')
+    setLocationId('ALL')
+    setStatus('ALL')
+    setPage(1)
+  }
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortField(field)
+      setSortDirection('asc')
+    }
+    setPage(1)
+  }
+
+  const handleExportCSV = () => {
+    if (items.length === 0) return
+    const headers = [
+      'Documento',
+      'Factura Proveedor',
+      'Proveedor',
+      'NIT',
+      'Bodega',
+      'Vencimiento',
+      'Total Factura',
+      'Abonado',
+      'Saldo Pendiente',
+      'Estado',
+    ]
+
+    const rows = items.map((it) => [
+      `"${it.purchaseNumber}"`,
+      `"${it.supplierInvoiceNumber || ''}"`,
+      `"${it.supplierName.replace(/"/g, '""')}"`,
+      `"${it.supplierNit}"`,
+      `"${it.locationName}"`,
+      `"${it.dueDate}"`,
+      it.originalAmount,
+      it.paidAmount,
+      it.pendingBalance,
+      `"${it.status}"`,
+    ])
+
+    const csvContent =
+      'data:text/csv;charset=utf-8,\uFEFF' +
+      [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement('a')
+    link.setAttribute('href', encodedUri)
+    link.setAttribute('download', `Cuentas_por_Pagar_${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
 
   return (
-    <div className="page-container page-enter" style={{ padding: '24px', maxWidth: 1400, margin: '0 auto' }}>
-      {/* Header */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 16,
-          marginBottom: 24,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: 12,
-              color: 'var(--text-muted)',
-              marginBottom: 4,
-            }}
-          >
-            <span>Compras</span>
-            <span>/</span>
-            <span style={{ color: 'var(--navy)', fontWeight: 600 }}>Cuentas por Pagar</span>
-          </div>
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 800,
-              color: 'var(--navy)',
-              margin: 0,
-              letterSpacing: '-0.02em',
-            }}
-          >
+    <div className="products-module-wrapper accounts-payable-module-wrapper page-enter">
+      {/* 1. Header */}
+      <header className="products-header-wrap">
+        <div className="header-title-group">
+          <span className="product-category-eyebrow">
+            Tesorería & Proveedores
+          </span>
+          <h1 className="header-main-title">
             Cuentas por Pagar (CxP)
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Control fiduciario de obligaciones con proveedores, gestión de cartera y abonos
+          <p className="header-sub-caption">
+            Control fiduciario de obligaciones comerciales, gestión de cartera de proveedores y abonos
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="products-actions-bar">
           <button
             type="button"
-            className="outline-button-sm"
+            className="outline-button"
             onClick={() => fetchData()}
-            title="Refrescar datos"
-            style={{
-              padding: '8px 14px',
-              fontSize: 13,
-              fontWeight: 600,
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: '#ffffff',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
+            disabled={loading}
+            title="Refrescar datos de cartera"
           >
-            <AppIcon name="refresh" size={14} />
+            <AppIcon name="refresh" size={15} className={loading ? 'spin-icon' : ''} />
             <span>Actualizar</span>
           </button>
-        </div>
-      </div>
 
-      {/* KPI Cards */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          gap: 16,
-          marginBottom: 24,
-        }}
+          <button
+            type="button"
+            className="outline-button"
+            onClick={handleExportCSV}
+            title="Exportar reporte CSV"
+          >
+            <AppIcon name="download" size={15} />
+            <span>Exportar CSV</span>
+          </button>
+        </div>
+      </header>
+
+      {/* 2. Key Metrics & Stats */}
+      <section
+        className="stats-grid products-stats-grid page-enter"
+        aria-label="Métricas de cuentas por pagar"
       >
-        {/* Card 1: Total Deuda Pendiente */}
-        <div
-          className="metric-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '20px',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Deuda Total Pendiente
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--navy)', marginTop: 8 }}>
-                {stats ? formatCurrency(stats.totalPendingBalance) : '...'}
-              </div>
-            </div>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: 'rgba(30, 58, 138, 0.1)',
-                color: 'var(--navy)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AppIcon name="wallet" size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-            {stats ? stats.pendingInvoicesCount : 0} facturas u órdenes pendientes
-          </div>
-        </div>
+        <CxpStatCard
+          title="Deuda Total Pendiente"
+          value={formatCurrency(animPendingBalance)}
+          iconName="wallet"
+          tone="blue"
+          badge="Cartera Total"
+          note={`${stats?.pendingInvoicesCount || 0} obligaciones activas`}
+          isPositive={true}
+          subtext="Total por pagar a proveedores"
+          index={1}
+        />
 
-        {/* Card 2: Cartera Vencida */}
-        <div
-          className="metric-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '20px',
-            borderRadius: 12,
-            border: '1px solid #fecaca',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>
-                Cartera Vencida
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#dc2626', marginTop: 8 }}>
-                {stats ? formatCurrency(stats.totalOverdueBalance) : '...'}
-              </div>
-            </div>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: '#fef2f2',
-                color: '#dc2626',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AppIcon name="warning" size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: '#dc2626', marginTop: 10, fontWeight: 600 }}>
-            {stats ? stats.overdueInvoicesCount : 0} facturas vencidas
-          </div>
-        </div>
+        <CxpStatCard
+          title="Cartera Vencida"
+          value={formatCurrency(animOverdueBalance)}
+          iconName="warning"
+          tone="red"
+          badge="En Mora"
+          note={`${stats?.overdueInvoicesCount || 0} facturas vencidas`}
+          isPositive={false}
+          subtext="Obligaciones con plazo superado"
+          index={2}
+        />
 
-        {/* Card 3: Abonos del Mes */}
-        <div
-          className="metric-card"
-          style={{
-            background: 'var(--card-bg, #ffffff)',
-            padding: '20px',
-            borderRadius: 12,
-            border: '1px solid var(--border)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                Pagado en el Mes
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: '#059669', marginTop: 8 }}>
-                {stats ? formatCurrency(stats.paidThisMonth) : '...'}
-              </div>
-            </div>
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 10,
-                background: '#ecfdf5',
-                color: '#059669',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <AppIcon name="check" size={20} />
-            </div>
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
-            Egresos aplicados a proveedores este mes
-          </div>
-        </div>
-      </div>
+        <CxpStatCard
+          title="Pagado en el Mes"
+          value={formatCurrency(animPaidThisMonth)}
+          iconName="check"
+          tone="teal"
+          badge="Egresos"
+          note="Abonos aplicados"
+          isPositive={true}
+          subtext="Liquidado en el periodo"
+          index={3}
+        />
 
-      {/* Filter and Tab Section */}
-      <div
-        style={{
-          background: 'var(--card-bg, #ffffff)',
-          borderRadius: 12,
-          border: '1px solid var(--border)',
-          padding: 16,
-          marginBottom: 20,
-        }}
-      >
+        <CxpStatCard
+          title="Cartera Corriente"
+          value={formatCurrency(animCurrentBalance)}
+          iconName="clock"
+          tone="purple"
+          badge="Al Día"
+          note="Dentro del plazo"
+          isPositive={true}
+          subtext="Obligaciones no vencidas"
+          index={4}
+        />
+      </section>
+
+      {/* 3. Toolbar & Dynamic Filters */}
+      <div className="products-toolbar toolbar">
         {/* Status Tabs */}
         <div
           style={{
             display: 'flex',
+            alignItems: 'center',
+            gap: 6,
             flexWrap: 'wrap',
-            gap: 8,
-            borderBottom: '1px solid var(--border)',
-            paddingBottom: 14,
-            marginBottom: 16,
           }}
         >
           {[
-            { key: 'ALL', label: 'Todas las Obligaciones' },
+            { key: 'ALL', label: 'Todas' },
             { key: 'PENDIENTE', label: 'Pendientes' },
-            { key: 'PARCIAL', label: 'Abonadas / Parciales' },
+            { key: 'PARCIAL', label: 'Abonadas' },
             { key: 'VENCIDA', label: 'Vencidas' },
-            { key: 'PAGADA', label: 'Liquidadas / Pagadas' },
+            { key: 'PAGADA', label: 'Liquidadas' },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -346,14 +414,9 @@ export function AccountsPayablePage() {
                 setPage(1)
               }}
               style={{
-                padding: '6px 14px',
+                padding: '6px 12px',
                 fontSize: 12,
-                fontWeight: 600,
                 borderRadius: 8,
-                border: 'none',
-                background: status === tab.key ? 'var(--navy, #1e3a8a)' : 'transparent',
-                color: status === tab.key ? '#ffffff' : 'var(--text-main)',
-                cursor: 'pointer',
               }}
             >
               {tab.label}
@@ -361,151 +424,120 @@ export function AccountsPayablePage() {
           ))}
         </div>
 
-        {/* Filter Inputs Grid */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: 12,
-          }}
-        >
-          {/* Search Box */}
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="Buscar por orden, factura o notas..."
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
+        {/* Search */}
+        <div className="products-search-box search-box" style={{ minWidth: 260 }}>
+          <AppIcon name="search" size={16} className="search-icon" />
+          <input
+            type="text"
+            className="filter-input-text"
+            placeholder="Buscar por compra, factura o proveedor..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPage(1)
+            }}
+          />
+          {query && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => {
+                setQuery('')
                 setPage(1)
               }}
-              className="filter-date-input"
-              style={{
-                width: '100%',
-                paddingLeft: 36,
-                fontSize: 13,
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                left: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                color: 'var(--text-muted)',
-              }}
+              title="Limpiar búsqueda"
             >
-              <AppIcon name="search" size={14} />
-            </div>
-          </div>
+              <AppIcon name="close" size={13} />
+            </button>
+          )}
+        </div>
 
-          {/* Supplier Dropdown */}
-          <div>
+        {/* Filters */}
+        <div className="filter-select-group">
+          {/* Proveedor */}
+          <div className="filter-select-item" style={{ minWidth: 200 }}>
             <CustomSelect
+              size="sm"
               value={supplierId}
               onChange={(val) => {
                 setSupplierId(val)
                 setPage(1)
               }}
-              options={supplierOptions}
+              options={[
+                { value: 'ALL', label: 'Todos los proveedores' },
+                ...suppliers.map((s) => ({ value: s.id, label: s.name })),
+              ]}
+              placeholder="Proveedor..."
             />
           </div>
 
-          {/* Location Dropdown */}
-          <div>
+          {/* Bodega */}
+          <div className="filter-select-item" style={{ minWidth: 180 }}>
             <CustomSelect
+              size="sm"
               value={locationId}
               onChange={(val) => {
                 setLocationId(val)
                 setPage(1)
               }}
-              options={locationOptions}
+              options={[
+                { value: 'ALL', label: 'Todas las bodegas' },
+                ...locations.map((l) => ({ value: l.id, label: `${l.name} (${l.code})` })),
+              ]}
+              placeholder="Bodega..."
             />
           </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="reset-filters-pill"
+              onClick={handleResetFilters}
+              title="Restablecer filtros de búsqueda"
+            >
+              <AppIcon name="close" size={12} />
+              <span>Limpiar filtros</span>
+              <span className="active-filter-badge">{activeFilterCount}</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Main Table */}
+      {/* 4. Table */}
       <AccountsPayableTable
         items={items}
         isLoading={loading}
         isCostRedacted={isCostRedacted}
-        onRegisterPayment={(item) => setSelectedItemForPayment(item)}
-        onViewHistory={(item) => setSelectedItemForHistory(item)}
+        page={page}
+        pageSize={pageSize}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSort={handleSort}
+        onPageChange={(p) => setPage(p)}
+        onPageSizeChange={(s) => {
+          setPageSize(s)
+          setPage(1)
+        }}
+        onRegisterPayment={(it) => setSelectedItemForPayment(it)}
+        onViewHistory={(it) => setSelectedItemForHistory(it)}
       />
 
-      {/* Pagination */}
-      {!loading && totalCount > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: 16,
-            padding: '12px 16px',
-            background: 'var(--card-bg, #ffffff)',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            fontSize: 12,
-            color: 'var(--text-muted)',
-          }}
-        >
-          <div>
-            Mostrando <strong>{items.length}</strong> de <strong>{totalCount}</strong> cuentas por pagar
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="outline-button-sm"
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: '#ffffff',
-                cursor: page <= 1 ? 'not-allowed' : 'pointer',
-                opacity: page <= 1 ? 0.5 : 1,
-              }}
-            >
-              <AppIcon name="chevronLeft" size={14} />
-            </button>
-            <span style={{ fontWeight: 600, padding: '0 8px' }}>
-              Página {page} de {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="outline-button-sm"
-              style={{
-                padding: '4px 10px',
-                borderRadius: 6,
-                border: '1px solid var(--border)',
-                background: '#ffffff',
-                cursor: page >= totalPages ? 'not-allowed' : 'pointer',
-                opacity: page >= totalPages ? 0.5 : 1,
-              }}
-            >
-              <AppIcon name="chevronRight" size={14} />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Abono / Pago */}
+      {/* 5. Modals */}
       <AccountsPayablePaymentModal
         item={selectedItemForPayment}
-        isOpen={!!selectedItemForPayment}
+        isOpen={Boolean(selectedItemForPayment)}
         onClose={() => setSelectedItemForPayment(null)}
-        onSuccess={() => fetchData()}
+        onSuccess={() => {
+          setSelectedItemForPayment(null)
+          fetchData()
+        }}
       />
 
-      {/* Modal Historial de Pagos */}
       <AccountsPayableHistoryModal
         item={selectedItemForHistory}
-        isOpen={!!selectedItemForHistory}
+        isOpen={Boolean(selectedItemForHistory)}
         onClose={() => setSelectedItemForHistory(null)}
       />
     </div>

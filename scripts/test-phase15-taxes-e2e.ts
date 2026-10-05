@@ -15,6 +15,9 @@
  * 11. Purga Zero Pollution atómica.
  */
 
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
+
 import pg from 'pg'
 import { supabaseAdmin } from '../lib/supabase/admin'
 import { taxService } from '../features/taxes/services/tax.service'
@@ -42,7 +45,7 @@ async function runPhase15TaxesE2ETests() {
   console.log('INICIANDO SUITE E2E - FASE 15: IMPUESTOS Y RETENCIONES')
   console.log('============================================================\n')
 
-  const connectionString = process.env.DATABASE_URL
+  const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL
   if (!connectionString) {
     throw new Error('DATABASE_URL no está configurada.')
   }
@@ -600,6 +603,8 @@ async function runPhase15TaxesE2ETests() {
         await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
         await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
       }
+
+      await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 
       const verifyCleanA = await pgClient.query(
         `SELECT COUNT(*) FROM public.tax_rates WHERE company_id = $1;`,

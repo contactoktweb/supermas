@@ -262,17 +262,26 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
     addToast('info', 'Usuario desvinculado', 'Se retiró la asignación del usuario en esta sede.')
   }
 
-  if (isLoading && !warehouse) {
-    return <WarehouseDetailSkeleton />
-  }
+  const periodSalesAmount = useMemo(() => {
+    return sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0)
+  }, [sales])
 
-  if (error || !warehouse) {
-    return (
-      <div className="page-enter">
-        <WarehouseErrorState message={error || 'No se pudo cargar la información.'} onRetry={loadWarehouseData} />
-      </div>
-    )
-  }
+  const periodPurchasesAmount = useMemo(() => {
+    return purchases.reduce((sum, p) => sum + (p.totalCost || 0), 0)
+  }, [purchases])
+
+  const periodCostAmount = useMemo(() => {
+    return sales.reduce((sum, s) => sum + (s.costAmount || 0), 0)
+  }, [sales])
+
+  const periodProfitAmount = useMemo(() => {
+    return Math.max(0, periodSalesAmount - periodCostAmount)
+  }, [periodSalesAmount, periodCostAmount])
+
+  const periodMarginPercent = useMemo(() => {
+    if (periodSalesAmount <= 0) return 0
+    return Math.round((periodProfitAmount / periodSalesAmount) * 100)
+  }, [periodSalesAmount, periodProfitAmount])
 
   type TabKey =
     | 'RESUMEN'
@@ -299,26 +308,17 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
     { key: 'CONFIGURACION', label: 'Configuración', iconName: 'settings' },
   ]
 
-  const periodSalesAmount = useMemo(() => {
-    return sales.reduce((sum, s) => sum + (s.totalAmount || 0), 0)
-  }, [sales])
+  if (isLoading && !warehouse) {
+    return <WarehouseDetailSkeleton />
+  }
 
-  const periodPurchasesAmount = useMemo(() => {
-    return purchases.reduce((sum, p) => sum + (p.totalCost || 0), 0)
-  }, [purchases])
-
-  const periodCostAmount = useMemo(() => {
-    return sales.reduce((sum, s) => sum + (s.costAmount || 0), 0)
-  }, [sales])
-
-  const periodProfitAmount = useMemo(() => {
-    return Math.max(0, periodSalesAmount - periodCostAmount)
-  }, [periodSalesAmount, periodCostAmount])
-
-  const periodMarginPercent = useMemo(() => {
-    if (periodSalesAmount <= 0) return 0
-    return Math.round((periodProfitAmount / periodSalesAmount) * 100)
-  }, [periodSalesAmount, periodProfitAmount])
+  if (error || !warehouse) {
+    return (
+      <div className="page-enter">
+        <WarehouseErrorState message={error || 'No se pudo cargar la información.'} onRetry={loadWarehouseData} />
+      </div>
+    )
+  }
 
   return (
     <div className="warehouse-detail-page page-enter">

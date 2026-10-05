@@ -45,16 +45,20 @@ function createEmptyDatabaseClient(): any {
   }
 }
 
+let _adminClientInstance: SupabaseClient<any, 'public', any> | null = null
+
 /**
  * Cliente administrativo de Supabase con privilegios elevados (service_role).
  * ADVERTENCIA: NUNCA usar en el frontend ni en componentes cliente.
  * Se utiliza exclusivamente en scripts de migración, cron jobs y endpoints administrativos protegidos.
  */
 export const createAdminClient = (): SupabaseClient<any, 'public', any> => {
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!url || !key) {
     return createEmptyDatabaseClient()
   }
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+  return createClient(url, key, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -62,4 +66,27 @@ export const createAdminClient = (): SupabaseClient<any, 'public', any> => {
   })
 }
 
-export const supabaseAdmin = createAdminClient()
+export const getSupabaseAdmin = (): SupabaseClient<any, 'public', any> => {
+  if (!_adminClientInstance) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+    if (!url || !key) {
+      return createEmptyDatabaseClient()
+    }
+    _adminClientInstance = createClient(url, key, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+  }
+  return _adminClientInstance
+}
+
+export const supabaseAdmin: SupabaseClient<any, 'public', any> = new Proxy({} as any, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin()
+    const value = (client as any)[prop]
+    return typeof value === 'function' ? value.bind(client) : value
+  },
+})

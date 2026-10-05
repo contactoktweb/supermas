@@ -7,6 +7,9 @@
  * el aislamiento estricto multiempresa, la auditoría y la purga Zero Pollution.
  */
 
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
+
 import { Client } from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import {
@@ -39,7 +42,7 @@ async function runPhase16ImporterE2ETests() {
     console.log(`   Detalle: ${details}\n`)
   }
 
-  const databaseUrl = process.env.DATABASE_URL
+  const databaseUrl = process.env.DIRECT_URL || process.env.DATABASE_URL
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
@@ -640,6 +643,8 @@ INV-ERR-03;Costo Negativo;10000;-2000`
         await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
         await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
       }
+
+      await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 
       const verifyCleanA = await pgClient.query(
         `SELECT COUNT(*) FROM public.products WHERE company_id = $1;`,

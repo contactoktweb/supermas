@@ -23,10 +23,12 @@
 
 import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const DATABASE_URL = process.env.DATABASE_URL || ''
+const DATABASE_URL = process.env.DIRECT_URL || process.env.DATABASE_URL || ''
 
 if (!DATABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error('❌ ERROR: Variables de entorno requeridas no disponibles.')
@@ -64,6 +66,7 @@ async function runPhase11TestSuite() {
 
   let companyAId: string
   let companyBId: string
+  let isTempCompanyB = false
   let locAId: string
   let locBId: string
   let authUserAId: string
@@ -98,12 +101,13 @@ async function runPhase11TestSuite() {
       [companyAId]
     )
     if (compBRes.rows.length === 0) {
-      const newB = await pgClient.query(
-        `INSERT INTO public.companies (name, document_number, email)
-         VALUES ('Empresa B Test ${tag}', '900${runId}9-2', 'empresaB.${runId}@test.com')
-         RETURNING id;`
-      )
+      const newB = await pgClient.query(`
+        INSERT INTO public.companies (id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code, address, city, department, country, currency, status)
+        VALUES (gen_random_uuid(), 'Empresa B Temporal E2E Tesorería', 'Empresa B E2E', '900${runId}9-2', '1', 'RESPONSABLE_DE_IVA', '4711', 'Calle 10 # 20-30', 'Medellín', 'Antioquia', 'Colombia', 'COP', 'ACTIVE')
+        RETURNING id;
+      `)
       companyBId = newB.rows[0].id
+      isTempCompanyB = true
     } else {
       companyBId = compBRes.rows[0].id
     }
@@ -906,6 +910,13 @@ async function runPhase11TestSuite() {
       if (locAId! || locBId!) {
         await pgClient.query('DELETE FROM locations WHERE id IN ($1, $2);', [locAId, locBId].filter(Boolean))
       }
+
+      if (isTempCompanyB) {
+        await pgClient.query('DELETE FROM public.audit_logs WHERE company_id = $1;', [companyBId])
+        await pgClient.query('DELETE FROM public.companies WHERE id = $1;', [companyBId])
+      }
+
+      await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 
       if (authUserAId!) await adminSupabase.auth.admin.deleteUser(authUserAId)
       if (authUserBId!) await adminSupabase.auth.admin.deleteUser(authUserBId)

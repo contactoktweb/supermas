@@ -20,14 +20,14 @@
  * [T16] Zero Pollution: purga 100% limpia de datos de prueba
  */
 
+import dotenv from 'dotenv'
+dotenv.config({ path: '.env.local' })
+
 import { Client } from 'pg'
-import * as dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { reportService, DEFAULT_ANALYTICS_USER } from '../features/reports/services/report.service'
 import { reportExportService } from '../features/reports/services/report-export.service'
 import { UserReportContext } from '../features/reports/types'
-
-dotenv.config({ path: '.env.local' })
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -56,7 +56,7 @@ function recordResult(code: string, name: string, pass: boolean, detail: string)
 }
 
 async function runPhase13TestSuite() {
-  const pgClient = new Client({ connectionString: process.env.DATABASE_URL })
+  const pgClient = new Client({ connectionString: process.env.DIRECT_URL || process.env.DATABASE_URL })
   await pgClient.connect()
   console.log('✅ Conexión directa a PostgreSQL Staging establecida.\n')
 
@@ -86,25 +86,25 @@ async function runPhase13TestSuite() {
     // 1. Crear Empresa A y Empresa B
     const compARes = await pgClient.query(
       `INSERT INTO public.companies (
-         id, business_name, trade_name, tax_id, verification_digit, tax_regime,
-         address, city, department, country, currency, email, status
+         id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code,
+         address, city, department, country, currency, status
        ) VALUES (
-         gen_random_uuid(), $1, $2, $3, '9', 'RESPONSABLE_DE_IVA',
-         'Calle 100 # 15-20', 'Bogotá', 'Bogotá D.C.', 'Colombia', 'COP', $4, 'ACTIVE'
+         gen_random_uuid(), $1, $2, $3, '9', 'RESPONSABLE_DE_IVA', '4711',
+         'Calle 100 # 15-20', 'Bogotá', 'Bogotá D.C.', 'Colombia', 'COP', 'ACTIVE'
        ) RETURNING id;`,
-      [`Empresa Reportes A S.A.S. ${runId}`, `Empresa A ${runId}`, `901${runId.slice(-6)}`, `empresaA_${runId}@supermas.local`]
+      [`Empresa Reportes A S.A.S. ${runId}`, `Empresa A ${runId}`, `901${runId.slice(-6)}`]
     )
     companyAId = compARes.rows[0].id
 
     const compBRes = await pgClient.query(
       `INSERT INTO public.companies (
-         id, business_name, trade_name, tax_id, verification_digit, tax_regime,
-         address, city, department, country, currency, email, status
+         id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code,
+         address, city, department, country, currency, status
        ) VALUES (
-         gen_random_uuid(), $1, $2, $3, '1', 'RESPONSABLE_DE_IVA',
-         'Carrera 43A # 1-50', 'Medellín', 'Antioquia', 'Colombia', 'COP', $4, 'ACTIVE'
+         gen_random_uuid(), $1, $2, $3, '1', 'RESPONSABLE_DE_IVA', '4711',
+         'Carrera 43A # 1-50', 'Medellín', 'Antioquia', 'Colombia', 'COP', 'ACTIVE'
        ) RETURNING id;`,
-      [`Empresa Reportes B S.A.S. ${runId}`, `Empresa B ${runId}`, `902${runId.slice(-6)}`, `empresaB_${runId}@supermas.local`]
+      [`Empresa Reportes B S.A.S. ${runId}`, `Empresa B ${runId}`, `902${runId.slice(-6)}`]
     )
     companyBId = compBRes.rows[0].id
 
@@ -759,6 +759,8 @@ async function runPhase13TestSuite() {
         await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
         await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
       }
+
+      await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 
       recordResult(
         'T16',

@@ -241,3 +241,5 @@ export interface InvoiceUserContext {
   userRole: string
   permissions: string[]
 }
+
+export * from './dian.types'

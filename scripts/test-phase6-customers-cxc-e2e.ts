@@ -109,14 +109,23 @@ async function runPhase6TestSuite() {
     }
     companyAId = compARes.rows[0].id
 
+    let isTempCompanyB = false
+    let companyBId: string
     const compBRes = await pgClient.query(
       `SELECT id FROM public.companies WHERE id != $1 AND status = 'ACTIVE' LIMIT 1;`,
       [companyAId]
     )
     if (compBRes.rows.length === 0) {
-      throw new Error('No se encontró una segunda empresa activa para aislamiento multi-tenant.')
+      const insB = await pgClient.query(`
+        INSERT INTO public.companies (id, business_name, trade_name, tax_id, verification_digit, tax_regime, economic_activity_code, address, city, department, country, currency, status)
+        VALUES (gen_random_uuid(), 'Empresa B Temporal E2E', 'Empresa B E2E', '999888777', '1', 'RESPONSABLE_DE_IVA', '4711', 'Calle 10 # 20-30', 'Medellín', 'Antioquia', 'Colombia', 'COP', 'ACTIVE')
+        RETURNING id;
+      `)
+      companyBId = insB.rows[0].id
+      isTempCompanyB = true
+    } else {
+      companyBId = compBRes.rows[0].id
     }
-    companyBId = compBRes.rows[0].id
 
     // 2. Ubicaciones (Sedes/Bodegas)
     const locARes = await pgClient.query(
@@ -127,8 +136,8 @@ async function runPhase6TestSuite() {
       locAId = locARes.rows[0].id
     } else {
       const insL = await pgClient.query(
-        `INSERT INTO public.locations (company_id, code, name, type, status)
-         VALUES ($1, $2, $3, 'STORE', 'ACTIVE') RETURNING id;`,
+        `INSERT INTO public.locations (company_id, code, name, type, address, city, status)
+         VALUES ($1, $2, $3, 'STORE_POINT', 'Calle 10 # 20-30', 'Medellín', 'ACTIVE') RETURNING id;`,
         [companyAId, `LOC-A-${runId}`, `Sede Principal A ${tag}`]
       )
       locAId = insL.rows[0].id
@@ -142,8 +151,8 @@ async function runPhase6TestSuite() {
       locBId = locBRes.rows[0].id
     } else {
       const insLB = await pgClient.query(
-        `INSERT INTO public.locations (company_id, code, name, type, status)
-         VALUES ($1, $2, $3, 'STORE', 'ACTIVE') RETURNING id;`,
+        `INSERT INTO public.locations (company_id, code, name, type, address, city, status)
+         VALUES ($1, $2, $3, 'STORE_POINT', 'Carrera 43A # 1-50', 'Medellín', 'ACTIVE') RETURNING id;`,
         [companyBId, `LOC-B-${runId}`, `Sede Principal B ${tag}`]
       )
       locBId = insLB.rows[0].id
@@ -755,6 +764,11 @@ async function runPhase6TestSuite() {
     await pgClient.query(`DELETE FROM public.users WHERE id IN ($1, $2);`, [authUserAId, authUserBId])
     await adminSupabase.auth.admin.deleteUser(authUserAId)
     await adminSupabase.auth.admin.deleteUser(authUserBId)
+
+    if (isTempCompanyB) {
+      await pgClient.query(`DELETE FROM public.audit_logs WHERE company_id = $1;`, [companyBId])
+      await pgClient.query(`DELETE FROM public.companies WHERE id = $1;`, [companyBId])
+    }
 
     await pgClient.query("SELECT set_config('app.is_test_cleanup', 'false', false);")
 

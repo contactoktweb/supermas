@@ -114,8 +114,8 @@ export class KardexRepository {
           sku,
           barcode,
           name,
-          unit_type,
-          image_url,
+          unit_of_measure,
+          primary_image_url,
           categories ( name )
         ),
         locations (
@@ -199,8 +199,8 @@ export class KardexRepository {
         sku: p.sku || 'SKU',
         barcode: p.barcode || '',
         category: p.categories?.name || 'General',
-        unitOfMeasure: p.unit_type || 'UND',
-        imageUrl: p.image_url || undefined,
+        unitOfMeasure: p.unit_of_measure || 'UND',
+        imageUrl: p.primary_image_url || undefined,
         locationId: row.location_id,
         locationName: loc.name || 'Bodega',
         locationCode: loc.code || 'BOD',
@@ -289,8 +289,8 @@ export class KardexRepository {
           sku,
           barcode,
           name,
-          unit_type,
-          image_url,
+          unit_of_measure,
+          primary_image_url,
           categories ( name )
         ),
         locations (
@@ -325,8 +325,8 @@ export class KardexRepository {
       sku: p.sku || 'SKU',
       barcode: p.barcode || '',
       category: p.categories?.name || 'General',
-      unitOfMeasure: p.unit_type || 'UND',
-      imageUrl: p.image_url || undefined,
+      unitOfMeasure: p.unit_of_measure || 'UND',
+      imageUrl: p.primary_image_url || undefined,
       locationId: data.location_id,
       locationName: loc.name || 'Bodega',
       locationCode: loc.code || 'BOD',
@@ -356,7 +356,7 @@ export class KardexRepository {
   async findProductKardexSummary(productId: string): Promise<ProductKardexSummary | null> {
     const { data: prod } = await supabaseClient
       .from('products')
-      .select('id, name, sku, image_url, unit_type, categories(name)')
+      .select('id, name, sku, primary_image_url, unit_of_measure, categories(name)')
       .eq('id', productId)
       .maybeSingle()
 
@@ -395,9 +395,9 @@ export class KardexRepository {
       productName: prod.name,
       sku: prod.sku,
       category: (prod.categories as any)?.name || 'General',
-      imageUrl: prod.image_url || undefined,
+      imageUrl: prod.primary_image_url || undefined,
       totalStockAllWarehouses: totalStock,
-      unitOfMeasure: prod.unit_type || 'UND',
+      unitOfMeasure: prod.unit_of_measure || 'UND',
       warehousesDistribution,
       lastMovementAt: lastMov?.created_at || 'Sin movimientos',
       lastMovementType: lastMov ? mapDbMovementTypeToDomain(lastMov.movement_type) : 'AJUSTE_ENTRADA',

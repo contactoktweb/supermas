@@ -1,5 +1,20 @@
+/**
+ * SUPER MÁS ERP/POS - Repositorio Real de Traslados (TransferRepository)
+ * 
+ * Persistencia fiduciaria 100% real en PostgreSQL / Supabase:
+ * - Aislamiento multi-tenant estricto mediante resolveUserCompanyId
+ * - Enlaces relacionales con locations, products, users y transfer_items
+ * - Invocación a RPCs atómicas con bloqueo pesimista y actualización del Kardex:
+ *   * fn_create_transfer
+ *   * fn_dispatch_transfer (TRANSFER_OUT en Kardex)
+ *   * fn_receive_transfer (TRANSFER_IN en Kardex)
+ *   * fn_cancel_transfer (Reversión a Kardex)
+ */
+
 import {
   Transfer,
+  TransferStatus,
+  TransferItem,
   TransferFilterParams,
   GlobalTransferStats,
   TransferPaginationResult,
@@ -8,131 +23,217 @@ import {
   TransferReceiveInput,
   TransferRejectInput,
 } from '../types'
-import { supabaseClient, supabaseMock } from '@/lib/supabase'
+import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+
+const TRANSFER_QUERY_SELECT = `
+  id,
+  code,
+  origin_location_id,
+  destination_location_id,
+  status,
+  dispatch_date,
+  receipt_date,
+  created_by_user_id,
+  dispatched_by_user_id,
+  received_by_user_id,
+  rejected_by_user_id,
+  rejected_at,
+  rejection_reason,
+  has_incident,
+  incident_notes,
+  notes,
+  created_at,
+  updated_at,
+  company_id,
+  origin:locations!origin_location_id (id, name, code),
+  destination:locations!destination_location_id (id, name, code),
+  creator:users!created_by_user_id (id, full_name, role:roles!role_id(name)),
+  dispatcher:users!dispatched_by_user_id (id, full_name),
+  receiver:users!received_by_user_id (id, full_name),
+  rejecter:users!rejected_by_user_id (id, full_name),
+  items:transfer_items (
+    id,
+    product_id,
+    requested_quantity,
+    sent_quantity,
+    received_quantity,
+    unit_cost,
+    has_discrepancy,
+    discrepancy_note,
+    created_at,
+    product:products (id, name, sku, barcode, unit_of_measure, category:categories(name))
+  )
+`
+
+function mapDbRowToTransfer(row: any): Transfer {
+  const items: TransferItem[] = (row.items || []).map((i: any) => {
+    const req = Number(i.requested_quantity || 0)
+    const sent = Number(i.sent_quantity || 0)
+    const recv = Number(i.received_quantity || 0)
+    const cost = Number(i.unit_cost || 0)
+    return {
+      id: i.id,
+      productId: i.product_id,
+      productName: i.product?.name || 'Producto',
+      sku: i.product?.sku || 'SKU',
+      barcode: i.product?.barcode || undefined,
+      category: i.product?.category?.name || 'General',
+      unitOfMeasure: i.product?.unit_of_measure || 'UND',
+      imageUrl: undefined,
+      availableStockAtOrigin: req,
+      requestedUnits: req,
+      dispatchedUnits: sent,
+      receivedUnits: recv,
+      unitCost: cost,
+      totalCost: req * cost,
+      hasDiscrepancy: Boolean(i.has_discrepancy),
+      discrepancyNote: i.discrepancy_note || undefined,
+    }
+  })
+
+  const totalUnitsRequested = items.reduce((acc, i) => acc + i.requestedUnits, 0)
+  const totalUnitsDispatched = items.reduce((acc, i) => acc + i.dispatchedUnits, 0)
+  const totalUnitsReceived = items.reduce((acc, i) => acc + i.receivedUnits, 0)
+  const totalValueAtCost = items.reduce((acc, i) => acc + i.totalCost, 0)
+
+  return {
+    id: row.id,
+    code: row.code,
+    originLocationId: row.origin_location_id,
+    originLocationName: row.origin?.name || 'Bodega Origen',
+    originLocationCode: row.origin?.code || 'ORIG',
+    destinationLocationId: row.destination_location_id,
+    destinationLocationName: row.destination?.name || 'Bodega Destino',
+    destinationLocationCode: row.destination?.code || 'DEST',
+    status: row.status as TransferStatus,
+    items,
+    totalItemsCount: items.length,
+    totalUnitsRequested,
+    totalUnitsDispatched,
+    totalUnitsReceived,
+    totalValueAtCost,
+    createdByUserId: row.created_by_user_id || '',
+    createdByUserName: row.creator?.full_name || 'Sistema',
+    createdByUserRole: row.creator?.role?.name || 'Coordinador de Logística',
+    dispatchedByUserId: row.dispatched_by_user_id || undefined,
+    dispatchedByUserName: row.dispatcher?.full_name || undefined,
+    dispatchedAt: row.dispatch_date || undefined,
+    receivedByUserId: row.received_by_user_id || undefined,
+    receivedByUserName: row.receiver?.full_name || undefined,
+    receivedAt: row.receipt_date || undefined,
+    rejectedByUserId: row.rejected_by_user_id || undefined,
+    rejectedByUserName: row.rejecter?.full_name || undefined,
+    rejectedAt: row.rejected_at || undefined,
+    rejectionReason: row.rejection_reason || undefined,
+    hasIncident: Boolean(row.has_incident),
+    incidentNotes: row.incident_notes || undefined,
+    notes: row.notes || undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at || row.created_at,
+  }
+}
 
 export class TransferRepository {
-  private transfers: Transfer[] = []
-
-  /**
-   * Obtiene los ítems normalizados relacionales de la transferencia desde transfer_items
-   */
-  async getItems(transferId: string): Promise<any[]> {
-    const client = supabaseClient || supabaseMock
-    const { data: rawItems } = await client.from('transfer_items').select()
-    const allItems = (rawItems as unknown as Array<{ transferId?: string }>) || []
-    return allItems.filter((i) => i.transferId === transferId)
+  private async resolveCompanyId(): Promise<string> {
+    return resolveUserCompanyId(supabaseClient)
   }
 
-  async findMany(filters: TransferFilterParams): Promise<TransferPaginationResult> {
-    let filtered = [...this.transfers]
+  async getItems(transferId: string): Promise<any[]> {
+    const { data: rawItems, error } = await supabaseClient
+      .from('transfer_items')
+      .select('*, product:products(id, name, sku)')
+      .eq('transfer_id', transferId)
 
-    // 1. Search Query (Code, Product, Origin, Destination, User, Notes)
-    if (filters.query && filters.query.trim() !== '') {
-      const q = filters.query.toLowerCase().trim()
-      filtered = filtered.filter(
-        (t) =>
-          t.code.toLowerCase().includes(q) ||
-          t.originLocationName.toLowerCase().includes(q) ||
-          t.destinationLocationName.toLowerCase().includes(q) ||
-          t.createdByUserName.toLowerCase().includes(q) ||
-          (t.dispatchedByUserName && t.dispatchedByUserName.toLowerCase().includes(q)) ||
-          (t.receivedByUserName && t.receivedByUserName.toLowerCase().includes(q)) ||
-          (t.notes && t.notes.toLowerCase().includes(q)) ||
-          t.items.some((i) => i.productName.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q))
-      )
+    if (error) {
+      console.error('Error consultando ítems del traslado:', error)
+      return []
     }
+    return rawItems || []
+  }
 
-    // 2. Specific Code filter
+  async findMany(filters: TransferFilterParams = {}): Promise<TransferPaginationResult> {
+    const companyId = await this.resolveCompanyId()
+
+    let query = supabaseClient
+      .from('transfers')
+      .select(TRANSFER_QUERY_SELECT, { count: 'exact' })
+      .eq('company_id', companyId)
+
+    // Filtro por código específico
     if (filters.code && filters.code.trim() !== '') {
-      const c = filters.code.toLowerCase().trim()
-      filtered = filtered.filter((t) => t.code.toLowerCase().includes(c))
+      query = query.ilike('code', `%${filters.code.trim()}%`)
     }
 
-    // 3. Origin Location filter
+    // Filtro por bodega origen
     if (filters.originLocationId && filters.originLocationId !== 'ALL') {
-      filtered = filtered.filter((t) => t.originLocationId === filters.originLocationId)
+      query = query.eq('origin_location_id', filters.originLocationId)
     }
 
-    // 4. Destination Location filter
+    // Filtro por bodega destino
     if (filters.destinationLocationId && filters.destinationLocationId !== 'ALL') {
-      filtered = filtered.filter((t) => t.destinationLocationId === filters.destinationLocationId)
+      query = query.eq('destination_location_id', filters.destinationLocationId)
     }
 
-    // 5. Direction filter (ALL | INBOUND | OUTBOUND) relative to activeLocationId
+    // Filtro de dirección (INBOUND | OUTBOUND) relativo a activeLocationId
     if (filters.direction && filters.direction !== 'ALL' && filters.activeLocationId && filters.activeLocationId !== 'ALL') {
       if (filters.direction === 'INBOUND') {
-        filtered = filtered.filter((t) => t.destinationLocationId === filters.activeLocationId)
+        query = query.eq('destination_location_id', filters.activeLocationId)
       } else if (filters.direction === 'OUTBOUND') {
-        filtered = filtered.filter((t) => t.originLocationId === filters.activeLocationId)
+        query = query.eq('origin_location_id', filters.activeLocationId)
       }
     }
 
-    // 6. Status filter
+    // Filtro por estado
     if (filters.status && filters.status !== 'ALL') {
-      filtered = filtered.filter((t) => t.status === filters.status)
+      query = query.eq('status', filters.status)
     }
 
-    // 7. User responsible filter
-    if (filters.userId && filters.userId !== 'ALL') {
-      filtered = filtered.filter(
-        (t) =>
-          t.createdByUserId === filters.userId ||
-          t.dispatchedByUserId === filters.userId ||
-          t.receivedByUserId === filters.userId
-      )
-    }
-
-    // 8. Product filter
-    if (filters.productId && filters.productId !== 'ALL') {
-      filtered = filtered.filter((t) => t.items.some((i) => i.productId === filters.productId))
-    }
-
-    // 9. Dates filter
+    // Filtro por fechas
     if (filters.startDate) {
-      const start = new Date(filters.startDate).getTime()
-      filtered = filtered.filter((t) => new Date(t.createdAt).getTime() >= start)
+      query = query.gte('created_at', filters.startDate)
     }
     if (filters.endDate) {
-      const end = new Date(filters.endDate)
-      end.setHours(23, 59, 59, 999)
-      filtered = filtered.filter((t) => new Date(t.createdAt).getTime() <= end.getTime())
+      query = query.lte('created_at', `${filters.endDate}T23:59:59.999Z`)
     }
 
-    // 10. Sorting
+    // Búsqueda general
+    if (filters.query && filters.query.trim() !== '') {
+      const q = filters.query.trim()
+      query = query.or(`code.ilike.%${q}%,notes.ilike.%${q}%`)
+    }
+
+    // Ordenamiento
     const sortField = filters.sortField || 'createdAt'
-    const sortDir = filters.sortDirection || 'desc'
-    const mult = sortDir === 'asc' ? 1 : -1
+    const sortDirection = filters.sortDirection || 'desc'
+    const ascending = sortDirection === 'asc'
 
-    filtered.sort((a, b) => {
-      switch (sortField) {
-        case 'createdAt':
-          return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * mult
-        case 'updatedAt':
-          return (new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()) * mult
-        case 'code':
-          return a.code.localeCompare(b.code) * mult
-        case 'origin':
-          return a.originLocationName.localeCompare(b.originLocationName) * mult
-        case 'destination':
-          return a.destinationLocationName.localeCompare(b.destinationLocationName) * mult
-        case 'units':
-          return (a.totalUnitsRequested - b.totalUnitsRequested) * mult
-        case 'status':
-          return a.status.localeCompare(b.status) * mult
-        default:
-          return 0
-      }
-    })
+    const dbSortField =
+      sortField === 'code' ? 'code' : sortField === 'status' ? 'status' : 'created_at'
 
-    const total = filtered.length
-    const page = Math.max(1, filters.page || 1)
-    const pageSize = Math.max(1, filters.pageSize || 10)
-    const totalPages = Math.ceil(total / pageSize) || 1
-    const startIndex = (page - 1) * pageSize
-    const paginatedItems = filtered.slice(startIndex, startIndex + pageSize)
+    query = query.order(dbSortField, { ascending })
+
+    // Paginación
+    const page = filters.page && filters.page > 0 ? filters.page : 1
+    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 20
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+
+    query = query.range(from, to)
+
+    const { data, count, error } = await query
+
+    if (error) {
+      console.error('Error consultando traslados en PostgreSQL:', error)
+      throw new Error(`Error consultando traslados: ${error.message}`)
+    }
+
+    const items = (data || []).map(mapDbRowToTransfer)
+    const total = count || 0
+    const totalPages = Math.ceil(total / pageSize)
 
     return {
-      items: paginatedItems,
+      items,
       total,
       page,
       pageSize,
@@ -142,34 +243,71 @@ export class TransferRepository {
   }
 
   async findById(id: string): Promise<Transfer | null> {
-    const found = this.transfers.find((t) => t.id === id || t.code === id)
-    if (!found) return null
-    const items = await this.getItems(found.id)
-    return {
-      ...found,
-      items: items.length > 0 ? items : found.items || [],
+    const companyId = await this.resolveCompanyId()
+
+    const { data, error } = await supabaseClient
+      .from('transfers')
+      .select(TRANSFER_QUERY_SELECT)
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .maybeSingle()
+
+    if (error) {
+      console.error(`Error buscando traslado ${id}:`, error)
+      throw new Error(`Error consultando traslado: ${error.message}`)
     }
+
+    if (!data) return null
+    return mapDbRowToTransfer(data)
   }
 
   async getGlobalStats(filters?: TransferFilterParams): Promise<GlobalTransferStats> {
-    let items = [...this.transfers]
+    const companyId = await this.resolveCompanyId()
 
-    if (filters?.originLocationId && filters.originLocationId !== 'ALL') {
-      items = items.filter((t) => t.originLocationId === filters.originLocationId)
-    }
-    if (filters?.destinationLocationId && filters.destinationLocationId !== 'ALL') {
-      items = items.filter((t) => t.destinationLocationId === filters.destinationLocationId)
+    const { data, error } = await supabaseClient
+      .from('transfers')
+      .select('status, items:transfer_items(sent_quantity, received_quantity, requested_quantity, unit_cost)')
+      .eq('company_id', companyId)
+
+    if (error || !data) {
+      console.error('Error calculando estadísticas globales de traslados:', error)
+      return {
+        pendingCount: 0,
+        inTransitCount: 0,
+        receivedCount: 0,
+        rejectedCount: 0,
+        totalUnitsTransferred: 0,
+        incidentCount: 0,
+        isCostRedacted: false,
+      }
     }
 
-    const pendingCount = items.filter((t) => t.status === 'PENDING').length
-    const inTransitCount = items.filter((t) => t.status === 'IN_TRANSIT').length
-    const receivedCount = items.filter((t) => t.status === 'RECEIVED').length
-    const rejectedCount = items.filter((t) => t.status === 'REJECTED').length
-    const incidentCount = items.filter((t) => t.hasIncident).length
-    const totalUnitsTransferred = items.reduce(
-      (acc, t) => acc + (t.status === 'RECEIVED' ? t.totalUnitsReceived : t.totalUnitsDispatched || t.totalUnitsRequested),
-      0
-    )
+    let pendingCount = 0
+    let inTransitCount = 0
+    let receivedCount = 0
+    let rejectedCount = 0
+    let totalUnitsTransferred = 0
+    let incidentCount = 0
+
+    for (const t of data) {
+      const st = t.status
+      if (st === 'PENDING') pendingCount++
+      else if (st === 'IN_TRANSIT') {
+        inTransitCount++
+        const items = (t.items as any[]) || []
+        for (const item of items) {
+          totalUnitsTransferred += Number(item.sent_quantity || 0)
+        }
+      } else if (st === 'RECEIVED') {
+        receivedCount++
+        const items = (t.items as any[]) || []
+        for (const item of items) {
+          totalUnitsTransferred += Number(item.received_quantity || 0)
+        }
+      } else if (st === 'REJECTED' || st === 'CANCELLED') {
+        rejectedCount++
+      }
+    }
 
     return {
       pendingCount,
@@ -182,202 +320,92 @@ export class TransferRepository {
     }
   }
 
-  async create(
-    input: TransferCreateInput,
-    userContext: { userId: string; userName: string; userRole: string }
-  ): Promise<Transfer> {
-    const locationsMap: Record<string, { name: string; code: string }> = {
-      'loc-01': { name: 'Bodega Principal Cali', code: 'BOD-PRI-01' },
-      'loc-02': { name: 'Punto Centro - Carrera 5', code: 'POS-CEN-01' },
-      'loc-03': { name: 'Bodega Norte - Yumbo', code: 'BOD-NOR-01' },
-      'loc-04': { name: 'Punto Sur - Ciudad Jardín', code: 'POS-SUR-01' },
-    }
-
-    const origin = locationsMap[input.originLocationId] || {
-      name: 'Bodega Origen',
-      code: 'BOD-ORIG',
-    }
-    const destination = locationsMap[input.destinationLocationId] || {
-      name: 'Bodega Destino',
-      code: 'BOD-DEST',
-    }
-
-    const newCodeNumber = this.transfers.length + 156
-    const code = `TR-000${newCodeNumber}`
-    const id = `trans-${newCodeNumber}`
-    const now = new Date().toISOString()
-
-    const items = input.items.map((item, index) => {
-      const unitCost = 0
-      const totalCost = unitCost * item.units
-      const availableStock = 0
-
-      return {
-        id: `item-${newCodeNumber}-${index + 1}`,
-        productId: item.productId,
-        productName: 'Producto Transferido',
-        sku: `SKU-${item.productId}`,
-        barcode: undefined,
-        category: 'General',
-        unitOfMeasure: 'UND',
-        imageUrl: undefined,
-        availableStockAtOrigin: availableStock,
-        requestedUnits: item.units,
-        dispatchedUnits: 0,
-        receivedUnits: 0,
-        unitCost,
-        totalCost,
-      }
-    })
-
-    const totalUnitsRequested = items.reduce((acc, i) => acc + i.requestedUnits, 0)
-    const totalValueAtCost = items.reduce((acc, i) => acc + i.totalCost, 0)
-
-    const newTransfer: Transfer = {
-      id,
-      code,
-      originLocationId: input.originLocationId,
-      originLocationName: origin.name,
-      originLocationCode: origin.code,
-      destinationLocationId: input.destinationLocationId,
-      destinationLocationName: destination.name,
-      destinationLocationCode: destination.code,
-      status: 'PENDING',
-      items,
-      totalItemsCount: items.length,
-      totalUnitsRequested,
-      totalUnitsDispatched: 0,
-      totalUnitsReceived: 0,
-      totalValueAtCost,
-      createdByUserId: userContext.userId,
-      createdByUserName: userContext.userName,
-      createdByUserRole: userContext.userRole,
-      reason: input.reason,
-      internalReference: input.internalReference,
-      hasIncident: false,
-      notes: input.notes,
-      createdAt: now,
-      updatedAt: now,
-    }
-
-    this.transfers.unshift(newTransfer)
-    return { ...newTransfer }
-  }
-
-  async dispatch(
-    input: TransferDispatchInput,
-    userContext: { userId: string; userName: string }
-  ): Promise<Transfer> {
-    const transfer = this.transfers.find((t) => t.id === input.transferId)
-    if (!transfer) {
-      throw new Error(`La transferencia ${input.transferId} no fue encontrada`)
-    }
-    if (transfer.status !== 'PENDING') {
-      throw new Error(`No se puede despachar una transferencia en estado ${transfer.status}`)
-    }
-
-    const now = new Date().toISOString()
-    transfer.status = 'IN_TRANSIT'
-    transfer.dispatchedByUserId = userContext.userId
-    transfer.dispatchedByUserName = userContext.userName
-    transfer.dispatchedAt = now
-    transfer.updatedAt = now
-    transfer.totalUnitsDispatched = transfer.totalUnitsRequested
-    transfer.items = transfer.items.map((i) => ({
-      ...i,
-      dispatchedUnits: i.requestedUnits,
+  async create(input: TransferCreateInput, userContext?: any): Promise<Transfer> {
+    const itemsPayload = input.items.map((i) => ({
+      product_id: i.productId,
+      quantity: i.units,
     }))
 
-    if (input.notes) {
-      transfer.notes = transfer.notes ? `${transfer.notes}\n[Despacho]: ${input.notes}` : input.notes
+    const { data: result, error } = await supabaseClient.rpc('fn_create_transfer', {
+      p_origin_location_id: input.originLocationId,
+      p_destination_location_id: input.destinationLocationId,
+      p_notes: input.notes || null,
+      p_items: itemsPayload,
+    })
+
+    if (error || !result) {
+      console.error('Error registrando traslado vía fn_create_transfer:', error)
+      throw new Error(error?.message || 'Error registrando traslado en PostgreSQL.')
     }
 
-    return { ...transfer }
+    const created = await this.findById(result.transfer_id)
+    if (!created) {
+      throw new Error(`Traslado ${result.code} creado pero no pudo ser consultado.`)
+    }
+    return created
   }
 
-  async receive(
-    input: TransferReceiveInput,
-    userContext: { userId: string; userName: string }
-  ): Promise<Transfer> {
-    const transfer = this.transfers.find((t) => t.id === input.transferId)
-    if (!transfer) {
-      throw new Error(`La transferencia ${input.transferId} no fue encontrada`)
-    }
-    if (transfer.status !== 'IN_TRANSIT') {
-      throw new Error(`No se puede recibir una transferencia en estado ${transfer.status}`)
-    }
+  async dispatch(input: TransferDispatchInput, userContext?: any): Promise<Transfer> {
+    const { data: result, error } = await supabaseClient.rpc('fn_dispatch_transfer', {
+      p_transfer_id: input.transferId,
+      p_notes: input.notes || null,
+    })
 
-    const now = new Date().toISOString()
-    let hasIncident = false
-    let incidentSummary = ''
-
-    // Actualizar unidades recibidas
-    if (input.receivedItems && input.receivedItems.length > 0) {
-      transfer.items = transfer.items.map((item) => {
-        const receivedItemData = input.receivedItems?.find((ri) => ri.productId === item.productId)
-        const receivedUnits = receivedItemData !== undefined ? receivedItemData.receivedUnits : item.dispatchedUnits
-        const diff = receivedUnits - item.dispatchedUnits
-        const hasDiscrepancy = diff !== 0
-
-        if (hasDiscrepancy) {
-          hasIncident = true
-          incidentSummary += `\n- ${item.productName}: Enviadas ${item.dispatchedUnits}, Recibidas ${receivedUnits} (Diferencia: ${diff > 0 ? `+${diff}` : diff})`
-        }
-
-        return {
-          ...item,
-          receivedUnits,
-          hasDiscrepancy,
-          discrepancyNote: receivedItemData?.notes || (hasDiscrepancy ? `Diferencia de ${diff} unidades` : undefined),
-        }
-      })
-    } else {
-      transfer.items = transfer.items.map((i) => ({
-        ...i,
-        receivedUnits: i.dispatchedUnits,
-      }))
+    if (error || !result) {
+      console.error('Error despachando traslado vía fn_dispatch_transfer:', error)
+      throw new Error(error?.message || 'Error despachando traslado en PostgreSQL.')
     }
 
-    transfer.totalUnitsReceived = transfer.items.reduce((acc, i) => acc + i.receivedUnits, 0)
-    transfer.status = 'RECEIVED'
-    transfer.receivedByUserId = userContext.userId
-    transfer.receivedByUserName = userContext.userName
-    transfer.receivedAt = now
-    transfer.updatedAt = now
-
-    if (hasIncident) {
-      transfer.hasIncident = true
-      transfer.incidentNotes = `Novedades reportadas en recepción:${incidentSummary}${input.notes ? `\nObservación: ${input.notes}` : ''}`
+    const updated = await this.findById(input.transferId)
+    if (!updated) {
+      throw new Error(`Traslado ${input.transferId} no encontrado tras despacho.`)
     }
-
-    if (input.notes) {
-      transfer.notes = transfer.notes ? `${transfer.notes}\n[Recepción]: ${input.notes}` : input.notes
-    }
-
-    return { ...transfer }
+    return updated
   }
 
-  async reject(
-    input: TransferRejectInput,
-    userContext: { userId: string; userName: string }
-  ): Promise<Transfer> {
-    const transfer = this.transfers.find((t) => t.id === input.transferId)
-    if (!transfer) {
-      throw new Error(`La transferencia ${input.transferId} no fue encontrada`)
-    }
-    if (transfer.status !== 'PENDING') {
-      throw new Error(`Solo se pueden rechazar o cancelar transferencias pendientes antes del despacho`)
+  async receive(input: TransferReceiveInput, userContext?: any): Promise<Transfer> {
+    const receivedPayload = input.receivedItems
+      ? input.receivedItems.map((ri) => ({
+          product_id: ri.productId,
+          received_quantity: ri.receivedUnits,
+          notes: ri.notes || null,
+        }))
+      : null
+
+    const { data: result, error } = await supabaseClient.rpc('fn_receive_transfer', {
+      p_transfer_id: input.transferId,
+      p_received_items: receivedPayload,
+      p_notes: input.notes || null,
+    })
+
+    if (error || !result) {
+      console.error('Error recibiendo traslado vía fn_receive_transfer:', error)
+      throw new Error(error?.message || 'Error recibiendo traslado en PostgreSQL.')
     }
 
-    const now = new Date().toISOString()
-    transfer.status = 'REJECTED'
-    transfer.rejectedByUserId = userContext.userId
-    transfer.rejectedByUserName = userContext.userName
-    transfer.rejectedAt = now
-    transfer.rejectionReason = input.reason
-    transfer.updatedAt = now
+    const updated = await this.findById(input.transferId)
+    if (!updated) {
+      throw new Error(`Traslado ${input.transferId} no encontrado tras recepción.`)
+    }
+    return updated
+  }
 
-    return { ...transfer }
+  async reject(input: TransferRejectInput, userContext?: any): Promise<Transfer> {
+    const { data: result, error } = await supabaseClient.rpc('fn_cancel_transfer', {
+      p_transfer_id: input.transferId,
+      p_reason: input.reason || 'Rechazado por el usuario',
+    })
+
+    if (error || !result) {
+      console.error('Error cancelando traslado vía fn_cancel_transfer:', error)
+      throw new Error(error?.message || 'Error cancelando traslado en PostgreSQL.')
+    }
+
+    const updated = await this.findById(input.transferId)
+    if (!updated) {
+      throw new Error(`Traslado ${input.transferId} no encontrado tras cancelación.`)
+    }
+    return updated
   }
 }
 

@@ -1,7 +1,7 @@
 'use client'
 
-import { ReportRouteShell } from '@/features/reports/components/ReportRouteShell'
+import { CashSessionsPage } from '@/features/pos/components/CashSessionsPage'
 
 export default function CajasRoutePage() {
-  return <ReportRouteShell reportType="CASH" breadcrumbSubTitle="Cajas Registradoras" />
+  return <CashSessionsPage />
 }

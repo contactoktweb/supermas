@@ -450,192 +450,37 @@ export class AccountsReceivableService {
   }
 
   /**
-   * Registra un pago o abono fiduciario a una Cuenta por Cobrar
+   * Registra un pago o abono fiduciario a una Cuenta por Cobrar mediante RPC atómica
    */
   async registerPayment(
     input: RegisterCustomerPaymentInput,
     user: { id?: string; name?: string } = {}
   ): Promise<{ paymentId: string; paymentNumber: string; newPendingBalance: number; newStatus: string }> {
-    // 1. Validar la existencia de la venta
-    const { data: saleRow, error: sErr } = await supabaseClient
-      .from('sales')
-      .select('id, company_id, location_id, customer_id, sale_number, total_amount, paid_amount, payment_status, status')
-      .eq('id', input.saleId)
-      .single()
-
-    if (sErr || !saleRow) {
-      throw new Error(`Cuenta por cobrar no encontrada (ID de venta: ${input.saleId})`)
-    }
-
-    if (saleRow.status === 'CANCELLED') {
-      throw new Error('No es posible registrar pagos a una venta anulada.')
-    }
-
-    const currentTotal = Number(saleRow.total_amount || 0)
-    const currentPaid = Number(saleRow.paid_amount || 0)
-    const currentPending = Math.max(0, currentTotal - currentPaid)
-
-    if (currentPending <= 0) {
-      throw new Error('Esta obligación ya se encuentra totalmente saldada ($0 saldo pendiente).')
-    }
-
     if (input.amount <= 0) {
       throw new Error('El valor a abonar debe ser mayor a cero.')
     }
 
-    if (input.amount > currentPending + 0.01) {
-      const formatMoney = (n: number) =>
-        new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
-      throw new Error(
-        `El valor a pagar (${formatMoney(input.amount)}) supera el saldo pendiente (${formatMoney(currentPending)}).`
-      )
+    const { data, error } = await supabaseClient.rpc('fn_register_customer_payment', {
+      p_sale_id: input.saleId,
+      p_amount: input.amount,
+      p_payment_date: input.date || new Date().toISOString().split('T')[0],
+      p_payment_method: input.paymentMethod || 'EFECTIVO',
+      p_transaction_reference: input.reference || null,
+      p_notes: input.notes || null,
+      p_bank_account_id: input.bankAccountId || null,
+      p_cash_session_id: null,
+    })
+
+    if (error) {
+      console.error('Error registrando recaudo fiduciario vía RPC fn_register_customer_payment:', error)
+      throw new Error(error.message || 'Error registrando comprobante de recaudo.')
     }
-
-    const paymentNumber = `REC-${Date.now().toString().slice(-6)}`
-    const paymentDate = input.date || new Date().toISOString().split('T')[0]
-    const validUserId = user.id && user.id.length === 36 ? user.id : null
-
-    // 2. Insertar comprobante en public.customer_payments
-    const { data: createdPayment, error: payError } = await supabaseClient
-      .from('customer_payments')
-      .insert({
-        company_id: saleRow.company_id,
-        location_id: saleRow.location_id,
-        sale_id: saleRow.id,
-        customer_id: saleRow.customer_id,
-        payment_number: paymentNumber,
-        payment_date: paymentDate,
-        amount: input.amount,
-        payment_method: input.paymentMethod || 'EFECTIVO',
-        transaction_reference: input.reference || null,
-        bank_account_id: input.bankAccountId || null,
-        notes: input.notes || null,
-        created_by_user_id: validUserId,
-      })
-      .select()
-      .single()
-
-    if (payError || !createdPayment) {
-      console.error('Error insertando comprobante en public.customer_payments:', payError)
-      throw new Error(`Error registrando comprobante de recaudo: ${payError?.message || 'Error desconocido'}`)
-    }
-
-    // 3. Actualizar public.sales (paid_amount y payment_status)
-    const newPaidAmount = currentPaid + input.amount
-    const newStatus = newPaidAmount >= currentTotal - 0.01 ? 'PAID' : 'PARTIAL'
-
-    const { error: saleUpdateErr } = await supabaseClient
-      .from('sales')
-      .update({
-        paid_amount: newPaidAmount,
-        payment_status: newStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', saleRow.id)
-
-    if (saleUpdateErr) {
-      console.error('Error actualizando saldo de la venta:', saleUpdateErr)
-      throw new Error(`Error actualizando saldo de la venta: ${saleUpdateErr.message}`)
-    }
-
-    // 4. Actualizar saldo del cliente en public.customers
-    const { data: customerRow } = await supabaseClient
-      .from('customers')
-      .select('current_balance')
-      .eq('id', saleRow.customer_id)
-      .maybeSingle()
-
-    if (customerRow) {
-      const prevBal = Number(customerRow.current_balance || 0)
-      const newBal = Math.max(0, prevBal - input.amount)
-      await supabaseClient
-        .from('customers')
-        .update({
-          current_balance: newBal,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', saleRow.customer_id)
-    }
-
-    // 5. Integración con Tesorería y Caja/Bancos
-    try {
-      if (input.paymentMethod === 'EFECTIVO') {
-        const { data: openSession } = await supabaseClient
-          .from('cash_sessions')
-          .select('id')
-          .eq('status', 'OPEN')
-          .limit(1)
-          .maybeSingle()
-
-        if (openSession?.id) {
-          await supabaseClient.from('cash_movements').insert({
-            session_id: openSession.id,
-            type: 'SALE_CASH',
-            amount: input.amount,
-            reason: `Recaudo cliente por venta ${saleRow.sale_number} (Comprobante ${paymentNumber})`,
-            authorized_by_user_id: validUserId,
-          })
-        }
-      } else {
-        // Banco / Transferencia / Tarjeta: Aumenta saldo en bank_accounts y registra bank_movements + treasury_receipts
-        let bankQuery = supabaseClient.from('bank_accounts').select('id, current_balance')
-        if (input.bankAccountId) {
-          bankQuery = bankQuery.eq('id', input.bankAccountId)
-        } else {
-          bankQuery = bankQuery.eq('is_active', true)
-        }
-
-        const { data: bankAccount } = await bankQuery.limit(1).maybeSingle()
-
-        if (bankAccount?.id) {
-          const newBankBalance = Number(bankAccount.current_balance || 0) + input.amount
-          await supabaseClient
-            .from('bank_accounts')
-            .update({ current_balance: newBankBalance, updated_at: new Date().toISOString() })
-            .eq('id', bankAccount.id)
-
-          await supabaseClient.from('bank_movements').insert({
-            company_id: saleRow.company_id,
-            location_id: saleRow.location_id,
-            bank_account_id: bankAccount.id,
-            movement_number: `MOV-REC-${Date.now().toString().slice(-6)}`,
-            movement_date: paymentDate,
-            movement_type: 'DEBIT', // Ingreso bancario
-            amount: input.amount,
-            balance_after: newBankBalance,
-            concept: `Recaudo cliente venta ${saleRow.sale_number} - Comprobante ${paymentNumber}`,
-            reference: input.reference || null,
-            is_reconciled: true,
-            created_by_user_id: validUserId,
-          })
-
-          await supabaseClient.from('treasury_receipts').insert({
-            company_id: saleRow.company_id,
-            location_id: saleRow.location_id,
-            receipt_number: `TES-REC-${Date.now().toString().slice(-6)}`,
-            customer_id: saleRow.customer_id,
-            bank_account_id: bankAccount.id,
-            amount: input.amount,
-            receipt_date: paymentDate,
-            payment_method: input.paymentMethod || 'TRANSFERENCIA',
-            reference_number: input.reference || null,
-            status: 'COLLECTED',
-            notes: input.notes || `Recaudo cartera venta ${saleRow.sale_number}`,
-            created_by_user_id: validUserId,
-          })
-        }
-      }
-    } catch (finErr) {
-      console.warn('Advertencia en integración de tesorería/caja para recaudo:', finErr)
-    }
-
-    const newPendingBalance = Math.max(0, currentPending - input.amount)
 
     return {
-      paymentId: createdPayment.id,
-      paymentNumber,
-      newPendingBalance,
-      newStatus,
+      paymentId: data.payment_id,
+      paymentNumber: data.payment_number,
+      newPendingBalance: Number(data.pending_balance || 0),
+      newStatus: data.payment_status,
     }
   }
 

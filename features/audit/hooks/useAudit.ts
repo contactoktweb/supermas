@@ -51,9 +51,13 @@ export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: str
     try {
       setIsLoading(true)
       setError(null)
+      const effectiveFilters: AuditFilters = {
+        companyId: user?.companyId || undefined,
+        ...filters,
+      }
       const [logsRes, statsRes] = await Promise.all([
-        auditService.list(filters, userRole, userLocationId),
-        auditService.getAuditStats(filters, userRole, userLocationId),
+        auditService.list(effectiveFilters, userRole, userLocationId),
+        auditService.getAuditStats(effectiveFilters, userRole, userLocationId),
       ])
       setLogs(logsRes)
       setStats(statsRes)
@@ -62,7 +66,7 @@ export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: str
     } finally {
       setIsLoading(false)
     }
-  }, [filters, userRole, userLocationId])
+  }, [filters, userRole, userLocationId, user?.companyId])
 
   useEffect(() => {
     loadData()
@@ -98,8 +102,12 @@ export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: str
   }
 
   const handleExportCSV = async () => {
+    const effectiveFilters: AuditFilters = {
+      companyId: user?.companyId || undefined,
+      ...filters,
+    }
     const res = await auditService.exportAudit(
-      filters,
+      effectiveFilters,
       actor,
       userRole
     )

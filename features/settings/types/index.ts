@@ -190,6 +190,7 @@ export type SettingsPermission =
 
 export interface UserSettingsContext {
   userId: string
+  companyId?: string
   name: string
   role: 'SUPERADMIN' | 'WAREHOUSE_ADMIN' | 'POINT_ADMIN' | 'ACCOUNTANT' | 'CASHIER' | string
   permissions: SettingsPermission[]

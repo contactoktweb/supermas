@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { remissionService } from '../services/remission.service'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   Remission,
   RemissionFilters,
@@ -15,9 +16,9 @@ import {
 } from '../types'
 
 export function useRemissions() {
-  const [userContext] = useState<RemissionUserContext>({
-    userId: 'usr-admin-01',
-    userName: 'Admin Mauricio',
+  const [userContext, setUserContext] = useState<RemissionUserContext>({
+    userId: '',
+    userName: 'Usuario Sistema',
     userRole: 'Administrador',
     permissions: [
       'remission.read',
@@ -29,6 +30,18 @@ export function useRemissions() {
       'remission.export',
     ],
   })
+
+  useEffect(() => {
+    supabaseClient.auth.getUser().then(({ data }) => {
+      if (data?.user) {
+        setUserContext((prev) => ({
+          ...prev,
+          userId: data.user.id,
+          userName: data.user.user_metadata?.full_name || data.user.email?.split('@')[0] || 'Usuario Sistema',
+        }))
+      }
+    })
+  }, [])
 
   // List & Filter States
   const [remissions, setRemissions] = useState<Remission[]>([])

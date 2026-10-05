@@ -113,6 +113,7 @@ export interface BankMovement {
   companyId?: string
   locationId?: string | null
   bankAccountId: string
+  bankAccountName?: string
   movementNumber: string
   date: string
   type: 'DEBIT' | 'CREDIT'

@@ -19,7 +19,7 @@ import { TaxConfig } from '../types'
 import { TaxConfigFormData } from '../schemas/tax.schema'
 
 export function TaxPage() {
-  const permissions = useTaxPermissions('SUPERADMIN')
+  const permissions = useTaxPermissions()
   const {
     taxes,
     total,
@@ -35,7 +35,7 @@ export function TaxPage() {
     deactivateTax,
     activateTax,
     exportCSV,
-  } = useTaxes('SUPERADMIN')
+  } = useTaxes()
 
   // Toast notifications
   const [toasts, setToasts] = useState<TaxToastMessage[]>([])

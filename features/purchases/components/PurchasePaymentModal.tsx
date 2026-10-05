@@ -21,6 +21,9 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'OTRO', label: 'Otro medio de pago' },
 ]
 
+import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
+import { BankAccount } from '@/features/treasury/types'
+
 export function PurchasePaymentModal({
   purchase,
   isOpen,
@@ -29,7 +32,10 @@ export function PurchasePaymentModal({
 }: PurchasePaymentModalProps) {
   const [mounted, setMounted] = useState(false)
   const [amount, setAmount] = useState<number>(0)
+  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFERENCIA')
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -37,11 +43,19 @@ export function PurchasePaymentModal({
 
   useEffect(() => {
     setMounted(true)
+    treasuryRepository.getBankAccounts().then((accounts) => {
+      const active = accounts.filter((a) => a.status === 'ACTIVE')
+      setBankAccounts(active)
+      if (active.length > 0) {
+        setBankAccountId(active[0].id)
+      }
+    })
   }, [])
 
   useEffect(() => {
     if (purchase) {
       setAmount(purchase.pendingBalance)
+      setPaymentDate(new Date().toISOString().split('T')[0])
       setReference('')
       setNotes('')
       setError(null)
@@ -71,6 +85,10 @@ export function PurchasePaymentModal({
       )
       return
     }
+    if ((paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'CONSIGNACION') && !bankAccountId) {
+      setError('Debe seleccionar una cuenta bancaria de origen para la transferencia.')
+      return
+    }
     if (!reference.trim()) {
       setError('Debe ingresar un número de comprobante o referencia bancaria.')
       return
@@ -83,6 +101,8 @@ export function PurchasePaymentModal({
         purchaseId: purchase.id,
         amount,
         paymentMethod,
+        bankAccountId: paymentMethod !== 'EFECTIVO' ? bankAccountId : undefined,
+        date: paymentDate,
         reference: reference.trim(),
         notes: notes.trim() || undefined,
       })
@@ -287,24 +307,75 @@ export function PurchasePaymentModal({
               />
             </div>
 
-            {/* Método de Pago */}
-            <div>
-              <label
+            {/* Fecha de Pago y Método de Pago */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  Fecha del pago <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  className="filter-date-input"
+                  style={{ width: '100%' }}
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  Método de pago <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <CustomSelect
+                  value={paymentMethod}
+                  onChange={(val) => setPaymentMethod(val as PaymentMethod)}
+                  options={PAYMENT_METHODS}
+                />
+              </div>
+            </div>
+
+            {/* Selector de Cuenta Bancaria */}
+            {paymentMethod !== 'EFECTIVO' && (
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  Cuenta Bancaria de Origen <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                {bankAccounts.length > 0 ? (
+                  <CustomSelect
+                    value={bankAccountId}
+                    onChange={(val) => setBankAccountId(val)}
+                    options={bankAccounts.map((b) => ({
+                      value: b.id,
+                      label: `${b.bankName} - ${b.accountNumber} (Disp: ${formatCurrency(b.currentBalance)})`,
+                    }))}
+                  />
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: 8, background: '#f8fafc', borderRadius: 6, border: '1px solid var(--border)' }}>
+                    No hay cuentas bancarias activas registradas. Se procesará sin afectación directa de cuenta.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Notificación de Caja si es Efectivo */}
+            {paymentMethod === 'EFECTIVO' && (
+              <div
                 style={{
-                  display: 'block',
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  color: '#1e40af',
                   fontSize: 12,
-                  fontWeight: 700,
-                  marginBottom: 6,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
                 }}
               >
-                Método de pago <span style={{ color: '#dc2626' }}>*</span>
-              </label>
-              <CustomSelect
-                value={paymentMethod}
-                onChange={(val) => setPaymentMethod(val as PaymentMethod)}
-                options={PAYMENT_METHODS}
-              />
-            </div>
+                <AppIcon name="info" size={16} />
+                <span>El dinero en efectivo se debitará automáticamente de la sesión de caja abierta en la sede.</span>
+              </div>
+            )}
 
             {/* Referencia / Comprobante */}
             <div>

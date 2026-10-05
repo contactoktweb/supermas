@@ -68,6 +68,7 @@ export type AuditActionType =
   | 'ALERT_READ'
   | 'ALERT_ATTENDED'
   | 'ALERT_RESOLVED'
+  | 'ALERT_CLOSED'
   | 'ALERT_RULE_MODIFIED'
   | 'OTHER'
 
@@ -80,6 +81,7 @@ export interface AuditDiffField {
 
 export interface AuditLogEntry {
   id: string
+  companyId?: string
   timestamp: string // Formato ISO UTC
   action: AuditActionType
   level: AuditLevel
@@ -109,6 +111,7 @@ export interface AuditStats {
 }
 
 export interface AuditFilters {
+  companyId?: string
   dateFrom?: string
   dateTo?: string
   userId?: string

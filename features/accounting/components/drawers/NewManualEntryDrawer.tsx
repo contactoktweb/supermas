@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount } from '../../types'
 import { ManualEntryFormData } from '../../schemas/accounting.schema'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface NewManualEntryDrawerProps {
   isOpen: boolean
@@ -33,7 +33,8 @@ export function NewManualEntryDrawer({
   const [mounted, setMounted] = useState(false)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [description, setDescription] = useState('')
-  const [locationId, setLocationId] = useState('loc-001')
+  const [locationId, setLocationId] = useState('')
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
   const [thirdPartyName, setThirdPartyName] = useState('')
   const [thirdPartyDoc, setThirdPartyDoc] = useState('')
   const [observation, setObservation] = useState('')
@@ -42,6 +43,16 @@ export function NewManualEntryDrawer({
 
   useEffect(() => {
     setMounted(true)
+    supabaseClient
+      .from('locations')
+      .select('id, name')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setLocations(data)
+          setLocationId((prev) => prev || data[0].id)
+        }
+      })
   }, [])
 
   useEffect(() => {
@@ -77,7 +88,6 @@ export function NewManualEntryDrawer({
 
   if (!isOpen || !mounted) return null
 
-  const locations = db.locations || []
 
   const totalDebit = lines.reduce((acc, l) => acc + (Number(l.debit) || 0), 0)
   const totalCredit = lines.reduce((acc, l) => acc + (Number(l.credit) || 0), 0)

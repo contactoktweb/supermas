@@ -22,6 +22,7 @@ import {
   SaleItem,
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
 
 const DEFAULT_USER: SalesUserContext = {
   userId: '',
@@ -108,14 +109,9 @@ export class SalesService {
   ): Promise<Sale> {
     this.checkPermission(user, 'sales.create')
 
-    // 0. Validar existencia de empresa configurada
-    const { data: comp } = await supabaseClient
-      .from('companies')
-      .select('id, business_name, nit')
-      .limit(1)
-      .maybeSingle()
-
-    if (!comp?.nit && !comp?.business_name) {
+    // 0. Validar existencia de empresa configurada para el usuario autenticado
+    const comp = await getAuthenticatedCompany()
+    if (!comp?.tax_id && !comp?.business_name) {
       throw new Error('Configure la empresa antes de operar.')
     }
 
@@ -381,7 +377,23 @@ export class SalesService {
       userName: user.userName,
     })
 
-    // 2. Actualizar estado de la venta
+    // 2. Revertir saldo deudor del cliente si la venta fue a crédito
+    if (sale.paymentMethod === 'CREDITO' && sale.customerId) {
+      const { data: custRow } = await supabaseClient
+        .from('customers')
+        .select('current_balance')
+        .eq('id', sale.customerId)
+        .maybeSingle()
+      if (custRow) {
+        const newBal = Math.max(0, Number(custRow.current_balance || 0) - sale.totalAmount)
+        await supabaseClient
+          .from('customers')
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq('id', sale.customerId)
+      }
+    }
+
+    // 3. Actualizar estado de la venta
     const updated = await this.repo.update(sale.id, {
       status: 'CANCELLED',
       cancellationReason: validated.reason,
@@ -393,7 +405,7 @@ export class SalesService {
       throw new Error(`Error al anular la venta "${sale.saleNumber}".`)
     }
 
-    // 3. Registrar en auditoría
+    // 4. Registrar en auditoría
     await this.repo.logAudit({
       user: user.userName,
       action: 'ANULACIÓN_VENTA',
@@ -515,17 +527,12 @@ export class SalesService {
       const resultingStock = previousStock + returnItem.quantity
       const unitCost = stockRow ? Number(stockRow.average_cost || 0) : Number(saleLine.unitCost || 0)
 
-      const { data: authUser } = await supabaseClient.auth.getUser()
-      const { data: comp } = await supabaseClient
-        .from('companies')
-        .select('id')
-        .limit(1)
-        .maybeSingle()
+      const companyId = await resolveUserCompanyId(supabaseClient)
 
       const { error: movErr } = await supabaseClient
         .from('inventory_movements')
         .insert({
-          company_id: comp?.id,
+          company_id: companyId,
           product_id: returnItem.productId,
           location_id: sale.locationId,
           movement_type: 'CUSTOMER_RETURN',
@@ -538,7 +545,7 @@ export class SalesService {
           document_type: 'SALE_RETURN',
           document_reference: sale.saleNumber,
           reason: `Devolución de venta ${sale.saleNumber}: ${returnItem.reason || validated.reason}`,
-          user_id: authUser?.user?.id || null,
+          user_id: user.userId || null,
         })
 
       if (movErr) {
@@ -547,11 +554,43 @@ export class SalesService {
       }
     }
 
+    // 2. Si fue venta a crédito, deducir el importe de los ítems devueltos del saldo del cliente
+    let totalReturnedMoney = 0
+    for (const returnItem of validated.items) {
+      const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
+      if (saleLine) {
+        const itemUnitPrice = saleLine.quantity > 0 ? (saleLine.total / saleLine.quantity) : saleLine.unitPrice
+        totalReturnedMoney += Math.round(itemUnitPrice * returnItem.quantity)
+      }
+    }
+
+    if (sale.paymentMethod === 'CREDITO' && sale.customerId && totalReturnedMoney > 0) {
+      const { data: custRow } = await supabaseClient
+        .from('customers')
+        .select('current_balance')
+        .eq('id', sale.customerId)
+        .maybeSingle()
+      if (custRow) {
+        const newBal = Math.max(0, Number(custRow.current_balance || 0) - totalReturnedMoney)
+        await supabaseClient
+          .from('customers')
+          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+          .eq('id', sale.customerId)
+      }
+    }
+
+    // 3. Determinar si es devolución total o parcial
+    const totalOriginalQty = sale.items.reduce((acc, it) => acc + it.quantity, 0)
+    const totalReturnedQty = validated.items.reduce((acc, it) => acc + it.quantity, 0)
+    const isFullReturn = totalReturnedQty >= totalOriginalQty
+
+    const newStatus = isFullReturn ? 'RETURNED' : sale.status
+
     const updated = await this.repo.update(sale.id, {
-      status: 'RETURNED',
+      status: newStatus,
       notes: sale.notes
-        ? `${sale.notes} | Devolución procesada: ${validated.reason}`
-        : `Devolución procesada: ${validated.reason}`,
+        ? `${sale.notes} | Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`
+        : `Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`,
     })
 
     await this.repo.logAudit({

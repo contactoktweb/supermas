@@ -731,13 +731,33 @@ export class PurchaseRepository {
   }
 
   /**
-   * Registra un abono o pago a proveedor (reservado para Fase 5.3 CxP mediante RPC atómica).
+   * Registra un abono o pago a proveedor mediante la RPC atómica fn_register_supplier_payment.
    */
   async registerPayment(
-    _input: RegisterPaymentInput,
+    input: RegisterPaymentInput,
     _user?: { id: string; name: string }
   ): Promise<Purchase> {
-    throw new Error('El registro de pagos a proveedores está reservado para la Fase 5.3 (Cuentas por Pagar - CxP).')
+    const { data, error } = await this.client.rpc('fn_register_supplier_payment', {
+      p_purchase_id: input.purchaseId,
+      p_amount: input.amount,
+      p_payment_date: input.date || new Date().toISOString().split('T')[0],
+      p_payment_method: input.paymentMethod || 'BANK_TRANSFER',
+      p_transaction_reference: input.reference || null,
+      p_notes: input.notes || null,
+      p_bank_account_id: input.bankAccountId || null,
+      p_cash_session_id: input.cashSessionId || null,
+    })
+
+    if (error) {
+      console.error('Error registrando pago a proveedor:', error)
+      throw new Error(error.message || 'Error al registrar el pago a proveedor')
+    }
+
+    const updated = await this.findById(input.purchaseId)
+    if (!updated) {
+      throw new Error('Error recuperando compra tras registrar el pago.')
+    }
+    return updated
   }
 
   /**

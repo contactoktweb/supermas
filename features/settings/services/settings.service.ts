@@ -65,11 +65,11 @@ export class SettingsService {
   /**
    * Obtiene la configuración institucional de la empresa
    */
-  async getCompanySettings(user?: UserSettingsContext): Promise<CompanySettings | null> {
+  async getCompanySettings(user?: UserSettingsContext, companyIdOverride?: string): Promise<CompanySettings | null> {
     if (user) {
       this.assertPermission('settings.manage', user)
     }
-    return settingsRepository.getCompanySettings()
+    return settingsRepository.getCompanySettings(companyIdOverride || (user as any)?.companyId)
   }
 
   /**
@@ -108,11 +108,11 @@ export class SettingsService {
   ): Promise<CompanySettings> {
     this.assertPermission('settings.manage', user)
 
-    const current = await settingsRepository.getCompanySettings()
+    const current = await settingsRepository.getCompanySettings(user.companyId)
     const merged = { ...(current || {}), ...rawInput }
     const validated = companySettingsSchema.parse(merged)
 
-    const updated = await settingsRepository.updateCompanySettings(validated, user.name)
+    const updated = await settingsRepository.updateCompanySettings(validated, user.name, user.companyId)
 
     await auditService.log({
       action: 'SETTING_UPDATED',

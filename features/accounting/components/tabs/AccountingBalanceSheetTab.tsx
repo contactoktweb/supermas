@@ -3,7 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { BalanceSheetReport } from '../../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface AccountingBalanceSheetTabProps {
   balanceSheet: BalanceSheetReport | null
@@ -16,9 +16,19 @@ export function AccountingBalanceSheetTab({
   locationId = 'ALL',
   onLocationChange,
 }: AccountingBalanceSheetTabProps) {
-  if (!balanceSheet) return null
+  const [locations, setLocations] = React.useState<{ id: string; name: string }[]>([])
 
-  const locations = db.locations || []
+  React.useEffect(() => {
+    supabaseClient
+      .from('locations')
+      .select('id, name')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data) setLocations(data)
+      })
+  }, [])
+
+  if (!balanceSheet) return null
 
   return (
     <div className="space-y-6 page-enter">

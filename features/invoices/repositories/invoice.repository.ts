@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Invoice,
   InvoiceItem,
@@ -39,25 +40,10 @@ function mapDomainDianStatusToDb(status: DIANStatus): string {
 
 export class InvoiceRepository {
   /**
-   * Resuelve el company_id del usuario autenticado actual bajo RLS
+   * Resuelve el company_id del usuario autenticado actual bajo RLS de forma estricta
    */
   private async resolveCompanyId(): Promise<string> {
-    const { data: authUser } = await supabaseClient.auth.getUser()
-    if (authUser.user) {
-      const { data: userRow } = await supabaseClient
-        .from('users')
-        .select('company_id')
-        .eq('id', authUser.user.id)
-        .maybeSingle()
-      if (userRow?.company_id) return userRow.company_id
-    }
-    const { data: comp } = await supabaseClient
-      .from('companies')
-      .select('id')
-      .limit(1)
-      .single()
-    if (comp?.id) return comp.id
-    throw new Error('No se pudo resolver la empresa asociada para facturación.')
+    return resolveUserCompanyId(supabaseClient)
   }
 
   /**

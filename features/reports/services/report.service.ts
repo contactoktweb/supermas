@@ -168,8 +168,8 @@ export class ReportService {
     const [sales, purchases, products, stockLevels, webOrders] = await Promise.all([
       reportRepository.getSales(criteria),
       reportRepository.getPurchases(criteria),
-      reportRepository.getProducts(),
-      reportRepository.getStockLevels(criteria.locationId),
+      reportRepository.getProducts(criteria.companyId),
+      reportRepository.getStockLevels(criteria.locationId, criteria.companyId),
       reportRepository.getWebOrders(criteria),
     ])
 
@@ -211,7 +211,7 @@ export class ReportService {
     const criteria = this.resolveCriteria(rawCriteria)
     const [sales, products] = await Promise.all([
       reportRepository.getSales(criteria),
-      reportRepository.getProducts(),
+      reportRepository.getProducts(criteria.companyId),
     ])
 
     const report = reportBuilder.buildSalesReport(sales, products)
@@ -276,9 +276,9 @@ export class ReportService {
     const canViewFinancials = this.hasPermission('reports.costs', user)
 
     const [products, stockLevels, locations] = await Promise.all([
-      reportRepository.getProducts(),
-      reportRepository.getStockLevels(criteria.locationId),
-      reportRepository.getLocations(),
+      reportRepository.getProducts(criteria.companyId),
+      reportRepository.getStockLevels(criteria.locationId, criteria.companyId),
+      reportRepository.getLocations(criteria.companyId),
     ])
 
     const report = reportBuilder.buildInventoryReport({
@@ -319,7 +319,7 @@ export class ReportService {
 
     const [movements, products] = await Promise.all([
       reportRepository.getInventoryMovements(criteria),
-      reportRepository.getProducts(),
+      reportRepository.getProducts(criteria.companyId),
     ])
 
     const report = reportBuilder.buildKardexReport(movements, products, canViewFinancials)
@@ -355,7 +355,7 @@ export class ReportService {
 
     const [sales, products] = await Promise.all([
       reportRepository.getSales(criteria),
-      reportRepository.getProducts(),
+      reportRepository.getProducts(criteria.companyId),
     ])
 
     const report = reportBuilder.buildCostsReport({
@@ -395,11 +395,11 @@ export class ReportService {
 
     const [locations, sales, purchases, stockLevels, products, inventoryMovements] =
       await Promise.all([
-        reportRepository.getLocations(),
+        reportRepository.getLocations(criteria.companyId),
         reportRepository.getSales(criteria),
         reportRepository.getPurchases(criteria),
-        reportRepository.getStockLevels(),
-        reportRepository.getProducts(),
+        reportRepository.getStockLevels(undefined, criteria.companyId),
+        reportRepository.getProducts(criteria.companyId),
         reportRepository.getInventoryMovements(criteria),
       ])
 
@@ -449,7 +449,7 @@ export class ReportService {
 
     const criteria = this.resolveCriteria(rawCriteria)
     const [customers, sales] = await Promise.all([
-      reportRepository.getCustomers(),
+      reportRepository.getCustomers(criteria.companyId),
       reportRepository.getSales(criteria),
     ])
 
@@ -483,7 +483,7 @@ export class ReportService {
 
     const criteria = this.resolveCriteria(rawCriteria)
     const [suppliers, purchases] = await Promise.all([
-      reportRepository.getSuppliers(),
+      reportRepository.getSuppliers(criteria.companyId),
       reportRepository.getPurchases(criteria),
     ])
 
@@ -517,9 +517,9 @@ export class ReportService {
 
     const criteria = this.resolveCriteria(rawCriteria)
     const [registers, movements, locations] = await Promise.all([
-      reportRepository.getCashRegisters(criteria.locationId),
-      reportRepository.getCashMovements(criteria.cashRegisterId, criteria.locationId),
-      reportRepository.getLocations(),
+      reportRepository.getCashRegisters(criteria.locationId, criteria.companyId),
+      reportRepository.getCashMovements(criteria.cashRegisterId, criteria.locationId, criteria.companyId),
+      reportRepository.getLocations(criteria.companyId),
     ])
 
     const report = reportBuilder.buildCashRegistersReport(registers, movements, locations)
@@ -586,8 +586,8 @@ export class ReportService {
       accountingReportService.getBalanceSheet(undefined, criteria.locationId),
       accountingReportService.getIncomeStatement(undefined, criteria.locationId),
       accountingRepository.getAllEntries(),
-      accountingReportService.getAccountsReceivable(),
-      accountingReportService.getAccountsPayable(),
+      accountingReportService.getAccountsReceivable(criteria.companyId),
+      accountingReportService.getAccountsPayable(criteria.companyId),
     ])
 
     let entries = allEntries.filter((e) => e.status === 'POSTED')
@@ -676,7 +676,7 @@ export class ReportService {
     const [webOrders, sales, products] = await Promise.all([
       reportRepository.getWebOrders(criteria),
       reportRepository.getSales(criteria),
-      reportRepository.getProducts(),
+      reportRepository.getProducts(criteria.companyId),
     ])
 
     const report = reportBuilder.buildEcommerceReport(webOrders, sales, products)
@@ -1004,11 +1004,17 @@ export class ReportService {
       ],
       categories: [
         { value: 'ALL', label: 'Todas las categorías' },
-        ...categories.map((c) => ({ value: c, label: c })),
+        ...categories.map((c: any) => ({
+          value: typeof c === 'string' ? c : (c.name || c.id || 'cat'),
+          label: typeof c === 'string' ? c : (c.name || 'cat'),
+        })),
       ],
       brands: [
         { value: 'ALL', label: 'Todas las marcas' },
-        ...brands.map((b) => ({ value: b, label: b })),
+        ...brands.map((b: any) => ({
+          value: typeof b === 'string' ? b : (b.name || b.id || 'brand'),
+          label: typeof b === 'string' ? b : (b.name || 'brand'),
+        })),
       ],
       users: [
         { value: 'ALL', label: 'Todos los vendedores' },

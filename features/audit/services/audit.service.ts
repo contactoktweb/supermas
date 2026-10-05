@@ -92,6 +92,7 @@ export class AuditService {
    * Sanitiza automáticamente datos sensibles (contraseñas, tokens, tarjetas, llaves secretas).
    */
   async log(entry: {
+    companyId?: string
     action: AuditLogEntry['action']
     module: AuditLogEntry['module']
     entityType: string
@@ -132,6 +133,7 @@ export class AuditService {
       .replace(/(password|token|secret|apiKey)=([^&\s]+)/gi, '$1=********')
 
     const newLog = await auditRepository.log({
+      companyId: entry.companyId,
       action: entry.action,
       module: entry.module,
       entityType: entry.entityType,
@@ -214,6 +216,7 @@ export class AuditService {
 
     // Registrar en la auditoría el evento de exportación
     await this.log({
+      companyId: filters.companyId,
       action: 'EXPORT_EXECUTED',
       module: 'SECURITY',
       entityType: 'AUDIT_EXPORT',

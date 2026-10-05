@@ -22,6 +22,16 @@ export interface AlertCandidate {
   metadata?: Record<string, any>
 }
 
+function findRule(rules: AlertRule[], id: string, code: string): AlertRule | undefined {
+  return rules.find(
+    (r) =>
+      r.enabled &&
+      (r.id === id ||
+        r.code?.toUpperCase() === code.toUpperCase() ||
+        r.code?.toUpperCase() === id.toUpperCase())
+  )
+}
+
 export class AlertDefinitions {
   /**
    * Evalúa reglas de inventario sobre stock_levels y products
@@ -32,8 +42,8 @@ export class AlertDefinitions {
     rules: AlertRule[]
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const outOfStockRule = params.rules.find((r) => r.id === 'rule-inv-001' && r.enabled)
-    const lowStockRule = params.rules.find((r) => r.id === 'rule-inv-002' && r.enabled)
+    const outOfStockRule = findRule(params.rules, 'rule-inv-001', 'R-INV-001')
+    const lowStockRule = findRule(params.rules, 'rule-inv-002', 'R-INV-002')
 
     if (!outOfStockRule && !lowStockRule) return candidates
 
@@ -113,8 +123,8 @@ export class AlertDefinitions {
     now: Date
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const overdueRule = params.rules.find((r) => r.id === 'rule-pur-001' && r.enabled)
-    const nearDueRule = params.rules.find((r) => r.id === 'rule-pur-002' && r.enabled)
+    const overdueRule = findRule(params.rules, 'rule-pur-001', 'R-PUR-001')
+    const nearDueRule = findRule(params.rules, 'rule-pur-002', 'R-PUR-002')
 
     if (!overdueRule && !nearDueRule) return candidates
 
@@ -188,7 +198,7 @@ export class AlertDefinitions {
     rules: AlertRule[]
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const rejectedRule = params.rules.find((r) => r.id === 'rule-invc-001' && r.enabled)
+    const rejectedRule = findRule(params.rules, 'rule-invc-001', 'R-INVC-001')
 
     if (!rejectedRule) return candidates
 
@@ -228,8 +238,8 @@ export class AlertDefinitions {
     now: Date
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const diffRule = params.rules.find((r) => r.id === 'rule-cash-001' && r.enabled)
-    const openHoursRule = params.rules.find((r) => r.id === 'rule-cash-002' && r.enabled)
+    const diffRule = findRule(params.rules, 'rule-cash-001', 'R-CASH-001')
+    const openHoursRule = findRule(params.rules, 'rule-cash-002', 'R-CASH-002')
 
     if (!diffRule && !openHoursRule) return candidates
 
@@ -303,7 +313,7 @@ export class AlertDefinitions {
     now: Date
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const pendingRule = params.rules.find((r) => r.id === 'rule-web-001' && r.enabled)
+    const pendingRule = findRule(params.rules, 'rule-web-001', 'R-WEB-001')
 
     if (!pendingRule) return candidates
 
@@ -349,7 +359,7 @@ export class AlertDefinitions {
     now: Date
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const inTransitRule = params.rules.find((r) => r.id === 'rule-trans-001' && r.enabled)
+    const inTransitRule = findRule(params.rules, 'rule-trans-001', 'R-TRANS-001')
 
     if (!inTransitRule) return candidates
 
@@ -394,7 +404,7 @@ export class AlertDefinitions {
     rules: AlertRule[]
   }): AlertCandidate[] {
     const candidates: AlertCandidate[] = []
-    const unbalancedRule = params.rules.find((r) => r.id === 'rule-acc-001' && r.enabled)
+    const unbalancedRule = findRule(params.rules, 'rule-acc-001', 'R-ACC-001')
 
     if (!unbalancedRule) return candidates
 

@@ -2,12 +2,20 @@
  * SUPER MÁS ERP/POS - Tipos del Módulo de Impuestos
  */
 
-export type TaxType = 'IVA' | 'EXCLUIDO' | 'NO_GRAVADO' | 'OTRO'
+export type TaxType =
+  | 'IVA'
+  | 'EXCLUIDO'
+  | 'NO_GRAVADO'
+  | 'OTRO'
+  | 'RETEFUENTE'
+  | 'RETEICA'
+  | 'RETEIVA'
 
 export type TaxStatus = 'ACTIVE' | 'INACTIVE'
 
 export interface TaxConfig {
   id: string
+  companyId?: string
   name: string
   code: string
   type: TaxType
@@ -44,6 +52,7 @@ export interface TaxStats {
 }
 
 export interface TaxFilters {
+  companyId?: string
   query?: string
   type?: TaxType | 'ALL'
   status?: TaxStatus | 'ALL'
@@ -147,6 +156,7 @@ export interface TaxReportSummary {
 }
 
 export interface TaxReportFilters {
+  companyId?: string
   dateFrom?: string
   dateUntil?: string
   taxConfigId?: string | 'ALL'

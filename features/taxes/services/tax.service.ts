@@ -80,9 +80,9 @@ export class TaxService {
   /**
    * Consulta el detalle de una configuración por ID con métricas relacionales.
    */
-  async getById(id: string, userRole?: string): Promise<TaxConfig> {
+  async getById(id: string, userRole?: string, companyId?: string): Promise<TaxConfig> {
     this.assertPermission('tax.read', userRole)
-    const found = await taxRepository.findById(id)
+    const found = await taxRepository.findById(id, companyId)
     if (!found) {
       throw new Error(`La configuración de impuesto '${id}' no existe.`)
     }
@@ -92,9 +92,9 @@ export class TaxService {
   /**
    * Obtiene las métricas y estadísticas globales tributarias del ERP.
    */
-  async getTaxStats(userRole?: string): Promise<TaxStats> {
+  async getTaxStats(userRole?: string, companyId?: string): Promise<TaxStats> {
     this.assertPermission('tax.read', userRole)
-    return taxRepository.getStats()
+    return taxRepository.getStats(companyId)
   }
 
   /**
@@ -103,7 +103,8 @@ export class TaxService {
   async createTaxConfig(
     data: TaxConfigFormData,
     user: { id: string; name: string },
-    userRole?: string
+    userRole?: string,
+    companyId?: string
   ): Promise<TaxConfig> {
     this.assertPermission('tax.create', userRole)
 
@@ -111,14 +112,14 @@ export class TaxService {
     const validated = taxConfigFormSchema.parse(data)
 
     // Verificar código único
-    const existing = await taxRepository.findByCode(validated.code)
+    const existing = await taxRepository.findByCode(validated.code, companyId)
     if (existing) {
       throw new Error(
         `Ya existe una configuración con el código '${validated.code}'. Los códigos tributarios deben ser únicos.`
       )
     }
 
-    return taxRepository.create(validated, user)
+    return taxRepository.create(validated, user, companyId)
   }
 
   /**
@@ -131,11 +132,12 @@ export class TaxService {
     id: string,
     data: Partial<TaxConfigFormData>,
     user: { id: string; name: string },
-    userRole?: string
+    userRole?: string,
+    companyId?: string
   ): Promise<TaxConfig> {
     this.assertPermission('tax.update', userRole)
 
-    const existing = await taxRepository.findById(id)
+    const existing = await taxRepository.findById(id, companyId)
     if (!existing) {
       throw new Error(`La configuración de impuesto '${id}' no existe.`)
     }
@@ -170,7 +172,7 @@ export class TaxService {
       data.code &&
       data.code.toUpperCase() !== existing.code.toUpperCase()
     ) {
-      const codeCheck = await taxRepository.findByCode(data.code)
+      const codeCheck = await taxRepository.findByCode(data.code, companyId)
       if (codeCheck && codeCheck.id !== id) {
         throw new Error(
           `El código '${data.code}' ya se encuentra en uso por otra configuración.`
@@ -178,7 +180,7 @@ export class TaxService {
       }
     }
 
-    return taxRepository.update(id, data, user)
+    return taxRepository.update(id, data, user, companyId)
   }
 
   /**
@@ -188,10 +190,11 @@ export class TaxService {
     id: string,
     reason: string,
     user: { id: string; name: string },
-    userRole?: string
+    userRole?: string,
+    companyId?: string
   ): Promise<TaxConfig> {
     this.assertPermission('tax.deactivate', userRole)
-    return taxRepository.deactivate(id, reason, user)
+    return taxRepository.deactivate(id, reason, user, companyId)
   }
 
   /**
@@ -200,10 +203,11 @@ export class TaxService {
   async activateTaxConfig(
     id: string,
     user: { id: string; name: string },
-    userRole?: string
+    userRole?: string,
+    companyId?: string
   ): Promise<TaxConfig> {
     this.assertPermission('tax.update', userRole)
-    return taxRepository.activate(id, user)
+    return taxRepository.activate(id, user, companyId)
   }
 
   /**

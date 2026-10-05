@@ -44,6 +44,7 @@ const MODULE_KEYWORDS: Record<string, string> = {
   'Kardex': 'movimientos entradas salidas trazabilidad transacciones kardex',
   'Transferencias': 'traslados despachos entre bodegas reubicación envíos internos',
   'Compras': 'órdenes de compra proveedores recepciones facturas gasto insumos',
+  'Órdenes de compra': 'órdenes de compra pedidos proveedores suministros compras orden',
   'Proveedores': 'distribuidores fabricantes contactos nit compras',
   'Clientes': 'compradores cartera mayoristas nit cc crédito pagos',
   'Ventas': 'pedidos cotizaciones órdenes facturas pos caja mostrador',
@@ -62,7 +63,13 @@ const MODULE_KEYWORDS: Record<string, string> = {
   'Alertas': 'notificaciones avisos stock bajo vencimientos urgentes cartera',
   'Auditoría': 'logs historial de cambios usuarios eventos seguridad',
   'Usuarios': 'personal cajeros operadores roles credenciales accesos',
-  'Roles': 'permisos privilegios seguridad perfiles matriz',
+  'Roles': 'perfiles permisos niveles privilegios accesos funciones roles',
+  'Devoluciones': 'anulaciones notas crédito retorno mercancía devolución garantías',
+  'Recepciones': 'entradas de compras ingreso mercancía recepción remisión proveedor',
+  'Cuentas por cobrar': 'cartera saldos pendientes clientes cartera vencida abonos',
+  'Cuentas por Pagar': 'deuda proveedores pagos pendientes vencimientos cxp',
+  'Pagos recibidos': 'recaudos recibos de caja abonos cobros consignaciones',
+  'Estado de cuenta': 'extracto cliente balance historial cartera movimientos',
   'Configuración': 'ajustes empresa datos generales consecutivo parámetros',
 }
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { InventoryAccountMapping, ExogenaPrepItem, AccountingAccount } from '../../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface AccountingConfigTabProps {
   categoryMappings: InventoryAccountMapping[]
@@ -24,12 +24,29 @@ export function AccountingConfigTab({
   const [editingMapping, setEditingMapping] = useState<InventoryAccountMapping | null>(null)
   const [selectedTypeFilter, setSelectedTypeFilter] = useState<string>('ALL')
   const [mounted, setMounted] = useState(false)
+  const [taxConfigs, setTaxConfigs] = useState<any[]>([])
 
   useEffect(() => {
     setMounted(true)
+    supabaseClient
+      .from('tax_rates')
+      .select('*')
+      .then(({ data }) => {
+        if (data && data.length > 0) {
+          setTaxConfigs(data.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            code: t.code,
+            ratePercent: Number(t.rate || 0),
+            generatedTaxAccountId: '240805',
+            generatedTaxAccountName: 'IVA Generado en Ventas (19%)',
+            discountableTaxAccountId: '240810',
+            discountableTaxAccountName: 'IVA Descontable en Compras (19%)',
+            isActive: t.is_active,
+          })))
+        }
+      })
   }, [])
-
-  const taxConfigs = db.taxConfigs || []
 
   const inventoryAccounts = accounts.filter((a) => a.code.startsWith('14'))
   const costAccounts = accounts.filter((a) => a.code.startsWith('61') || a.code.startsWith('71'))

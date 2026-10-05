@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AuditFilters as AuditFiltersType } from '../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface AuditFiltersProps {
   filters: AuditFiltersType
@@ -19,6 +19,35 @@ export function AuditFilters({
   isLoading,
 }: AuditFiltersProps) {
   const [localSearch, setLocalSearch] = useState(filters.searchQuery || '')
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([])
+  const [users, setUsers] = useState<Array<{ id: string; name: string; roleName?: string }>>([])
+
+  // Carga asíncrona de bodegas y usuarios desde Supabase
+  useEffect(() => {
+    async function loadOptions() {
+      try {
+        const [locsRes, usersRes] = await Promise.all([
+          supabaseClient.from('locations').select('id, name').order('name'),
+          supabaseClient.from('users').select('id, full_name, email, roles:role_id(name)').order('full_name'),
+        ])
+        if (locsRes.data) {
+          setLocations(locsRes.data.map((l: any) => ({ id: l.id, name: l.name })))
+        }
+        if (usersRes.data) {
+          setUsers(
+            usersRes.data.map((u: any) => ({
+              id: u.id,
+              name: u.full_name || u.email || 'Usuario',
+              roleName: (u.roles as any)?.name || 'Colaborador',
+            }))
+          )
+        }
+      } catch (err) {
+        console.error('Error al cargar opciones de filtro de auditoría:', err)
+      }
+    }
+    loadOptions()
+  }, [])
 
   // Debounce para la búsqueda
   useEffect(() => {
@@ -27,9 +56,6 @@ export function AuditFilters({
     }, 300)
     return () => clearTimeout(timer)
   }, [localSearch])
-
-  const locations = db.locations || []
-  const users = db.users || []
 
   return (
     <div
@@ -241,7 +267,7 @@ export function AuditFilters({
             <option value="ALL">Todos los usuarios</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>
-                {u.name} ({(u as any).roleName || u.role})
+                {u.name} ({u.roleName || 'Colaborador'})
               </option>
             ))}
           </select>

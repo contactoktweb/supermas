@@ -7,6 +7,7 @@
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   LocationWithMetrics,
   WarehouseFilters,
@@ -270,30 +271,10 @@ export class WarehouseRepository {
   }
 
   /**
-   * Resuelve el company_id del usuario autenticado actual
+   * Resuelve el company_id del usuario autenticado actual de forma estricta
    */
   private async resolveCompanyId(preferredCompanyId?: string): Promise<string> {
-    if (preferredCompanyId) return preferredCompanyId
-
-    const { data: authUser } = await supabaseClient.auth.getUser()
-    if (authUser.user) {
-      const { data: userRow } = await supabaseClient
-        .from('users')
-        .select('company_id')
-        .eq('id', authUser.user.id)
-        .maybeSingle()
-      if (userRow?.company_id) return userRow.company_id
-    }
-
-    const { data: comp } = await supabaseClient
-      .from('companies')
-      .select('id')
-      .limit(1)
-      .single()
-
-    if (comp?.id) return comp.id
-
-    throw new Error('No se pudo determinar la empresa asociada (company_id) para la bodega.')
+    return resolveUserCompanyId(supabaseClient, preferredCompanyId)
   }
 
   /**

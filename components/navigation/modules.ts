@@ -72,6 +72,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'pos', label: 'POS', icon: 'pos', path: '/pos', permission: 'pos.access' },
       { id: 'facturacion', label: 'Facturación', icon: 'invoices', path: '/facturacion', permission: 'invoices.read' },
       { id: 'remisiones', label: 'Remisiones', icon: 'remisiones', path: '/remisiones', permission: 'remissions.read' },
+      { id: 'devoluciones', label: 'Devoluciones', icon: 'returns', path: '/devoluciones', permission: 'sales.read' },
       { id: 'cajas', label: 'Cajas', icon: 'cashRegisters', path: '/cajas', permission: 'pos.cash_register' },
       { id: 'tesoreria', label: 'Tesorería', icon: 'wallet', path: '/tesoreria', permission: 'reports.financial' },
     ],

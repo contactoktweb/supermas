@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { supabaseClient } from '@/lib/supabase/client'
+import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 import { usePOS } from '../hooks/usePOS'
 import { POSHeader } from './POSHeader'
 import { POSProductGrid } from './POSProductGrid'
@@ -84,13 +85,9 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
   useEffect(() => {
     async function checkCompany() {
       try {
-        const { data, error } = await supabaseClient
-          .from('companies')
-          .select('id, name, tax_id')
-          .limit(1)
-          .maybeSingle()
-        if (!error && data) {
-          setIsCompanyConfigured(Boolean(data.name && data.tax_id))
+        const comp = await getAuthenticatedCompany()
+        if (comp) {
+          setIsCompanyConfigured(Boolean((comp.business_name || comp.trade_name) && comp.tax_id))
         }
       } catch {
         setIsCompanyConfigured(true)

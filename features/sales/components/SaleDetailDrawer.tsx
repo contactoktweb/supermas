@@ -13,6 +13,7 @@ interface SaleDetailDrawerProps {
   onGenerateInvoice: (sale: SaleDetail) => void
   onGenerateRemission: (sale: SaleDetail) => void
   onCancelSale: (sale: SaleDetail) => void
+  onProcessReturn?: (sale: SaleDetail) => void
   onViewKardex?: (sale: SaleDetail) => void
 }
 
@@ -56,6 +57,7 @@ export function SaleDetailDrawer({
   onGenerateInvoice,
   onGenerateRemission,
   onCancelSale,
+  onProcessReturn,
   onViewKardex,
 }: SaleDetailDrawerProps) {
   const [activeTab, setActiveTab] = useState<TabType>('summary')
@@ -686,7 +688,18 @@ export function SaleDetailDrawer({
 
         {/* Footer */}
         <div className="drawer-footer" style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {sale && sale.status !== 'CANCELLED' && sale.status !== 'RETURNED' && onProcessReturn && (
+              <button
+                type="button"
+                className="outline-button"
+                style={{ color: '#16a34a', borderColor: 'rgba(22, 163, 74, 0.3)' }}
+                onClick={() => onProcessReturn(sale)}
+              >
+                <AppIcon name="refresh" size={14} /> Devolución
+              </button>
+            )}
+
             {sale && sale.status !== 'CANCELLED' && (
               <button
                 type="button"

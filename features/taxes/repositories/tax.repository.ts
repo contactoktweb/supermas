@@ -1,11 +1,16 @@
 /**
- * SUPER MÁS ERP/POS - Repositorio de Impuestos
+ * SUPER MÁS ERP/POS - Repositorio de Impuestos y Retenciones (TaxRepository)
  *
- * Conecta directamente con la capa de datos de Supabase (db.ts / mock-db)
- * integrando tax_configs, products, sales, purchases, invoices, accounting_entries y audit_logs.
+ * Conecta directamente con la base de datos oficial Supabase PostgreSQL
+ * utilizando las tablas public.tax_rates, public.products, public.sales y public.purchases
+ * con estricto aislamiento multiempresa (company_id).
+ *
+ * Cero mocks, cero db.ts.
  */
 
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   TaxConfig,
   TaxFilters,
@@ -14,49 +19,123 @@ import {
   TaxReportItem,
   TaxReportSummary,
   TaxReportFilters,
+  TaxCalculationLineInput,
+  TaxDocumentCalculationResult,
+  TaxType,
+  TaxStatus,
 } from '../types'
 import { TaxConfigFormData } from '../schemas/tax.schema'
+import { taxCalculationService } from '../services/tax-calculation.service'
 
-class TaxRepository {
+function getDbClient() {
+  if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabaseAdmin
+  }
+  return supabaseClient
+}
+
+export class TaxRepository {
   private getTodayStr(): string {
     return new Date().toISOString().split('T')[0]
   }
 
   /**
+   * Resuelve el company_id activo de forma segura
+   */
+  private async getCompanyId(preferredCompanyId?: string): Promise<string | null> {
+    if (preferredCompanyId) return preferredCompanyId
+    try {
+      return await resolveUserCompanyId(getDbClient(), preferredCompanyId)
+    } catch {
+      return preferredCompanyId || null
+    }
+  }
+
+  /**
+   * Mapea un registro de public.tax_rates a la interfaz TaxConfig
+   */
+  private mapRowToTaxConfig(row: any, associatedCount: number = 0): TaxConfig {
+    return {
+      id: row.id,
+      companyId: row.company_id || undefined,
+      name: row.name,
+      code: row.code,
+      type: (row.type as TaxType) || 'IVA',
+      ratePercent: Number(row.percentage) || 0,
+      status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+      validFrom: row.valid_from ? String(row.valid_from).slice(0, 10) : '2026-01-01',
+      validUntil: row.valid_until ? String(row.valid_until).slice(0, 10) : null,
+      description: row.description || '',
+      isDefault: Boolean(row.is_default),
+      generatedTaxAccountId: row.generated_tax_account_id || '',
+      generatedTaxAccountName: '',
+      deductibleTaxAccountId: row.deductible_tax_account_id || '',
+      deductibleTaxAccountName: '',
+      version: 1,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at || row.created_at,
+      associatedProductsCount: associatedCount,
+    }
+  }
+
+  /**
    * Obtiene la lista filtrada, ordenada y paginada de configuraciones tributarias
-   * enriquecida con métricas relacionales de productos asociados.
+   * enriquecida con métricas relacionales de productos asociados desde PostgreSQL.
    */
   async findAll(filters?: TaxFilters): Promise<{ data: TaxConfig[]; total: number }> {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(filters?.companyId)
     const today = this.getTodayStr()
-    const allConfigs = (db.taxConfigs as unknown as TaxConfig[]) || []
-    const allProducts = db.products || []
 
-    // Mapeo dinámico de productos asociados por taxConfigId o código
-    const productCountMap = new Map<string, number>()
-    for (const prod of allProducts) {
-      const cfgId = (prod as any).taxConfigId
-      const code = (prod as any).taxProfile
-      if (cfgId) {
-        productCountMap.set(cfgId, (productCountMap.get(cfgId) || 0) + 1)
-      }
-      if (code) {
-        productCountMap.set(`code-${code}`, (productCountMap.get(`code-${code}`) || 0) + 1)
-      }
+    // 1. Consultar tarifas tributarias de la empresa o globales (company_id IS NULL)
+    let query = client.from('tax_rates').select('*')
+    if (companyId) {
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`)
+    } else {
+      query = query.is('company_id', null)
     }
 
-    let filtered = allConfigs.map((cfg) => {
-      const byId = productCountMap.get(cfg.id) || 0
-      const byCode = productCountMap.get(`code-${cfg.code}`) || 0
-      return {
-        ...cfg,
-        associatedProductsCount: Math.max(byId, byCode),
+    const { data: taxRows, error: taxErr } = await query
+    if (taxErr) {
+      console.error('❌ Error consultando tax_rates en PostgreSQL:', taxErr)
+      return { data: [], total: 0 }
+    }
+
+    // 2. Consultar productos para mapear conteo por tarifa
+    let prodQuery = client.from('products').select('id, tax_rate_percent, is_tax_exempt')
+    if (companyId) {
+      prodQuery = prodQuery.eq('company_id', companyId)
+    }
+    const { data: prods } = await prodQuery
+
+    const rateCountMap = new Map<number, number>()
+    let exemptCount = 0
+    if (prods) {
+      prods.forEach((p: any) => {
+        if (p.is_tax_exempt) {
+          exemptCount++
+        } else {
+          const rate = Number(p.tax_rate_percent) || 0
+          rateCountMap.set(rate, (rateCountMap.get(rate) || 0) + 1)
+        }
+      })
+    }
+
+    let configs: TaxConfig[] = (taxRows || []).map((row: any) => {
+      let count = 0
+      const rate = Number(row.percentage) || 0
+      if (row.type === 'EXCLUIDO' || row.code === 'EXENTO') {
+        count = exemptCount
+      } else {
+        count = rateCountMap.get(rate) || 0
       }
+      return this.mapRowToTaxConfig(row, count)
     })
 
-    // Filtro por texto de búsqueda
+    // 3. Filtros en memoria
     if (filters?.query) {
       const q = filters.query.toLowerCase().trim()
-      filtered = filtered.filter(
+      configs = configs.filter(
         (t) =>
           t.name.toLowerCase().includes(q) ||
           t.code.toLowerCase().includes(q) ||
@@ -64,35 +143,32 @@ class TaxRepository {
       )
     }
 
-    // Filtro por tipo de impuesto
     if (filters?.type && filters.type !== 'ALL') {
-      filtered = filtered.filter((t) => t.type === filters.type)
+      configs = configs.filter((t) => t.type === filters.type)
     }
 
-    // Filtro por estado
     if (filters?.status && filters.status !== 'ALL') {
-      filtered = filtered.filter((t) => t.status === filters.status)
+      configs = configs.filter((t) => t.status === filters.status)
     }
 
-    // Filtro por vigencia
     if (filters?.vigencia && filters.vigencia !== 'ALL') {
       if (filters.vigencia === 'ACTIVE') {
-        filtered = filtered.filter(
+        configs = configs.filter(
           (t) =>
             t.status === 'ACTIVE' &&
             t.validFrom <= today &&
             (t.validUntil === null || t.validUntil >= today)
         )
       } else if (filters.vigencia === 'EXPIRED') {
-        filtered = filtered.filter((t) => t.validUntil !== null && t.validUntil < today)
+        configs = configs.filter((t) => t.validUntil !== null && t.validUntil < today)
       } else if (filters.vigencia === 'FUTURE') {
-        filtered = filtered.filter((t) => t.validFrom > today)
+        configs = configs.filter((t) => t.validFrom > today)
       }
     }
 
-    // Ordenamiento
+    // 4. Ordenamiento
     const sortBy = filters?.sortBy || 'RATE_DESC'
-    filtered.sort((a, b) => {
+    configs.sort((a, b) => {
       switch (sortBy) {
         case 'NAME_ASC':
           return a.name.localeCompare(b.name)
@@ -111,72 +187,82 @@ class TaxRepository {
       }
     })
 
-    const total = filtered.length
+    const total = configs.length
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || 10
     const startIdx = (page - 1) * pageSize
-    const paginated = filtered.slice(startIdx, startIdx + pageSize)
+    const paginated = configs.slice(startIdx, startIdx + pageSize)
 
     return {
-      data: JSON.parse(JSON.stringify(paginated)),
+      data: paginated,
       total,
     }
   }
 
   /**
-   * Encuentra una configuración por ID con estadísticas detalladas de uso en ventas y compras.
+   * Encuentra una configuración por ID con estadísticas de uso en ventas y compras desde PostgreSQL.
    */
-  async findById(id: string): Promise<TaxConfig | null> {
-    const allConfigs = (db.taxConfigs as unknown as TaxConfig[]) || []
-    const config = allConfigs.find((c) => c.id === id)
-    if (!config) return null
+  async findById(id: string, preferredCompanyId?: string): Promise<TaxConfig | null> {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
 
-    // Calcular estadísticas de uso en ventas
-    const allSales = db.sales || []
+    const { data: row, error } = await client
+      .from('tax_rates')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (error || !row) return null
+
+    const ratePercent = Number(row.percentage) || 0
+
+    // Conteo de productos asociados
+    let prodQuery = client.from('products').select('*', { count: 'exact', head: true })
+    if (companyId) prodQuery = prodQuery.eq('company_id', companyId)
+    if (row.type === 'EXCLUIDO' || row.code === 'EXENTO') {
+      prodQuery = prodQuery.eq('is_tax_exempt', true)
+    } else {
+      prodQuery = prodQuery.eq('tax_rate_percent', ratePercent)
+    }
+    const { count: prodCount } = await prodQuery
+
+    // Conteo y monto en ventas
+    let salesQuery = client.from('sales').select('id, tax_amount')
+    if (companyId) salesQuery = salesQuery.eq('company_id', companyId)
+    const { data: salesData } = await salesQuery
+
     let salesCount = 0
     let totalSalesTaxAmount = 0
-    for (const sale of allSales) {
-      let saleHasTax = false
-      for (const item of sale.items || []) {
-        if (
-          item.taxRatePercent === config.ratePercent ||
-          (item as any).taxConfigId === config.id
-        ) {
-          totalSalesTaxAmount += item.taxAmount || 0
-          saleHasTax = true
+    if (salesData && ratePercent > 0) {
+      salesData.forEach((s: any) => {
+        const tax = Number(s.tax_amount) || 0
+        if (tax > 0) {
+          salesCount++
+          totalSalesTaxAmount += tax
         }
-      }
-      if (saleHasTax) salesCount++
+      })
     }
 
-    // Calcular estadísticas de uso en compras
-    const allPurchases = db.purchases || []
+    // Conteo y monto en compras
+    let purQuery = client.from('purchases').select('id, tax_amount')
+    if (companyId) purQuery = purQuery.eq('company_id', companyId)
+    const { data: purData } = await purQuery
+
     let purchasesCount = 0
     let totalPurchasesTaxAmount = 0
-    for (const pur of allPurchases) {
-      let purHasTax = false
-      for (const item of (pur as any).items || []) {
-        if (
-          item.taxRatePercent === config.ratePercent ||
-          item.taxCode === config.code ||
-          (item as any).taxConfigId === config.id
-        ) {
-          totalPurchasesTaxAmount += item.taxAmount || 0
-          purHasTax = true
+    if (purData && ratePercent > 0) {
+      purData.forEach((p: any) => {
+        const tax = Number(p.tax_amount) || 0
+        if (tax > 0) {
+          purchasesCount++
+          totalPurchasesTaxAmount += tax
         }
-      }
-      if (purHasTax) purchasesCount++
+      })
     }
 
-    // Productos asociados
-    const allProducts = db.products || []
-    const associatedProductsCount = allProducts.filter(
-      (p) => (p as any).taxConfigId === config.id || p.taxProfile === config.code
-    ).length
-
+    const config = this.mapRowToTaxConfig(row, prodCount || 0)
     return {
-      ...JSON.parse(JSON.stringify(config)),
-      associatedProductsCount,
+      ...config,
       salesCount,
       totalSalesTaxAmount,
       purchasesCount,
@@ -185,119 +271,142 @@ class TaxRepository {
   }
 
   /**
-   * Encuentra una configuración por código exacto.
+   * Encuentra una configuración por código exacto en PostgreSQL.
    */
-  async findByCode(code: string): Promise<TaxConfig | null> {
-    const allConfigs = (db.taxConfigs as unknown as TaxConfig[]) || []
-    const found = allConfigs.find(
-      (c) => c.code.toLowerCase() === code.trim().toLowerCase()
-    )
-    return found ? JSON.parse(JSON.stringify(found)) : null
+  async findByCode(code: string, preferredCompanyId?: string): Promise<TaxConfig | null> {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
+
+    let query = client.from('tax_rates').select('*').ilike('code', code.trim())
+    if (companyId) {
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`)
+    } else {
+      query = query.is('company_id', null)
+    }
+
+    const { data, error } = await query.order('company_id', { ascending: false, nullsFirst: false }).limit(1)
+    if (error || !data || data.length === 0) return null
+
+    return this.mapRowToTaxConfig(data[0])
   }
 
   /**
-   * Crea una nueva configuración tributaria en db.taxConfigs y registra auditoría.
+   * Crea una nueva configuración tributaria en public.tax_rates de PostgreSQL y registra auditoría.
    */
   async create(
     data: TaxConfigFormData,
-    user: { id: string; name: string }
+    user: { id: string; name: string },
+    preferredCompanyId?: string
   ): Promise<TaxConfig> {
-    const newId = `tax-${data.code.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now().toString().slice(-4)}`
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
+    const id = crypto.randomUUID()
     const nowIso = new Date().toISOString()
+    const rate = Number(data.ratePercent)
 
-    const newConfig: TaxConfig = {
-      id: newId,
-      name: data.name,
-      code: data.code,
+    const rowToInsert = {
+      id,
+      company_id: companyId,
+      code: data.code.toUpperCase().trim(),
+      name: data.name.trim(),
+      percentage: rate,
       type: data.type,
-      ratePercent: Number(data.ratePercent),
-      status: data.status,
-      validFrom: data.validFrom,
-      validUntil: data.validUntil || null,
+      is_active: data.status === 'ACTIVE',
       description: data.description || '',
-      isDefault: Boolean(data.isDefault),
-      generatedTaxAccountId: data.generatedTaxAccountId || '',
-      generatedTaxAccountName: data.generatedTaxAccountName || '',
-      deductibleTaxAccountId: data.deductibleTaxAccountId || '',
-      deductibleTaxAccountName: data.deductibleTaxAccountName || '',
-      version: 1,
-      createdAt: nowIso,
-      updatedAt: nowIso,
+      valid_from: data.validFrom || this.getTodayStr(),
+      valid_until: data.validUntil || null,
+      is_default: Boolean(data.isDefault),
+      generated_tax_account_id: data.generatedTaxAccountId || null,
+      deductible_tax_account_id: data.deductibleTaxAccountId || null,
+      created_at: nowIso,
+      updated_at: nowIso,
     }
 
-    // Insertar en almacén mock
-    ;(db.taxConfigs as any[]).push(newConfig)
+    const { data: created, error } = await client
+      .from('tax_rates')
+      .insert(rowToInsert)
+      .select()
+      .single()
 
-    // Auditoría
-    this.logAudit({
+    if (error) {
+      console.error('❌ Error creando tax_rate en PostgreSQL:', error)
+      throw new Error(`Error al persistir configuración tributaria: ${error.message}`)
+    }
+
+    // Auditoría inmutable en PostgreSQL
+    await this.logAudit({
+      companyId: companyId || undefined,
       action: 'TAX_CONFIG_CREATED',
-      taxConfigId: newConfig.id,
-      taxConfigCode: newConfig.code,
-      taxConfigName: newConfig.name,
+      taxConfigId: id,
+      taxConfigCode: rowToInsert.code,
+      taxConfigName: rowToInsert.name,
       userId: user.id,
       userName: user.name,
       changes: {
         field: 'all',
-        newValue: newConfig,
-        details: `Configuración tributaria ${newConfig.name} (${newConfig.code} - ${newConfig.ratePercent}%) creada exitosamente.`,
+        newValue: rowToInsert,
+        details: `Configuración tributaria ${rowToInsert.name} (${rowToInsert.code} - ${rate}%) creada exitosamente en PostgreSQL.`,
       },
     })
 
-    return JSON.parse(JSON.stringify(newConfig))
+    return this.mapRowToTaxConfig(created)
   }
 
   /**
-   * Actualiza una configuración existente y registra auditoría.
+   * Actualiza una configuración existente en PostgreSQL y registra auditoría.
    */
   async update(
     id: string,
     data: Partial<TaxConfigFormData>,
-    user: { id: string; name: string }
+    user: { id: string; name: string },
+    preferredCompanyId?: string
   ): Promise<TaxConfig> {
-    const allConfigs = db.taxConfigs as any[]
-    const index = allConfigs.findIndex((c) => c.id === id)
-    if (index === -1) {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
+
+    const { data: previous, error: prevErr } = await client
+      .from('tax_rates')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (prevErr || !previous) {
       throw new Error(`Configuración de impuesto con ID ${id} no encontrada.`)
     }
 
-    const previous = { ...allConfigs[index] }
     const nowIso = new Date().toISOString()
-
-    const updated: TaxConfig = {
-      ...previous,
-      ...(data.name && { name: data.name }),
-      ...(data.type && { type: data.type }),
-      ...(data.ratePercent !== undefined && { ratePercent: Number(data.ratePercent) }),
-      ...(data.status && { status: data.status }),
-      ...(data.validFrom && { validFrom: data.validFrom }),
-      validUntil: data.validUntil !== undefined ? data.validUntil : previous.validUntil,
-      description: data.description !== undefined ? data.description : previous.description,
-      isDefault: data.isDefault !== undefined ? Boolean(data.isDefault) : previous.isDefault,
-      generatedTaxAccountId:
-        data.generatedTaxAccountId !== undefined
-          ? data.generatedTaxAccountId
-          : previous.generatedTaxAccountId,
-      generatedTaxAccountName:
-        data.generatedTaxAccountName !== undefined
-          ? data.generatedTaxAccountName
-          : previous.generatedTaxAccountName,
-      deductibleTaxAccountId:
-        data.deductibleTaxAccountId !== undefined
-          ? data.deductibleTaxAccountId
-          : previous.deductibleTaxAccountId,
-      deductibleTaxAccountName:
-        data.deductibleTaxAccountName !== undefined
-          ? data.deductibleTaxAccountName
-          : previous.deductibleTaxAccountName,
-      version: (previous.version || 1) + 1,
-      updatedAt: nowIso,
+    const updates: any = {
+      updated_at: nowIso,
     }
 
-    allConfigs[index] = updated
+    if (data.name !== undefined) updates.name = data.name.trim()
+    if (data.type !== undefined) updates.type = data.type
+    if (data.ratePercent !== undefined) updates.percentage = Number(data.ratePercent)
+    if (data.status !== undefined) updates.is_active = data.status === 'ACTIVE'
+    if (data.validFrom !== undefined) updates.valid_from = data.validFrom
+    if (data.validUntil !== undefined) updates.valid_until = data.validUntil
+    if (data.description !== undefined) updates.description = data.description
+    if (data.isDefault !== undefined) updates.is_default = Boolean(data.isDefault)
+    if (data.generatedTaxAccountId !== undefined) updates.generated_tax_account_id = data.generatedTaxAccountId || null
+    if (data.deductibleTaxAccountId !== undefined) updates.deductible_tax_account_id = data.deductibleTaxAccountId || null
 
-    // Auditoría
-    const isRateChange = previous.ratePercent !== updated.ratePercent
-    this.logAudit({
+    const { data: updated, error: updErr } = await client
+      .from('tax_rates')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (updErr) {
+      console.error('❌ Error actualizando tax_rate en PostgreSQL:', updErr)
+      throw new Error(`Error al actualizar configuración tributaria: ${updErr.message}`)
+    }
+
+    const isRateChange = data.ratePercent !== undefined && Number(previous.percentage) !== Number(data.ratePercent)
+
+    // Registrar en auditoría
+    await this.logAudit({
+      companyId: companyId || previous.company_id || undefined,
       action: isRateChange ? 'TAX_RATE_CHANGED' : 'TAX_CONFIG_UPDATED',
       taxConfigId: updated.id,
       taxConfigCode: updated.code,
@@ -309,12 +418,12 @@ class TaxRepository {
         previousValue: previous,
         newValue: updated,
         details: isRateChange
-          ? `Tarifa modificada de ${previous.ratePercent}% a ${updated.ratePercent}%. Versión incrementada a v${updated.version}.`
-          : `Actualizada información general de ${updated.name}.`,
+          ? `Tarifa modificada de ${previous.percentage}% a ${updated.percentage}%.`
+          : `Actualizada información de ${updated.name}.`,
       },
     })
 
-    return JSON.parse(JSON.stringify(updated))
+    return this.mapRowToTaxConfig(updated)
   }
 
   /**
@@ -323,29 +432,41 @@ class TaxRepository {
   async deactivate(
     id: string,
     reason: string,
-    user: { id: string; name: string }
+    user: { id: string; name: string },
+    preferredCompanyId?: string
   ): Promise<TaxConfig> {
-    const allConfigs = db.taxConfigs as any[]
-    const index = allConfigs.findIndex((c) => c.id === id)
-    if (index === -1) {
-      throw new Error(`Configuración de impuesto con ID ${id} no encontrada.`)
-    }
-
-    const previous = { ...allConfigs[index] }
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
     const today = this.getTodayStr()
     const nowIso = new Date().toISOString()
 
-    const updated: TaxConfig = {
-      ...previous,
-      status: 'INACTIVE',
-      validUntil: previous.validUntil || today,
-      version: (previous.version || 1) + 1,
-      updatedAt: nowIso,
+    const { data: previous, error: prevErr } = await client
+      .from('tax_rates')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (prevErr || !previous) {
+      throw new Error(`Configuración de impuesto con ID ${id} no encontrada.`)
     }
 
-    allConfigs[index] = updated
+    const { data: updated, error: updErr } = await client
+      .from('tax_rates')
+      .update({
+        is_active: false,
+        valid_until: previous.valid_until || today,
+        updated_at: nowIso,
+      })
+      .eq('id', id)
+      .select()
+      .single()
 
-    this.logAudit({
+    if (updErr) {
+      throw new Error(`Error al desactivar impuesto: ${updErr.message}`)
+    }
+
+    await this.logAudit({
+      companyId: companyId || previous.company_id || undefined,
       action: 'TAX_CONFIG_DEACTIVATED',
       taxConfigId: updated.id,
       taxConfigCode: updated.code,
@@ -354,39 +475,54 @@ class TaxRepository {
       userName: user.name,
       changes: {
         field: 'status',
-        previousValue: previous.status,
+        previousValue: 'ACTIVE',
         newValue: 'INACTIVE',
-        details: `Configuración desactivada. Motivo: ${reason || 'Desactivación administrativa'}. Histórico protegido.`,
+        details: `Configuración desactivada. Motivo: ${reason || 'Desactivación fiduciaria'}. Histórico protegido.`,
       },
     })
 
-    return JSON.parse(JSON.stringify(updated))
+    return this.mapRowToTaxConfig(updated)
   }
 
   /**
    * Reactiva una configuración tributaria.
    */
-  async activate(id: string, user: { id: string; name: string }): Promise<TaxConfig> {
-    const allConfigs = db.taxConfigs as any[]
-    const index = allConfigs.findIndex((c) => c.id === id)
-    if (index === -1) {
+  async activate(
+    id: string,
+    user: { id: string; name: string },
+    preferredCompanyId?: string
+  ): Promise<TaxConfig> {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
+    const nowIso = new Date().toISOString()
+
+    const { data: previous, error: prevErr } = await client
+      .from('tax_rates')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (prevErr || !previous) {
       throw new Error(`Configuración de impuesto con ID ${id} no encontrada.`)
     }
 
-    const previous = { ...allConfigs[index] }
-    const nowIso = new Date().toISOString()
+    const { data: updated, error: updErr } = await client
+      .from('tax_rates')
+      .update({
+        is_active: true,
+        valid_until: null,
+        updated_at: nowIso,
+      })
+      .eq('id', id)
+      .select()
+      .single()
 
-    const updated: TaxConfig = {
-      ...previous,
-      status: 'ACTIVE',
-      validUntil: null,
-      version: (previous.version || 1) + 1,
-      updatedAt: nowIso,
+    if (updErr) {
+      throw new Error(`Error al reactivar impuesto: ${updErr.message}`)
     }
 
-    allConfigs[index] = updated
-
-    this.logAudit({
+    await this.logAudit({
+      companyId: companyId || previous.company_id || undefined,
       action: 'TAX_CONFIG_ACTIVATED',
       taxConfigId: updated.id,
       taxConfigCode: updated.code,
@@ -395,58 +531,86 @@ class TaxRepository {
       userName: user.name,
       changes: {
         field: 'status',
-        previousValue: previous.status,
+        previousValue: 'INACTIVE',
         newValue: 'ACTIVE',
-        details: `Configuración reactivada para nuevos productos y documentos.`,
+        details: 'Configuración reactivada para nuevos productos y documentos.',
       },
     })
 
-    return JSON.parse(JSON.stringify(updated))
+    return this.mapRowToTaxConfig(updated)
   }
 
   /**
-   * Retorna las estadísticas tributarias globales del ERP calculadas desde db.
+   * Retorna las estadísticas tributarias globales del ERP calculadas desde PostgreSQL.
    */
-  async getStats(): Promise<TaxStats> {
-    const allConfigs = (db.taxConfigs as unknown as TaxConfig[]) || []
-    const allProducts = db.products || []
-    const allSales = db.sales || []
-    const allPurchases = db.purchases || []
+  async getStats(preferredCompanyId?: string): Promise<TaxStats> {
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(preferredCompanyId)
 
-    const activeConfigsCount = allConfigs.filter((c) => c.status === 'ACTIVE').length
+    // 1. Configuraciones activas
+    let taxQuery = client.from('tax_rates').select('*', { count: 'exact', head: true }).eq('is_active', true)
+    if (companyId) {
+      taxQuery = taxQuery.or(`company_id.eq.${companyId},company_id.is.null`)
+    } else {
+      taxQuery = taxQuery.is('company_id', null)
+    }
+    const { count: activeConfigsCount } = await taxQuery
+
+    // 2. Productos gravados y exentos
+    let prodQuery = client.from('products').select('id, tax_rate_percent, is_tax_exempt')
+    if (companyId) prodQuery = prodQuery.eq('company_id', companyId)
+    const { data: prods } = await prodQuery
 
     let taxedProductsCount = 0
     let exemptProductsCount = 0
-
-    for (const prod of allProducts) {
-      if ((prod as any).vatRatePercent > 0) {
-        taxedProductsCount++
-      } else {
-        exemptProductsCount++
-      }
+    if (prods) {
+      prods.forEach((p: any) => {
+        if (p.is_tax_exempt || Number(p.tax_rate_percent) === 0) {
+          exemptProductsCount++
+        } else {
+          taxedProductsCount++
+        }
+      })
     }
 
-    const salesWithTaxesCount = allSales.filter((s) => (s.taxTotal || 0) > 0).length
-    const purchasesWithTaxesCount = allPurchases.filter(
-      (p) => (p.taxTotal || 0) > 0
-    ).length
+    // 3. Ventas con impuestos
+    let salesQuery = client.from('sales').select('tax_amount')
+    if (companyId) salesQuery = salesQuery.eq('company_id', companyId)
+    const { data: sales } = await salesQuery
 
-    // Impuesto generado en ventas (IVA Débito Fiscal)
-    const generatedTaxPeriod = allSales.reduce(
-      (acc, s) => acc + (s.taxTotal || 0),
-      0
-    )
+    let salesWithTaxesCount = 0
+    let generatedTaxPeriod = 0
+    if (sales) {
+      sales.forEach((s: any) => {
+        const tax = Number(s.tax_amount) || 0
+        if (tax > 0) {
+          salesWithTaxesCount++
+          generatedTaxPeriod += tax
+        }
+      })
+    }
 
-    // Impuesto descontable en compras (IVA Crédito Fiscal)
-    const deductibleTaxPeriod = allPurchases.reduce(
-      (acc, p) => acc + (p.taxTotal || 0),
-      0
-    )
+    // 4. Compras con impuestos
+    let purQuery = client.from('purchases').select('tax_amount')
+    if (companyId) purQuery = purQuery.eq('company_id', companyId)
+    const { data: purchases } = await purQuery
+
+    let purchasesWithTaxesCount = 0
+    let deductibleTaxPeriod = 0
+    if (purchases) {
+      purchases.forEach((p: any) => {
+        const tax = Number(p.tax_amount) || 0
+        if (tax > 0) {
+          purchasesWithTaxesCount++
+          deductibleTaxPeriod += tax
+        }
+      })
+    }
 
     const netTaxPayable = generatedTaxPeriod - deductibleTaxPeriod
 
     return {
-      activeConfigsCount,
+      activeConfigsCount: activeConfigsCount || 0,
       taxedProductsCount,
       exemptProductsCount,
       salesWithTaxesCount,
@@ -458,146 +622,209 @@ class TaxRepository {
   }
 
   /**
-   * Consulta paginada y filtrable de productos vinculados a una configuración tributaria.
+   * Consulta paginada y filtrable de productos vinculados a una configuración tributaria desde PostgreSQL.
    */
   async getAssociatedProducts(
     taxConfigId: string,
-    filters?: { query?: string; page?: number; pageSize?: number }
+    filters?: { query?: string; page?: number; pageSize?: number; companyId?: string }
   ): Promise<{ data: TaxAssociatedProduct[]; total: number }> {
-    const allConfigs = (db.taxConfigs as unknown as TaxConfig[]) || []
-    const config = allConfigs.find((c) => c.id === taxConfigId)
-    const configName = config?.name || 'Configuración Tributaria'
-    const configRate = config?.ratePercent || 0
-    const configCode = config?.code || ''
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(filters?.companyId)
 
-    const allProducts = db.products || []
-    let associated = allProducts.filter(
-      (p) => (p as any).taxConfigId === taxConfigId || p.taxProfile === configCode
-    )
+    const { data: taxRate } = await client
+      .from('tax_rates')
+      .select('*')
+      .eq('id', taxConfigId)
+      .maybeSingle()
+
+    const configName = taxRate?.name || 'Configuración Tributaria'
+    const configRate = Number(taxRate?.percentage) || 0
+    const isExempt = taxRate?.type === 'EXCLUIDO' || taxRate?.code === 'EXENTO'
+
+    let prodQuery = client.from('products').select(`
+      id, sku, barcode, name, public_sale_price, wholesale_price,
+      unit_of_measure, is_active, tax_rate_percent, is_tax_exempt,
+      categories(name), brands(name)
+    `)
+
+    if (companyId) prodQuery = prodQuery.eq('company_id', companyId)
+
+    if (isExempt) {
+      prodQuery = prodQuery.or('is_tax_exempt.eq.true,tax_rate_percent.eq.0')
+    } else {
+      prodQuery = prodQuery.eq('tax_rate_percent', configRate)
+    }
+
+    const { data: prods, error } = await prodQuery
+    if (error || !prods) return { data: [], total: 0 }
+
+    let list = prods.map((p: any) => ({
+      id: p.id,
+      sku: p.sku,
+      barcode: p.barcode || '',
+      name: p.name,
+      category: p.categories?.name || 'General',
+      brand: p.brands?.name || 'Genérico',
+      normalPrice: Number(p.public_sale_price) || 0,
+      wholesalePrice: Number(p.wholesale_price) || 0,
+      unitOfMeasure: p.unit_of_measure || 'UND',
+      status: p.is_active ? 'ACTIVE' : 'INACTIVE',
+      taxProfile: taxRate?.code || 'IVA_19',
+      taxConfigId,
+      taxConfigName: configName,
+      ratePercent: Number(p.tax_rate_percent) || configRate,
+      totalStock: 0,
+    }))
 
     if (filters?.query) {
       const q = filters.query.toLowerCase().trim()
-      associated = associated.filter(
+      list = list.filter(
         (p) =>
           p.name.toLowerCase().includes(q) ||
           p.sku.toLowerCase().includes(q) ||
-          p.barcode.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q)
+          p.barcode.toLowerCase().includes(q)
       )
     }
 
-    const total = associated.length
+    const total = list.length
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || 10
     const startIdx = (page - 1) * pageSize
-    const paginated = associated.slice(startIdx, startIdx + pageSize)
-
-    const mapped: TaxAssociatedProduct[] = paginated.map((p) => ({
-      id: p.id,
-      sku: p.sku,
-      barcode: p.barcode,
-      name: p.name,
-      category: p.category,
-      brand: p.brand,
-      normalPrice: p.normalPrice,
-      wholesalePrice: p.wholesalePrice,
-      unitOfMeasure: p.unitOfMeasure,
-      status: p.status,
-      taxProfile: p.taxProfile,
-      taxConfigId: (p as any).taxConfigId || taxConfigId,
-      taxConfigName: configName,
-      ratePercent: (p as any).vatRatePercent !== undefined ? (p as any).vatRatePercent : configRate,
-      totalStock: p.totalStock,
-    }))
+    const paginated = list.slice(startIdx, startIdx + pageSize)
 
     return {
-      data: mapped,
+      data: paginated,
       total,
     }
   }
 
   /**
-   * Genera el informe tributario consolidado a partir de ventas, compras y facturas.
+   * Genera el informe tributario consolidado a partir de ventas y compras reales en PostgreSQL.
    */
   async getTaxReports(filters?: TaxReportFilters): Promise<{
     items: TaxReportItem[]
     summary: TaxReportSummary
   }> {
-    const allSales = db.sales || []
-    const allPurchases = db.purchases || []
+    const client = getDbClient()
+    const companyId = await this.getCompanyId(filters?.companyId)
     const reportItems: TaxReportItem[] = []
 
-    // 1. Procesar Ventas (Impuesto Generado)
-    for (const s of allSales) {
-      if (filters?.documentType && filters.documentType !== 'ALL' && filters.documentType !== 'SALE') {
-        continue
-      }
-      if (filters?.locationId && filters.locationId !== 'ALL' && s.locationId !== filters.locationId) {
-        continue
-      }
-      if (filters?.dateFrom && s.date < filters.dateFrom) continue
-      if (filters?.dateUntil && s.date > filters.dateUntil) continue
+    // 1. Consultar Ventas con sus Items
+    if (!filters?.documentType || filters.documentType === 'ALL' || filters.documentType === 'SALE') {
+      let salesQuery = client
+        .from('sales')
+        .select(`
+          id, sale_number, created_at, location_id, total_amount, tax_amount, subtotal_amount,
+          customers(id, company_name, first_name, last_name, document_number),
+          locations(name),
+          sale_items(id, tax_rate_percent, tax_amount, subtotal, total)
+        `)
 
-      for (const item of s.items || []) {
-        if ((item.taxAmount || 0) >= 0) {
-          reportItems.push({
-            id: `rep-sale-${s.id}-${item.id}`,
-            documentNumber: s.saleNumber,
-            documentType: 'SALE',
-            date: s.date,
-            locationId: s.locationId,
-            locationName: s.locationName,
-            thirdPartyDoc: s.customerDoc,
-            thirdPartyName: s.customerName,
-            taxConfigCode: item.taxRatePercent === 19 ? 'IVA_19' : item.taxRatePercent === 5 ? 'IVA_5' : 'EXENTO',
-            taxConfigName: item.taxRatePercent === 19 ? 'IVA General 19%' : item.taxRatePercent === 5 ? 'IVA Reducido 5%' : 'Exento',
-            ratePercent: item.taxRatePercent || 0,
-            baseAmount: item.subtotal || 0,
-            taxAmount: item.taxAmount || 0,
-            totalAmount: item.total || 0,
-            operationType: 'GENERATED',
-          })
-        }
-      }
-    }
+      if (companyId) salesQuery = salesQuery.eq('company_id', companyId)
+      if (filters?.locationId && filters.locationId !== 'ALL') salesQuery = salesQuery.eq('location_id', filters.locationId)
+      if (filters?.dateFrom) salesQuery = salesQuery.gte('created_at', filters.dateFrom)
+      if (filters?.dateUntil) salesQuery = salesQuery.lte('created_at', filters.dateUntil)
 
-    // 2. Procesar Compras (Impuesto Descontable)
-    for (const p of allPurchases) {
-      if (filters?.documentType && filters.documentType !== 'ALL' && filters.documentType !== 'PURCHASE') {
-        continue
+      const { data: salesData, error: salesErr } = await salesQuery
+      if (salesErr) {
+        console.error('❌ Error consultando sales para reporte tributario:', salesErr)
       }
-      if (filters?.locationId && filters.locationId !== 'ALL' && p.locationId !== filters.locationId) {
-        continue
-      }
-      if (filters?.dateFrom && p.date < filters.dateFrom) continue
-      if (filters?.dateUntil && p.date > filters.dateUntil) continue
 
-      for (const item of (p as any).items || []) {
-        reportItems.push({
-          id: `rep-pur-${p.id}-${item.id}`,
-          documentNumber: p.purchaseNumber,
-          documentType: 'PURCHASE',
-          date: p.date,
-          locationId: p.locationId || (p as any).destinationLocationId,
-          locationName: (p as any).destinationLocationName || 'Bodega Principal',
-          thirdPartyDoc: p.supplierNit || '',
-          thirdPartyName: p.supplierName || '',
-          taxConfigCode: item.taxCode || (item.taxRatePercent === 19 ? 'IVA_19' : 'EXENTO'),
-          taxConfigName: item.taxCode === 'EXENTO' ? 'Exento de IVA' : `IVA ${item.taxRatePercent}%`,
-          ratePercent: item.taxRatePercent || 0,
-          baseAmount: item.subtotal || 0,
-          taxAmount: item.taxAmount || 0,
-          totalAmount: item.total || 0,
-          operationType: 'DEDUCTIBLE',
+      if (salesData) {
+        salesData.forEach((s: any) => {
+          const custName = s.customers?.company_name || `${s.customers?.first_name || ''} ${s.customers?.last_name || ''}`.trim() || 'Cliente'
+          const custDoc = s.customers?.document_number || ''
+          const locName = s.locations?.name || 'Bodega Principal'
+          const docDate = s.created_at ? s.created_at.split('T')[0] : ''
+
+          if (s.sale_items && Array.isArray(s.sale_items)) {
+            s.sale_items.forEach((item: any) => {
+              const tax = Number(item.tax_amount) || 0
+              const rate = Number(item.tax_rate_percent) || 0
+              reportItems.push({
+                id: `rep-sale-${s.id}-${item.id}`,
+                documentNumber: s.sale_number,
+                documentType: 'SALE',
+                date: docDate,
+                locationId: s.location_id,
+                locationName: locName,
+                thirdPartyDoc: custDoc,
+                thirdPartyName: custName,
+                taxConfigCode: rate === 19 ? 'IVA_19' : rate === 5 ? 'IVA_5' : 'EXENTO',
+                taxConfigName: rate === 19 ? 'IVA General 19%' : rate === 5 ? 'IVA Reducido 5%' : 'Exento',
+                ratePercent: rate,
+                baseAmount: Number(item.subtotal) || 0,
+                taxAmount: tax,
+                totalAmount: Number(item.total) || 0,
+                operationType: 'GENERATED',
+              })
+            })
+          }
         })
       }
     }
 
-    // Filtrar por impuesto si se especificó
+    // 2. Consultar Compras con sus Items
+    if (!filters?.documentType || filters.documentType === 'ALL' || filters.documentType === 'PURCHASE') {
+      let purQuery = client
+        .from('purchases')
+        .select(`
+          id, purchase_number, issue_date, location_id, total_amount, tax_amount, subtotal_amount,
+          suppliers(name, legal_name, tax_id),
+          locations(name),
+          purchase_items(id, tax_rate_percent, tax_amount, subtotal, total)
+        `)
+
+      if (companyId) purQuery = purQuery.eq('company_id', companyId)
+      if (filters?.locationId && filters.locationId !== 'ALL') purQuery = purQuery.eq('location_id', filters.locationId)
+      if (filters?.dateFrom) purQuery = purQuery.gte('issue_date', filters.dateFrom)
+      if (filters?.dateUntil) purQuery = purQuery.lte('issue_date', filters.dateUntil)
+
+      const { data: purData, error: purErr } = await purQuery
+      if (purErr) {
+        console.error('❌ Error consultando purchases para reporte tributario:', purErr)
+      }
+
+      if (purData) {
+        purData.forEach((p: any) => {
+          const suppName = p.suppliers?.legal_name || p.suppliers?.name || 'Proveedor'
+          const suppDoc = p.suppliers?.tax_id || ''
+          const locName = p.locations?.name || 'Bodega Principal'
+          const docDate = p.issue_date ? String(p.issue_date).split('T')[0] : ''
+
+          if (p.purchase_items && Array.isArray(p.purchase_items)) {
+            p.purchase_items.forEach((item: any) => {
+              const tax = Number(item.tax_amount) || 0
+              const rate = Number(item.tax_rate_percent) || 0
+              reportItems.push({
+                id: `rep-pur-${p.id}-${item.id}`,
+                documentNumber: p.purchase_number,
+                documentType: 'PURCHASE',
+                date: docDate,
+                locationId: p.location_id,
+                locationName: locName,
+                thirdPartyDoc: suppDoc,
+                thirdPartyName: suppName,
+                taxConfigCode: rate === 19 ? 'IVA_19' : rate === 5 ? 'IVA_5' : 'EXENTO',
+                taxConfigName: rate === 19 ? 'IVA General 19%' : rate === 5 ? 'IVA Reducido 5%' : 'Exento',
+                ratePercent: rate,
+                baseAmount: Number(item.subtotal) || 0,
+                taxAmount: tax,
+                totalAmount: Number(item.total) || 0,
+                operationType: 'DEDUCTIBLE',
+              })
+            })
+          }
+        })
+      }
+    }
+
+    // Filtrar por impuesto específico si aplica
     let finalItems = reportItems
     if (filters?.taxConfigId && filters.taxConfigId !== 'ALL') {
-      finalItems = finalItems.filter((i) => i.taxConfigCode.includes(filters.taxConfigId!) || i.ratePercent.toString() === filters.taxConfigId)
+      finalItems = finalItems.filter(
+        (i) => i.taxConfigCode.includes(filters.taxConfigId!) || i.ratePercent.toString() === filters.taxConfigId
+      )
     }
 
     // Agregación de resumen
@@ -665,9 +892,17 @@ class TaxRepository {
   }
 
   /**
-   * Registra una entrada en audit_logs.json a través de db.auditLogs.
+   * Cálculo fiduciario de impuestos línea a línea para documentos comerciales.
    */
-  logAudit(entry: {
+  async calculate(items: TaxCalculationLineInput[]): Promise<TaxDocumentCalculationResult> {
+    return taxCalculationService.calculateDocumentTaxes(items)
+  }
+
+  /**
+   * Registra una entrada en audit_logs de PostgreSQL de forma inmutable.
+   */
+  private async logAudit(entry: {
+    companyId?: string
     action: string
     taxConfigId: string
     taxConfigCode: string
@@ -680,18 +915,35 @@ class TaxRepository {
       newValue?: unknown
       details: string
     }
-  }): void {
-    const auditRecord = {
-      id: `aud-tax-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+  }): Promise<void> {
+    const client = getDbClient()
+    const id = crypto.randomUUID()
+    const nowIso = new Date().toISOString()
+
+    const rowToInsert = {
+      id,
+      company_id: entry.companyId || null,
       action: entry.action,
-      locationId: 'loc-001',
-      locationName: 'Sede Principal (CEDI)',
-      userId: entry.userId,
-      userName: entry.userName,
-      timestamp: 'Justo ahora',
-      changes: entry.changes,
+      module: 'TAXES',
+      entity_name: 'tax_rates',
+      entity_id: entry.taxConfigId,
+      user_id: null,
+      user_name: entry.userName || 'Sistema',
+      previous_value: entry.changes?.previousValue ? { prev: entry.changes.previousValue } : null,
+      new_value: {
+        code: entry.taxConfigCode,
+        name: entry.taxConfigName,
+        details: entry.changes?.details,
+        diff: entry.changes?.newValue,
+      },
+      created_at: nowIso,
     }
-    ;(db.auditLogs as any[]).unshift(auditRecord)
+
+    try {
+      await client.from('audit_logs').insert(rowToInsert)
+    } catch (e) {
+      console.warn('⚠️ No se pudo registrar auditoría de impuestos:', e)
+    }
   }
 }
 

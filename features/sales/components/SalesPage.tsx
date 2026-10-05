@@ -8,12 +8,14 @@ import { SalesTable } from './SalesTable'
 import { NewSaleDrawer } from './NewSaleDrawer'
 import { SaleDetailDrawer } from './SaleDetailDrawer'
 import { SaleCancelModal } from './SaleCancelModal'
+import { SaleReturnModal } from './SaleReturnModal'
 import { SaleInvoiceModal } from './SaleInvoiceModal'
 import { SaleRemissionModal } from './SaleRemissionModal'
 import { useSales } from '../hooks/useSales'
 import { useSaleDetail } from '../hooks/useSaleDetail'
-import { Sale, CreateSaleDTO } from '../types'
+import { Sale, CreateSaleDTO, SaleReturnDTO } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 
 interface SalesPageProps {
   onNavigate?: (view: string) => void
@@ -37,6 +39,7 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
     cancelSale,
     generateInvoice,
     generateRemission,
+    processReturn,
   } = useSales()
 
   // Modal / Drawer UI states
@@ -46,6 +49,9 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
 
   const [saleForCancel, setSaleForCancel] = useState<Sale | null>(null)
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false)
+
+  const [saleForReturn, setSaleForReturn] = useState<Sale | null>(null)
+  const [isReturnModalOpen, setIsReturnModalOpen] = useState(false)
 
   const [saleForInvoice, setSaleForInvoice] = useState<Sale | null>(null)
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false)
@@ -116,6 +122,18 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
   const handleOpenCancel = (sale: Sale) => {
     setSaleForCancel(sale)
     setIsCancelModalOpen(true)
+  }
+
+  const handleOpenReturn = (sale: Sale) => {
+    setSaleForReturn(sale)
+    setIsReturnModalOpen(true)
+  }
+
+  const handleConfirmReturn = async (dto: SaleReturnDTO) => {
+    await processReturn(dto)
+    if (selectedSaleIdForDetail === dto.saleId) {
+      await refreshDetail()
+    }
   }
 
   const handleOpenInvoice = (sale: Sale) => {
@@ -217,13 +235,9 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
   useEffect(() => {
     async function checkCompany() {
       try {
-        const { data, error } = await supabaseClient
-          .from('companies')
-          .select('id, name, tax_id')
-          .limit(1)
-          .maybeSingle()
-        if (!error && data) {
-          setIsCompanyConfigured(Boolean(data.name && data.tax_id))
+        const comp = await getAuthenticatedCompany()
+        if (comp) {
+          setIsCompanyConfigured(Boolean((comp.business_name || comp.trade_name) && comp.tax_id))
         }
       } catch {
         setIsCompanyConfigured(true)
@@ -368,6 +382,10 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
           setSaleForCancel(s)
           setIsCancelModalOpen(true)
         }}
+        onProcessReturn={(s) => {
+          setSaleForReturn(s)
+          setIsReturnModalOpen(true)
+        }}
         onViewKardex={() => {
           if (onNavigate) {
             onNavigate('Kardex')
@@ -383,6 +401,17 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
         sale={saleForCancel}
         onClose={() => setIsCancelModalOpen(false)}
         onConfirm={handleConfirmCancel}
+      />
+
+      {/* 7b. Return Modal */}
+      <SaleReturnModal
+        isOpen={isReturnModalOpen}
+        sale={saleForReturn}
+        onClose={() => {
+          setIsReturnModalOpen(false)
+          setSaleForReturn(null)
+        }}
+        onConfirm={handleConfirmReturn}
       />
 
       {/* 8. Invoice Generation Modal */}

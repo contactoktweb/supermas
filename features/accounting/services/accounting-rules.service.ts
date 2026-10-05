@@ -7,7 +7,7 @@
 
 import { accountingRepository } from '../repositories/accounting.repository'
 import { AccountingEntry, AccountingEntryLine } from '../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 export class AccountingRulesService {
   /**
@@ -34,10 +34,14 @@ export class AccountingRulesService {
     const productId = typeof criteria === 'object' ? criteria?.productId : undefined
 
     if (productId && (!category || !inventoryType)) {
-      const prod = ((db.products as any[]) || []).find((p) => p.id === productId)
+      const { data: prod } = await supabaseClient
+        .from('products')
+        .select('category, inventory_type')
+        .eq('id', productId)
+        .maybeSingle()
       if (prod) {
         if (!category) category = prod.category
-        if (!inventoryType) inventoryType = prod.inventoryType
+        if (!inventoryType) inventoryType = prod.inventory_type
       }
     }
 

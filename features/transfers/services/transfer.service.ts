@@ -189,18 +189,7 @@ export class TransferService {
       }
     }
 
-    const creator = {
-      userId: userContext?.userId || 'user-admin',
-      userName:
-        userContext?.userRole === 'SELLER'
-          ? 'Carlos Mario Ruiz'
-          : userContext?.userRole === 'WAREHOUSE_MANAGER'
-          ? 'Mauricio Arango'
-          : 'Mauricio Arango',
-      userRole: userContext?.userRole || 'Coordinador de Logística',
-    }
-
-    return transferRepository.create(validated, creator)
+    return transferRepository.create(validated, userContext)
   }
 
   async dispatchTransfer(
@@ -227,25 +216,7 @@ export class TransferService {
       throw new Error('Solo el personal de la bodega de origen puede despachar esta transferencia')
     }
 
-    // Re-verificar concurrencia de stock en origen
-    const { data: originStockLevels } = await inventoryRepository.getStockLevelsByLocation({
-      locationId: existing.originLocationId,
-    })
-    for (const item of existing.items) {
-      const stock = originStockLevels.find((s) => s.productId === item.productId)?.currentStock ?? 0
-      if (item.requestedUnits > stock) {
-        throw new Error(
-          `Conflicto de concurrencia: el stock actual en origen para ${item.productName} (${stock}) es inferior a las unidades solicitadas (${item.requestedUnits})`
-        )
-      }
-    }
-
-    const dispatcher = {
-      userId: userContext?.userId || 'user-dispatch',
-      userName: userContext?.userId === 'user-01' ? 'Laura Gómez' : 'Mauricio Arango',
-    }
-
-    return transferRepository.dispatch(validated, dispatcher)
+    return transferRepository.dispatch(validated, userContext)
   }
 
   async receiveTransfer(
@@ -272,17 +243,7 @@ export class TransferService {
       throw new Error('Solo el personal de la bodega de destino puede confirmar la recepción')
     }
 
-    const receiver = {
-      userId: userContext?.userId || 'user-receive',
-      userName:
-        userContext?.userRole === 'SELLER'
-          ? 'Carlos Mario Ruiz'
-          : userContext?.userRole === 'WAREHOUSE_MANAGER'
-          ? 'Daniel Restrepo'
-          : 'Ana María Orozco',
-    }
-
-    return transferRepository.receive(validated, receiver)
+    return transferRepository.receive(validated, userContext)
   }
 
   async rejectTransfer(
@@ -294,12 +255,7 @@ export class TransferService {
     }
 
     const validated = transferRejectSchema.parse(input)
-    const rejector = {
-      userId: userContext?.userId || 'user-reject',
-      userName: 'Mauricio Arango',
-    }
-
-    return transferRepository.reject(validated, rejector)
+    return transferRepository.reject(validated, userContext)
   }
 
   getFlowEdges(transfers: Transfer[]): TransferFlowEdge[] {

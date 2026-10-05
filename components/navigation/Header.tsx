@@ -64,6 +64,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: 'Compras' },
     { label: 'Proveedores' },
   ],
+  '/recepciones': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Compras' },
+    { label: 'Recepciones de Mercancía' },
+  ],
   '/cuentas-por-pagar': [
     { label: 'Inicio', href: '/' },
     { label: 'Compras' },
@@ -71,13 +76,33 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   ],
   '/clientes': [
     { label: 'Inicio', href: '/' },
-    { label: 'Ventas' },
+    { label: 'Clientes y Cartera' },
     { label: 'Clientes' },
+  ],
+  '/cuentas-por-cobrar': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Clientes y Cartera' },
+    { label: 'Cuentas por Cobrar (CxC)' },
+  ],
+  '/pagos-recibidos': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Clientes y Cartera' },
+    { label: 'Pagos Recibidos' },
+  ],
+  '/estado-de-cuenta': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Clientes y Cartera' },
+    { label: 'Estado de Cuenta' },
   ],
   '/ventas': [
     { label: 'Inicio', href: '/' },
     { label: 'Ventas' },
     { label: 'Historial de Ventas' },
+  ],
+  '/pos': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Ventas' },
+    { label: 'Punto de Venta (POS)' },
   ],
   '/facturacion': [
     { label: 'Inicio', href: '/' },
@@ -88,6 +113,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: 'Inicio', href: '/' },
     { label: 'Ventas' },
     { label: 'Remisiones' },
+  ],
+  '/devoluciones': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Ventas' },
+    { label: 'Devoluciones y Anulaciones' },
   ],
   '/cajas': [
     { label: 'Inicio', href: '/' },

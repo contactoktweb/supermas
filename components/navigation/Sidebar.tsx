@@ -47,6 +47,7 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
     const initial: Record<string, boolean> = {
       inventario: true,
       compras: true,
+      'clientes-cartera': true,
       ventas: true,
       canales: false,
       contabilidad: false,

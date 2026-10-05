@@ -6,7 +6,8 @@
  */
 
 import { accountingRepository } from '../repositories/accounting.repository'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   AccountingDashboard,
   BalanceSheetReport,
@@ -197,7 +198,8 @@ export class AccountingReportService {
 
     let locationName: string | undefined
     if (locationId && locationId !== 'ALL') {
-      locationName = db.locations.find((l) => l.id === locationId)?.name
+      const { data: loc } = await supabaseClient.from('locations').select('name').eq('id', locationId).maybeSingle()
+      locationName = loc?.name
     }
 
     return {
@@ -259,7 +261,8 @@ export class AccountingReportService {
 
     let locationName: string | undefined
     if (locationId && locationId !== 'ALL') {
-      locationName = db.locations.find((l) => l.id === locationId)?.name
+      const { data: loc } = await supabaseClient.from('locations').select('name').eq('id', locationId).maybeSingle()
+      locationName = loc?.name
     }
 
     return {
@@ -525,16 +528,44 @@ export class AccountingReportService {
   /**
    * Cartera de Clientes - Cuentas por Cobrar (CxC)
    */
-  async getAccountsReceivable(): Promise<AccountsReceivableItem[]> {
-    const invoices = db.invoices || []
+  async getAccountsReceivable(companyIdOverride?: string): Promise<AccountsReceivableItem[]> {
+    let companyId: string | null = null
+    try {
+      companyId = await resolveUserCompanyId(supabaseClient, companyIdOverride)
+    } catch {
+      companyId = companyIdOverride || null
+    }
+    if (!companyId) return []
+
+    const { data: sales, error } = await supabaseClient
+      .from('sales')
+      .select(`
+        id,
+        sale_number,
+        total_amount,
+        paid_amount,
+        created_at,
+        due_date,
+        customer_id,
+        customers (id, company_name, first_name, last_name, document_type, document_number),
+        locations (id, name)
+      `)
+      .eq('company_id', companyId)
+      .neq('status', 'CANCELLED')
+      .order('created_at', { ascending: false })
+
+    if (error || !sales) return []
+
     const results: AccountsReceivableItem[] = []
     const now = new Date().getTime()
 
-    for (const inv of invoices) {
-      const pending = Number(inv.pendingBalance) || 0
+    for (const sale of sales as any[]) {
+      const total = Number(sale.total_amount) || 0
+      const paid = Number(sale.paid_amount) || 0
+      const pending = Math.max(0, total - paid)
       if (pending <= 0) continue
 
-      const dueTime = new Date(inv.dueDate).getTime()
+      const dueTime = new Date(sale.due_date || sale.created_at).getTime()
       const diffDays = Math.floor((now - dueTime) / (1000 * 60 * 60 * 24))
       const daysOverdue = Math.max(0, diffDays)
 
@@ -542,17 +573,22 @@ export class AccountingReportService {
       if (daysOverdue > 30) status = 'CRITICAL'
       else if (daysOverdue > 0) status = 'OVERDUE'
 
+      const cust = sale.customers || {}
+      const customerName = cust.company_name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || 'Cliente'
+      const customerDoc = cust.document_number ? `${cust.document_type || 'CC'} ${cust.document_number}` : ''
+      const loc = sale.locations || {}
+
       results.push({
-        customerId: inv.customerId,
-        customerName: inv.customerName,
-        customerDoc: inv.customerDoc,
-        invoiceId: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        locationName: inv.locationName || 'Bodega Principal',
-        date: inv.date,
-        dueDate: inv.dueDate,
-        total: inv.total,
-        paidAmount: inv.total - pending,
+        customerId: sale.customer_id,
+        customerName,
+        customerDoc,
+        invoiceId: sale.id,
+        invoiceNumber: sale.sale_number,
+        locationName: loc.name || 'Bodega Principal',
+        date: sale.created_at,
+        dueDate: sale.due_date || sale.created_at,
+        total,
+        paidAmount: paid,
         pendingBalance: pending,
         daysOverdue,
         status,
@@ -565,16 +601,45 @@ export class AccountingReportService {
   /**
    * Cartera de Proveedores - Cuentas por Pagar (CxP)
    */
-  async getAccountsPayable(): Promise<AccountsPayableItem[]> {
-    const purchases = db.purchases || []
+  async getAccountsPayable(companyIdOverride?: string): Promise<AccountsPayableItem[]> {
+    let companyId: string | null = null
+    try {
+      companyId = await resolveUserCompanyId(supabaseClient, companyIdOverride)
+    } catch {
+      companyId = companyIdOverride || null
+    }
+    if (!companyId) return []
+
+    const { data: purchases, error } = await supabaseClient
+      .from('purchases')
+      .select(`
+        id,
+        purchase_number,
+        supplier_invoice_number,
+        total_amount,
+        paid_amount,
+        issue_date,
+        due_date,
+        supplier_id,
+        suppliers (id, name, legal_name, tax_id),
+        locations (id, name)
+      `)
+      .eq('company_id', companyId)
+      .neq('inventory_status', 'CANCELLED')
+      .order('created_at', { ascending: false })
+
+    if (error || !purchases) return []
+
     const results: AccountsPayableItem[] = []
     const now = new Date().getTime()
 
-    for (const pur of purchases) {
-      const pending = Number(pur.pendingBalance) || 0
+    for (const pur of purchases as any[]) {
+      const total = Number(pur.total_amount) || 0
+      const paid = Number(pur.paid_amount) || 0
+      const pending = Math.max(0, total - paid)
       if (pending <= 0) continue
 
-      const dueTime = new Date(pur.dueDate || pur.date).getTime()
+      const dueTime = new Date(pur.due_date || pur.issue_date).getTime()
       const diffDays = Math.floor((now - dueTime) / (1000 * 60 * 60 * 24))
       const daysOverdue = Math.max(0, diffDays)
 
@@ -582,18 +647,23 @@ export class AccountingReportService {
       if (daysOverdue > 30) status = 'CRITICAL'
       else if (daysOverdue > 0) status = 'OVERDUE'
 
+      const sup = pur.suppliers || {}
+      const supplierName = sup.name || sup.legal_name || 'Proveedor'
+      const supplierDoc = sup.tax_id || ''
+      const loc = pur.locations || {}
+
       results.push({
-        supplierId: pur.supplierId,
-        supplierName: pur.supplierName,
-        supplierDoc: pur.supplierNit || '',
+        supplierId: pur.supplier_id,
+        supplierName,
+        supplierDoc,
         purchaseId: pur.id,
-        purchaseNumber: pur.purchaseNumber,
-        supplierInvoiceNumber: pur.supplierInvoiceNumber || pur.invoiceNumber || '',
-        locationName: pur.destinationLocationName || 'Bodega Principal',
-        date: pur.date,
-        dueDate: pur.dueDate || pur.date,
-        total: pur.total,
-        paidAmount: pur.paidAmount || pur.total - pending,
+        purchaseNumber: pur.purchase_number,
+        supplierInvoiceNumber: pur.supplier_invoice_number || pur.purchase_number || '',
+        locationName: loc.name || 'Bodega Principal',
+        date: pur.issue_date,
+        dueDate: pur.due_date || pur.issue_date,
+        total,
+        paidAmount: paid,
         pendingBalance: pending,
         daysOverdue,
         status,
@@ -607,37 +677,65 @@ export class AccountingReportService {
    * Sistema de Costos: Análisis Compra vs Venta por Producto y Bodega
    */
   async getCostAnalysis(filters?: { locationId?: string; category?: string }): Promise<CostAnalysisItem[]> {
-    const products = db.products || []
-    const locations = db.locations || []
+    const companyId = await resolveUserCompanyId(supabaseClient)
+    let prodQuery = supabaseClient
+      .from('products')
+      .select(`
+        id,
+        sku,
+        barcode,
+        name,
+        category,
+        unit_type,
+        cost_price,
+        sale_price,
+        wholesale_price,
+        stock_levels (quantity, location_id, cost)
+      `)
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+
+    if (filters?.category && filters.category !== 'ALL') {
+      prodQuery = prodQuery.eq('category', filters.category)
+    }
+
+    const { data: products } = await prodQuery
+    const { data: locations } = await supabaseClient
+      .from('locations')
+      .select('id, name')
+      .eq('company_id', companyId)
+
+    const locMap = new Map((locations || []).map((l: any) => [l.id, l.name]))
     const results: CostAnalysisItem[] = []
 
-    const locMap = new Map(locations.map((l) => [l.id, l.name]))
-
-    for (const prod of products) {
-      if (filters?.category && filters.category !== 'ALL' && prod.category !== filters.category) {
-        continue
-      }
-
-      const cost = Number(prod.averageCost) || 0
-      const normalPrice = Number(prod.normalPrice) || 0
-      const wholesalePrice = Number(prod.wholesalePrice) || 0
+    for (const prod of (products as any[]) || []) {
+      const cost = Number(prod.cost_price) || 0
+      const normalPrice = Number(prod.sale_price) || 0
+      const wholesalePrice = Number(prod.wholesale_price) || 0
       const marginCOP = normalPrice - cost
       const marginPercent = normalPrice > 0 ? Number(((marginCOP / normalPrice) * 100).toFixed(1)) : 0
-      const stock = Number((prod as any).totalStock) || 0
+
+      const rawStock = (prod.stock_levels as any[]) || []
+      const filteredStock = filters?.locationId && filters.locationId !== 'ALL'
+        ? rawStock.filter((st: any) => st.location_id === filters.locationId)
+        : rawStock
+
+      const stock = filteredStock.reduce((acc: number, st: any) => acc + (Number(st.quantity) || 0), 0)
       const totalValuedCost = stock * cost
-      const lastCost = Number((prod as any).lastPurchaseCost) || cost
+
+      const targetLocId = (filters?.locationId && filters.locationId !== 'ALL') ? filters.locationId : (filteredStock[0]?.location_id || 'loc-001')
 
       results.push({
         productId: prod.id,
         sku: prod.sku,
-        barcode: prod.barcode,
+        barcode: prod.barcode || '',
         name: prod.name,
-        category: prod.category,
-        unitOfMeasure: prod.unitOfMeasure,
-        locationId: 'loc-001',
-        locationName: locMap.get('loc-001') || 'Bodega Principal',
+        category: prod.category || 'General',
+        unitOfMeasure: prod.unit_type || 'UND',
+        locationId: targetLocId,
+        locationName: locMap.get(targetLocId) || 'Bodega Principal',
         averageCost: cost,
-        lastPurchaseCost: lastCost,
+        lastPurchaseCost: cost,
         normalPrice,
         wholesalePrice,
         profitMarginCOP: marginCOP,
@@ -654,34 +752,52 @@ export class AccountingReportService {
    * Resumen Financiero Desglosado por Bodega / Centro de Costos
    */
   async getWarehouseFinancials(): Promise<WarehouseFinancialSummary[]> {
-    const locations = db.locations || []
+    const companyId = await resolveUserCompanyId(supabaseClient)
+    const { data: locations } = await supabaseClient
+      .from('locations')
+      .select('id, name, code, type')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+
     const movements = await accountingRepository.getAllMovements()
-    const sales = db.sales || []
-    const purchases = db.purchases || []
-    const stockLevels = db.stockLevels || []
-    const invoices = db.invoices || []
 
-    return locations.map((loc) => {
+    const { data: sales } = await supabaseClient
+      .from('sales')
+      .select('location_id, total_amount, paid_amount, status')
+      .eq('company_id', companyId)
+      .neq('status', 'CANCELLED')
+
+    const { data: purchases } = await supabaseClient
+      .from('purchases')
+      .select('location_id, total_amount, paid_amount, inventory_status')
+      .eq('company_id', companyId)
+      .neq('inventory_status', 'CANCELLED')
+
+    const { data: stockLevels } = await supabaseClient
+      .from('stock_levels')
+      .select('location_id, quantity, cost')
+      .eq('company_id', companyId)
+
+    return ((locations as any[]) || []).map((loc: any) => {
       const locMovements = movements.filter((m) => m.locationId === loc.id)
-      const locSales = sales.filter((s) => s.locationId === loc.id && s.status !== 'CANCELLED')
-      const salesTotal = locSales.reduce((acc, s) => acc + (Number(s.total) || 0), 0)
+      const locSales = ((sales as any[]) || []).filter((s: any) => s.location_id === loc.id)
+      const salesTotal = locSales.reduce((acc: number, s: any) => acc + (Number(s.total_amount) || 0), 0)
 
-      const locPurchases = purchases.filter((p) => (p.destinationLocationId === loc.id || p.locationId === loc.id) && p.status !== 'CANCELLED')
-      const costsTotal = locPurchases.reduce((acc, p) => acc + (Number(p.total) || 0), 0)
+      const locPurchases = ((purchases as any[]) || []).filter((p: any) => p.location_id === loc.id)
+      const costsTotal = locPurchases.reduce((acc: number, p: any) => acc + (Number(p.total_amount) || 0), 0)
 
       const grossProfit = salesTotal - costsTotal
       const marginPercent = salesTotal > 0 ? Number(((grossProfit / salesTotal) * 100).toFixed(1)) : 0
 
-      const locStock = stockLevels.filter((st) => st.locationId === loc.id)
-      const inventoryValued = locStock.reduce((acc, st) => acc + ((Number(st.quantity) || 0) * (Number(st.cost) || 0)), 0)
+      const locStock = ((stockLevels as any[]) || []).filter((st: any) => st.location_id === loc.id)
+      const inventoryValued = locStock.reduce((acc: number, st: any) => acc + ((Number(st.quantity) || 0) * (Number(st.cost) || 0)), 0)
 
-      const locInvoices = invoices.filter((i) => i.locationId === loc.id)
-      const pendingReceivables = locInvoices.reduce((acc, i) => acc + (Number(i.pendingBalance) || 0), 0)
-      const pendingPayables = locPurchases.reduce((acc, p) => acc + (Number(p.pendingBalance) || 0), 0)
+      const pendingReceivables = locSales.reduce((acc: number, s: any) => acc + Math.max(0, (Number(s.total_amount) || 0) - (Number(s.paid_amount) || 0)), 0)
+      const pendingPayables = locPurchases.reduce((acc: number, p: any) => acc + Math.max(0, (Number(p.total_amount) || 0) - (Number(p.paid_amount) || 0)), 0)
 
       return {
         locationId: loc.id,
-        locationCode: loc.code,
+        locationCode: loc.code || 'BOD',
         locationName: loc.name,
         type: loc.type,
         salesTotal,

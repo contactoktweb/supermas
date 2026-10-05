@@ -1,8 +1,11 @@
 import { z } from 'zod'
 
-export const taxTypeSchema = z.enum(['IVA', 'EXCLUIDO', 'NO_GRAVADO', 'OTRO'], {
-  message: 'Selecciona un tipo de impuesto válido',
-})
+export const taxTypeSchema = z.enum(
+  ['IVA', 'EXCLUIDO', 'NO_GRAVADO', 'OTRO', 'RETEFUENTE', 'RETEICA', 'RETEIVA'],
+  {
+    message: 'Selecciona un tipo de impuesto o retención válido',
+  }
+)
 
 export const taxStatusSchema = z.enum(['ACTIVE', 'INACTIVE'], {
   message: 'Selecciona un estado válido',

@@ -24,6 +24,7 @@ export const LIGHT_ICON_MAP = {
   pos: 'solar:shop-2-linear',
   invoices: 'solar:bill-list-linear',
   remisiones: 'solar:document-text-linear',
+  returns: 'solar:restart-linear',
   cashRegisters: 'solar:card-linear',
   accounting: 'solar:calculator-minimalistic-linear',
   taxes: 'solar:hand-money-linear',

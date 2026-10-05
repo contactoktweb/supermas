@@ -10,6 +10,7 @@ import {
   CancelSaleDTO,
   CreateInvoiceFromSaleDTO,
   CreateRemissionFromSaleDTO,
+  SaleReturnDTO,
 } from '../types'
 
 export function useSales(initialFilters: SaleFilterParams = {}) {
@@ -130,6 +131,13 @@ export function useSales(initialFilters: SaleFilterParams = {}) {
     return updated
   }
 
+  const processReturn = async (dto: SaleReturnDTO): Promise<Sale> => {
+    const updated = await salesService.processReturn(dto)
+    await fetchSales()
+    await fetchStats()
+    return updated
+  }
+
   return {
     items,
     stats,
@@ -149,5 +157,6 @@ export function useSales(initialFilters: SaleFilterParams = {}) {
     cancelSale,
     generateInvoice,
     generateRemission,
+    processReturn,
   }
 }

@@ -52,6 +52,7 @@ export interface ReportFilterCriteria {
   searchQuery?: string
   limit?: number
   offset?: number
+  companyId?: string
 }
 
 // --------------------------------------------------------------------------

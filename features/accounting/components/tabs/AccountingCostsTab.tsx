@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CostAnalysisItem } from '../../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface AccountingCostsTabProps {
   costs: CostAnalysisItem[]
@@ -20,8 +20,24 @@ export function AccountingCostsTab({
   const [searchQuery, setSearchQuery] = useState('')
   const [costMethod, setCostMethod] = useState<'WEIGHTED_AVERAGE' | 'FIFO'>('WEIGHTED_AVERAGE')
 
-  const categories = db.categories || []
-  const locations = db.locations || []
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+
+  React.useEffect(() => {
+    supabaseClient
+      .from('categories')
+      .select('id, name')
+      .then(({ data }) => {
+        if (data) setCategories(data)
+      })
+    supabaseClient
+      .from('locations')
+      .select('id, name')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data) setLocations(data)
+      })
+  }, [])
 
   let filtered = costs
   if (selectedCategory !== 'ALL') {
@@ -143,8 +159,8 @@ export function AccountingCostsTab({
           >
             <option value="ALL">Todas las categorías</option>
             {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
+              <option key={c.id || c.name} value={c.name}>
+                {c.name}
               </option>
             ))}
           </select>

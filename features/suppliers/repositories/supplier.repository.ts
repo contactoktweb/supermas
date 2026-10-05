@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Supplier,
   SupplierFilterParams,
@@ -69,20 +70,10 @@ function mapDbRowToSupplier(row: any): Supplier {
 
 export class SupplierRepository {
   /**
-   * Resuelve el company_id autenticado del usuario actual
+   * Resuelve el company_id del usuario autenticado actual de forma estricta
    */
   private async resolveCompanyId(): Promise<string> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    if (comp?.id) return comp.id
-
-    const { data: userProfile } = await supabaseClient
-      .from('users')
-      .select('company_id')
-      .limit(1)
-      .single()
-
-    if (userProfile?.company_id) return userProfile.company_id
-    throw new Error('No se pudo resolver la empresa activa del usuario.')
+    return resolveUserCompanyId(supabaseClient)
   }
 
   /**

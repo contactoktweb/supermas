@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Sale,
   SaleItem,
@@ -53,12 +54,21 @@ function mapDbStatusToDomain(status?: string): SaleStatus {
       return 'PENDING'
     case 'CANCELLED':
       return 'CANCELLED'
+    case 'RETURNED':
+      return 'RETURNED'
     default:
       return 'CONFIRMED'
   }
 }
 
 export class SalesRepository {
+  /**
+   * Resuelve el company_id del usuario autenticado actual de forma estricta
+   */
+  async resolveCompanyId(preferredCompanyId?: string): Promise<string> {
+    return resolveUserCompanyId(supabaseClient, preferredCompanyId)
+  }
+
   /**
    * Mapea un registro de public.sales a la entidad de dominio Sale
    */
@@ -76,8 +86,8 @@ export class SalesRepository {
         productName: p.name || 'Producto',
         sku: p.sku || 'SKU',
         barcode: p.barcode || '',
-        unitOfMeasure: p.unit_type || 'UND',
-        imageUrl: p.image_url || '',
+        unitOfMeasure: p.unit_of_measure || p.unit_type || 'UND',
+        imageUrl: p.primary_image_url || p.image_url || '',
         quantity: Number(it.quantity || 0),
         unitPrice: Number(it.unit_price || 0),
         unitCost: Number(it.unit_cost || 0),
@@ -207,8 +217,8 @@ export class SalesRepository {
             name,
             sku,
             barcode,
-            unit_type,
-            image_url
+            unit_of_measure,
+            primary_image_url
           )
         )
       `, { count: 'exact' })
@@ -312,8 +322,8 @@ export class SalesRepository {
           name,
           sku,
           barcode,
-          unit_type,
-          image_url
+          unit_of_measure,
+          primary_image_url
         )
       `)
       .eq('sale_id', saleId)
@@ -328,8 +338,8 @@ export class SalesRepository {
         productName: p.name || 'Producto',
         sku: p.sku || 'SKU',
         barcode: p.barcode || '',
-        unitOfMeasure: p.unit_type || 'UND',
-        imageUrl: p.image_url || '',
+        unitOfMeasure: p.unit_of_measure || p.unit_type || 'UND',
+        imageUrl: p.primary_image_url || p.image_url || '',
         quantity: Number(it.quantity || 0),
         unitPrice: Number(it.unit_price || 0),
         unitCost: Number(it.unit_cost || 0),
@@ -401,8 +411,8 @@ export class SalesRepository {
             name,
             sku,
             barcode,
-            unit_type,
-            image_url
+            unit_of_measure,
+            primary_image_url
           )
         )
       `)
@@ -543,8 +553,7 @@ export class SalesRepository {
    */
   async create(sale: Sale): Promise<Sale> {
     const { data: authUser } = await supabaseClient.auth.getUser()
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    const companyId = comp?.id
+    const companyId = await this.resolveCompanyId()
 
     const isCredit = sale.paymentMethod === 'CREDITO';
     const paidAmount = isCredit ? 0 : sale.totalAmount;
@@ -685,7 +694,15 @@ export class SalesRepository {
   async update(id: string, partial: Partial<Sale>): Promise<Sale | null> {
     const updates: any = { updated_at: new Date().toISOString() }
     if (partial.status) {
-      updates.status = partial.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED'
+      if (partial.status === 'CANCELLED') {
+        updates.status = 'CANCELLED'
+      } else if (partial.status === 'RETURNED') {
+        updates.status = 'RETURNED'
+      } else if (partial.status === 'PENDING') {
+        updates.status = 'PENDING'
+      } else {
+        updates.status = 'ISSUED'
+      }
     }
     if (partial.notes !== undefined) {
       updates.notes = partial.notes
@@ -709,8 +726,7 @@ export class SalesRepository {
     sale: Sale,
     user: { userId: string; userName: string }
   ): Promise<void> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    const companyId = comp?.id
+    const companyId = await this.resolveCompanyId()
 
     for (const item of sale.items) {
       const { data: stockRow } = await supabaseClient
@@ -724,7 +740,7 @@ export class SalesRepository {
       const newStock = Math.max(0, prevStock - item.quantity)
       const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
 
-      await supabaseClient.from('inventory_movements').insert({
+      const { error: movErr } = await supabaseClient.from('inventory_movements').insert({
         company_id: companyId,
         product_id: item.productId,
         location_id: sale.locationId,
@@ -740,6 +756,11 @@ export class SalesRepository {
         reason: `Salida por venta comercial ${sale.saleNumber} - Cliente: ${sale.customerName}`,
         user_id: user.userId || null,
       })
+
+      if (movErr) {
+        console.error('Error insertando movimiento de inventario (SALE_OUT):', movErr)
+        throw new Error(`Error registrando movimiento de salida en Kardex: ${movErr.message}`)
+      }
     }
   }
 
@@ -751,8 +772,7 @@ export class SalesRepository {
     reason: string,
     user: { userId: string; userName: string }
   ): Promise<void> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    const companyId = comp?.id
+    const companyId = await this.resolveCompanyId()
 
     for (const item of sale.items) {
       const { data: stockRow } = await supabaseClient
@@ -766,7 +786,7 @@ export class SalesRepository {
       const newStock = prevStock + item.quantity
       const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
 
-      await supabaseClient.from('inventory_movements').insert({
+      const { error: revErr } = await supabaseClient.from('inventory_movements').insert({
         company_id: companyId,
         product_id: item.productId,
         location_id: sale.locationId,
@@ -782,6 +802,11 @@ export class SalesRepository {
         reason: `Reversión por anulación de venta ${sale.saleNumber}. Motivo: ${reason}`,
         user_id: user.userId || null,
       })
+
+      if (revErr) {
+        console.error('Error insertando reversión de inventario (POSITIVE_ADJUSTMENT):', revErr)
+        throw new Error(`Error registrando reversión en Kardex: ${revErr.message}`)
+      }
     }
   }
 
@@ -793,8 +818,7 @@ export class SalesRepository {
     type: 'FACTURA_ELECTRONICA' | 'FACTURA_POS',
     user: { userId: string; userName: string }
   ): Promise<{ invoiceId: string; invoiceNumber: string }> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    const companyId = comp?.id
+    const companyId = await this.resolveCompanyId()
 
     if (type === 'FACTURA_ELECTRONICA') {
       const prefix = 'FE'
@@ -847,8 +871,7 @@ export class SalesRepository {
     details: { deliveredBy?: string; driverName?: string; receivedBy?: string; notes?: string },
     user: { userId: string; userName: string }
   ): Promise<{ remissionId: string; remissionNumber: string }> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-    const companyId = comp?.id
+    const companyId = await this.resolveCompanyId()
     const code = `REM-${Date.now().toString().slice(-6)}`
 
     const { data: created, error } = await supabaseClient
@@ -884,12 +907,14 @@ export class SalesRepository {
     oldValues?: Record<string, unknown>
     newValues?: Record<string, unknown>
   }): Promise<void> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+    const companyId = await this.resolveCompanyId()
     const { data: authUser } = await supabaseClient.auth.getUser()
 
     await supabaseClient.from('audit_logs').insert({
-      company_id: comp?.id,
+      company_id: companyId,
       user_id: authUser.user?.id || null,
+      user_name: entry.user || 'Sistema',
+      module: 'SALES',
       entity_name: 'sales',
       entity_id: entry.entityId,
       action: entry.action,

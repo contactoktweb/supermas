@@ -9,7 +9,7 @@
  * 5. Orquestación del motor de reglas automáticas (alertRulesService).
  */
 
-import { alertRepository } from '../repositories/alert.repository'
+import { alertRepository, ReplenishmentSuggestion } from '../repositories/alert.repository'
 import { alertRulesService } from './alert-rules.service'
 import { auditService } from '@/features/audit/services/audit.service'
 import {
@@ -68,7 +68,7 @@ export class AlertService {
       }
     }
 
-    const result = await alertRepository.getAlerts(effectiveCriteria)
+    const result = await alertRepository.getAlerts(effectiveCriteria, user.companyId)
 
     // Filtrar adicionalmente por módulo/rol si es cajero
     if (user.role === 'CASHIER') {
@@ -86,7 +86,7 @@ export class AlertService {
    */
   async getAlertById(id: string, user: UserAlertContext = DEFAULT_ALERT_USER): Promise<AlertItem | null> {
     this.assertPermission('alerts.read', user)
-    return alertRepository.getAlertById(id)
+    return alertRepository.getAlertById(id, user.companyId)
   }
 
   /**
@@ -96,7 +96,7 @@ export class AlertService {
     this.assertPermission('alerts.read', user)
     const effectiveLoc =
       user.role !== 'SUPERADMIN' && user.locationId ? user.locationId : locationId
-    return alertRepository.getStats(effectiveLoc)
+    return alertRepository.getStats(effectiveLoc, user.companyId)
   }
 
   /**
@@ -105,7 +105,7 @@ export class AlertService {
   async markAsRead(id: string, user: UserAlertContext = DEFAULT_ALERT_USER): Promise<AlertItem> {
     this.assertPermission('alerts.manage', user)
 
-    const alert = await alertRepository.getAlertById(id)
+    const alert = await alertRepository.getAlertById(id, user.companyId)
     if (!alert) {
       throw new Error(`Alerta con ID "${id}" no encontrada.`)
     }
@@ -123,14 +123,19 @@ export class AlertService {
       notes: `Alerta visualizada y marcada como leída por ${user.name} (${user.role}).`,
     }
 
-    const updated = await alertRepository.updateAlert(id, {
-      status: 'READ',
-      readAt: now,
-      readByUserId: user.userId,
-      history: [...alert.history, historyEntry],
-    })
+    const updated = await alertRepository.updateAlert(
+      id,
+      {
+        status: 'READ',
+        readAt: now,
+        readByUserId: user.userId,
+        history: [...alert.history, historyEntry],
+      },
+      user.companyId
+    )
 
     await auditService.log({
+      companyId: user.companyId,
       action: 'ALERT_READ',
       module: 'ALERTS',
       entityType: alert.entityType,
@@ -178,7 +183,7 @@ export class AlertService {
     this.assertPermission('alerts.manage', user)
     const { comment } = attendAlertSchema.parse(rawInput)
 
-    const alert = await alertRepository.getAlertById(id)
+    const alert = await alertRepository.getAlertById(id, user.companyId)
     if (!alert) {
       throw new Error(`Alerta con ID "${id}" no encontrada.`)
     }
@@ -195,18 +200,23 @@ export class AlertService {
       notes: comment,
     }
 
-    const updated = await alertRepository.updateAlert(id, {
-      status: 'IN_PROGRESS',
-      assignedUserId: user.userId,
-      assignedUserName: user.name,
-      attendedAt: now,
-      attendedByUserId: user.userId,
-      attendedByUserName: user.name,
-      attendedComment: comment,
-      history: [...alert.history, historyEntry],
-    })
+    const updated = await alertRepository.updateAlert(
+      id,
+      {
+        status: 'IN_PROGRESS',
+        assignedUserId: user.userId,
+        assignedUserName: user.name,
+        attendedAt: now,
+        attendedByUserId: user.userId,
+        attendedByUserName: user.name,
+        attendedComment: comment,
+        history: [...alert.history, historyEntry],
+      },
+      user.companyId
+    )
 
     await auditService.log({
+      companyId: user.companyId,
       action: 'ALERT_ATTENDED',
       module: 'ALERTS',
       entityType: alert.entityType,
@@ -235,7 +245,7 @@ export class AlertService {
     this.assertPermission('alerts.resolve', user)
     const { solutionNotes } = resolveAlertSchema.parse(rawInput)
 
-    const alert = await alertRepository.getAlertById(id)
+    const alert = await alertRepository.getAlertById(id, user.companyId)
     if (!alert) {
       throw new Error(`Alerta con ID "${id}" no encontrada.`)
     }
@@ -252,16 +262,21 @@ export class AlertService {
       notes: solutionNotes,
     }
 
-    const updated = await alertRepository.updateAlert(id, {
-      status: 'RESOLVED',
-      resolvedAt: now,
-      resolvedByUserId: user.userId,
-      resolvedByUserName: user.name,
-      solutionNotes,
-      history: [...alert.history, historyEntry],
-    })
+    const updated = await alertRepository.updateAlert(
+      id,
+      {
+        status: 'RESOLVED',
+        resolvedAt: now,
+        resolvedByUserId: user.userId,
+        resolvedByUserName: user.name,
+        solutionNotes,
+        history: [...alert.history, historyEntry],
+      },
+      user.companyId
+    )
 
     await auditService.log({
+      companyId: user.companyId,
       action: 'ALERT_RESOLVED',
       module: 'ALERTS',
       entityType: alert.entityType,
@@ -290,7 +305,7 @@ export class AlertService {
     this.assertPermission('alerts.resolve', user)
     const { closeNotes } = closeAlertSchema.parse(rawInput || {})
 
-    const alert = await alertRepository.getAlertById(id)
+    const alert = await alertRepository.getAlertById(id, user.companyId)
     if (!alert) {
       throw new Error(`Alerta con ID "${id}" no encontrada.`)
     }
@@ -303,11 +318,31 @@ export class AlertService {
       notes: closeNotes || 'Cierre administrativo finalizado.',
     }
 
-    const updated = await alertRepository.updateAlert(id, {
-      status: 'CLOSED',
-      closedAt: now,
-      closedByUserId: user.userId,
-      history: [...alert.history, historyEntry],
+    const updated = await alertRepository.updateAlert(
+      id,
+      {
+        status: 'CLOSED',
+        closedAt: now,
+        closedByUserId: user.userId,
+        history: [...alert.history, historyEntry],
+      },
+      user.companyId
+    )
+
+    await auditService.log({
+      companyId: user.companyId,
+      action: 'ALERT_CLOSED',
+      module: 'ALERTS',
+      entityType: alert.entityType,
+      entityId: alert.id,
+      entityReference: alert.code,
+      userId: user.userId,
+      userName: user.name,
+      userRole: user.role,
+      locationId: alert.locationId || undefined,
+      locationName: alert.locationName || undefined,
+      level: 'INFO',
+      details: `Alerta ${alert.code} cerrada administrativamente por ${user.name}.`,
     })
 
     return updated
@@ -318,7 +353,7 @@ export class AlertService {
    */
   async getRules(user: UserAlertContext = DEFAULT_ALERT_USER): Promise<AlertRule[]> {
     this.assertPermission('alerts.read', user)
-    return alertRepository.getRules()
+    return alertRepository.getRules(user.companyId)
   }
 
   /**
@@ -331,21 +366,26 @@ export class AlertService {
     this.assertPermission('alerts.configure', user)
     const data = alertRuleConfigSchema.parse(rawInput)
 
-    const currentRules = await alertRepository.getRules()
+    const currentRules = await alertRepository.getRules(user.companyId)
     const prev = currentRules.find((r) => r.id === data.ruleId)
     if (!prev) {
       throw new Error(`No existe la regla con ID "${data.ruleId}".`)
     }
 
-    const updated = await alertRepository.updateRule(data.ruleId, {
-      enabled: data.enabled,
-      defaultPriority: data.priority,
-      thresholds: data.thresholds,
-      updatedAt: new Date().toISOString(),
-      updatedBy: user.name,
-    })
+    const updated = await alertRepository.updateRule(
+      data.ruleId,
+      {
+        enabled: data.enabled,
+        defaultPriority: data.priority,
+        thresholds: data.thresholds,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.name,
+      },
+      user.companyId
+    )
 
     await auditService.log({
+      companyId: user.companyId,
       action: 'ALERT_RULE_MODIFIED',
       module: 'ALERTS',
       entityType: 'ALERT_RULE',
@@ -370,7 +410,20 @@ export class AlertService {
    */
   async scanAndEvaluate(user: UserAlertContext = DEFAULT_ALERT_USER): Promise<RuleEvaluationResult> {
     this.assertPermission('alerts.manage', user)
-    return alertRulesService.evaluateAllRules()
+    return alertRulesService.evaluateAllRules(user.companyId)
+  }
+
+  /**
+   * Obtiene sugerencias proactivas de reabastecimiento para productos en stock crítico o agotado
+   */
+  async getReplenishmentSuggestions(
+    locationId?: string,
+    user: UserAlertContext = DEFAULT_ALERT_USER
+  ): Promise<ReplenishmentSuggestion[]> {
+    this.assertPermission('alerts.read', user)
+    const effectiveLoc =
+      user.role !== 'SUPERADMIN' && user.locationId ? user.locationId : locationId
+    return alertRepository.getReplenishmentSuggestions(effectiveLoc, user.companyId)
   }
 }
 

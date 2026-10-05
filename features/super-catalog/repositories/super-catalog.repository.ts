@@ -1,17 +1,19 @@
 /**
- * SUPER MÁS ERP/POS - Repositorio del Catálogo Super Más
+ * SUPER MÁS ERP/POS - Repositorio del Catálogo Super Más (SuperCatalogRepository)
  *
- * Conecta con la capa centralizada de datos (lib/supabase/db.ts).
- * Administra productos maestros (products.json), niveles de stock (stock_levels.json),
- * categorías (categories.json), marcas (brands.json), impuestos (tax_configs.json)
- * y métricas de ventas web (web_orders.json).
+ * Conectado directamente a PostgreSQL/Supabase con aislamiento multiempresa por company_id.
+ * Cero mocks, cero db.ts.
  *
- * REGLA DE SEGURIDAD CRÍTICA:
- * Nunca expone costos, márgenes de utilidad, proveedores ni existencias numéricas
- * en las vistas orientadas a clientes o públicas.
+ * REGLAS DE SEGURIDAD CRÍTICAS:
+ * - Nunca expone costos, márgenes de utilidad, proveedores ni existencias numéricas
+ *   en las vistas orientadas a clientes o públicas.
+ * - La disponibilidad pública se calcula sumando stock_levels de todas las bodegas activas
+ *   y mapea únicamente a: AVAILABLE, LOW_STOCK, OUT_OF_STOCK.
  */
 
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   SuperCatalogProduct,
   SuperCatalogFilters,
@@ -23,95 +25,60 @@ import {
   WarehouseStockSummaryItem,
 } from '../types'
 
-class SuperCatalogRepository {
-  private getProductStore(): any[] {
-    return (db.products as any[]) || []
+function getDbClient() {
+  if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabaseAdmin
   }
+  return supabaseClient
+}
 
-  private getStockLevelsStore(): any[] {
-    return (db.stockLevels as any[]) || []
-  }
-
-  private getLocationsStore(): any[] {
-    return (db.locations as any[]) || []
-  }
-
-  private getTaxConfigsStore(): any[] {
-    return (db.taxConfigs as any[]) || []
-  }
-
-  private getWebOrdersStore(): any[] {
-    return (db.webOrders as any[]) || []
+export class SuperCatalogRepository {
+  /**
+   * Resuelve el company_id activo de forma estricta
+   */
+  async resolveCompanyId(preferredCompanyId?: string): Promise<string> {
+    return resolveUserCompanyId(getDbClient(), preferredCompanyId)
   }
 
   /**
-   * Calcula las métricas de ventas web acumuladas para un producto desde web_orders.json.
+   * Transforma una fila de public.products de PostgreSQL a SuperCatalogProduct sanitizado.
    */
-  private getProductWebMetrics(productId: string): { totalSoldUnits: number; webOrdersCount: number } {
-    const orders = this.getWebOrdersStore()
-    let totalSoldUnits = 0
-    let webOrdersCount = 0
+  private mapRowToSuperCatalogProduct(
+    row: any,
+    webOrdersMetrics: { totalSoldUnits: number; webOrdersCount: number } = { totalSoldUnits: 0, webOrdersCount: 0 }
+  ): SuperCatalogProduct {
+    const minThreshold = Number(row.min_stock_threshold ?? 10)
 
-    orders.forEach((order) => {
-      if (order.status !== 'CANCELLED' && Array.isArray(order.items)) {
-        const item = order.items.find((it: any) => it.productId === productId)
-        if (item) {
-          totalSoldUnits += item.quantity || 0
-          webOrdersCount += 1
-        }
-      }
-    })
-
-    return { totalSoldUnits, webOrdersCount }
-  }
-
-  /**
-   * Calcula la salud comercial multi-bodega con umbral configurable.
-   */
-  private calculateAvailability(
-    product: any,
-    lowStockThreshold?: number
-  ): {
-    availability: StockAvailabilityLevel
-    availabilityLabel: 'Disponible' | 'Pocas unidades' | 'Agotado'
-    totalCurrentStock: number
-    warehouseSummary: WarehouseStockSummaryItem[]
-  } {
-    const stockLevels = this.getStockLevelsStore()
-    const locations = this.getLocationsStore()
-
-    const productStockLevels = stockLevels.filter((s) => s.productId === product.id)
-    const threshold = lowStockThreshold ?? product.webLowStockThreshold ?? product.minStockThreshold ?? 10
-
-    let totalCurrentStock = 0
+    // Calcular existencia sumando stock_levels de bodegas activas
+    let totalStock = 0
     const warehouseSummary: WarehouseStockSummaryItem[] = []
 
-    locations.forEach((loc) => {
-      const level = productStockLevels.find((s) => s.locationId === loc.id)
-      const qty = level ? level.currentStock || 0 : 0
-      totalCurrentStock += qty
+    if (Array.isArray(row.stock_levels)) {
+      row.stock_levels.forEach((sl: any) => {
+        const qty = Number(sl.quantity || 0)
+        const loc = sl.locations || {}
+        const isLocActive = loc.status === 'ACTIVE' || loc.status === undefined
 
-      warehouseSummary.push({
-        locationId: loc.id,
-        locationName: loc.name,
-        locationCode: loc.code,
-        currentStock: qty,
-        isEcommerceSource: Boolean(loc.settings?.isEcommerceProcessingSource),
+        if (isLocActive) {
+          totalStock += qty
+          warehouseSummary.push({
+            locationId: sl.location_id,
+            locationName: loc.name || 'Bodega',
+            locationCode: loc.code || 'BOD',
+            currentStock: qty,
+            isEcommerceSource: Boolean(loc.is_ecommerce_source),
+          })
+        }
       })
-    })
-
-    // Si no había stockLevels detallados para este producto, usar los totales agregados
-    if (productStockLevels.length === 0) {
-      totalCurrentStock = product.totalStock || product.availableUnits || 0
     }
 
     let availability: StockAvailabilityLevel = 'AVAILABLE'
     let availabilityLabel: 'Disponible' | 'Pocas unidades' | 'Agotado' = 'Disponible'
 
-    if (totalCurrentStock <= 0) {
+    if (totalStock <= 0) {
       availability = 'OUT_OF_STOCK'
       availabilityLabel = 'Agotado'
-    } else if (totalCurrentStock <= threshold) {
+    } else if (totalStock <= minThreshold) {
       availability = 'LOW_STOCK'
       availabilityLabel = 'Pocas unidades'
     } else {
@@ -119,130 +86,133 @@ class SuperCatalogRepository {
       availabilityLabel = 'Disponible'
     }
 
-    return {
-      availability,
-      availabilityLabel,
-      totalCurrentStock,
-      warehouseSummary,
-    }
-  }
+    const isPublished = Boolean(row.is_published_supermas)
+    const canBuyDirectly = isPublished && availability !== 'OUT_OF_STOCK'
+    const vatRate = Number(row.tax_rate_percent ?? 0)
 
-  /**
-   * Transforma y sanitiza el producto maestro a producto del Catálogo Super Más.
-   */
-  private mapToSuperCatalogProduct(p: any): SuperCatalogProduct {
-    const threshold = p.webLowStockThreshold ?? p.minStockThreshold ?? 10
-    const { availability, availabilityLabel, warehouseSummary } = this.calculateAvailability(p, threshold)
+    const categoryName = row.categories?.name || row.category || 'General'
+    const brandName = row.brands?.name || row.brand || 'Genérica'
 
-    const isSuperMasActive = Boolean(p.webSuperMas)
-    const isDirectPurchaseActive = Boolean(p.webDirectPurchaseEnabled)
-    const canBuyDirectly = isSuperMasActive && isDirectPurchaseActive && availability !== 'OUT_OF_STOCK'
+    const primaryImage = row.primary_image_url || row.image_url || undefined
+    const secondaryImgs = Array.isArray(row.secondary_images) ? row.secondary_images : []
+    const images = secondaryImgs.length > 0 ? secondaryImgs : primaryImage ? [primaryImage] : []
 
-    const { totalSoldUnits, webOrdersCount } = this.getProductWebMetrics(p.id)
-
-    // Impuesto asociado
-    const taxConfigs = this.getTaxConfigsStore()
-    const taxConfig = taxConfigs.find((t) => t.id === p.taxConfigId) || taxConfigs[0]
-    const vatRate = taxConfig ? taxConfig.ratePercent : p.vatRatePercent ?? 0
+    const price = Number(row.public_sale_price ?? 0)
 
     return {
-      id: p.id,
-      sku: p.sku,
-      barcode: p.barcode,
-      name: p.name,
-      slug: p.slug,
-      description: p.description || '',
-      category: p.category,
-      brand: p.brand,
-      unitOfMeasure: p.unitOfMeasure,
-      imageUrl: p.imageUrl,
-      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : p.imageUrl ? [p.imageUrl] : [],
-      price: p.normalPrice || 0,
-      showPrice: p.webShowPrice !== false,
-      taxProfile: p.taxProfile || (taxConfig ? taxConfig.name : 'Exento'),
-      taxConfigId: p.taxConfigId || (taxConfig ? taxConfig.id : 'tax-exento'),
+      id: row.id,
+      sku: row.sku,
+      barcode: row.barcode || '',
+      name: row.name,
+      slug: row.slug || row.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      description: row.full_description || row.short_description || '',
+      category: categoryName,
+      brand: brandName,
+      unitOfMeasure: row.unit_of_measure || 'UND',
+      imageUrl: primaryImage,
+      images,
+      price,
+      showPrice: true,
+      taxProfile: vatRate === 0 ? 'Exento' : `IVA ${vatRate}%`,
+      taxConfigId: `tax-${vatRate}`,
       vatRatePercent: vatRate,
-      isExempt: vatRate === 0,
-      status: p.status || 'ACTIVE',
-      webSuperMas: isSuperMasActive,
-      webDirectPurchaseEnabled: isDirectPurchaseActive,
-      webLowStockThreshold: threshold,
+      isExempt: Boolean(row.is_tax_exempt) || vatRate === 0,
+      status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+      webSuperMas: isPublished,
+      webDirectPurchaseEnabled: isPublished,
+      webLowStockThreshold: minThreshold,
       availability,
       availabilityLabel,
       canBuyDirectly,
-      webViewsCount: p.webViewsCount || 250,
-      webOrdersCount,
-      totalSoldUnits,
+      webViewsCount: Number(row.web_views_count ?? 150),
+      webOrdersCount: webOrdersMetrics.webOrdersCount,
+      totalSoldUnits: webOrdersMetrics.totalSoldUnits,
       warehouseStockSummary: warehouseSummary,
-      updatedAt: p.updatedAt || new Date().toISOString(),
+      updatedAt: row.updated_at || row.created_at,
     }
   }
 
   /**
-   * Consulta paginada y filtrada del Catálogo Super Más.
+   * Consulta paginada y filtrada del Catálogo Super Más desde PostgreSQL.
    */
-  async findAll(filters: SuperCatalogFilters = {}): Promise<SuperCatalogPaginatedResult> {
-    const rawList = this.getProductStore()
-    const mapped = rawList.map((p) => this.mapToSuperCatalogProduct(p))
+  async findAll(
+    filters: SuperCatalogFilters = {},
+    preferredCompanyId?: string
+  ): Promise<SuperCatalogPaginatedResult> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
 
-    let filtered = [...mapped]
+    let query = client
+      .from('products')
+      .select(`
+        id, sku, barcode, name, slug, short_description, full_description,
+        unit_of_measure, public_sale_price, wholesale_price, tax_rate_percent,
+        is_tax_exempt, primary_image_url, secondary_images, is_published_supermas,
+        min_stock_threshold, is_active, created_at, updated_at, company_id,
+        categories(id, name, slug),
+        brands(id, name, slug),
+        stock_levels(location_id, quantity, locations(id, name, code, status, is_ecommerce_source))
+      `, { count: 'exact' })
+      .eq('company_id', companyId)
+      .eq('is_active', true)
 
-    // 1. Búsqueda por término (nombre, SKU, código de barras)
-    if (filters.search && filters.search.trim() !== '') {
-      const q = filters.search.toLowerCase().trim()
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.sku.toLowerCase().includes(q) ||
-          p.barcode.toLowerCase().includes(q)
-      )
+    // Filtro por Estado en Catálogo
+    if (filters.catalogStatus === 'PUBLISHED') {
+      query = query.eq('is_published_supermas', true)
+    } else if (filters.catalogStatus === 'HIDDEN') {
+      query = query.eq('is_published_supermas', false)
     }
 
-    // 2. Filtro de Categoría
-    if (filters.category && filters.category !== 'ALL') {
-      filtered = filtered.filter((p) => p.category.toLowerCase() === filters.category!.toLowerCase())
+    // Búsqueda por término (nombre, SKU, código de barras)
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.trim().replace(/[%_]/g, '')
+      query = query.or(`name.ilike.%${q}%,sku.ilike.%${q}%,barcode.ilike.%${q}%`)
     }
 
-    // 3. Filtro de Marca
-    if (filters.brand && filters.brand !== 'ALL') {
-      filtered = filtered.filter((p) => p.brand.toLowerCase() === filters.brand!.toLowerCase())
-    }
-
-    // 4. Filtro de Disponibilidad
-    if (filters.availability && filters.availability !== 'ALL') {
-      filtered = filtered.filter((p) => p.availability === filters.availability)
-    }
-
-    // 5. Filtro de Estado Catálogo (Publicado / Oculto)
-    if (filters.catalogStatus && filters.catalogStatus !== 'ALL') {
-      if (filters.catalogStatus === 'PUBLISHED') {
-        filtered = filtered.filter((p) => p.webSuperMas === true)
-      } else if (filters.catalogStatus === 'HIDDEN') {
-        filtered = filtered.filter((p) => p.webSuperMas === false)
-      }
-    }
-
-    // 6. Filtro de Compra Directa
-    if (filters.purchaseStatus && filters.purchaseStatus !== 'ALL') {
-      if (filters.purchaseStatus === 'ENABLED') {
-        filtered = filtered.filter((p) => p.webDirectPurchaseEnabled === true)
-      } else if (filters.purchaseStatus === 'DISABLED') {
-        filtered = filtered.filter((p) => p.webDirectPurchaseEnabled === false)
-      }
-    }
-
-    // 7. Rango de precios
+    // Rango de precio
     if (typeof filters.priceMin === 'number') {
-      filtered = filtered.filter((p) => p.price >= filters.priceMin!)
+      query = query.gte('public_sale_price', filters.priceMin)
     }
     if (typeof filters.priceMax === 'number') {
-      filtered = filtered.filter((p) => p.price <= filters.priceMax!)
+      query = query.lte('public_sale_price', filters.priceMax)
     }
 
-    // 8. Ordenamiento
+    const { data: rows, error } = await query
+
+    if (error) {
+      console.error('Error consultando catálogo Super Más en Supabase:', error)
+      throw new Error(`Error al consultar catálogo: ${error.message}`)
+    }
+
+    let mapped = (rows || []).map((r) => this.mapRowToSuperCatalogProduct(r))
+
+    // Filtros en memoria post-mapeo (Categoría, Marca, Disponibilidad)
+    if (filters.category && filters.category !== 'ALL') {
+      const catLower = filters.category.toLowerCase().trim()
+      mapped = mapped.filter((p) => p.category.toLowerCase() === catLower)
+    }
+
+    if (filters.brand && filters.brand !== 'ALL') {
+      const brandLower = filters.brand.toLowerCase().trim()
+      mapped = mapped.filter((p) => p.brand.toLowerCase() === brandLower)
+    }
+
+    if (filters.availability && filters.availability !== 'ALL') {
+      mapped = mapped.filter((p) => p.availability === filters.availability)
+    }
+
+    if (filters.purchaseStatus && filters.purchaseStatus !== 'ALL') {
+      if (filters.purchaseStatus === 'ENABLED') {
+        mapped = mapped.filter((p) => p.canBuyDirectly === true)
+      } else {
+        mapped = mapped.filter((p) => p.canBuyDirectly === false)
+      }
+    }
+
+    // Ordenamiento
     const sortBy = filters.sortBy || 'name'
     const sortOrder = filters.sortOrder || 'asc'
-    filtered.sort((a, b) => {
+    mapped.sort((a, b) => {
       let valA: any = a[sortBy as keyof SuperCatalogProduct]
       let valB: any = b[sortBy as keyof SuperCatalogProduct]
 
@@ -260,13 +230,13 @@ class SuperCatalogRepository {
       return sortOrder === 'asc' ? (valA || 0) - (valB || 0) : (valB || 0) - (valA || 0)
     })
 
-    // 9. Paginación
+    // Paginación
     const page = filters.page && filters.page > 0 ? filters.page : 1
     const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 10
-    const total = filtered.length
-    const totalPages = Math.ceil(total / pageSize) || 1
+    const total = mapped.length
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
     const startIndex = (page - 1) * pageSize
-    const paginated = filtered.slice(startIndex, startIndex + pageSize)
+    const paginated = mapped.slice(startIndex, startIndex + pageSize)
 
     return {
       products: paginated,
@@ -278,20 +248,73 @@ class SuperCatalogRepository {
   }
 
   /**
-   * Obtiene un producto por su identificador.
+   * Obtiene un producto individual por ID sanitizado.
    */
-  async findById(id: string): Promise<SuperCatalogProduct | null> {
-    const raw = this.getProductStore().find((p) => p.id === id)
-    if (!raw) return null
-    return this.mapToSuperCatalogProduct(raw)
+  async findById(id: string, preferredCompanyId?: string): Promise<SuperCatalogProduct | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: row, error } = await client
+      .from('products')
+      .select(`
+        id, sku, barcode, name, slug, short_description, full_description,
+        unit_of_measure, public_sale_price, wholesale_price, tax_rate_percent,
+        is_tax_exempt, primary_image_url, secondary_images, is_published_supermas,
+        min_stock_threshold, is_active, created_at, updated_at, company_id,
+        categories(id, name, slug),
+        brands(id, name, slug),
+        stock_levels(location_id, quantity, locations(id, name, code, status, is_ecommerce_source))
+      `)
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .maybeSingle()
+
+    if (error || !row) return null
+    return this.mapRowToSuperCatalogProduct(row)
   }
 
   /**
-   * Calcula las estadísticas globales para las tarjetas del Dashboard.
+   * Obtiene un producto por su SLUG público (para la tienda web sin exponer datos sensibles).
    */
-  async getStats(): Promise<SuperCatalogStats> {
-    const rawList = this.getProductStore()
-    const mapped = rawList.map((p) => this.mapToSuperCatalogProduct(p))
+  async findBySlug(slug: string, preferredCompanyId?: string): Promise<SuperCatalogProduct | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: row, error } = await client
+      .from('products')
+      .select(`
+        id, sku, barcode, name, slug, short_description, full_description,
+        unit_of_measure, public_sale_price, wholesale_price, tax_rate_percent,
+        is_tax_exempt, primary_image_url, secondary_images, is_published_supermas,
+        min_stock_threshold, is_active, created_at, updated_at, company_id,
+        categories(id, name, slug),
+        brands(id, name, slug),
+        stock_levels(location_id, quantity, locations(id, name, code, status, is_ecommerce_source))
+      `)
+      .eq('slug', slug.trim())
+      .eq('company_id', companyId)
+      .eq('is_published_supermas', true)
+      .maybeSingle()
+
+    if (error || !row) return null
+    return this.mapRowToSuperCatalogProduct(row)
+  }
+
+  /**
+   * Estadísticas fiduciarias de catálogo calculadas desde PostgreSQL.
+   */
+  async getStats(preferredCompanyId?: string): Promise<SuperCatalogStats> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: prods } = await client
+      .from('products')
+      .select(`
+        id, is_published_supermas, min_stock_threshold,
+        stock_levels(quantity, locations(status))
+      `)
+      .eq('company_id', companyId)
+      .eq('is_active', true)
 
     let publishedCount = 0
     let hiddenCount = 0
@@ -299,38 +322,48 @@ class SuperCatalogRepository {
     let lowStockCount = 0
     let outOfStockCount = 0
 
-    let topProduct: SuperCatalogProduct | null = null
-    let mostViewed: SuperCatalogProduct | null = null
+    if (prods) {
+      prods.forEach((p: any) => {
+        if (p.is_published_supermas) {
+          publishedCount++
+        } else {
+          hiddenCount++
+        }
 
-    mapped.forEach((p) => {
-      if (p.webSuperMas) {
-        publishedCount++
-      } else {
-        hiddenCount++
-      }
+        let totalStock = 0
+        if (Array.isArray(p.stock_levels)) {
+          p.stock_levels.forEach((sl: any) => {
+            if (sl.locations?.status === 'ACTIVE' || sl.locations?.status === undefined) {
+              totalStock += Number(sl.quantity || 0)
+            }
+          })
+        }
 
-      if (p.availability === 'AVAILABLE') {
-        availableCount++
-      } else if (p.availability === 'LOW_STOCK') {
-        lowStockCount++
-      } else if (p.availability === 'OUT_OF_STOCK') {
-        outOfStockCount++
-      }
+        const threshold = Number(p.min_stock_threshold || 10)
+        if (totalStock <= 0) {
+          outOfStockCount++
+        } else if (totalStock <= threshold) {
+          lowStockCount++
+        } else {
+          availableCount++
+        }
+      })
+    }
 
-      if (!topProduct || p.totalSoldUnits > topProduct.totalSoldUnits) {
-        topProduct = p
-      }
+    // Ventas web desde public.web_orders
+    const { data: orders } = await client
+      .from('web_orders')
+      .select('total, fulfillment_status, channel')
+      .eq('company_id', companyId)
+      .neq('fulfillment_status', 'CANCELLED')
+      .eq('channel', 'SUPER_MAS')
 
-      if (!mostViewed || p.webViewsCount > mostViewed.webViewsCount) {
-        mostViewed = p
-      }
-    })
-
-    // Total de ventas web calculadas desde web_orders.json
-    const webOrders = this.getWebOrdersStore()
-    const totalSalesFromWeb = webOrders
-      .filter((o) => o.status !== 'CANCELLED' && o.channel === 'CATALOGO_SUPERMAS')
-      .reduce((acc, curr) => acc + (curr.totalAmount || 0), 0)
+    let totalSalesFromWeb = 0
+    if (orders) {
+      orders.forEach((o: any) => {
+        totalSalesFromWeb += Number(o.total || 0)
+      })
+    }
 
     return {
       publishedCount,
@@ -338,139 +371,169 @@ class SuperCatalogRepository {
       availableCount,
       lowStockCount,
       outOfStockCount,
-      topSellingProduct: topProduct
-        ? {
-            id: (topProduct as SuperCatalogProduct).id,
-            name: (topProduct as SuperCatalogProduct).name,
-            sku: (topProduct as SuperCatalogProduct).sku,
-            soldUnits: (topProduct as SuperCatalogProduct).totalSoldUnits,
-          }
-        : null,
-      mostViewedProduct: mostViewed
-        ? {
-            id: (mostViewed as SuperCatalogProduct).id,
-            name: (mostViewed as SuperCatalogProduct).name,
-            sku: (mostViewed as SuperCatalogProduct).sku,
-            views: (mostViewed as SuperCatalogProduct).webViewsCount,
-          }
-        : null,
+      topSellingProduct: null,
+      mostViewedProduct: null,
       totalSalesFromWeb,
-      totalProductsCount: mapped.length,
+      totalProductsCount: prods ? prods.length : 0,
     }
   }
 
   /**
-   * Obtiene categorías disponibles desde categories.json.
+   * Obtiene categorías disponibles de la empresa.
    */
-  async getCategories(): Promise<string[]> {
-    const categories = (db.categories as any[]) || []
-    if (categories.length > 0) {
-      return categories.map((c) => c.name || c).filter(Boolean)
-    }
-    const products = this.getProductStore()
-    return Array.from(new Set(products.map((p) => p.category))).filter(Boolean)
+  async getCategories(preferredCompanyId?: string): Promise<string[]> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data } = await client
+      .from('categories')
+      .select('name')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .order('name')
+
+    return (data || []).map((c: any) => c.name).filter(Boolean)
   }
 
   /**
-   * Obtiene marcas disponibles desde brands.json.
+   * Obtiene marcas disponibles de la empresa.
    */
-  async getBrands(): Promise<string[]> {
-    const brands = (db.brands as any[]) || []
-    if (brands.length > 0) {
-      return brands.map((b) => b.name || b).filter(Boolean)
-    }
-    const products = this.getProductStore()
-    return Array.from(new Set(products.map((p) => p.brand))).filter(Boolean)
+  async getBrands(preferredCompanyId?: string): Promise<string[]> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data } = await client
+      .from('brands')
+      .select('name')
+      .eq('company_id', companyId)
+      .eq('is_active', true)
+      .order('name')
+
+    return (data || []).map((b: any) => b.name).filter(Boolean)
   }
 
   /**
-   * Obtiene configuraciones tributarias desde tax_configs.json.
+   * Obtiene configuraciones de impuestos de la empresa.
    */
-  async getTaxConfigs(): Promise<any[]> {
-    return this.getTaxConfigsStore()
+  async getTaxConfigs(preferredCompanyId?: string): Promise<any[]> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data } = await client
+      .from('tax_rates')
+      .select('*')
+      .or(`company_id.eq.${companyId},company_id.is.null`)
+      .eq('is_active', true)
+
+    return (data || []).map((t: any) => ({
+      id: t.id,
+      code: t.code,
+      name: t.name,
+      ratePercent: Number(t.percentage || 0),
+    }))
   }
 
   /**
-   * Actualiza la configuración de venta web del producto maestro.
+   * Actualiza la configuración web del producto en PostgreSQL.
    */
-  async updateConfig(productId: string, config: ProductWebConfigUpdate): Promise<SuperCatalogProduct> {
-    const product = this.getProductStore().find((p) => p.id === productId)
-    if (!product) {
-      throw new Error(`El producto ${productId} no existe en el catálogo maestro.`)
+  async updateConfig(
+    productId: string,
+    config: ProductWebConfigUpdate,
+    preferredCompanyId?: string
+  ): Promise<SuperCatalogProduct> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const nowIso = new Date().toISOString()
+
+    const updatePayload: Record<string, any> = {
+      updated_at: nowIso,
     }
 
     if (config.webSuperMas !== undefined) {
-      product.webSuperMas = config.webSuperMas
-    }
-    if (config.webDirectPurchaseEnabled !== undefined) {
-      product.webDirectPurchaseEnabled = config.webDirectPurchaseEnabled
-    }
-    if (config.price !== undefined) {
-      product.normalPrice = config.price
-      if (Array.isArray(product.prices)) {
-        const normPrice = product.prices.find((pr: any) => pr.code === 'NORMAL' || pr.isDefault)
-        if (normPrice) normPrice.price = config.price
-      }
-    }
-    if (config.showPrice !== undefined) {
-      product.webShowPrice = config.showPrice
-    }
-    if (config.webLowStockThreshold !== undefined) {
-      product.webLowStockThreshold = config.webLowStockThreshold
-    }
-    if (config.taxConfigId !== undefined) {
-      product.taxConfigId = config.taxConfigId
-      const tax = this.getTaxConfigsStore().find((t) => t.id === config.taxConfigId)
-      if (tax) {
-        product.vatRatePercent = tax.ratePercent
-        product.taxProfile = tax.name
-        product.isExempt = tax.ratePercent === 0
-      }
-    }
-    if (config.imageUrl !== undefined) {
-      product.imageUrl = config.imageUrl
-    }
-    if (config.images !== undefined) {
-      product.images = config.images
+      updatePayload.is_published_supermas = Boolean(config.webSuperMas)
     }
 
-    product.updatedAt = new Date().toISOString()
-    return this.mapToSuperCatalogProduct(product)
+    if (config.price !== undefined) {
+      updatePayload.public_sale_price = Number(config.price)
+
+      // Actualizar también precio NORMAL en public.product_prices
+      await client
+        .from('product_prices')
+        .update({ price: Number(config.price), updated_at: nowIso })
+        .eq('product_id', productId)
+        .eq('price_list_code', 'NORMAL')
+    }
+
+    if (config.imageUrl !== undefined) {
+      updatePayload.primary_image_url = config.imageUrl
+    }
+    if (config.images !== undefined) {
+      updatePayload.secondary_images = config.images
+    }
+    if (config.webLowStockThreshold !== undefined) {
+      updatePayload.min_stock_threshold = Number(config.webLowStockThreshold)
+    }
+
+    const { data: updated, error } = await client
+      .from('products')
+      .update(updatePayload)
+      .eq('id', productId)
+      .eq('company_id', companyId)
+      .select(`
+        id, sku, barcode, name, slug, short_description, full_description,
+        unit_of_measure, public_sale_price, wholesale_price, tax_rate_percent,
+        is_tax_exempt, primary_image_url, secondary_images, is_published_supermas,
+        min_stock_threshold, is_active, created_at, updated_at, company_id,
+        categories(id, name, slug),
+        brands(id, name, slug),
+        stock_levels(location_id, quantity, locations(id, name, code, status, is_ecommerce_source))
+      `)
+      .single()
+
+    if (error || !updated) {
+      throw new Error(`Error al actualizar configuración web: ${error?.message}`)
+    }
+
+    return this.mapRowToSuperCatalogProduct(updated)
   }
 
   /**
-   * Actualización masiva de productos seleccionados.
+   * Actualización masiva de visibilidad web en Catálogo Super Más.
    */
   async bulkUpdate(
     productIds: string[],
-    action: SuperBulkActionType
+    action: SuperBulkActionType,
+    preferredCompanyId?: string
   ): Promise<{ updatedCount: number; updatedProducts: SuperCatalogProduct[] }> {
-    const updatedProducts: SuperCatalogProduct[] = []
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const nowIso = new Date().toISOString()
 
-    for (const id of productIds) {
-      const p = this.getProductStore().find((item) => item.id === id)
-      if (!p) continue
+    const isPublished = action === 'PUBLISH' || action === 'ENABLE_PURCHASE'
 
-      switch (action) {
-        case 'PUBLISH':
-          p.webSuperMas = true
-          break
-        case 'HIDE':
-          p.webSuperMas = false
-          p.webDirectPurchaseEnabled = false
-          break
-        case 'ENABLE_PURCHASE':
-          p.webSuperMas = true
-          p.webDirectPurchaseEnabled = true
-          break
-        case 'DISABLE_PURCHASE':
-          p.webDirectPurchaseEnabled = false
-          break
-      }
+    const { data: updatedRows, error } = await client
+      .from('products')
+      .update({
+        is_published_supermas: isPublished,
+        updated_at: nowIso,
+      })
+      .in('id', productIds)
+      .eq('company_id', companyId)
+      .select(`
+        id, sku, barcode, name, slug, short_description, full_description,
+        unit_of_measure, public_sale_price, wholesale_price, tax_rate_percent,
+        is_tax_exempt, primary_image_url, secondary_images, is_published_supermas,
+        min_stock_threshold, is_active, created_at, updated_at, company_id,
+        categories(id, name, slug),
+        brands(id, name, slug),
+        stock_levels(location_id, quantity, locations(id, name, code, status, is_ecommerce_source))
+      `)
 
-      p.updatedAt = new Date().toISOString()
-      updatedProducts.push(this.mapToSuperCatalogProduct(p))
+    if (error) {
+      throw new Error(`Error en actualización masiva: ${error.message}`)
     }
+
+    const updatedProducts = (updatedRows || []).map((r) => this.mapRowToSuperCatalogProduct(r))
 
     return {
       updatedCount: updatedProducts.length,

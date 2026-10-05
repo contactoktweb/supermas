@@ -55,6 +55,8 @@ export const registerPaymentSchema = z.object({
   amount: z.number().positive('El monto del abono debe ser mayor a 0'),
   paymentMethod: z.string().min(1, 'El medio de pago es obligatorio'),
   bankAccountId: z.string().optional(),
+  cashRegisterId: z.string().optional(),
+  cashSessionId: z.string().optional(),
   reference: z.string().min(2, 'La referencia o comprobante de pago es obligatoria').trim(),
   date: z.string().optional(),
   notes: z.string().max(300).optional(),

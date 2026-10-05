@@ -6,6 +6,7 @@
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Customer,
   CustomerFilterParams,
@@ -89,21 +90,10 @@ function mapDbRowToCustomer(row: any): Customer {
 
 export class CustomerRepository {
   /**
-   * Resuelve el company_id autenticado
+   * Resuelve el company_id autenticado del usuario actual de forma estricta
    */
   private async resolveCompanyId(): Promise<string> {
-    const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).maybeSingle()
-    if (comp?.id) return comp.id
-
-    const { data: userProfile } = await supabaseClient
-      .from('users')
-      .select('company_id')
-      .limit(1)
-      .maybeSingle()
-
-    if (userProfile?.company_id) return userProfile.company_id
-
-    throw new Error('No fue posible identificar la empresa activa (company_id no configurado).')
+    return resolveUserCompanyId(supabaseClient)
   }
 
   /**

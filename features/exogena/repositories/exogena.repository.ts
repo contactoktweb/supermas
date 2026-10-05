@@ -1,11 +1,13 @@
 /**
  * SUPER MÁS ERP/POS - Repositorio de Exógena Tributaria
  *
- * Conecta con la capa centralizada lib/supabase/db.ts y mock-db
+ * Conecta con PostgreSQL / Supabase Real
  * consolidando terceros, compras, ventas, facturas y asientos de contabilidad.
  */
 
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import exogenaNormativaData from '@/lib/supabase/mock-db/exogena_normativa.json'
 import {
   ExogenaYearNormativa,
   ExogenaFormatConfig,
@@ -16,12 +18,15 @@ import {
 } from '../types'
 import { exogenaValidator } from '../validators/exogena.validator'
 
+let exogenaNormativaStore: ExogenaYearNormativa[] = JSON.parse(JSON.stringify(exogenaNormativaData))
+let exogenaGenerationsStore: ExogenaGenerationRecord[] = []
+
 class ExogenaRepository {
   /**
    * Obtiene la configuración normativa para un año gravable específico.
    */
   async getNormativaByYear(year: number): Promise<ExogenaYearNormativa | null> {
-    const list = (db.exogenaNormativa as unknown as ExogenaYearNormativa[]) || []
+    const list = exogenaNormativaStore || []
     const found = list.find((item) => item.year === year)
     if (!found) return null
     return JSON.parse(JSON.stringify(found))
@@ -31,7 +36,7 @@ class ExogenaRepository {
    * Retorna la lista de años gravables parametrizados en el ERP.
    */
   async getAvailableYears(): Promise<Array<{ year: number; label: string; status: string }>> {
-    const list = (db.exogenaNormativa as unknown as ExogenaYearNormativa[]) || []
+    const list = exogenaNormativaStore || []
     return list.map((n) => ({
       year: n.year,
       label: n.label,
@@ -53,7 +58,7 @@ class ExogenaRepository {
     },
     user: { id: string; name: string }
   ): Promise<ExogenaYearNormativa> {
-    const list = db.exogenaNormativa as any[]
+    const list = exogenaNormativaStore as any[]
     const index = list.findIndex((item) => item.year === year)
     if (index === -1) {
       throw new Error(`No existe normativa parametrizada para el año ${year}.`)
@@ -97,11 +102,19 @@ class ExogenaRepository {
     formatNumbers?: string[]
   ): Promise<ExogenaRecord[]> {
     const records: ExogenaRecord[] = []
-    const customers = db.customers || []
-    const suppliers = db.suppliers || []
-    const purchases = db.purchases || []
-    const sales = db.sales || []
-    const accounting = db.accountingEntries || []
+    const [custRes, suppRes, purchRes, salesRes, accRes] = await Promise.all([
+      supabaseClient.from('customers').select('*'),
+      supabaseClient.from('suppliers').select('*'),
+      supabaseClient.from('purchases').select('*, items:purchase_items(*)'),
+      supabaseClient.from('sales').select('*, items:sale_items(*)'),
+      supabaseClient.from('accounting_entries').select('*, lines:accounting_entry_lines(*)'),
+    ])
+
+    const customers = custRes.data || []
+    const suppliers = suppRes.data || []
+    const purchases = purchRes.data || []
+    const sales = salesRes.data || []
+    const accounting = accRes.data || []
 
     const normativa = await this.getNormativaByYear(year)
     if (!normativa) return []
@@ -426,7 +439,7 @@ class ExogenaRepository {
     )
 
     // Consultar última generación para este año
-    const generations = (db.exogenaGenerations as unknown as ExogenaGenerationRecord[]) || []
+    const generations = exogenaGenerationsStore || []
     const lastGen = generations
       .filter((g) => g.year === year)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
@@ -457,7 +470,10 @@ class ExogenaRepository {
    */
   async getConciliation(year: number): Promise<ExogenaConciliationItem[]> {
     const records = await this.consolidateRecords(year)
-    const accounting = db.accountingEntries || []
+    const { data: accData } = await supabaseClient
+      .from('accounting_entries')
+      .select('*, lines:accounting_entry_lines(*)')
+    const accounting = accData || []
 
     // Totales desde Asientos Contables
     let totalSalesAccounting = 0
@@ -572,7 +588,7 @@ class ExogenaRepository {
    * Obtiene el historial de generaciones de Exógena.
    */
   async getGenerationsHistory(year?: number): Promise<ExogenaGenerationRecord[]> {
-    const list = (db.exogenaGenerations as unknown as ExogenaGenerationRecord[]) || []
+    const list = exogenaGenerationsStore || []
     let result = [...list]
     if (year) {
       result = result.filter((g) => g.year === year)
@@ -582,16 +598,15 @@ class ExogenaRepository {
   }
 
   /**
-   * Registra un nuevo paquete de generación en exogena_generations.json y audit_logs.json.
+   * Registra un nuevo paquete de generación en memoria y public.audit_logs.
    */
   async saveGeneration(
     generation: ExogenaGenerationRecord,
     user: { id: string; name: string }
   ): Promise<ExogenaGenerationRecord> {
-    const generations = db.exogenaGenerations as any[]
-    generations.unshift(generation)
+    exogenaGenerationsStore.unshift(generation)
 
-    this.logAudit({
+    await this.logAudit({
       action: 'EXOGENA_PACKAGE_GENERATED',
       year: generation.year,
       userId: user.id,
@@ -603,30 +618,33 @@ class ExogenaRepository {
   }
 
   /**
-   * Registra un evento en audit_logs.json.
+   * Registra un evento en public.audit_logs.
    */
-  logAudit(entry: {
+  async logAudit(entry: {
     action: string
     year: number
     userId: string
     userName: string
     details: string
-  }): void {
-    const auditRecord = {
-      id: `aud-exo-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      action: entry.action,
-      locationId: 'loc-001',
-      locationName: 'Sede Principal (CEDI)',
-      userId: entry.userId,
-      userName: entry.userName,
-      timestamp: 'Justo ahora',
-      changes: {
-        field: 'exogena',
-        newValue: { year: entry.year },
-        details: entry.details,
-      },
+  }): Promise<void> {
+    try {
+      const companyId = await resolveUserCompanyId().catch(() => null)
+      if (companyId) {
+        await supabaseClient.from('audit_logs').insert({
+          company_id: companyId,
+          module: 'EXOGENA',
+          action: entry.action,
+          entity_name: 'EXOGENA_TAX',
+          entity_id: String(entry.year),
+          user_id: entry.userId,
+          user_name: entry.userName,
+          new_value: JSON.stringify({ year: entry.year, details: entry.details }),
+          created_at: new Date().toISOString(),
+        })
+      }
+    } catch (e) {
+      console.error('Error al registrar auditoría de exógena:', e)
     }
-    ;(db.auditLogs as any[]).unshift(auditRecord)
   }
 }
 

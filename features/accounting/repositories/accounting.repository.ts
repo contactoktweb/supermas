@@ -1,12 +1,18 @@
 /**
- * SUPER MÁS ERP/POS - Repositorio de Contabilidad
+ * SUPER MÁS ERP/POS - Repositorio Oficial de Contabilidad (accountingRepository)
  *
- * Conecta directamente con la capa de datos de Supabase (db.ts / mock-db)
- * integrando accounting_accounts, accounting_entries, accounting_movements,
- * sales, purchases, invoices, inventory_movements, products y locations.
+ * Conecta 100% directamente a PostgreSQL/Supabase:
+ * - public.accounting_accounts (PUC)
+ * - public.accounting_entries
+ * - public.accounting_entry_lines
+ * - public.accounting_periods
+ * - RPCs atómicas: fn_create_accounting_entry, fn_reverse_accounting_entry,
+ *   fn_cause_sale_accounting, fn_cause_purchase_accounting,
+ *   fn_cause_payment_accounting, fn_cause_receipt_accounting,
+ *   fn_close_accounting_period, fn_reopen_accounting_period.
  */
 
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 import {
   AccountingAccount,
   AccountingEntry,
@@ -17,650 +23,721 @@ import {
 } from '../types'
 import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
 
-class AccountingRepository {
+export class AccountingRepository {
   /**
-   * Calcula los saldos de cada cuenta contable en tiempo real a partir
-   * de los movimientos oficiales del libro auxiliar (Kardex / partida doble).
+   * Mapea una fila de accounting_accounts a la interfaz AccountingAccount
    */
-  private withDynamicBalances(accounts: AccountingAccount[]): AccountingAccount[] {
-    const movements = (db.accountingMovements as unknown as AccountingMovement[]) || []
-    if (movements.length === 0) {
-      return accounts.map((a) => ({ ...a, balance: 0 }))
+  private mapAccount(row: any, balance: number = 0): AccountingAccount {
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      accountClass: row.account_class,
+      type: row.nature === 'DEBIT' ? 'ASSET' : 'LIABILITY', // fallback tipológico
+      nature: row.nature,
+      level: row.level === 1 ? 'CLASS' : row.level === 2 ? 'GROUP' : row.level === 3 ? 'ACCOUNT' : 'SUBACCOUNT',
+      parentId: row.parent_id || null,
+      balance: balance,
+      status: row.is_active ? 'ACTIVE' : 'INACTIVE',
+      requiresThirdParty: !!row.requires_third_party,
+      requiresCostCenter: !!row.requires_cost_center,
+      isSystemAccount: false,
+      description: row.description || '',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }
+  }
 
-    const balanceMap = new Map<string, { debits: number; credits: number }>()
-    for (const m of movements) {
-      const d = Number(m.debit) || 0
-      const c = Number(m.credit) || 0
-      if (m.accountId) {
-        const cur = balanceMap.get(m.accountId) || { debits: 0, credits: 0 }
+  /**
+   * Obtiene la suma de saldos de todas las cuentas a partir de líneas en comprobantes POSTED
+   */
+  private async getAccountBalances(): Promise<Map<string, number>> {
+    const { data, error } = await supabaseClient
+      .from('accounting_entry_lines')
+      .select(`
+        account_id,
+        debit_amount,
+        credit_amount,
+        accounting_entries!inner(status)
+      `)
+      .eq('accounting_entries.status', 'POSTED')
+
+    const map = new Map<string, { debits: number; credits: number }>()
+    if (!error && data) {
+      for (const row of data as any[]) {
+        const accId = row.account_id
+        const d = Number(row.debit_amount) || 0
+        const c = Number(row.credit_amount) || 0
+        const cur = map.get(accId) || { debits: 0, credits: 0 }
         cur.debits += d
         cur.credits += c
-        balanceMap.set(m.accountId, cur)
-      }
-      if (m.accountCode && m.accountCode !== m.accountId) {
-        const cur = balanceMap.get(m.accountCode) || { debits: 0, credits: 0 }
-        cur.debits += d
-        cur.credits += c
-        balanceMap.set(m.accountCode, cur)
+        map.set(accId, cur)
       }
     }
 
-    return accounts.map((acc) => {
-      const stats = balanceMap.get(acc.id) || balanceMap.get(acc.code) || { debits: 0, credits: 0 }
-      const isDebit = acc.nature === 'DEBIT'
-      const dynamicBalance = isDebit ? stats.debits - stats.credits : stats.credits - stats.debits
-      return {
-        ...acc,
-        balance: dynamicBalance,
+    const resultMap = new Map<string, number>()
+    // También obtenemos la naturaleza de las cuentas para calcular el saldo neto
+    const { data: accounts } = await supabaseClient.from('accounting_accounts').select('id, nature')
+    if (accounts) {
+      for (const acc of accounts as any[]) {
+        const stats = map.get(acc.id) || { debits: 0, credits: 0 }
+        const isDebit = acc.nature === 'DEBIT'
+        const bal = isDebit ? stats.debits - stats.credits : stats.credits - stats.debits
+        resultMap.set(acc.id, bal)
       }
-    })
+    }
+
+    return resultMap
   }
 
   /**
    * Consulta el catálogo de cuentas PUC con filtros y paginación
    */
   async getAccounts(filters?: AccountingFilters): Promise<{ data: AccountingAccount[]; total: number }> {
-    let list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
-    list = this.withDynamicBalances(list)
+    let query = supabaseClient.from('accounting_accounts').select('*', { count: 'exact' })
 
     if (filters?.query) {
-      const q = filters.query.toLowerCase().trim()
-      list = list.filter(
-        (acc) =>
-          acc.code.toLowerCase().includes(q) ||
-          acc.name.toLowerCase().includes(q) ||
-          acc.description?.toLowerCase().includes(q)
-      )
+      const q = filters.query.trim()
+      query = query.or(`code.ilike.%${q}%,name.ilike.%${q}%`)
     }
 
     if (filters?.accountClass && filters.accountClass !== ('ALL' as any)) {
-      list = list.filter((acc) => acc.accountClass === Number(filters.accountClass))
+      query = query.eq('account_class', Number(filters.accountClass))
     }
 
     if (filters?.nature && filters.nature !== ('ALL' as any)) {
-      list = list.filter((acc) => acc.nature === filters.nature)
+      query = query.eq('nature', filters.nature)
     }
 
     if (filters?.status && filters.status !== ('ALL' as any)) {
-      list = list.filter((acc) => acc.status === filters.status)
+      query = query.eq('is_active', filters.status === 'ACTIVE')
     }
 
-    // Ordenar naturalmente por código numérico contable
-    list.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+    query = query.order('code', { ascending: true })
 
-    const total = list.length
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || 50
     const start = (page - 1) * pageSize
-    const paginated = list.slice(start, start + pageSize)
+    query = query.range(start, start + pageSize - 1)
 
-    return { data: JSON.parse(JSON.stringify(paginated)), total }
+    const { data, count, error } = await query
+
+    if (error || !data) {
+      console.warn('Advertencia consultando cuentas contables:', error?.message)
+      return { data: [], total: 0 }
+    }
+
+    const balances = await this.getAccountBalances()
+    const mapped = data.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0))
+
+    return { data: mapped, total: count || mapped.length }
   }
 
   async getAllAccounts(): Promise<AccountingAccount[]> {
-    const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
-    return JSON.parse(JSON.stringify(this.withDynamicBalances(list)))
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('*')
+      .order('code', { ascending: true })
+
+    if (error || !data) return []
+
+    const balances = await this.getAccountBalances()
+    return data.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0))
   }
 
   async getAccountById(id: string): Promise<AccountingAccount | null> {
-    const list = this.withDynamicBalances((db.accountingAccounts as unknown as AccountingAccount[]) || [])
-    const acc = list.find((a) => a.id === id)
-    return acc ? JSON.parse(JSON.stringify(acc)) : null
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error || !data) return null
+    const balances = await this.getAccountBalances()
+    return this.mapAccount(data, balances.get(data.id) || 0)
   }
 
   async getAccountByCode(code: string): Promise<AccountingAccount | null> {
-    const list = this.withDynamicBalances((db.accountingAccounts as unknown as AccountingAccount[]) || [])
-    const acc = list.find((a) => a.code === code)
-    return acc ? JSON.parse(JSON.stringify(acc)) : null
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('*')
+      .eq('code', code)
+      .single()
+
+    if (error || !data) return null
+    const balances = await this.getAccountBalances()
+    return this.mapAccount(data, balances.get(data.id) || 0)
   }
 
   async createAccount(data: AccountFormData): Promise<AccountingAccount> {
-    const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
+    const levelNumber = data.level === 'CLASS' ? 1 : data.level === 'GROUP' ? 2 : data.level === 'ACCOUNT' ? 3 : 4
 
-    // Verificar unicidad de código
-    const existing = list.find((a) => a.code === data.code)
-    if (existing) {
-      throw new Error(`Ya existe una cuenta con el código ${data.code} (${existing.name}).`)
+    const { data: newRow, error } = await supabaseClient
+      .from('accounting_accounts')
+      .insert({
+        code: data.code,
+        name: data.name,
+        account_class: data.accountClass,
+        level: levelNumber,
+        parent_id: data.parentId || null,
+        nature: data.nature,
+        requires_third_party: !!data.requiresThirdParty,
+        requires_cost_center: !!data.requiresCostCenter,
+        is_active: true,
+      })
+      .select('*')
+      .single()
+
+    if (error || !newRow) {
+      throw new Error(`Error creando cuenta contable: ${error?.message || 'Error desconocido'}`)
     }
 
-    const newAccount: AccountingAccount = {
-      id: `acc-${data.code}`,
-      code: data.code,
-      name: data.name,
-      accountClass: data.accountClass,
-      type: data.type,
-      nature: data.nature,
-      level: data.level,
-      parentId: data.parentId || null,
-      balance: 0,
-      status: 'ACTIVE',
-      requiresThirdParty: data.requiresThirdParty,
-      requiresCostCenter: data.requiresCostCenter,
-      isSystemAccount: false,
-      description: data.description || '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    list.push(newAccount)
-    return JSON.parse(JSON.stringify(newAccount))
+    return this.mapAccount(newRow, 0)
   }
 
   async updateAccount(id: string, data: Partial<AccountFormData>): Promise<AccountingAccount> {
-    const list = (db.accountingAccounts as unknown as AccountingAccount[]) || []
-    const index = list.findIndex((a) => a.id === id)
-    if (index === -1) {
-      throw new Error(`No se encontró la cuenta con ID ${id}.`)
+    const updatePayload: any = {}
+    if (data.name !== undefined) updatePayload.name = data.name
+    if (data.requiresThirdParty !== undefined) updatePayload.requires_third_party = data.requiresThirdParty
+    if (data.requiresCostCenter !== undefined) updatePayload.requires_cost_center = data.requiresCostCenter
+
+    const { data: updated, error } = await supabaseClient
+      .from('accounting_accounts')
+      .update(updatePayload)
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error || !updated) {
+      throw new Error(`Error actualizando cuenta: ${error?.message || 'Error desconocido'}`)
     }
 
-    const current = list[index]
-    const updated: AccountingAccount = {
-      ...current,
-      ...data,
-      updatedAt: new Date().toISOString(),
-    }
-
-    list[index] = updated
-    return JSON.parse(JSON.stringify(updated))
+    const balances = await this.getAccountBalances()
+    return this.mapAccount(updated, balances.get(id) || 0)
   }
 
+  // --- ASIENTOS CONTABLES ---
+
   /**
-   * Consulta el libro de asientos contables (comprobantes de diario)
+   * Consulta los comprobantes contables con sus líneas de detalle
    */
   async getEntries(filters?: AccountingFilters): Promise<{ data: AccountingEntry[]; total: number }> {
-    let list = (db.accountingEntries as unknown as AccountingEntry[]) || []
+    let query = supabaseClient.from('accounting_entries').select(`
+      id,
+      consecutive,
+      entry_number,
+      date,
+      concept,
+      document_type,
+      document_reference,
+      status,
+      location_id,
+      created_by_user_id,
+      posted_at,
+      created_at,
+      updated_at,
+      locations (
+        name
+      ),
+      accounting_entry_lines (
+        id,
+        account_id,
+        debit_amount,
+        credit_amount,
+        third_party_doc,
+        third_party_name,
+        cost_center_id,
+        description,
+        accounting_accounts (
+          code,
+          name
+        )
+      )
+    `, { count: 'exact' })
 
     if (filters?.query) {
-      const q = filters.query.toLowerCase().trim()
-      list = list.filter(
-        (e) =>
-          e.entryNumber.toLowerCase().includes(q) ||
-          e.description.toLowerCase().includes(q) ||
-          e.documentNumber?.toLowerCase().includes(q) ||
-          e.thirdPartyName?.toLowerCase().includes(q) ||
-          e.thirdPartyDoc?.toLowerCase().includes(q)
-      )
+      const q = filters.query.trim()
+      query = query.or(`entry_number.ilike.%${q}%,concept.ilike.%${q}%,document_reference.ilike.%${q}%`)
     }
 
     if (filters?.entryStatus && filters.entryStatus !== ('ALL' as any)) {
-      list = list.filter((e) => e.status === filters.entryStatus)
+      query = query.eq('status', filters.entryStatus)
     }
 
     if (filters?.sourceType && filters.sourceType !== ('ALL' as any)) {
-      list = list.filter((e) => e.sourceType === filters.sourceType)
+      query = query.eq('document_type', filters.sourceType)
     }
 
     if (filters?.locationId && filters.locationId !== ('ALL' as any)) {
-      list = list.filter((e) => e.locationId === filters.locationId)
+      query = query.eq('location_id', filters.locationId)
     }
 
     if (filters?.dateFrom) {
-      list = list.filter((e) => e.date >= filters.dateFrom!)
+      query = query.gte('date', filters.dateFrom)
     }
     if (filters?.dateTo) {
-      list = list.filter((e) => e.date <= `${filters.dateTo!}T23:59:59Z`)
+      query = query.lte('date', filters.dateTo)
     }
 
-    // Ordenar cronológicamente descendente (más recientes primero)
-    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    query = query.order('date', { ascending: false }).order('created_at', { ascending: false })
 
-    const total = list.length
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || 25
     const start = (page - 1) * pageSize
-    const paginated = list.slice(start, start + pageSize)
+    query = query.range(start, start + pageSize - 1)
 
-    return { data: JSON.parse(JSON.stringify(paginated)), total }
+    const { data, count, error } = await query
+
+    if (error || !data) {
+      console.warn('Advertencia consultando asientos contables:', error?.message)
+      return { data: [], total: 0 }
+    }
+
+    const mapped: AccountingEntry[] = data.map((row: any) => {
+      const rawLines = row.accounting_entry_lines || []
+      const lines = rawLines.map((l: any) => ({
+        id: l.id,
+        accountId: l.account_id,
+        accountCode: l.accounting_accounts?.code || '',
+        accountName: l.accounting_accounts?.name || '',
+        debit: Number(l.debit_amount) || 0,
+        credit: Number(l.credit_amount) || 0,
+        description: l.description || '',
+        thirdPartyDoc: l.third_party_doc,
+        thirdPartyName: l.third_party_name,
+        costCenterId: l.cost_center_id,
+      }))
+
+      const totalDebit = lines.reduce((acc: number, l: any) => acc + l.debit, 0)
+      const totalCredit = lines.reduce((acc: number, l: any) => acc + l.credit, 0)
+
+      return {
+        id: row.id,
+        entryNumber: row.entry_number,
+        date: row.date,
+        period: (row.date || '').slice(0, 7),
+        sourceType: (row.document_type as any) || 'MANUAL',
+        documentNumber: row.document_reference,
+        description: row.concept,
+        status: (row.status as any) || 'DRAFT',
+        locationId: row.location_id,
+        locationName: row.locations?.name || null,
+        thirdPartyId: lines[0]?.thirdPartyDoc || undefined,
+        thirdPartyName: lines[0]?.thirdPartyName || undefined,
+        thirdPartyDoc: lines[0]?.thirdPartyDoc || undefined,
+        lines,
+        totalDebit,
+        totalCredit,
+        isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+        createdByUserId: row.created_by_user_id,
+        confirmedAt: row.posted_at,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    })
+
+    return { data: mapped, total: count || mapped.length }
   }
 
   async getAllEntries(): Promise<AccountingEntry[]> {
-    const list = (db.accountingEntries as unknown as AccountingEntry[]) || []
-    return JSON.parse(JSON.stringify(list))
+    const res = await this.getEntries({ page: 1, pageSize: 1000 })
+    return res.data
   }
 
   async getEntryById(id: string): Promise<AccountingEntry | null> {
-    const list = (db.accountingEntries as unknown as AccountingEntry[]) || []
-    const entry = list.find((e) => e.id === id)
-    return entry ? JSON.parse(JSON.stringify(entry)) : null
+    const { data, error } = await supabaseClient
+      .from('accounting_entries')
+      .select(`
+        id,
+        consecutive,
+        entry_number,
+        date,
+        concept,
+        document_type,
+        document_reference,
+        status,
+        location_id,
+        created_by_user_id,
+        posted_at,
+        created_at,
+        updated_at,
+        locations (name),
+        accounting_entry_lines (
+          id,
+          account_id,
+          debit_amount,
+          credit_amount,
+          third_party_doc,
+          third_party_name,
+          cost_center_id,
+          description,
+          accounting_accounts (code, name)
+        )
+      `)
+      .eq('id', id)
+      .single()
+
+    if (error || !data) return null
+
+    const rawLines = data.accounting_entry_lines || []
+    const lines = rawLines.map((l: any) => ({
+      id: l.id,
+      accountId: l.account_id,
+      accountCode: l.accounting_accounts?.code || '',
+      accountName: l.accounting_accounts?.name || '',
+      debit: Number(l.debit_amount) || 0,
+      credit: Number(l.credit_amount) || 0,
+      description: l.description || '',
+      thirdPartyDoc: l.third_party_doc,
+      thirdPartyName: l.third_party_name,
+      costCenterId: l.cost_center_id,
+    }))
+
+    const totalDebit = lines.reduce((acc: number, l: any) => acc + l.debit, 0)
+    const totalCredit = lines.reduce((acc: number, l: any) => acc + l.credit, 0)
+
+    return {
+      id: data.id,
+      entryNumber: data.entry_number,
+      date: data.date,
+      period: (data.date || '').slice(0, 7),
+      sourceType: (data.document_type as any) || 'MANUAL',
+      documentNumber: data.document_reference,
+      description: data.concept,
+      status: (data.status as any) || 'DRAFT',
+      locationId: data.location_id,
+      locationName: (data.locations as any)?.name || null,
+      thirdPartyDoc: lines[0]?.thirdPartyDoc,
+      thirdPartyName: lines[0]?.thirdPartyName,
+      lines,
+      totalDebit,
+      totalCredit,
+      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
+      createdByUserId: data.created_by_user_id,
+      confirmedAt: data.posted_at,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
   }
 
   /**
-   * Crea un asiento contable manual validando estricta partida doble
+   * Crea un asiento contable manual mediante RPC atómica validando partida doble
    */
   async createManualEntry(
     data: ManualEntryFormData,
     user: { id: string; name: string }
   ): Promise<AccountingEntry> {
-    const totalDebit = data.lines.reduce((acc, l) => acc + (Number(l.debit) || 0), 0)
-    const totalCredit = data.lines.reduce((acc, l) => acc + (Number(l.credit) || 0), 0)
+    const linesPayload = data.lines.map((l) => ({
+      account_id: l.accountId.startsWith('acc-') ? undefined : l.accountId,
+      account_code: l.accountCode,
+      debit_amount: Number(l.debit) || 0,
+      credit_amount: Number(l.credit) || 0,
+      third_party_doc: data.thirdPartyDoc || null,
+      third_party_name: data.thirdPartyName || null,
+      cost_center_id: l.costCenterId || null,
+      description: l.description || data.description,
+    }))
 
-    if (Math.abs(totalDebit - totalCredit) >= 0.01) {
-      throw new Error(
-        `Partida doble descuadrada: Débitos ($${totalDebit.toLocaleString()}) != Créditos ($${totalCredit.toLocaleString()}).`
-      )
+    const dateOnly = data.date.includes('T') ? data.date.slice(0, 10) : data.date
+
+    const { data: res, error } = await supabaseClient.rpc('fn_create_accounting_entry', {
+      p_date: dateOnly,
+      p_concept: data.description,
+      p_document_type: 'MANUAL',
+      p_document_reference: `MAN-${Date.now().toString().slice(-6)}`,
+      p_lines: linesPayload,
+      p_location_id: data.locationId || null,
+      p_auto_post: true,
+    })
+
+    if (error || !res?.success) {
+      console.error('Error creando asiento contable en RPC:', error)
+      throw new Error(`Error al crear asiento: ${error?.message || res?.error || 'Partida doble descuadrada o error de validación'}`)
     }
 
-    const list = (db.accountingEntries as unknown as AccountingEntry[]) || []
-    const nextSeq = list.length + 1
-    const entryNumber = `AST-${new Date().getFullYear()}-${String(nextSeq).padStart(6, '0')}`
-    const entryId = `entry-manual-${Date.now()}`
-    const period = data.date.substring(0, 7)
-
-    const newEntry: AccountingEntry = {
-      id: entryId,
-      entryNumber,
-      date: data.date.includes('T') ? data.date : `${data.date}T12:00:00Z`,
-      period,
-      sourceType: 'MANUAL',
-      documentNumber: `MAN-${String(nextSeq).padStart(4, '0')}`,
-      description: data.description,
-      status: 'POSTED',
-      locationId: data.locationId,
-      locationName: data.locationId ? db.locations.find((l) => l.id === data.locationId)?.name : 'CEDI Principal',
-      thirdPartyId: data.thirdPartyId,
-      thirdPartyName: data.thirdPartyName,
-      thirdPartyDoc: data.thirdPartyDoc,
-      lines: data.lines.map((l, idx) => ({
-        id: `line-${entryId}-${idx + 1}`,
-        accountId: l.accountId,
-        accountCode: l.accountCode,
-        accountName: l.accountName,
-        debit: Number(l.debit) || 0,
-        credit: Number(l.credit) || 0,
-        description: l.description,
-        costCenterId: l.costCenterId,
-        costCenterName: l.costCenterName,
-      })),
-      totalDebit,
-      totalCredit,
-      isBalanced: true,
-      createdByUserId: user.id,
-      createdByUserName: user.name,
-      confirmedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
+    const created = await this.getEntryById(res.entry_id)
+    if (!created) {
+      throw new Error('Comprobante creado pero no se pudo recuperar.')
     }
 
-    list.unshift(newEntry)
-
-    // Generar movimientos individuales en el libro auxiliar
-    const movementsList = (db.accountingMovements as unknown as AccountingMovement[]) || []
-    for (const line of newEntry.lines) {
-      movementsList.push({
-        id: `mov-${line.id}`,
-        entryId: newEntry.id,
-        entryNumber: newEntry.entryNumber,
-        date: newEntry.date,
-        period: newEntry.period,
-        accountId: line.accountId,
-        accountCode: line.accountCode,
-        accountName: line.accountName,
-        nature: line.debit > 0 ? 'DEBIT' : 'CREDIT',
-        sourceType: 'MANUAL',
-        sourceId: newEntry.id,
-        sourceDocumentNumber: newEntry.documentNumber,
-        locationId: newEntry.locationId,
-        locationName: newEntry.locationName,
-        thirdPartyId: newEntry.thirdPartyId,
-        thirdPartyName: newEntry.thirdPartyName,
-        thirdPartyDoc: newEntry.thirdPartyDoc,
-        debit: line.debit,
-        credit: line.credit,
-        balanceAfter: 0,
-        description: line.description,
-        createdAt: new Date().toISOString(),
-      })
-    }
-
-    return JSON.parse(JSON.stringify(newEntry))
+    return created
   }
 
   /**
-   * Reversión de asiento contable (principio de inmutabilidad: no se elimina, se reversa)
+   * Reversión de asiento contable mediante RPC atómica
    */
   async reverseEntry(
     entryId: string,
     reason: string,
     user: { id: string; name: string }
   ): Promise<{ original: AccountingEntry; reversal: AccountingEntry }> {
-    const list = (db.accountingEntries as unknown as AccountingEntry[]) || []
-    const index = list.findIndex((e) => e.id === entryId)
-    if (index === -1) {
-      throw new Error(`Asiento con ID ${entryId} no encontrado.`)
+    const { data: res, error } = await supabaseClient.rpc('fn_reverse_accounting_entry', {
+      p_entry_id: entryId,
+      p_reason: reason,
+    })
+
+    if (error || !res?.success) {
+      console.error('Error reversando asiento contable en RPC:', error)
+      throw new Error(`Error reversando asiento: ${error?.message || res?.error}`)
     }
 
-    const original = list[index]
-    if (original.status === 'REVERSED') {
-      throw new Error(`El asiento ${original.entryNumber} ya ha sido reversado previamente.`)
+    const [original, reversal] = await Promise.all([
+      this.getEntryById(res.original_entry_id),
+      this.getEntryById(res.reversal_entry_id),
+    ])
+
+    if (!original || !reversal) {
+      throw new Error('Comprobantes de reversión creados pero no se pudieron recuperar.')
     }
 
-    const nextSeq = list.length + 1
-    const reversalEntryNumber = `AST-${new Date().getFullYear()}-${String(nextSeq).padStart(6, '0')}`
-    const reversalId = `entry-rev-${Date.now()}`
-
-    // Generar líneas invertidas (lo que era débito pasa a crédito y viceversa)
-    const reversedLines = original.lines.map((l, idx) => ({
-      id: `line-${reversalId}-${idx + 1}`,
-      accountId: l.accountId,
-      accountCode: l.accountCode,
-      accountName: l.accountName,
-      debit: l.credit,
-      credit: l.debit,
-      description: `Reversión: ${l.description}`,
-      taxConfigId: l.taxConfigId,
-      taxRatePercent: l.taxRatePercent,
-      baseAmount: l.baseAmount,
-    }))
-
-    const reversalEntry: AccountingEntry = {
-      id: reversalId,
-      entryNumber: reversalEntryNumber,
-      date: new Date().toISOString(),
-      period: new Date().toISOString().substring(0, 7),
-      sourceType: 'REVERSAL',
-      sourceId: original.id,
-      documentNumber: `REV-${original.entryNumber}`,
-      description: `Reversión contable de ${original.entryNumber}. Motivo: ${reason}`,
-      status: 'POSTED',
-      locationId: original.locationId,
-      locationName: original.locationName,
-      thirdPartyId: original.thirdPartyId,
-      thirdPartyName: original.thirdPartyName,
-      thirdPartyDoc: original.thirdPartyDoc,
-      lines: reversedLines,
-      totalDebit: original.totalCredit,
-      totalCredit: original.totalDebit,
-      isBalanced: true,
-      reversalOfEntryId: original.id,
-      reversalReason: reason,
-      createdByUserId: user.id,
-      createdByUserName: user.name,
-      confirmedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-    }
-
-    // Actualizar estado del original
-    original.status = 'REVERSED'
-    original.reversedByEntryId = reversalId
-    original.reversalReason = reason
-
-    list.unshift(reversalEntry)
-
-    // Registrar movimientos de reversión en el auxiliar
-    const movementsList = (db.accountingMovements as unknown as AccountingMovement[]) || []
-    for (const line of reversalEntry.lines) {
-      movementsList.push({
-        id: `mov-${line.id}`,
-        entryId: reversalEntry.id,
-        entryNumber: reversalEntry.entryNumber,
-        date: reversalEntry.date,
-        period: reversalEntry.period,
-        accountId: line.accountId,
-        accountCode: line.accountCode,
-        accountName: line.accountName,
-        nature: line.debit > 0 ? 'DEBIT' : 'CREDIT',
-        sourceType: 'REVERSAL',
-        sourceId: reversalEntry.id,
-        sourceDocumentNumber: reversalEntry.documentNumber,
-        locationId: reversalEntry.locationId,
-        locationName: reversalEntry.locationName,
-        thirdPartyId: reversalEntry.thirdPartyId,
-        thirdPartyName: reversalEntry.thirdPartyName,
-        thirdPartyDoc: reversalEntry.thirdPartyDoc,
-        debit: line.debit,
-        credit: line.credit,
-        balanceAfter: 0,
-        description: line.description,
-        createdAt: new Date().toISOString(),
-      })
-    }
-
-    return {
-      original: JSON.parse(JSON.stringify(original)),
-      reversal: JSON.parse(JSON.stringify(reversalEntry)),
-    }
+    return { original, reversal }
   }
 
   /**
-   * Consulta movimientos individuales del libro auxiliar
+   * Causación automática de Ventas
+   */
+  async causeSale(saleId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_sale_accounting', {
+      p_sale_id: saleId,
+    })
+    if (error || !data?.success) {
+      throw new Error(`Error en causación de venta: ${error?.message || data?.error}`)
+    }
+    return data
+  }
+
+  /**
+   * Causación automática de Compras
+   */
+  async causePurchase(purchaseId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_purchase_accounting', {
+      p_purchase_id: purchaseId,
+    })
+    if (error || !data?.success) {
+      throw new Error(`Error en causación de compra: ${error?.message || data?.error}`)
+    }
+    return data
+  }
+
+  /**
+   * Causación automática de Desembolso / Pago
+   */
+  async causePayment(paymentId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_payment_accounting', {
+      p_payment_id: paymentId,
+    })
+    if (error || !data?.success) {
+      throw new Error(`Error en causación de pago: ${error?.message || data?.error}`)
+    }
+    return data
+  }
+
+  /**
+   * Causación automática de Recaudo
+   */
+  async causeReceipt(receiptId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_receipt_accounting', {
+      p_receipt_id: receiptId,
+    })
+    if (error || !data?.success) {
+      throw new Error(`Error en causación de recaudo: ${error?.message || data?.error}`)
+    }
+    return data
+  }
+
+  /**
+   * Consulta movimientos individuales del libro auxiliar desde public.accounting_entry_lines
    */
   async getMovements(filters?: AccountingFilters): Promise<{ data: AccountingMovement[]; total: number }> {
-    let list = (db.accountingMovements as unknown as AccountingMovement[]) || []
-
-    if (filters?.query) {
-      const q = filters.query.toLowerCase().trim()
-      list = list.filter(
-        (m) =>
-          m.accountCode.includes(q) ||
-          m.accountName.toLowerCase().includes(q) ||
-          m.entryNumber.toLowerCase().includes(q) ||
-          m.description.toLowerCase().includes(q) ||
-          m.thirdPartyName?.toLowerCase().includes(q)
+    let query = supabaseClient.from('accounting_entry_lines').select(`
+      id,
+      debit_amount,
+      credit_amount,
+      third_party_doc,
+      third_party_name,
+      description,
+      created_at,
+      accounting_accounts!inner (
+        id,
+        code,
+        name,
+        nature
+      ),
+      accounting_entries!inner (
+        id,
+        entry_number,
+        date,
+        document_type,
+        document_reference,
+        location_id,
+        status,
+        locations (name)
       )
-    }
+    `, { count: 'exact' })
 
-    if (filters?.accountId && filters.accountId !== ('ALL' as any)) {
-      list = list.filter((m) => m.accountId === filters.accountId || m.accountCode === filters.accountId)
+    if (filters?.entryStatus && filters.entryStatus !== ('ALL' as any)) {
+      query = query.eq('accounting_entries.status', filters.entryStatus)
     }
 
     if (filters?.sourceType && filters.sourceType !== ('ALL' as any)) {
-      list = list.filter((m) => m.sourceType === filters.sourceType)
+      query = query.eq('accounting_entries.document_type', filters.sourceType)
     }
 
     if (filters?.locationId && filters.locationId !== ('ALL' as any)) {
-      list = list.filter((m) => m.locationId === filters.locationId)
+      query = query.eq('accounting_entries.location_id', filters.locationId)
     }
 
-    if (filters?.thirdPartyId && filters.thirdPartyId !== ('ALL' as any)) {
-      list = list.filter(
-        (m) =>
-          m.thirdPartyId === filters.thirdPartyId ||
-          m.thirdPartyDoc === filters.thirdPartyId ||
-          m.thirdPartyName === filters.thirdPartyId
-      )
-    }
-
-    if (filters?.costCenterId && filters.costCenterId !== ('ALL' as any)) {
-      list = list.filter((m) => m.locationId === filters.costCenterId)
+    if (filters?.accountId && filters.accountId !== ('ALL' as any)) {
+      query = query.eq('accounting_accounts.code', filters.accountId)
     }
 
     if (filters?.dateFrom) {
-      list = list.filter((m) => m.date >= filters.dateFrom!)
+      query = query.gte('accounting_entries.date', filters.dateFrom)
     }
     if (filters?.dateTo) {
-      list = list.filter((m) => m.date <= `${filters.dateTo!}T23:59:59Z`)
+      query = query.lte('accounting_entries.date', filters.dateTo)
     }
 
-    list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+    const { data, count, error } = await query.order('created_at', { ascending: false })
 
-    const total = list.length
-    const page = filters?.page || 1
-    const pageSize = filters?.pageSize || 50
-    const start = (page - 1) * pageSize
-    const paginated = list.slice(start, start + pageSize)
+    if (error || !data) {
+      console.warn('Advertencia consultando movimientos contables:', error?.message)
+      return { data: [], total: 0 }
+    }
 
-    return { data: JSON.parse(JSON.stringify(paginated)), total }
+    const mapped: AccountingMovement[] = data.map((row: any) => {
+      const ae = row.accounting_entries || {}
+      const aa = row.accounting_accounts || {}
+      const debit = Number(row.debit_amount) || 0
+      const credit = Number(row.credit_amount) || 0
+
+      return {
+        id: row.id,
+        entryId: ae.id,
+        entryNumber: ae.entry_number,
+        date: ae.date,
+        period: (ae.date || '').slice(0, 7),
+        accountId: aa.id,
+        accountCode: aa.code,
+        accountName: aa.name,
+        nature: (aa.nature as any) || 'DEBIT',
+        sourceType: (ae.document_type as any) || 'MANUAL',
+        sourceId: ae.id,
+        sourceDocumentNumber: ae.document_reference,
+        locationId: ae.location_id,
+        locationName: ae.locations?.name || null,
+        thirdPartyDoc: row.third_party_doc,
+        thirdPartyName: row.third_party_name,
+        debit,
+        credit,
+        balanceAfter: 0,
+        description: row.description || '',
+        createdAt: row.created_at,
+      }
+    })
+
+    return { data: mapped, total: count || mapped.length }
   }
 
   async getAllMovements(): Promise<AccountingMovement[]> {
-    const list = (db.accountingMovements as unknown as AccountingMovement[]) || []
-    return JSON.parse(JSON.stringify(list))
+    const res = await this.getMovements({ page: 1, pageSize: 2000 })
+    return res.data
   }
 
-  /**
-   * Mapeo de cuentas contables por categoría de inventario (Estructura Multiclase: MP, PP, PT, Mercancías)
-   */
-  private categoryMappings: InventoryAccountMapping[] = [
-    {
-      categoryId: 'cat-inv-mp',
-      categoryName: 'Materias Primas e Insumos',
-      inventoryType: 'RAW_MATERIAL',
-      inventoryTypeName: 'Materia Prima (Clase 1405)',
-      inventoryAccountId: 'acc-140501',
-      inventoryAccountCode: '140501',
-      inventoryAccountName: 'Materias Primas - Harinas e Insumos de Panificación',
-      costAccountId: 'acc-710501',
-      costAccountCode: '710501',
-      costAccountName: 'Consumo de Materia Prima - Harinas e Insumos',
-      revenueAccountId: 'acc-413501',
-      revenueAccountCode: '413501',
-      revenueAccountName: 'Venta de Abarrotes y Víveres',
-      description: 'Harinas, granos e ingredientes para elaboración y fraccionamiento.',
-    },
-    {
-      categoryId: 'cat-inv-pp',
-      categoryName: 'Productos en Proceso',
-      inventoryType: 'WORK_IN_PROCESS',
-      inventoryTypeName: 'Producto en Proceso (Clase 1410)',
-      inventoryAccountId: 'acc-141001',
-      inventoryAccountCode: '141001',
-      inventoryAccountName: 'Productos en Proceso - Panadería y Mezclas',
-      costAccountId: 'acc-612001',
-      costAccountCode: '612001',
-      costAccountName: 'Costo de Venta - Panadería y Elaborados Propios',
-      revenueAccountId: 'acc-413501',
-      revenueAccountCode: '413501',
-      revenueAccountName: 'Venta de Abarrotes y Víveres',
-      description: 'Masas preparadas y lotes en proceso de transformación industrial.',
-    },
-    {
-      categoryId: 'cat-inv-pt',
-      categoryName: 'Productos Terminados Panadería',
-      inventoryType: 'FINISHED_GOOD',
-      inventoryTypeName: 'Producto Terminado (Clase 1430)',
-      inventoryAccountId: 'acc-143001',
-      inventoryAccountCode: '143001',
-      inventoryAccountName: 'Productos Terminados - Panadería y Alimentos Elaborados',
-      costAccountId: 'acc-612001',
-      costAccountCode: '612001',
-      costAccountName: 'Costo de Venta - Panadería y Elaborados Propios',
-      revenueAccountId: 'acc-413501',
-      revenueAccountCode: '413501',
-      revenueAccountName: 'Venta de Abarrotes y Víveres',
-      description: 'Pan tajado, pastelería y alimentos manufacturados de marca propia.',
-    },
-    {
-      categoryId: 'cat-001',
-      categoryName: 'Granos y Cereales',
-      inventoryType: 'MERCHANDISE',
-      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
-      inventoryAccountId: 'acc-143501',
-      inventoryAccountCode: '143501',
-      inventoryAccountName: 'Mercancías - Abarrotes y Granos',
-      costAccountId: 'acc-613501',
-      costAccountCode: '613501',
-      costAccountName: 'Costo de Venta - Abarrotes y Granos',
-      revenueAccountId: 'acc-413501',
-      revenueAccountCode: '413501',
-      revenueAccountName: 'Venta de Abarrotes y Víveres',
-      description: 'Arroz, frijol, lentejas y víveres comercializados al por mayor.',
-    },
-    {
-      categoryId: 'cat-002',
-      categoryName: 'Aceites y Grasas',
-      inventoryType: 'MERCHANDISE',
-      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
-      inventoryAccountId: 'acc-143501',
-      inventoryAccountCode: '143501',
-      inventoryAccountName: 'Mercancías - Abarrotes y Granos',
-      costAccountId: 'acc-613501',
-      costAccountCode: '613501',
-      costAccountName: 'Costo de Venta - Abarrotes y Granos',
-      revenueAccountId: 'acc-413501',
-      revenueAccountCode: '413501',
-      revenueAccountName: 'Venta de Abarrotes y Víveres',
-      description: 'Aceites vegetales, mantecas y margarinas para reventa.',
-    },
-    {
-      categoryId: 'cat-003',
-      categoryName: 'Lácteos y Refrigerados',
-      inventoryType: 'MERCHANDISE',
-      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
-      inventoryAccountId: 'acc-143502',
-      inventoryAccountCode: '143502',
-      inventoryAccountName: 'Mercancías - Lácteos y Refrigerados',
-      costAccountId: 'acc-613502',
-      costAccountCode: '613502',
-      costAccountName: 'Costo de Venta - Lácteos y Refrigerados',
-      revenueAccountId: 'acc-413502',
-      revenueAccountCode: '413502',
-      revenueAccountName: 'Venta de Lácteos y Refrigerados',
-      description: 'Línea fría comercializada.',
-    },
-    {
-      categoryId: 'cat-004',
-      categoryName: 'Aseo y Limpieza',
-      inventoryType: 'MERCHANDISE',
-      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
-      inventoryAccountId: 'acc-143503',
-      inventoryAccountCode: '143503',
-      inventoryAccountName: 'Mercancías - Aseo y Cuidado del Hogar',
-      costAccountId: 'acc-613503',
-      costAccountCode: '613503',
-      costAccountName: 'Costo de Venta - Aseo y Hogar',
-      revenueAccountId: 'acc-413503',
-      revenueAccountCode: '413503',
-      revenueAccountName: 'Venta de Aseo y Cuidado del Hogar',
-      description: 'Productos de aseo y cuidado de superficies.',
-    },
-    {
-      categoryId: 'cat-005',
-      categoryName: 'Bebidas y Licores',
-      inventoryType: 'MERCHANDISE',
-      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
-      inventoryAccountId: 'acc-143504',
-      inventoryAccountCode: '143504',
-      inventoryAccountName: 'Mercancías - Bebidas y Confitería',
-      costAccountId: 'acc-613504',
-      costAccountCode: '613504',
-      costAccountName: 'Costo de Venta - Bebidas y Confitería',
-      revenueAccountId: 'acc-413504',
-      revenueAccountCode: '413504',
-      revenueAccountName: 'Venta de Bebidas y Confitería',
-      description: 'Bebidas, refrescos y confitería comercial.',
-    },
-  ]
+  // --- CONFIGURACIÓN DE CUENTAS POR CATEGORÍA ---
 
   async getCategoryMappings(): Promise<InventoryAccountMapping[]> {
-    return JSON.parse(JSON.stringify(this.categoryMappings))
+    // Por defecto consulta las categorías activas
+    const { data: categories } = await supabaseClient
+      .from('categories')
+      .select('id, name, description')
+      .order('name')
+
+    if (!categories) return []
+
+    return categories.map((cat: any) => ({
+      categoryId: cat.id,
+      categoryName: cat.name,
+      inventoryType: 'MERCHANDISE',
+      inventoryTypeName: 'Mercancía para la Venta (Clase 1435)',
+      inventoryAccountId: '1435',
+      inventoryAccountCode: '1435',
+      inventoryAccountName: 'Mercancías no fabricadas por la empresa',
+      costAccountId: '6135',
+      costAccountCode: '6135',
+      costAccountName: 'Costo de Ventas - Mercancías',
+      revenueAccountId: '4135',
+      revenueAccountCode: '4135',
+      revenueAccountName: 'Comercio al por mayor y al por menor',
+      description: cat.description || `Mapeo estándar para ${cat.name}`,
+    }))
   }
 
   async updateCategoryMapping(mapping: InventoryAccountMapping): Promise<InventoryAccountMapping> {
-    const idx = this.categoryMappings.findIndex((m) => m.categoryId === mapping.categoryId)
-    if (idx !== -1) {
-      this.categoryMappings[idx] = mapping
-    } else {
-      this.categoryMappings.push(mapping)
-    }
-    return JSON.parse(JSON.stringify(mapping))
+    return mapping
   }
 
   // --- PERIODOS Y CIERRES CONTABLES ---
 
   async getPeriods(year?: number): Promise<AccountingPeriod[]> {
-    let list = (db.accountingPeriods as unknown as AccountingPeriod[]) || []
-    const entries = (db.accountingEntries as unknown as AccountingEntry[]) || []
+    let query = supabaseClient.from('accounting_periods').select('*')
     if (year) {
-      list = list.filter((p) => p.year === year)
+      query = query.eq('year', year)
     }
-    const computed = list.map((p) => {
-      const pEntries = entries.filter((e) => e.period === p.periodCode || e.date.startsWith(p.periodCode))
-      const debits = pEntries.reduce((sum, e) => sum + (Number(e.totalDebit) || 0), 0)
-      const credits = pEntries.reduce((sum, e) => sum + (Number(e.totalCredit) || 0), 0)
-      return {
-        ...p,
-        entriesCount: pEntries.length,
-        totalDebits: debits,
-        totalCredits: credits,
-      }
-    })
-    return JSON.parse(JSON.stringify(computed))
+    const { data, error } = await query.order('period_code', { ascending: false })
+    if (error || !data) return []
+
+    return data.map((p: any) => ({
+      id: p.id,
+      periodCode: p.period_code,
+      year: p.year,
+      month: p.month,
+      monthName: p.month_name,
+      startDate: p.start_date,
+      endDate: p.end_date,
+      status: p.status,
+      closedAt: p.closed_at,
+      closedByUserId: p.closed_by_user_id,
+      reopenedAt: p.reopened_at,
+      reopenedByUserId: p.reopened_by_user_id,
+      reopenedReason: p.reopened_reason,
+      entriesCount: p.entries_count || 0,
+      totalDebits: Number(p.total_debits || 0),
+      totalCredits: Number(p.total_credits || 0),
+      createdAt: p.created_at,
+      updatedAt: p.updated_at,
+    }))
   }
 
   async getPeriodByCode(periodCode: string): Promise<AccountingPeriod | null> {
-    const list = (db.accountingPeriods as unknown as AccountingPeriod[]) || []
-    const found = list.find((p) => p.periodCode === periodCode)
-    return found ? JSON.parse(JSON.stringify(found)) : null
+    const { data, error } = await supabaseClient
+      .from('accounting_periods')
+      .select('*')
+      .eq('period_code', periodCode)
+      .single()
+
+    if (error || !data) return null
+
+    return {
+      id: data.id,
+      periodCode: data.period_code,
+      year: data.year,
+      month: data.month,
+      monthName: data.month_name,
+      startDate: data.start_date,
+      endDate: data.end_date,
+      status: data.status,
+      closedAt: data.closed_at,
+      closedByUserId: data.closed_by_user_id,
+      reopenedAt: data.reopened_at,
+      reopenedByUserId: data.reopened_by_user_id,
+      reopenedReason: data.reopened_reason,
+      entriesCount: data.entries_count || 0,
+      totalDebits: Number(data.total_debits || 0),
+      totalCredits: Number(data.total_credits || 0),
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    }
   }
 
   async isPeriodOpen(dateOrPeriod: string): Promise<boolean> {
@@ -668,28 +745,29 @@ class AccountingRepository {
       ? dateOrPeriod.slice(0, 7)
       : dateOrPeriod
     const period = await this.getPeriodByCode(periodCode)
-    // Si el periodo no existe en el catálogo, se asume abierto por defecto
     if (!period) return true
     return period.status === 'OPEN'
   }
 
   async closePeriod(periodCode: string, user: { id: string; name: string }): Promise<AccountingPeriod> {
-    const list = (db.accountingPeriods as unknown as AccountingPeriod[]) || []
-    const period = list.find((p) => p.periodCode === periodCode)
-    if (!period) {
-      throw new Error(`Periodo contable "${periodCode}" no encontrado.`)
-    }
-    if (period.status === 'CLOSED') {
-      throw new Error(`El periodo contable "${periodCode}" ya se encuentra CERRADO.`)
+    const { data: comp } = await supabaseClient.auth.getUser()
+    // Obtenemos company_id de la sesión o del usuario
+    const { data: userRow } = await supabaseClient.from('users').select('company_id').eq('id', user.id).single()
+    const companyId = userRow?.company_id
+
+    const { data: res, error } = await supabaseClient.rpc('fn_close_accounting_period', {
+      p_company_id: companyId,
+      p_period_code: periodCode,
+      p_closed_by: user.id,
+    })
+
+    if (error) {
+      throw new Error(`Error cerrando periodo: ${error.message}`)
     }
 
-    period.status = 'CLOSED'
-    period.closedAt = new Date().toISOString()
-    period.closedByUserId = user.id
-    period.closedByUserName = user.name
-    period.updatedAt = new Date().toISOString()
-
-    return JSON.parse(JSON.stringify(period))
+    const p = await this.getPeriodByCode(periodCode)
+    if (!p) throw new Error('No se pudo recuperar el periodo cerrado.')
+    return p
   }
 
   async reopenPeriod(
@@ -697,25 +775,23 @@ class AccountingRepository {
     reason: string,
     user: { id: string; name: string }
   ): Promise<AccountingPeriod> {
-    const list = (db.accountingPeriods as unknown as AccountingPeriod[]) || []
-    const period = list.find((p) => p.periodCode === periodCode)
-    if (!period) {
-      throw new Error(`Periodo contable "${periodCode}" no encontrado.`)
-    }
-    if (period.status === 'OPEN') {
-      throw new Error(`El periodo contable "${periodCode}" ya se encuentra ABIERTO.`)
-    }
-    if (!reason || reason.trim().length < 10) {
-      throw new Error('Se requiere un motivo formal detallado (mínimo 10 caracteres) para autorizar la reapertura del periodo.')
+    const { data: userRow } = await supabaseClient.from('users').select('company_id').eq('id', user.id).single()
+    const companyId = userRow?.company_id
+
+    const { data: res, error } = await supabaseClient.rpc('fn_reopen_accounting_period', {
+      p_company_id: companyId,
+      p_period_code: periodCode,
+      p_reopened_by: user.id,
+      p_reason: reason,
+    })
+
+    if (error) {
+      throw new Error(`Error reabriendo periodo: ${error.message}`)
     }
 
-    period.status = 'OPEN'
-    period.reopenedAt = new Date().toISOString()
-    period.reopenedByUserId = user.id
-    period.reopenedReason = reason
-    period.updatedAt = new Date().toISOString()
-
-    return JSON.parse(JSON.stringify(period))
+    const p = await this.getPeriodByCode(periodCode)
+    if (!p) throw new Error('No se pudo recuperar el periodo reabierto.')
+    return p
   }
 }
 

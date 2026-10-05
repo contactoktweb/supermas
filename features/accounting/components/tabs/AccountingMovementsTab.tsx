@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 import {
@@ -11,7 +11,7 @@ import {
   AuxiliaryLedgerReport,
   PeriodMode,
 } from '../../types'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface AccountingMovementsTabProps {
   movements: AccountingMovement[]
@@ -68,7 +68,36 @@ export function AccountingMovementsTab({
   onSelectEntry,
   onExportAuxiliary,
 }: AccountingMovementsTabProps) {
-  const locations = db.locations || []
+  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const [masterParties, setMasterParties] = useState<{ doc: string; name: string }[]>([])
+
+  useEffect(() => {
+    supabaseClient
+      .from('locations')
+      .select('id, name')
+      .eq('is_active', true)
+      .then(({ data }) => {
+        if (data) setLocations(data)
+      })
+
+    Promise.all([
+      supabaseClient.from('customers').select('document_number, company_name, first_name, last_name'),
+      supabaseClient.from('suppliers').select('tax_id, name, legal_name'),
+    ]).then(([custRes, supRes]) => {
+      const list: { doc: string; name: string }[] = []
+      for (const c of (custRes.data || [])) {
+        const doc = c.document_number
+        const name = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim()
+        if (doc && name) list.push({ doc, name })
+      }
+      for (const s of (supRes.data || [])) {
+        const doc = s.tax_id
+        const name = s.name || s.legal_name
+        if (doc && name) list.push({ doc, name })
+      }
+      setMasterParties(list)
+    })
+  }, [])
 
   // Extraer terceros únicos disponibles para el filtro
   const thirdParties = useMemo(() => {
@@ -78,19 +107,11 @@ export function AccountingMovementsTab({
         map.set(e.thirdPartyDoc || e.thirdPartyName, e.thirdPartyName)
       }
     }
-    // Agregar clientes y proveedores maestros
-    for (const c of (db.customers as any[]) || []) {
-      const doc = c.documentNumber || c.document_number || c.id
-      const name = c.displayName || c.businessName || c.company_name || `${c.firstName || ''} ${c.lastName || ''}`.trim()
-      if (doc && name) map.set(doc, name)
-    }
-    for (const s of (db.suppliers as any[]) || []) {
-      const doc = s.documentNumber || s.nit || s.id
-      const name = s.supplierName || s.businessName || s.name || s.commercialName
-      if (doc && name) map.set(doc, name)
+    for (const p of masterParties) {
+      if (p.doc && p.name) map.set(p.doc, p.name)
     }
     return Array.from(map.entries()).map(([doc, name]) => ({ doc, name }))
-  }, [entries])
+  }, [entries, masterParties])
 
   const currentPeriodMode: PeriodMode = filters.periodMode || 'MONTH'
   const currentYear = filters.year || 2026

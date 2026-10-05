@@ -145,3 +145,99 @@ export interface POSUserContext {
   cashRegisterNumber?: string
   permissions: string[]
 }
+
+export type CashRegisterStatus = 'OPEN' | 'CLOSED' | 'MAINTENANCE'
+export type CashSessionStatus = 'OPEN' | 'CLOSED'
+export type CashMovementType = 'OPENING_FLOAT' | 'CASH_IN' | 'CASH_OUT' | 'SALE_CASH'
+
+export interface CashRegister {
+  id: string
+  companyId: string
+  locationId: string
+  locationName?: string
+  code: string
+  name: string
+  currentStatus: CashRegisterStatus
+  createdAt: string
+  activeSessionId?: string | null
+}
+
+export interface CashSession {
+  id: string
+  companyId: string
+  locationId: string
+  locationName?: string
+  cashRegisterId: string
+  cashRegisterCode?: string
+  cashRegisterName?: string
+  userId: string
+  cashierName?: string
+  openingTime: string
+  closingTime?: string | null
+  openingFloat: number
+  expectedCashAmount?: number | null
+  countedCashAmount?: number | null
+  differenceAmount?: number | null
+  status: CashSessionStatus
+  supervisorNotes?: string | null
+  createdAt: string
+}
+
+export interface CashMovement {
+  id: string
+  companyId?: string
+  sessionId: string
+  type: CashMovementType
+  amount: number
+  reason: string
+  authorizedByUserId?: string | null
+  authorizerName?: string | null
+  createdAt: string
+}
+
+export interface CashSessionSummary {
+  sessionId: string
+  status: CashSessionStatus
+  cashRegisterId: string
+  cashRegisterCode: string
+  cashRegisterName: string
+  cashierName: string
+  locationName: string
+  openingTime: string
+  closingTime?: string | null
+  openingFloat: number
+  salesCash: number
+  cashIn: number
+  cashOut: number
+  expectedCashAmount: number
+  countedCashAmount?: number | null
+  differenceAmount?: number | null
+  salesCard: number
+  salesTransfer: number
+  salesCredit: number
+  salesMixed: number
+  totalSales: number
+  transactionsCount: number
+  movementsCount: number
+  supervisorNotes?: string | null
+}
+
+export interface OpenSessionPayload {
+  cashRegisterId: string
+  openingFloat: number
+  notes?: string
+}
+
+export interface RecordCashMovementPayload {
+  sessionId: string
+  type: 'CASH_IN' | 'CASH_OUT'
+  amount: number
+  reason: string
+}
+
+export interface CloseSessionPayload {
+  sessionId: string
+  countedCashAmount: number
+  supervisorNotes?: string
+}
+

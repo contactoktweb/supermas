@@ -11,6 +11,7 @@ const TABS: { id: TreasuryTab; label: string; icon: LightIconName }[] = [
   { id: 'banks', label: 'Cuentas Bancarias y Saldos', icon: 'wallet' },
   { id: 'payments', label: 'Pagos a Proveedores (Egresos)', icon: 'creditCard' },
   { id: 'receipts', label: 'Recaudos de Clientes (Ingresos)', icon: 'receipt' },
+  { id: 'movements', label: 'Extracto y Conciliación', icon: 'kardex' },
   { id: 'flow', label: 'Flujo y Enlace Contable', icon: 'accounting' },
 ]
 
@@ -24,22 +25,40 @@ export function TreasuryPage() {
     bankAccounts,
     payments,
     receipts,
+    bankMovements,
     filters,
     setFilters,
     loadData,
     executePayment,
+    createBankAccount,
+    reconcileMovement,
   } = useTreasury()
 
   const [executingPaymentId, setExecutingPaymentId] = useState<string | null>(null)
-  const [selectedBankId, setSelectedBankId] = useState<string>('bank-001')
+  const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [refNumber, setRefNumber] = useState<string>('')
   const [successToast, setSuccessToast] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
+  // Modal Crear Cuenta Bancaria
+  const [isCreateBankOpen, setIsCreateBankOpen] = useState(false)
+  const [newBankName, setNewBankName] = useState('')
+  const [newAccountNumber, setNewAccountNumber] = useState('')
+  const [newAccountType, setNewAccountType] = useState('CORRIENTE')
+  const [newInitialBalance, setNewInitialBalance] = useState('')
+  const [newBankDesc, setNewBankDesc] = useState('')
+  const [isSubmittingBank, setIsSubmittingBank] = useState(false)
+
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!selectedBankId && bankAccounts && bankAccounts.length > 0) {
+      setSelectedBankId(bankAccounts[0].id)
+    }
+  }, [bankAccounts, selectedBankId])
 
   const handleExecutePayment = async (paymentId: string) => {
     try {
@@ -52,11 +71,55 @@ export function TreasuryPage() {
       })
       setExecutingPaymentId(null)
       setSuccessToast(
-        `Pago ${res.paymentNumber} ejecutado exitosamente. Se generó el comprobante contable ${res.accountingEntryNumber} (Débito: Proveedores / Crédito: Banco).`
+        `Pago ${res.paymentNumber} ejecutado exitosamente. Se generó el comprobante contable ${res.accountingEntryNumber || 'automatizado'}.`
       )
       setTimeout(() => setSuccessToast(null), 6000)
     } catch (err: any) {
       setActionError(err.message || 'Error al ejecutar el desembolso.')
+    }
+  }
+
+  const handleCreateBank = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newBankName || !newAccountNumber) {
+      setActionError('Nombre del banco y número de cuenta son obligatorios.')
+      return
+    }
+    try {
+      setIsSubmittingBank(true)
+      setActionError(null)
+      await createBankAccount({
+        bankName: newBankName,
+        accountNumber: newAccountNumber,
+        accountType: newAccountType,
+        initialBalance: parseFloat(newInitialBalance) || 0,
+        description: newBankDesc || undefined,
+      })
+      setIsCreateBankOpen(false)
+      setNewBankName('')
+      setNewAccountNumber('')
+      setNewAccountType('CORRIENTE')
+      setNewInitialBalance('')
+      setNewBankDesc('')
+      setSuccessToast(`Cuenta bancaria ${newBankName} (${newAccountNumber}) creada exitosamente.`)
+      setTimeout(() => setSuccessToast(null), 6000)
+    } catch (err: any) {
+      setActionError(err.message || 'Error al crear cuenta bancaria.')
+    } finally {
+      setIsSubmittingBank(false)
+    }
+  }
+
+  const handleToggleReconciliation = async (movementId: string, currentStatus: boolean) => {
+    try {
+      setActionError(null)
+      await reconcileMovement(movementId, !currentStatus)
+      setSuccessToast(
+        `Movimiento ${!currentStatus ? 'conciliado fiduciariamente' : 'marcado como pendiente'}.`
+      )
+      setTimeout(() => setSuccessToast(null), 4000)
+    } catch (err: any) {
+      setActionError(err.message || 'Error al conciliar movimiento.')
     }
   }
 
@@ -197,6 +260,21 @@ export function TreasuryPage() {
           {/* TAB 1: CUENTAS BANCARIAS */}
           {activeTab === 'banks' && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-gray-900">Cuentas Bancarias Registradas</h2>
+                  <p className="text-xs text-gray-500">Cuentas fiduciarias activas en Supabase con enlace a cuentas PUC.</p>
+                </div>
+                <button
+                  type="button"
+                  className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5"
+                  onClick={() => setIsCreateBankOpen(true)}
+                >
+                  <AppIcon name="plus" size={14} />
+                  <span>Nueva Cuenta Bancaria</span>
+                </button>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {bankAccounts.map((account) => (
                   <div
@@ -468,7 +546,196 @@ export function TreasuryPage() {
               </div>
             </div>
           )}
+
+          {/* TAB 4: EXTRACTO Y CONCILIACIÓN BANCARIA */}
+          {activeTab === 'movements' && (
+            <div className="space-y-4">
+              <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-gray-500">
+                  Mostrando <strong>{bankMovements.length}</strong> movimientos fiduciarios registrados en cuentas bancarias.
+                </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className="filter-select text-xs"
+                    value={filters.bankAccountId || 'ALL'}
+                    onChange={(e) => setFilters({ ...filters, bankAccountId: e.target.value })}
+                  >
+                    <option value="ALL">Todas las cuentas bancarias</option>
+                    {bankAccounts.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.bankName} ({b.accountNumber})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="table-container bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-xs">
+                <table className="data-table w-full text-xs">
+                  <thead>
+                    <tr className="border-b bg-gray-50/70 text-gray-500 font-semibold text-left">
+                      <th className="p-3">Fecha</th>
+                      <th className="p-3">Comprobante</th>
+                      <th className="p-3">Cuenta Bancaria</th>
+                      <th className="p-3">Concepto</th>
+                      <th className="p-3">Tipo</th>
+                      <th className="p-3 text-right">Monto</th>
+                      <th className="p-3 text-right">Saldo Posterior</th>
+                      <th className="p-3 text-center">Conciliación</th>
+                      <th className="p-3 text-center">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {bankMovements.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="p-8 text-center text-gray-400">
+                          No hay movimientos bancarios registrados para los filtros seleccionados.
+                        </td>
+                      </tr>
+                    ) : (
+                      bankMovements.map((m) => (
+                        <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="p-3 font-mono text-[11px] text-gray-600">{m.date}</td>
+                          <td className="p-3 font-mono font-bold text-gray-800">{m.movementNumber || m.id.slice(0, 8)}</td>
+                          <td className="p-3 text-gray-700">{m.bankAccountName || 'Cuenta Bancaria'}</td>
+                          <td className="p-3 text-gray-900 max-w-xs truncate" title={m.concept}>{m.concept}</td>
+                          <td className="p-3">
+                            <span className={`badge ${m.type === 'CREDIT' ? 'badge-emerald' : 'badge-rose'}`}>
+                              {m.type === 'CREDIT' ? 'CRÉDITO (+)' : 'DÉBITO (-)'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono text-right font-bold text-gray-900">
+                            {formatCOP(m.amount)}
+                          </td>
+                          <td className="p-3 font-mono text-right text-gray-600">
+                            {formatCOP(m.balanceAfter)}
+                          </td>
+                          <td className="p-3 text-center">
+                            {m.isReconciled ? (
+                              <span className="badge badge-emerald flex items-center justify-center gap-1 mx-auto w-fit">
+                                <AppIcon name="check" size={12} />
+                                <span>Conciliado</span>
+                              </span>
+                            ) : (
+                              <span className="badge badge-amber mx-auto w-fit">Pendiente</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            <button
+                              type="button"
+                              className={`outline-button text-[11px] py-1 px-2.5 ${m.isReconciled ? 'text-amber-700 border-amber-200' : 'text-emerald-700 border-emerald-200'}`}
+                              onClick={() => handleToggleReconciliation(m.id, !!m.isReconciled)}
+                            >
+                              {m.isReconciled ? 'Desmarcar' : 'Conciliar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
+      )}
+
+      {/* Modal de Nueva Cuenta Bancaria */}
+      {isCreateBankOpen && mounted && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-5 space-y-4 animate-scale-up relative">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-sm font-bold text-gray-900">Registrar Cuenta Bancaria</h3>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setIsCreateBankOpen(false)}
+              >
+                <AppIcon name="close" size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateBank} className="space-y-3 text-xs">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Entidad Bancaria *</label>
+                <input
+                  required
+                  className="filter-select w-full"
+                  placeholder="Ej: Bancolombia, Davivienda, BBVA..."
+                  value={newBankName}
+                  onChange={(e) => setNewBankName(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Número de Cuenta *</label>
+                <input
+                  required
+                  className="filter-select w-full"
+                  placeholder="Ej: 9812-4412-0091"
+                  value={newAccountNumber}
+                  onChange={(e) => setNewAccountNumber(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Tipo de Cuenta</label>
+                  <select
+                    className="filter-select w-full"
+                    value={newAccountType}
+                    onChange={(e) => setNewAccountType(e.target.value)}
+                  >
+                    <option value="CORRIENTE">Corriente</option>
+                    <option value="AHORROS">Ahorros</option>
+                    <option value="FIDUCIARIA">Fiduciaria</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Saldo Inicial (COP)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="filter-select w-full font-mono"
+                    placeholder="0"
+                    value={newInitialBalance}
+                    onChange={(e) => setNewInitialBalance(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">Descripción / Uso</label>
+                <input
+                  className="filter-select w-full"
+                  placeholder="Ej: Cuenta principal para pago de nómina y proveedores"
+                  value={newBankDesc}
+                  onChange={(e) => setNewBankDesc(e.target.value)}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  className="outline-button text-xs py-1.5 px-3"
+                  onClick={() => setIsCreateBankOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBank}
+                  className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5"
+                >
+                  <AppIcon name="plus" size={14} />
+                  <span>{isSubmittingBank ? 'Guardando...' : 'Crear Cuenta'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Ejecución de Pago */}
@@ -545,3 +812,4 @@ export function TreasuryPage() {
     </div>
   )
 }
+

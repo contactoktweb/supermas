@@ -4,6 +4,8 @@ import { useMemo } from 'react'
 import { TaxPermission } from '../types'
 import { taxService } from '../services/tax.service'
 
+import { useAuth } from '@/features/auth'
+
 export type UserRoleType =
   | 'SUPERADMIN'
   | 'STORE_ADMIN'
@@ -21,7 +23,10 @@ export interface TaxPermissions {
   canExportTax: boolean
 }
 
-export function useTaxPermissions(role: UserRoleType = 'SUPERADMIN'): TaxPermissions {
+export function useTaxPermissions(roleOverride?: UserRoleType): TaxPermissions {
+  const { user } = useAuth()
+  const role: UserRoleType = roleOverride || (user?.roleCode as UserRoleType) || 'SUPERADMIN'
+
   return useMemo(() => {
     return {
       canReadTax: taxService.hasPermission('tax.read', role),

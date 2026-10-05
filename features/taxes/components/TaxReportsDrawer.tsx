@@ -7,7 +7,7 @@ import { TaxReportItem, TaxReportSummary, TaxReportFilters } from '../types'
 import { taxService } from '../services/tax.service'
 import { taxCalculationService } from '../services/tax-calculation.service'
 import { CustomSelect } from '@/components/ui/CustomSelect'
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
 
 interface TaxReportsDrawerProps {
   isOpen: boolean
@@ -16,6 +16,7 @@ interface TaxReportsDrawerProps {
 
 export function TaxReportsDrawer({ isOpen, onClose }: TaxReportsDrawerProps) {
   const [mounted, setMounted] = useState(false)
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([])
   const [filters, setFilters] = useState<TaxReportFilters>({
     dateFrom: '',
     dateUntil: '',
@@ -30,6 +31,17 @@ export function TaxReportsDrawer({ isOpen, onClose }: TaxReportsDrawerProps) {
 
   useEffect(() => {
     setMounted(true)
+    async function loadLocations() {
+      try {
+        const { data } = await supabaseClient.from('locations').select('id, name').order('name')
+        if (data) {
+          setLocations(data.map((l: any) => ({ id: l.id, name: l.name })))
+        }
+      } catch (err) {
+        console.error('Error al cargar bodegas en TaxReportsDrawer:', err)
+      }
+    }
+    loadLocations()
   }, [])
 
   const loadReport = () => {
@@ -76,7 +88,7 @@ export function TaxReportsDrawer({ isOpen, onClose }: TaxReportsDrawerProps) {
 
   const locationOptions = [
     { value: 'ALL', label: 'Todas las bodegas y puntos' },
-    ...db.locations.map((l) => ({ value: l.id, label: l.name })),
+    ...locations.map((l) => ({ value: l.id, label: l.name })),
   ]
 
   const docTypeOptions = [

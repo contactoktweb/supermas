@@ -4,10 +4,11 @@ import React, { useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { AlertFilterCriteria, AlertPriority, AlertStatus, AlertModule } from '../types'
-import { db } from '@/lib/supabase/db'
+import { warehouseRepository } from '@/features/warehouses/repositories/warehouse.repository'
 
 interface AlertsFiltersProps {
   filters: AlertFilterCriteria
+  locations?: Array<{ id: string; name: string }>
   onFilterChange: (key: keyof AlertFilterCriteria, value: any) => void
   onReset: () => void
 }
@@ -41,15 +42,32 @@ const MODULE_OPTIONS: SelectOption[] = [
   { value: 'ACCOUNTING', label: 'Contabilidad' },
 ]
 
-export function AlertsFilters({ filters, onFilterChange, onReset }: AlertsFiltersProps) {
-  const locations = db.transferLocations || []
+export function AlertsFilters({ filters, locations: propLocations, onFilterChange, onReset }: AlertsFiltersProps) {
+  const [loadedLocations, setLoadedLocations] = React.useState<Array<{ id: string; name: string }>>([])
+
+  React.useEffect(() => {
+    if (propLocations && propLocations.length > 0) return
+    let isMounted = true
+    warehouseRepository.findAll({ pageSize: 100 })
+      .then((res) => {
+        if (isMounted && res?.data) {
+          setLoadedLocations(res.data.map((loc) => ({ id: loc.id, name: loc.name })))
+        }
+      })
+      .catch(() => {})
+    return () => {
+      isMounted = false
+    }
+  }, [propLocations])
+
+  const effectiveLocations = propLocations || loadedLocations
 
   const locationOptions: SelectOption[] = useMemo(() => {
     return [
       { value: 'ALL', label: 'Todas las sedes' },
-      ...locations.map((loc) => ({ value: loc.id, label: loc.name })),
+      ...effectiveLocations.map((loc) => ({ value: loc.id, label: loc.name })),
     ]
-  }, [locations])
+  }, [effectiveLocations])
 
   const hasActiveFilters = Boolean(
     filters.searchQuery ||

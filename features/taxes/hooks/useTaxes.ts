@@ -6,6 +6,8 @@ import { TaxConfig, TaxFilters, TaxStats } from '../types'
 import { TaxConfigFormData } from '../schemas/tax.schema'
 import { UserRoleType } from './useTaxPermissions'
 
+import { useAuth } from '@/features/auth'
+
 const DEFAULT_FILTERS: TaxFilters = {
   query: '',
   type: 'ALL',
@@ -28,6 +30,12 @@ const DEFAULT_STATS: TaxStats = {
 }
 
 export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
+  const { user } = useAuth()
+  const effectiveUser = {
+    id: user?.id || 'usr-system',
+    name: user?.fullName || 'Administrador',
+  }
+
   const [filters, setFilters] = useState<TaxFilters>(DEFAULT_FILTERS)
   const [taxes, setTaxes] = useState<TaxConfig[]>([])
   const [total, setTotal] = useState(0)
@@ -39,9 +47,13 @@ export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
     try {
       setIsLoading(true)
       setError(null)
+      const effectiveFilters: TaxFilters = {
+        companyId: user?.companyId || undefined,
+        ...filters,
+      }
       const [listRes, statsRes] = await Promise.all([
-        taxService.list(filters, userRole),
-        taxService.getTaxStats(userRole),
+        taxService.list(effectiveFilters, userRole),
+        taxService.getTaxStats(userRole, user?.companyId || undefined),
       ])
       setTaxes(listRes.data)
       setTotal(listRes.total)
@@ -51,7 +63,7 @@ export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
     } finally {
       setIsLoading(false)
     }
-  }, [filters, userRole])
+  }, [filters, userRole, user?.companyId])
 
   useEffect(() => {
     loadData()
@@ -69,8 +81,8 @@ export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
     setFilters(DEFAULT_FILTERS)
   }, [])
 
-  const createTax = async (data: TaxConfigFormData, user = { id: 'usr-admin', name: 'Admin Mauricio' }) => {
-    const created = await taxService.createTaxConfig(data, user, userRole)
+  const createTax = async (data: TaxConfigFormData, actor = effectiveUser) => {
+    const created = await taxService.createTaxConfig(data, actor, userRole, user?.companyId || undefined)
     await loadData()
     return created
   }
@@ -78,9 +90,9 @@ export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
   const updateTax = async (
     id: string,
     data: Partial<TaxConfigFormData>,
-    user = { id: 'usr-admin', name: 'Admin Mauricio' }
+    actor = effectiveUser
   ) => {
-    const updated = await taxService.updateTaxConfig(id, data, user, userRole)
+    const updated = await taxService.updateTaxConfig(id, data, actor, userRole, user?.companyId || undefined)
     await loadData()
     return updated
   }
@@ -88,18 +100,18 @@ export function useTaxes(userRole: UserRoleType = 'SUPERADMIN') {
   const deactivateTax = async (
     id: string,
     reason: string,
-    user = { id: 'usr-admin', name: 'Admin Mauricio' }
+    actor = effectiveUser
   ) => {
-    const deactivated = await taxService.deactivateTaxConfig(id, reason, user, userRole)
+    const deactivated = await taxService.deactivateTaxConfig(id, reason, actor, userRole, user?.companyId || undefined)
     await loadData()
     return deactivated
   }
 
   const activateTax = async (
     id: string,
-    user = { id: 'usr-admin', name: 'Admin Mauricio' }
+    actor = effectiveUser
   ) => {
-    const activated = await taxService.activateTaxConfig(id, user, userRole)
+    const activated = await taxService.activateTaxConfig(id, actor, userRole, user?.companyId || undefined)
     await loadData()
     return activated
   }

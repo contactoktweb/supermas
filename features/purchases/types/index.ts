@@ -224,6 +224,8 @@ export interface RegisterPaymentInput {
   amount: number
   paymentMethod: PaymentMethod | string
   bankAccountId?: string
+  cashRegisterId?: string
+  cashSessionId?: string
   reference: string
   notes?: string
   date?: string

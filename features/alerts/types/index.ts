@@ -120,6 +120,7 @@ export interface AlertFilterCriteria {
 
 export interface UserAlertContext {
   userId: string
+  companyId?: string
   name: string
   role: 'SUPERADMIN' | 'WAREHOUSE_ADMIN' | 'POINT_ADMIN' | 'CASHIER' | 'ACCOUNTANT' | string
   locationId?: string

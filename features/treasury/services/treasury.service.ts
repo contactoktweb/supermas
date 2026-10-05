@@ -19,6 +19,7 @@ import {
   TreasuryPayment,
   TreasuryReceipt,
   TreasuryStats,
+  BankMovement,
 } from '../types'
 
 export class TreasuryService {
@@ -298,6 +299,73 @@ export class TreasuryService {
     })
 
     return receipt
+  }
+  /**
+   * Registra una nueva cuenta bancaria
+   */
+  async createBankAccount(
+    data: {
+      bankName: string
+      accountNumber: string
+      accountType?: string
+      currency?: string
+      initialBalance?: number
+      locationId?: string
+      description?: string
+    },
+    user?: { id: string; name: string; role: string }
+  ): Promise<any> {
+    const res = await treasuryRepository.createBankAccount(data)
+    if (user) {
+      await auditService.log({
+        action: 'TREASURY_ACCOUNT_CREATED' as any,
+        module: 'FINANCIAL' as any,
+        entityType: 'BANK_ACCOUNT',
+        entityId: res.bank_account_id,
+        entityReference: data.accountNumber,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        level: 'INFO',
+        result: 'SUCCESS',
+        details: `Cuenta bancaria creada ${data.bankName} (${data.accountNumber}) con saldo inicial $${(data.initialBalance || 0).toLocaleString()} COP`,
+      })
+    }
+    return res
+  }
+
+  /**
+   * Consulta los movimientos fiduciarios de una cuenta o de todas
+   */
+  async getBankMovements(bankAccountId?: string): Promise<BankMovement[]> {
+    return treasuryRepository.getBankMovements(bankAccountId)
+  }
+
+  /**
+   * Marca un movimiento bancario como conciliado fiduciariamente
+   */
+  async reconcileMovement(
+    movementId: string,
+    reconciled: boolean = true,
+    user?: { id: string; name: string; role: string }
+  ): Promise<any> {
+    const res = await treasuryRepository.reconcileMovement(movementId, reconciled)
+    if (user) {
+      await auditService.log({
+        action: 'BANK_MOVEMENT_RECONCILED' as any,
+        module: 'FINANCIAL' as any,
+        entityType: 'BANK_MOVEMENT',
+        entityId: movementId,
+        entityReference: movementId,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        level: 'INFO',
+        result: 'SUCCESS',
+        details: `Movimiento bancario ${movementId} conciliado fiduciariamente (${reconciled ? 'CONCILIADO' : 'PENDIENTE'})`,
+      })
+    }
+    return res
   }
 }
 

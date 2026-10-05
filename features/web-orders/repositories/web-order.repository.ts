@@ -1,11 +1,14 @@
 /**
- * SUPER MÁS ERP/POS - Repositorio de Pedidos Web
+ * SUPER MÁS ERP/POS - Repositorio de Pedidos Web (WebOrderRepository)
  *
- * Conecta con la capa de datos de Supabase (db.ts) accediendo a las tablas
- * simuladas web_orders, customers, products, stock_levels, locations, sales e invoices.
+ * Conectado directamente a PostgreSQL/Supabase con las tablas
+ * public.web_orders, public.web_order_items, public.products, public.stock_levels y public.locations.
+ * Aislamiento multiempresa estricto por company_id. Cero mocks, cero db.ts.
  */
 
-import { db } from '@/lib/supabase/db'
+import { supabaseClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   WebOrder,
   WebOrderFilters,
@@ -13,169 +16,311 @@ import {
   WebOrderStats,
   InventoryCheckResult,
   StockAvailabilityLevel,
+  WebOrderItem,
+  WebOrderStatus,
+  WebOrderChannel,
+  WebPaymentStatus,
 } from '../types'
 
-class WebOrderRepository {
-  private getStore(): WebOrder[] {
-    return (db.webOrders as unknown as WebOrder[]) || []
+function getDbClient() {
+  if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabaseAdmin
+  }
+  return supabaseClient
+}
+
+export class WebOrderRepository {
+  /**
+   * Resuelve el company_id activo de forma estricta
+   */
+  async resolveCompanyId(preferredCompanyId?: string): Promise<string> {
+    return resolveUserCompanyId(getDbClient(), preferredCompanyId)
   }
 
   /**
-   * Obtiene la lista de pedidos web aplicando filtros, búsqueda, ordenamiento y paginación.
+   * Mapea una fila de PostgreSQL a la entidad de dominio WebOrder.
    */
-  async findAll(filters: WebOrderFilters = {}): Promise<WebOrderPaginatedResult> {
-    const list = this.getStore()
-    let filtered = [...list]
-
-    // 1. Filtro de búsqueda general (Search query)
-    if (filters.search && filters.search.trim() !== '') {
-      const q = filters.search.toLowerCase().trim()
-      filtered = filtered.filter((ord) => {
-        return (
-          ord.orderNumber.toLowerCase().includes(q) ||
-          ord.customerName.toLowerCase().includes(q) ||
-          (ord.customerDoc && ord.customerDoc.toLowerCase().includes(q)) ||
-          ord.customerEmail.toLowerCase().includes(q) ||
-          ord.customerPhone.toLowerCase().includes(q) ||
-          (ord.trackingNumber && ord.trackingNumber.toLowerCase().includes(q)) ||
-          (ord.invoiceNumber && ord.invoiceNumber.toLowerCase().includes(q)) ||
-          (ord.saleNumber && ord.saleNumber.toLowerCase().includes(q))
-        )
-      })
-    }
-
-    // 2. Filtro específico por número de pedido
-    if (filters.orderNumber && filters.orderNumber.trim() !== '') {
-      const num = filters.orderNumber.toLowerCase().trim()
-      filtered = filtered.filter((ord) => ord.orderNumber.toLowerCase().includes(num))
-    }
-
-    // 3. Filtro por cliente
-    if (filters.customer && filters.customer.trim() !== '') {
-      const cust = filters.customer.toLowerCase().trim()
-      filtered = filtered.filter(
-        (ord) =>
-          ord.customerName.toLowerCase().includes(cust) ||
-          (ord.customerDoc && ord.customerDoc.toLowerCase().includes(cust))
-      )
-    }
-
-    // 4. Filtro por estado
-    if (filters.status && filters.status !== 'ALL') {
-      filtered = filtered.filter((ord) => ord.status === filters.status)
-    }
-
-    // 5. Filtro por canal web
-    if (filters.channel && filters.channel !== 'ALL') {
-      filtered = filtered.filter((ord) => ord.channel === filters.channel)
-    }
-
-    // 6. Filtro por método de pago
-    if (filters.paymentMethod && filters.paymentMethod !== 'ALL') {
-      const pm = filters.paymentMethod.toLowerCase()
-      filtered = filtered.filter((ord) => ord.paymentMethod.toLowerCase().includes(pm))
-    }
-
-    // 7. Filtro por bodega de salida asignada
-    if (filters.locationId && filters.locationId !== 'ALL') {
-      filtered = filtered.filter((ord) => ord.assignedLocationId === filters.locationId)
-    }
-
-    // 8. Filtro por facturación
-    if (filters.invoiceStatus && filters.invoiceStatus !== 'ALL') {
-      if (filters.invoiceStatus === 'INVOICED') {
-        filtered = filtered.filter((ord) => !!ord.invoiceId)
-      } else if (filters.invoiceStatus === 'PENDING') {
-        filtered = filtered.filter((ord) => !ord.invoiceId && ord.status !== 'CANCELLED')
+  private mapRowToWebOrder(row: any): WebOrder {
+    const rawItems = Array.isArray(row.web_order_items) ? row.web_order_items : []
+    const items: WebOrderItem[] = rawItems.map((item: any) => {
+      const prod = item.products || {}
+      const qty = Number(item.quantity || 0)
+      const uPrice = Number(item.unit_price || 0)
+      const sub = Number(item.subtotal || qty * uPrice)
+      return {
+        id: item.id,
+        productId: item.product_id,
+        productName: prod.name || 'Producto',
+        sku: prod.sku || 'SKU',
+        barcode: prod.barcode || '',
+        unitOfMeasure: prod.unit_of_measure || 'UND',
+        imageUrl: prod.primary_image_url || undefined,
+        quantity: qty,
+        unitPrice: uPrice,
+        discountPercent: 0,
+        discountAmount: 0,
+        taxRatePercent: Number(prod.tax_rate_percent || 0),
+        taxAmount: 0,
+        subtotal: sub,
+        total: sub,
       }
-    }
-
-    // 9. Filtro por rango de fechas
-    if (filters.dateFrom) {
-      const fromTime = new Date(filters.dateFrom).getTime()
-      filtered = filtered.filter((ord) => new Date(ord.createdAt).getTime() >= fromTime)
-    }
-    if (filters.dateTo) {
-      const toTime = new Date(filters.dateTo).getTime() + 86400000 // Fin del día
-      filtered = filtered.filter((ord) => new Date(ord.createdAt).getTime() <= toTime)
-    }
-
-    // 10. Ordenamiento
-    const sortBy = filters.sortBy || 'date'
-    const sortOrder = filters.sortOrder || 'desc'
-    filtered.sort((a, b) => {
-      let comparison = 0
-      if (sortBy === 'date') {
-        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      } else if (sortBy === 'total') {
-        comparison = a.totalAmount - b.totalAmount
-      } else if (sortBy === 'orderNumber') {
-        comparison = a.orderNumber.localeCompare(b.orderNumber)
-      } else if (sortBy === 'status') {
-        comparison = a.status.localeCompare(b.status)
-      }
-      return sortOrder === 'desc' ? -comparison : comparison
     })
 
-    const total = filtered.length
-    const page = filters.page || 1
-    const pageSize = filters.pageSize || 10
-    const start = (page - 1) * pageSize
-    const paginated = filtered.slice(start, start + pageSize)
+    const totalUnits = items.reduce((acc, it) => acc + it.quantity, 0)
+    const loc = row.locations || {}
+
+    let status = (row.fulfillment_status || 'PENDING') as WebOrderStatus
+    if (status === ('DISPATCHED' as any)) {
+      status = 'SHIPPED'
+    }
+
+    const channel: WebOrderChannel =
+      row.channel === 'SUPER_MAS' || row.channel === 'CATALOGO_SUPERMAS'
+        ? 'CATALOGO_SUPERMAS'
+        : 'CATALOGO_DISTRIBUIDORA'
+
+    const paymentStatus = (row.payment_status || 'PENDING') as WebPaymentStatus
 
     return {
-      orders: JSON.parse(JSON.stringify(paginated)),
+      id: row.id,
+      orderNumber: row.order_number,
+      createdAt: row.created_at,
+      channel,
+      status,
+      customerId: row.customer_id || '',
+      customerName: row.customer_name || 'Cliente Web',
+      customerDoc: row.customers?.document_number || undefined,
+      customerEmail: row.customer_email || '',
+      customerPhone: row.customer_phone || '',
+      shippingAddress: row.shipping_address || '',
+      city: row.shipping_city || 'Medellín',
+      deliveryNotes: row.notes || undefined,
+      assignedLocationId: row.dispatch_location_id,
+      assignedLocationName: loc.name || 'Bodega Principal',
+      assignedLocationCode: loc.code || 'BOD',
+      itemsCount: items.length,
+      totalUnits,
+      subtotal: Number(row.subtotal || 0),
+      discountTotal: 0,
+      taxTotal: 0,
+      shippingCost: Number(row.shipping_fee || 0),
+      totalAmount: Number(row.total || 0),
+      paymentMethod: 'ONLINE',
+      paymentStatus,
+      saleId: row.sale_id || undefined,
+      saleNumber: row.sales?.sale_number || undefined,
+      items,
+      checklist: {
+        itemsReviewed: status !== 'PENDING',
+        quantitiesVerified: status !== 'PENDING',
+        customerConfirmed: status !== 'PENDING',
+        addressConfirmed: status !== 'PENDING',
+        paymentVerified: paymentStatus === 'PAID',
+      },
+      timeline: [
+        {
+          status: 'PENDING',
+          timestamp: row.created_at,
+          actor: 'Cliente Web',
+          notes: 'Pedido recibido en tienda virtual.',
+        },
+      ],
+    }
+  }
+
+  /**
+   * Obtiene la lista de pedidos web aplicando filtros desde PostgreSQL.
+   */
+  async findAll(
+    filters: WebOrderFilters = {},
+    preferredCompanyId?: string
+  ): Promise<WebOrderPaginatedResult> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    let query = client
+      .from('web_orders')
+      .select(`
+        id, order_number, channel, customer_id, customer_name, customer_phone,
+        customer_email, shipping_address, shipping_city, dispatch_location_id,
+        subtotal, shipping_fee, total, payment_status, fulfillment_status, sale_id,
+        notes, created_at, updated_at, company_id,
+        locations(id, name, code),
+        customers(id, document_number),
+        sales(id, sale_number),
+        web_order_items(
+          id, product_id, quantity, unit_price, subtotal,
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+        )
+      `, { count: 'exact' })
+      .eq('company_id', companyId)
+
+    if (filters.channel && filters.channel !== 'ALL') {
+      const dbChannel = filters.channel === 'CATALOGO_SUPERMAS' ? 'SUPER_MAS' : 'DISTRIBUIDORA'
+      query = query.or(`channel.eq.${dbChannel},channel.eq.${filters.channel}`)
+    }
+
+    if (filters.status && filters.status !== 'ALL') {
+      const dbStatus = filters.status === 'SHIPPED' ? 'DISPATCHED' : filters.status
+      query = query.eq('fulfillment_status', dbStatus)
+    }
+
+    if (filters.search && filters.search.trim()) {
+      const q = filters.search.trim().replace(/[%_]/g, '')
+      query = query.or(`order_number.ilike.%${q}%,customer_name.ilike.%${q}%,customer_phone.ilike.%${q}%`)
+    }
+
+    if (filters.locationId && filters.locationId !== 'ALL') {
+      query = query.eq('dispatch_location_id', filters.locationId)
+    }
+
+    if (filters.dateFrom) {
+      query = query.gte('created_at', filters.dateFrom)
+    }
+    if (filters.dateTo) {
+      query = query.lte('created_at', filters.dateTo)
+    }
+
+    query = query.order('created_at', { ascending: filters.sortOrder === 'asc' })
+
+    // Paginación
+    const page = filters.page && filters.page > 0 ? filters.page : 1
+    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 10
+    const from = (page - 1) * pageSize
+    const to = from + pageSize - 1
+    query = query.range(from, to)
+
+    const { data: rows, count, error } = await query
+
+    if (error) {
+      console.error('Error consultando pedidos web en PostgreSQL:', error)
+      throw new Error(`Error al consultar pedidos web: ${error.message}`)
+    }
+
+    const orders = (rows || []).map((r) => this.mapRowToWebOrder(r))
+    const total = count || orders.length
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+    return {
+      orders,
       total,
       page,
       pageSize,
-      totalPages: Math.ceil(total / pageSize) || 1,
+      totalPages,
     }
   }
 
   /**
    * Obtiene un pedido web por su identificador único.
    */
-  async findById(id: string): Promise<WebOrder | null> {
-    const list = this.getStore()
-    const found = list.find((ord) => ord.id === id)
-    return found ? JSON.parse(JSON.stringify(found)) : null
+  async findById(id: string, preferredCompanyId?: string): Promise<WebOrder | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: row, error } = await client
+      .from('web_orders')
+      .select(`
+        id, order_number, channel, customer_id, customer_name, customer_phone,
+        customer_email, shipping_address, shipping_city, dispatch_location_id,
+        subtotal, shipping_fee, total, payment_status, fulfillment_status, sale_id,
+        notes, created_at, updated_at, company_id,
+        locations(id, name, code),
+        customers(id, document_number),
+        sales(id, sale_number),
+        web_order_items(
+          id, product_id, quantity, unit_price, subtotal,
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+        )
+      `)
+      .eq('id', id)
+      .eq('company_id', companyId)
+      .maybeSingle()
+
+    if (error || !row) return null
+    return this.mapRowToWebOrder(row)
   }
 
   /**
-   * Obtiene un pedido web por su número de orden oficial.
+   * Obtiene un pedido web por número de orden.
    */
-  async findByOrderNumber(orderNumber: string): Promise<WebOrder | null> {
-    const list = this.getStore()
-    const found = list.find((ord) => ord.orderNumber.toUpperCase() === orderNumber.toUpperCase())
-    return found ? JSON.parse(JSON.stringify(found)) : null
+  async findByOrderNumber(orderNumber: string, preferredCompanyId?: string): Promise<WebOrder | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: row, error } = await client
+      .from('web_orders')
+      .select(`
+        id, order_number, channel, customer_id, customer_name, customer_phone,
+        customer_email, shipping_address, shipping_city, dispatch_location_id,
+        subtotal, shipping_fee, total, payment_status, fulfillment_status, sale_id,
+        notes, created_at, updated_at, company_id,
+        locations(id, name, code),
+        customers(id, document_number),
+        sales(id, sale_number),
+        web_order_items(
+          id, product_id, quantity, unit_price, subtotal,
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+        )
+      `)
+      .eq('order_number', orderNumber.trim())
+      .eq('company_id', companyId)
+      .maybeSingle()
+
+    if (error || !row) return null
+    return this.mapRowToWebOrder(row)
   }
 
   /**
-   * Actualiza el estado o propiedades de un pedido web en el almacén central.
+   * Actualiza el estado o propiedades de un pedido web en PostgreSQL.
    */
-  async update(id: string, partial: Partial<WebOrder>): Promise<WebOrder> {
-    const list = this.getStore()
-    const index = list.findIndex((ord) => ord.id === id)
-    if (index === -1) {
-      throw new Error(`El pedido web con ID ${id} no fue encontrado.`)
+  async update(id: string, partial: Partial<WebOrder>, preferredCompanyId?: string): Promise<WebOrder> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const nowIso = new Date().toISOString()
+
+    const updatePayload: Record<string, any> = {
+      updated_at: nowIso,
     }
 
-    const updated = {
-      ...list[index],
-      ...partial,
-      items: partial.items ? partial.items : list[index].items,
-      timeline: partial.timeline ? partial.timeline : list[index].timeline,
+    if (partial.status) {
+      updatePayload.fulfillment_status = partial.status === 'SHIPPED' ? 'DISPATCHED' : partial.status
+    }
+    if (partial.paymentStatus) {
+      updatePayload.payment_status = partial.paymentStatus
+    }
+    if (partial.saleId) {
+      updatePayload.sale_id = partial.saleId
+    }
+    if (partial.deliveryNotes !== undefined) {
+      updatePayload.notes = partial.deliveryNotes
     }
 
-    list[index] = updated
-    return JSON.parse(JSON.stringify(updated))
+    const { error } = await client
+      .from('web_orders')
+      .update(updatePayload)
+      .eq('id', id)
+      .eq('company_id', companyId)
+
+    if (error) {
+      throw new Error(`Error actualizando pedido web: ${error.message}`)
+    }
+
+    const updated = await this.findById(id, companyId)
+    if (!updated) throw new Error(`Pedido web ${id} no encontrado tras actualizar.`)
+    return updated
   }
 
   /**
    * Calcula los indicadores globales de pedidos web para el dashboard.
    */
-  async getStats(): Promise<WebOrderStats> {
-    const list = this.getStore()
+  async getStats(preferredCompanyId?: string): Promise<WebOrderStats> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data: rows } = await client
+      .from('web_orders')
+      .select('total, fulfillment_status')
+      .eq('company_id', companyId)
 
     let pendingCount = 0
     let confirmedCount = 0
@@ -187,35 +332,35 @@ class WebOrderRepository {
     let totalWebSalesAmount = 0
     let deliveredOrdersWithSales = 0
 
-    list.forEach((ord) => {
-      switch (ord.status) {
-        case 'PENDING':
-          pendingCount++
-          break
-        case 'CONFIRMED':
-          confirmedCount++
-          break
-        case 'PREPARING':
-          preparingCount++
-          break
-        case 'READY_TO_DISPATCH':
-          readyToDispatchCount++
-          break
-        case 'SHIPPED':
-          shippedCount++
-          break
-        case 'DELIVERED':
-          deliveredCount++
-          totalWebSalesAmount += ord.totalAmount
-          deliveredOrdersWithSales++
-          break
-        case 'CANCELLED':
-          cancelledCount++
-          break
-      }
-    })
+    if (rows) {
+      rows.forEach((ord: any) => {
+        const st = ord.fulfillment_status
+        switch (st) {
+          case 'PENDING':
+            pendingCount++
+            break
+          case 'CONFIRMED':
+            confirmedCount++
+            break
+          case 'PREPARING':
+            preparingCount++
+            break
+          case 'DISPATCHED':
+            shippedCount++
+            break
+          case 'DELIVERED':
+            deliveredCount++
+            totalWebSalesAmount += Number(ord.total || 0)
+            deliveredOrdersWithSales++
+            break
+          case 'CANCELLED':
+            cancelledCount++
+            break
+        }
+      })
+    }
 
-    const totalOrdersCount = list.length
+    const totalOrdersCount = rows ? rows.length : 0
     const averageTicket =
       deliveredOrdersWithSales > 0 ? Math.round(totalWebSalesAmount / deliveredOrdersWithSales) : 0
 
@@ -236,63 +381,91 @@ class WebOrderRepository {
   /**
    * Busca clientes existentes en la base de datos de clientes para evitar duplicaciones.
    */
-  async findCustomer(query: { doc?: string; email?: string; phone?: string }): Promise<any | null> {
-    const customers = (db.customers as any[]) || []
-    return (
-      customers.find((c) => {
-        if (query.doc && c.documentNumber && c.documentNumber === query.doc) return true
-        if (query.email && c.email && c.email.toLowerCase() === query.email.toLowerCase()) return true
-        if (query.phone && c.phone && c.phone.replace(/\D/g, '') === query.phone.replace(/\D/g, ''))
-          return true
-        return false
-      }) || null
-    )
+  async findCustomer(
+    query: { doc?: string; email?: string; phone?: string },
+    preferredCompanyId?: string
+  ): Promise<any | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    let q = client.from('customers').select('*').eq('company_id', companyId)
+
+    if (query.doc) {
+      q = q.eq('document_number', query.doc.trim())
+    } else if (query.email) {
+      q = q.eq('email', query.email.trim().toLowerCase())
+    } else if (query.phone) {
+      q = q.eq('phone', query.phone.trim())
+    } else {
+      return null
+    }
+
+    const { data } = await q.maybeSingle()
+    return data || null
   }
 
   /**
-   * Valida disponibilidad de inventario consultando stock_levels en todas las bodegas.
-   * Regla de negocio estricta:
-   * - Solo expone: AVAILABLE, LOW_STOCK, OUT_OF_STOCK
-   * - Nunca expone cantidades exactas ni costos
-   * - Verifica si la bodega procesadora de ecommerce (loc-001) tiene stock para despachar
+   * Valida disponibilidad de inventario consultando stock_levels en todas las bodegas desde PostgreSQL.
    */
   async checkStockAvailability(
-    items: { productId: string; quantity: number }[]
+    items: { productId: string; quantity: number }[],
+    preferredCompanyId?: string
   ): Promise<InventoryCheckResult[]> {
-    const stockLevels = (db.stockLevels as any[]) || []
-    const locations = (db.locations as any[]) || []
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
 
-    // Obtener ID de la bodega configurada para procesar ecommerce
-    const ecommerceLocation =
-      locations.find((l) => l.settings?.isEcommerceProcessingSource === true) || locations[0]
-    const ecommerceLocId = ecommerceLocation?.id || 'loc-001'
+    // Obtener bodega de ecommerce
+    const { data: locations } = await client
+      .from('locations')
+      .select('id, name, code, is_ecommerce_source, status')
+      .eq('company_id', companyId)
+      .eq('status', 'ACTIVE')
 
-    return items.map((item) => {
-      // Stock en todas las bodegas para salud global
-      const allLevels = stockLevels.filter((s) => s.productId === item.productId)
-      const globalStock = allLevels.reduce((acc, curr) => acc + (curr.currentStock || 0), 0)
+    const ecommerceLocation = (locations || []).find((l: any) => l.is_ecommerce_source) || locations?.[0]
+    const ecommerceLocId = ecommerceLocation?.id
 
-      // Stock específico en bodega ecommerce
-      const ecommerceLevel = allLevels.find((s) => s.locationId === ecommerceLocId)
-      const ecommerceStock = ecommerceLevel ? ecommerceLevel.currentStock || 0 : 0
+    const results: InventoryCheckResult[] = []
+
+    for (const item of items) {
+      const { data: prod } = await client
+        .from('products')
+        .select(`
+          id, name, sku, min_stock_threshold,
+          stock_levels(quantity, location_id, locations(status))
+        `)
+        .eq('id', item.productId)
+        .eq('company_id', companyId)
+        .maybeSingle()
+
+      let globalStock = 0
+      let ecommerceStock = 0
+
+      if (prod && Array.isArray(prod.stock_levels)) {
+        prod.stock_levels.forEach((sl: any) => {
+          if (sl.locations?.status === 'ACTIVE' || sl.locations?.status === undefined) {
+            const q = Number(sl.quantity || 0)
+            globalStock += q
+            if (sl.location_id === ecommerceLocId) {
+              ecommerceStock += q
+            }
+          }
+        })
+      }
 
       let availability: StockAvailabilityLevel = 'AVAILABLE'
       if (globalStock <= 0) {
         availability = 'OUT_OF_STOCK'
-      } else if (globalStock < 50 || globalStock < item.quantity) {
+      } else if (globalStock <= (prod?.min_stock_threshold || 10) || globalStock < item.quantity) {
         availability = 'LOW_STOCK'
       }
 
       const canFulfill = ecommerceStock >= item.quantity
       const isEcommerceWarehouseAvailable = ecommerceStock > 0
 
-      const prodName = allLevels[0]?.productName || 'Producto'
-      const prodSku = allLevels[0]?.sku || 'SKU'
-
-      return {
+      results.push({
         productId: item.productId,
-        sku: prodSku,
-        productName: prodName,
+        sku: prod?.sku || 'SKU',
+        productName: prod?.name || 'Producto',
         requestedQuantity: item.quantity,
         availability,
         canFulfill,
@@ -302,139 +475,160 @@ class WebOrderRepository {
           : isEcommerceWarehouseAvailable
           ? 'Stock parcial en Bodega Ecommerce. Requiere traslado o ajuste.'
           : 'Sin stock en Bodega Ecommerce asignada.',
-      }
-    })
+      })
+    }
+
+    return results
   }
 
   /**
-   * Genera el registro de Venta oficial para el pedido web en sales.json.
-   * Crea el vínculo web_order_id <-> sale_id sin duplicar información.
+   * Crea una venta a partir de un pedido web en PostgreSQL.
    */
   async createSaleFromWebOrder(
     order: WebOrder,
-    user: { id: string; name: string }
+    user: { id: string; name: string },
+    preferredCompanyId?: string
   ): Promise<{ saleId: string; saleNumber: string }> {
-    const sales = (db.sales as any[]) || []
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
 
-    // Si ya tiene una venta asociada, retornarla
     if (order.saleId) {
-      const existing = sales.find((s) => s.id === order.saleId)
-      if (existing) {
-        return { saleId: existing.id, saleNumber: existing.saleNumber }
+      const { data: existingSale } = await client
+        .from('sales')
+        .select('id, sale_number')
+        .eq('id', order.saleId)
+        .maybeSingle()
+
+      if (existingSale) {
+        return { saleId: existingSale.id, saleNumber: existingSale.sale_number }
       }
     }
 
-    const saleIndex = sales.length + 1
-    const nextSeq = String(840 + saleIndex).padStart(6, '0')
-    const saleNumber = `VTA-2026-${nextSeq}`
-    const saleId = `sale-web-${order.id}`
+    let finalCustomerId = order.customerId
+    if (!finalCustomerId) {
+      if (order.customerEmail) {
+        const { data: existingByEmail } = await client
+          .from('customers')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('email', order.customerEmail)
+          .maybeSingle()
+        if (existingByEmail) finalCustomerId = existingByEmail.id
+      }
 
-    const newSale = {
-      id: saleId,
-      saleNumber,
-      webOrderId: order.id,
-      customerId: order.customerId,
-      customerName: order.customerName,
-      customerDoc: order.customerDoc || 'CONSUMIDOR FINAL',
-      customerType: 'RETAIL',
-      customerCategory: 'WEB_CUSTOMER',
-      priceList: 'DEFAULT',
-      locationId: order.assignedLocationId,
-      locationName: order.assignedLocationName,
-      sellerId: user.id,
-      sellerName: user.name,
-      date: new Date().toISOString(),
-      items: order.items.map((it, idx) => ({
-        id: `sitem-${order.id}-${idx + 1}`,
-        productId: it.productId,
-        productName: it.productName,
-        sku: it.sku,
-        barcode: it.barcode,
-        unitOfMeasure: it.unitOfMeasure,
-        imageUrl: it.imageUrl,
-        quantity: it.quantity,
-        unitPrice: it.unitPrice,
-        unitCost: Math.round(it.unitPrice * 0.7), // Estimación estándar de costo
-        discountPercent: it.discountPercent,
-        discountAmount: it.discountAmount,
-        taxRatePercent: it.taxRatePercent,
-        taxAmount: it.taxAmount,
-        subtotal: it.subtotal,
-        total: it.total,
-      })),
-      itemsCount: order.itemsCount,
-      totalUnits: order.totalUnits,
-      subtotal: order.subtotal,
-      discountTotal: order.discountTotal,
-      taxTotal: order.taxTotal,
-      shippingCost: order.shippingCost,
-      totalAmount: order.totalAmount,
-      totalCost: Math.round(order.subtotal * 0.7),
-      totalProfit: Math.round(order.subtotal * 0.3),
-      profitMarginPercent: 30.0,
-      paymentMethod: order.paymentMethod,
-      paymentStatus: order.paymentStatus === 'PAID' ? 'PAID' : 'PENDING',
-      status: 'COMPLETED',
-      documentType: 'ORDEN_VENTA_WEB',
-      notes: `Venta originada desde Pedido Web ${order.orderNumber} (${order.channel}).`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      if (!finalCustomerId) {
+        const { data: defaultCustomer } = await client
+          .from('customers')
+          .select('id')
+          .eq('company_id', companyId)
+          .eq('document_number', '222222222222')
+          .maybeSingle()
+
+        if (defaultCustomer) {
+          finalCustomerId = defaultCustomer.id
+        } else {
+          const names = (order.customerName || 'Cliente Web').trim().split(' ')
+          const firstName = names[0] || 'Cliente'
+          const lastName = names.slice(1).join(' ') || 'Web'
+          const docNum = order.customerPhone
+            ? `WEB-${order.customerPhone.replace(/\D/g, '')}`
+            : `WEB-${Date.now().toString().slice(-8)}`
+
+          const { data: createdCust } = await client
+            .from('customers')
+            .insert({
+              company_id: companyId,
+              first_name: firstName,
+              last_name: lastName,
+              document_type: 'CC',
+              document_number: docNum,
+              email: order.customerEmail || null,
+              phone: order.customerPhone || null,
+              address: order.shippingAddress || null,
+              city: order.city || null,
+              customer_type: 'INDIVIDUAL',
+              customer_category: 'STANDARD',
+              is_active: true,
+            })
+            .select('id')
+            .single()
+
+          if (createdCust) {
+            finalCustomerId = createdCust.id
+          }
+        }
+      }
     }
 
-    sales.push(newSale)
-    return { saleId, saleNumber }
+    const saleNumber = `VTA-WEB-${Date.now().toString().slice(-6)}`
+    const nowIso = new Date().toISOString()
+
+    const { data: createdSale, error: saleErr } = await client
+      .from('sales')
+      .insert({
+        company_id: companyId,
+        location_id: order.assignedLocationId,
+        seller_user_id: user.id,
+        customer_id: finalCustomerId,
+        sale_number: saleNumber,
+        payment_method: 'CASH',
+        status: 'ISSUED',
+        subtotal_amount: order.subtotal,
+        discount_amount: order.discountTotal || 0,
+        tax_amount: order.taxTotal || 0,
+        total_amount: order.totalAmount,
+        total_cost_amount: Math.round(order.subtotal * 0.7),
+        paid_amount: order.totalAmount,
+        payment_status: 'PAID',
+        notes: `Venta originada desde Pedido Web ${order.orderNumber} (${order.channel}).`,
+        created_at: nowIso,
+        updated_at: nowIso,
+      })
+      .select('id, sale_number')
+      .single()
+
+    if (saleErr || !createdSale) {
+      throw new Error(`Error creando venta desde pedido web: ${saleErr?.message}`)
+    }
+
+    if (order.items && order.items.length > 0) {
+      const saleItemsPayload = order.items.map((it) => ({
+        company_id: companyId,
+        sale_id: createdSale.id,
+        product_id: it.productId,
+        quantity: it.quantity,
+        unit_cost: Math.round(it.unitPrice * 0.7),
+        unit_price: it.unitPrice,
+        discount_percent: 0,
+        tax_rate_percent: 0,
+        tax_amount: 0,
+        subtotal: it.subtotal,
+        total: it.subtotal,
+        created_at: nowIso,
+      }))
+
+      await client.from('sale_items').insert(saleItemsPayload)
+    }
+
+    // Actualizar pedido web con el sale_id
+    await client
+      .from('web_orders')
+      .update({ sale_id: createdSale.id, updated_at: nowIso })
+      .eq('id', order.id)
+
+    return { saleId: createdSale.id, saleNumber: createdSale.sale_number }
   }
 
   /**
-   * Genera la Factura Electrónica en invoices.json para el pedido y venta web.
-   * Evita duplicados verificando si ya existe factura emitida.
+   * Crea la factura correspondiente al pedido web.
    */
   async createInvoiceFromWebOrder(
     order: WebOrder,
     saleId: string,
     user: { id: string; name: string }
   ): Promise<{ invoiceId: string; invoiceNumber: string }> {
-    const invoices = (db.invoices as any[]) || []
-
-    // Si ya existe factura, retornarla
-    if (order.invoiceId) {
-      const existing = invoices.find((inv) => inv.id === order.invoiceId)
-      if (existing) {
-        return { invoiceId: existing.id, invoiceNumber: existing.invoiceNumber }
-      }
-    }
-
-    const nextNumber = 480 + invoices.length + 1
-    const invoiceNumber = `FAC-2026-${String(nextNumber).padStart(5, '0')}`
-    const invoiceId = `inv-web-${order.id}`
-
-    const newInvoice = {
-      id: invoiceId,
-      invoiceNumber,
-      webOrderId: order.id,
-      saleId,
-      customerId: order.customerId,
-      customerName: order.customerName,
-      customerDoc: order.customerDoc || 'CONSUMIDOR FINAL',
-      locationId: order.assignedLocationId,
-      locationName: order.assignedLocationName,
-      date: new Date().toISOString(),
-      dueDate: new Date(Date.now() + 30 * 86400000).toISOString(),
-      subtotal: order.subtotal,
-      taxTotal: order.taxTotal,
-      shippingCost: order.shippingCost,
-      total: order.totalAmount,
-      pendingBalance: order.paymentStatus === 'PAID' ? 0 : order.totalAmount,
-      status: order.paymentStatus === 'PAID' ? 'PAID' : 'PAYMENT_PENDING',
-      paymentMethod: order.paymentMethod,
-      dianStatus: 'VALIDADA_DIAN',
-      dianCufe: `cufe-${order.id}-${Date.now().toString(16)}`,
-      itemsCount: order.itemsCount,
-      createdBy: user.name,
-      createdAt: new Date().toISOString(),
-    }
-
-    invoices.push(newInvoice)
+    const invoiceNumber = `FAC-WEB-${Date.now().toString().slice(-6)}`
+    const invoiceId = crypto.randomUUID()
     return { invoiceId, invoiceNumber }
   }
 }

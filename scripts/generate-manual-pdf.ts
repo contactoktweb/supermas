@@ -1,0 +1,1485 @@
+import fs from 'fs'
+import path from 'path'
+import { execSync } from 'child_process'
+
+/**
+ * GENERADOR DE MANUAL DE USUARIO SUPER MÁS ERP/POS EN PDF
+ *
+ * Genera un documento PDF profesional, exhaustivo, en español,
+ * con paginación, estilos de impresión, tablas de permisos,
+ * flujos de negocio, estados y checklist operativo.
+ */
+
+async function generateManualPdf() {
+  console.log('============================================================')
+  console.log('INICIANDO GENERACIÓN DEL MANUAL DE USUARIO SUPER MÁS ERP')
+  console.log('============================================================\n')
+
+  const docsDir = path.resolve(process.cwd(), 'docs')
+  if (!fs.existsSync(docsDir)) {
+    fs.mkdirSync(docsDir, { recursive: true })
+  }
+
+  const pdfOutputPath = path.join(docsDir, 'MANUAL_USUARIO_SUPER_MAS_ERP.pdf')
+  const tempHtmlPath = path.join(process.cwd(), 'scratch', 'manual_super_mas.html')
+
+  const scratchDir = path.dirname(tempHtmlPath)
+  if (!fs.existsSync(scratchDir)) {
+    fs.mkdirSync(scratchDir, { recursive: true })
+  }
+
+  // Generar HTML con estilos profesionales print-ready
+  const htmlContent = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Manual de Usuario | Super Más ERP/POS</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 18mm 16mm 20mm 16mm;
+      @bottom-right {
+        content: counter(page);
+      }
+    }
+    
+    @page :first {
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.55;
+      color: #1e293b;
+      background-color: #ffffff;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Portada */
+    .cover-page {
+      page-break-after: always;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #00123d 0%, #001b5c 50%, #002b8a 100%);
+      color: #ffffff !important;
+      padding: 60px 50px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cover-page * {
+      box-sizing: border-box;
+    }
+
+    .cover-page h1,
+    .cover-page h2,
+    .cover-page h3,
+    .cover-page p,
+    .cover-page span,
+    .cover-page strong,
+    .cover-page em {
+      border: none !important;
+    }
+
+    .cover-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.15);
+      padding-bottom: 24px;
+    }
+
+    .cover-brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cover-brand-title {
+      font-size: 28pt;
+      font-weight: 900;
+      letter-spacing: -1px;
+      color: #ffffff !important;
+      text-transform: uppercase;
+    }
+
+    .cover-brand-tag {
+      font-size: 10pt;
+      letter-spacing: 3px;
+      color: #93c5fd !important;
+      font-weight: 700;
+    }
+
+    .cover-badge {
+      background: #dc2626;
+      color: #ffffff !important;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-size: 9pt;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .cover-body {
+      margin: auto 0;
+    }
+
+    .cover-eyebrow {
+      color: #ff6b6b !important;
+      font-size: 11pt;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    .cover-title {
+      color: #ffffff !important;
+      font-size: 34pt !important;
+      font-weight: 900 !important;
+      line-height: 1.15 !important;
+      margin: 0 0 16px 0 !important;
+      letter-spacing: -1.5px !important;
+      border-bottom: none !important;
+    }
+
+    .cover-title em {
+      color: #ff6b6b !important;
+      font-style: normal !important;
+    }
+
+    .cover-subtitle {
+      font-size: 13pt;
+      color: #f1f5f9 !important;
+      max-width: 580px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+    }
+
+    .cover-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      background: rgba(255, 255, 255, 0.08);
+      padding: 18px 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      max-width: 600px;
+    }
+
+    .cover-meta-item strong {
+      display: block;
+      font-size: 8.5pt;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #93c5fd !important;
+      margin-bottom: 4px;
+    }
+
+    .cover-meta-item span {
+      font-size: 11pt;
+      font-weight: 700;
+      color: #ffffff !important;
+    }
+
+    .cover-footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding-top: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 9pt;
+      color: #cbd5e1 !important;
+    }
+
+    .cover-footer a {
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    /* Paginación y Saltos */
+    .page-break {
+      page-break-before: always;
+    }
+
+    .no-break {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    /* Encabezados y Jerarquía */
+    h1:not(.cover-title) {
+      font-size: 18pt;
+      font-weight: 800;
+      color: #001b5c;
+      border-bottom: 2px solid #001b5c;
+      padding-bottom: 6px;
+      margin-top: 28px;
+      margin-bottom: 14px;
+      letter-spacing: -0.5px;
+    }
+
+    h1.cover-title,
+    .cover-page h1,
+    .cover-title {
+      font-size: 34pt !important;
+      font-weight: 900 !important;
+      line-height: 1.15 !important;
+      color: #ffffff !important;
+      margin: 0 0 16px 0 !important;
+      letter-spacing: -1.5px !important;
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+
+    h1.cover-title em,
+    .cover-title em {
+      color: #ff6b6b !important;
+      font-style: normal !important;
+    }
+
+    h2 {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #002b8a;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      border-left: 4px solid #dc2626;
+      padding-left: 10px;
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: #334155;
+      margin-top: 14px;
+      margin-bottom: 6px;
+    }
+
+    p {
+      margin-top: 0;
+      margin-bottom: 10px;
+      text-align: justify;
+    }
+
+    ul, ol {
+      margin-top: 0;
+      margin-bottom: 12px;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    /* Badges de Estado */
+    .badge {
+      display: inline-block;
+      font-size: 8pt;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+
+    .badge-implemented {
+      background-color: #ecfdf5;
+      color: #047857;
+      border: 1px solid #a7f3d0;
+    }
+
+    .badge-limit {
+      background-color: #fffbeb;
+      color: #b45309;
+      border: 1px solid #fde68a;
+    }
+
+    .badge-pending {
+      background-color: #fef2f2;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+    }
+
+    /* Cajas de Aviso / Alertas */
+    .callout {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 14px 0;
+      font-size: 9.5pt;
+      break-inside: avoid;
+    }
+
+    .callout-info {
+      background-color: #eff6ff;
+      border-left: 4px solid #3b82f6;
+      color: #1e40af;
+    }
+
+    .callout-warning {
+      background-color: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .callout-danger {
+      background-color: #fef2f2;
+      border-left: 4px solid #ef4444;
+      color: #991b1b;
+    }
+
+    .callout-success {
+      background-color: #f0fdf4;
+      border-left: 4px solid #22c55e;
+      color: #166534;
+    }
+
+    .callout strong {
+      display: block;
+      font-size: 10pt;
+      margin-bottom: 4px;
+    }
+
+    /* Tablas */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px 0;
+      font-size: 9pt;
+      break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 10px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      color: #001b5c;
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 8pt;
+      letter-spacing: 0.5px;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    /* Diagramas de Flujo y Tarjetas */
+    .flow-container {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin: 14px 0;
+      break-inside: avoid;
+    }
+
+    .flow-step {
+      display: flex;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 8px 14px;
+      gap: 12px;
+    }
+
+    .flow-number {
+      background: #001b5c;
+      color: #ffffff;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 9pt;
+      flex-shrink: 0;
+    }
+
+    .flow-text strong {
+      color: #001b5c;
+      font-size: 9.5pt;
+    }
+
+    .flow-text p {
+      margin: 2px 0 0 0;
+      font-size: 8.5pt;
+      color: #64748b;
+    }
+
+    /* Índice */
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 24px;
+      font-size: 9pt;
+      margin: 16px 0 24px 0;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #cbd5e1;
+      padding-bottom: 3px;
+    }
+
+    .toc-item span:first-child {
+      color: #001b5c;
+      font-weight: 600;
+    }
+
+    .toc-item span:last-child {
+      color: #64748b;
+      font-weight: 700;
+    }
+
+    /* Tarjetas de Procedimiento Operativo */
+    .procedure-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #001b5c;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      break-inside: avoid;
+    }
+
+    .procedure-card strong {
+      color: #001b5c;
+      font-size: 10pt;
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .procedure-card p {
+      margin: 0;
+      font-size: 9pt;
+      color: #334155;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================================ -->
+  <!-- PORTADA DEL MANUAL                                           -->
+  <!-- ============================================================ -->
+  <div class="cover-page">
+    <div class="cover-header">
+      <div class="cover-brand">
+        <span class="cover-brand-title">Super Más</span>
+        <span class="cover-brand-tag">ERP / POS OPERATIVO FIDUCIARIO</span>
+      </div>
+      <div class="cover-badge">Manual Oficial v1.0.0</div>
+    </div>
+
+    <div class="cover-body">
+      <div class="cover-eyebrow">Documentación Técnica & Operativa</div>
+      <h1 class="cover-title">
+        Manual Integral
+        <br />
+        de Usuario <em>ERP/POS</em>
+      </h1>
+      <p class="cover-subtitle">
+        Guía exhaustiva de procedimientos, arquitectura de datos, gestión de inventarios,
+        compras, ventas, cajas, bancos, contabilidad y control fiduciario para Distribuidora Super Más S.A.S.
+      </p>
+
+      <div class="cover-meta-grid">
+        <div class="cover-meta-item">
+          <strong>Entorno</strong>
+          <span>Staging Limpio / Producción</span>
+        </div>
+        <div class="cover-meta-item">
+          <strong>Fecha Emisión</strong>
+          <span>Octubre 2026</span>
+        </div>
+        <div class="cover-meta-item">
+          <strong>Fase DIAN</strong>
+          <span>Pre-DIAN (Congelada)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-footer">
+      <span>© 2026 Distribuidora Super Más S.A.S. Todos los derechos reservados.</span>
+      <a href="https://www.kytcode.lat" target="_blank">Desarrollado por K&amp;T &hearts;</a>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- ÍNDICE GENERAL                                               -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Índice de Contenido</h1>
+  <p>El presente manual documenta fielmente las capacidades activas, limitaciones controladas y estados operativos de la plataforma Super Más ERP/POS.</p>
+
+  <div class="toc-grid">
+    <div class="toc-item"><span>MÓDULO 1 — Inicio / Dashboard</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 2 — Catálogo de Productos</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 3 — Categorías Maestras</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 4 — Marcas Comerciales</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 5 — Inventario &amp; Existencias</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 6 — Bodegas Multisede</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 7 — Kardex Inmutable</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 8 — Compras &amp; Recepciones</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 9 — Directorio Proveedores</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 10 — Cuentas por Pagar (CxP)</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 11 — Clientes &amp; Cartera</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 12 — Cuentas por Cobrar (CxC)</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 13 — Ventas Comerciales</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 14 — Terminal POS (Caja Rápida)</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 15 — Cajas &amp; Arqueos de Turno</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 16 — Bancos &amp; Cuentas</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 17 — Tesorería Central</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 18 — Contabilidad &amp; PUC</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 19 — Impuestos &amp; Retenciones</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 20 — Transferencias entre Bodegas</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 21 — Remisiones de Mercancía</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 22 — Devoluciones (Cliente/Prov.)</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 23 — Reportes &amp; Analítica (13)</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 24 — Importador Masivo CSV</span> <span>Implementado (CSV)</span></div>
+    <div class="toc-item"><span>MÓDULO 25 — Auditoría Forense</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 26 — Administración &amp; Usuarios</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 27 — Seguridad, RBAC &amp; RLS</span> <span>Implementado</span></div>
+    <div class="toc-item"><span>MÓDULO 28 — Facturación DIAN</span> <span>Pendiente Fiscal</span></div>
+    <div class="toc-item"><span>SECCIÓN 1 — Flujos de Negocio Completos</span> <span>Guía Visual</span></div>
+    <div class="toc-item"><span>SECCIÓN 2 — Matriz de Permisos (42)</span> <span>Seguridad RBAC</span></div>
+    <div class="toc-item"><span>SECCIÓN 3 — Estados &amp; Reglas de Negocio</span> <span>Reglas Fiduciarias</span></div>
+    <div class="toc-item"><span>SECCIÓN 4 — Resolución de Errores Comunes</span> <span>Soporte</span></div>
+    <div class="toc-item"><span>SECCIÓN 5 — Ciclo de Operación Diaria</span> <span>Procedimientos</span></div>
+    <div class="toc-item"><span>SECCIÓN 6 — Arquitectura &amp; Puesta en Marcha</span> <span>Funcionamiento</span></div>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>Convenciones de Estado en este Documento:</strong>
+    <ul>
+      <li><span class="badge badge-implemented">IMPLEMENTADO</span>: Funcionalidad 100% activa en interfaz y base de datos PostgreSQL.</li>
+      <li><span class="badge badge-limit">IMPLEMENTADO — LIMITACIÓN</span>: Funcionalidad operativa con alcance delimitado (ej. CSV soportado, XLSX pendiente).</li>
+      <li><span class="badge badge-pending">PENDIENTE</span>: Estructura preparada pero cuya integración externa no está conectada (ej. WebServices DIAN reales).</li>
+    </ul>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MÓDULOS 1 AL 7                                               -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Módulo 1 — Inicio / Dashboard <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/</code> | <strong>Permiso:</strong> Acceso autenticado general.</p>
+  <p>El Dashboard principal consolida la posición fiduciaria, financiera y operativa de la empresa en tiempo real, alimentándose directamente de consultas analíticas a PostgreSQL.</p>
+  
+  <h3>KPIs e Indicadores Principales:</h3>
+  <ul>
+    <li><strong>Ventas de Hoy:</strong> Total monetario facturado durante la jornada y conteo de transacciones ejecutadas.</li>
+    <li><strong>Ventas del Mes:</strong> Acumulado de ingresos brutos por ventas en el mes calendario en curso.</li>
+    <li><strong>Compras del Mes:</strong> Monto total de recepciones y órdenes de compra con proveedores asentadas en el periodo.</li>
+    <li><strong>Stock Crítico:</strong> Cantidad de productos cuya existencia actual en bodega se encuentra igual o por debajo del umbral crítico configurado.</li>
+    <li><strong>Cuentas por Cobrar (CxC) Vencidas:</strong> Cartera en mora que ha superado el plazo de crédito acordado con clientes.</li>
+    <li><strong>Cuentas por Pagar (CxP) Vencidas:</strong> Obligaciones financieras con proveedores que han sobrepasado su fecha límite de pago.</li>
+    <li><strong>Estado de Cajas:</strong> Resumen de cajas registradoras abiertas, cajero responsable y saldo base inicial.</li>
+  </ul>
+
+  <div class="callout callout-success">
+    <strong>Acciones Rápidas:</strong> Desde la cabecera del Dashboard es posible acceder directamente a: Nueva Venta, Registrar Compra, Abrir Terminal POS, Consultar Kardex y Ver Alertas de Stock.
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 2 — Catálogo de Productos <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/productos</code> | <strong>Permisos:</strong> <code>products.read</code>, <code>products.create</code>, <code>products.update</code>, <code>products.delete</code>.</p>
+  <p>Administración centralizada de la ficha técnica, comercial, tributaria y logística de cada producto comercializado por Distribuidora Super Más.</p>
+
+  <h3>Paso a Paso — Creación de Producto:</h3>
+  <ol>
+    <li>Ingresar al módulo de <strong>Productos</strong> y presionar el botón <strong>"Nuevo Producto"</strong>.</li>
+    <li><strong>Información Básica:</strong> Definir el SKU (código alfanumérico único e inmutable), Código de barras (EAN-13 o interno), Nombre completo y Descripción.</li>
+    <li><strong>Clasificación:</strong> Seleccionar la Categoría maestra y la Marca correspondiente.</li>
+    <li><strong>Unidad de Medida &amp; Tipo:</strong> Seleccionar unidad (UND, KG, LT, etc.) y tipo (Mercancía para venta, Materia prima, Insumo).</li>
+    <li><strong>Estructura de Precios:</strong>
+      <ul>
+        <li><em>Costo Unitario Inicial:</em> Costo base de adquisición antes de impuestos.</li>
+        <li><em>Precio de Venta Normal:</em> Precio de venta al público en general.</li>
+        <li><em>Precio Mayorista &amp; Cantidad Mínima:</em> Tarifa diferencial aplicada automáticamente cuando la venta iguale o supere el volumen mínimo definido.</li>
+      </ul>
+    </li>
+    <li><strong>Régimen Tributario:</strong> Seleccionar tarifa de IVA (19%, 5%, 0% o Exento).</li>
+    <li><strong>Parámetros de Reposición:</strong> Definir el Stock Mínimo (dispara alerta preventiva) y Stock Crítico (dispara alerta urgente).</li>
+    <li><strong>Canales Web:</strong> Configurar si el producto es visible en el Catálogo Super Más o Catálogo Distribuidora.</li>
+    <li>Presionar <strong>"Guardar Producto"</strong>.</li>
+  </ol>
+
+  <div class="callout callout-warning">
+    <strong>Efecto en PostgreSQL:</strong> Se inserta el registro en <code>public.products</code> con <code>company_id</code> del tenant activo, se registran los precios en <code>public.product_prices</code> y se generan los registros de disponibilidad en <code>public.stock_levels</code> para las bodegas habilitadas. El SKU queda protegido contra modificaciones accidentales mediante triggers de integridad.
+  </div>
+
+  <div class="page-break"></div>
+  <h1>Módulo 3 — Categorías Maestras <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/categorias</code> | <strong>Permisos:</strong> <code>products.read</code>, <code>products.create</code>, <code>products.update</code>.</p>
+  <p>Organización taxonómica del catálogo para clasificación contable, filtros de búsqueda y navegación en catálogos ecommerce. Permite crear, editar y activar/desactivar categorías. La desactivación de una categoría no elimina los productos asociados pero impide su asignación a nuevos ítems.</p>
+
+  <h1>Módulo 4 — Marcas Comerciales <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/marcas</code> | <strong>Permisos:</strong> <code>products.read</code>, <code>products.create</code>, <code>products.update</code>.</p>
+  <p>Directorio de fabricantes y marcas comerciales. Permite asociar productos a marcas específicas para análisis de rentabilidad por proveedor y generación de reportes comerciales.</p>
+
+  <h1>Módulo 5 — Inventario &amp; Existencias <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/inventario</code> | <strong>Permisos:</strong> <code>inventory.read</code>, <code>inventory.adjust</code>, <code>inventory.transfer</code>.</p>
+  <p>Control físico y cuantitativo de mercancía disponible en cada una de las bodegas de la empresa.</p>
+  
+  <h3>Reglas Críticas de Inventario:</h3>
+  <ul>
+    <li><strong>Regla de Oro:</strong> EL STOCK NUNCA SE EDITA MANUALMENTE. No existe un campo editable "cantidad". Todo cambio en existencias proviene estrictamente de un movimiento transaccional (Compra, Venta, Traslado o Ajuste).</li>
+    <li><strong>Stock = 0:</strong> El sistema previene automáticamente ventas en descubierto a menos que la bodega tenga configurada autorización explícita de sobreventa.</li>
+    <li><strong>Ajustes de Inventario:</strong> Si se identifican mermas, roturas o sobrantes en conteo físico, se debe registrar un <em>Ajuste de Inventario</em> (Entrada o Salida) especificando motivo justificado, costo y bodega.</li>
+  </ul>
+
+  <h1>Módulo 6 — Bodegas Multisede <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Rutas:</strong> <code>/bodegas</code>, <code>/bodegas/[id]</code> | <strong>Permisos:</strong> <code>warehouses.read</code>, <code>warehouses.write</code>.</p>
+  <p>Gestión de ubicaciones físicas y logísticas de la empresa (Bodega Principal <code>BOD-01</code>, sucursales, puntos de despacho). Cada bodega mantiene su propio stock independiente, historial de transferencias y valorización económica.</p>
+
+  <h1>Módulo 7 — Kardex Inmutable <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/kardex</code> | <strong>Permiso:</strong> <code>kardex.read</code>.</p>
+  <p>El Kardex es la fuente histórica e inmutable de verdad operativa de la empresa. Registra cada transacción que afecta inventarios con sello de tiempo, usuario responsable y costos.</p>
+
+  <div class="no-break">
+    <h3>Tipos de Movimiento Soportados:</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Código Movimiento</th>
+          <th>Descripción</th>
+          <th>Efecto Físico</th>
+          <th>Impacto en Costo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>PURCHASE</code></td>
+          <td>Entrada por Compra a Proveedor</td>
+          <td>Aumenta (+)</td>
+          <td>Recalcula Costo Promedio Ponderado</td>
+        </tr>
+        <tr>
+          <td><code>SALE</code></td>
+          <td>Salida por Venta Comercial o POS</td>
+          <td>Disminuye (-)</td>
+          <td>Descarga al Costo Promedio Actual</td>
+        </tr>
+        <tr>
+          <td><code>TRANSFER_OUT</code></td>
+          <td>Salida por Despacho de Traslado</td>
+          <td>Disminuye (-)</td>
+          <td>Conserva costo en tránsito</td>
+        </tr>
+        <tr>
+          <td><code>TRANSFER_IN</code></td>
+          <td>Entrada por Recepción de Traslado</td>
+          <td>Aumenta (+)</td>
+          <td>Asume costo transferido</td>
+        </tr>
+        <tr>
+          <td><code>ADJUSTMENT_IN</code></td>
+          <td>Ajuste positivo por Conteo Físico</td>
+          <td>Aumenta (+)</td>
+          <td>Asume costo digitado</td>
+        </tr>
+        <tr>
+          <td><code>ADJUSTMENT_OUT</code></td>
+          <td>Ajuste negativo por Merma/Pérdida</td>
+          <td>Disminuye (-)</td>
+          <td>Costo promedio a cuenta de gasto</td>
+        </tr>
+        <tr>
+          <td><code>CUSTOMER_RETURN</code></td>
+          <td>Devolución de Mercancía de Cliente</td>
+          <td>Aumenta (+)</td>
+          <td>Reingresa al costo original de venta</td>
+        </tr>
+        <tr>
+          <td><code>SUPPLIER_RETURN</code></td>
+          <td>Devolución de Mercancía a Proveedor</td>
+          <td>Disminuye (-)</td>
+          <td>Descarga al costo de compra</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MÓDULOS 8 AL 14                                              -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Módulo 8 — Compras &amp; Recepciones <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Rutas:</strong> <code>/compras</code>, <code>/recepciones</code> | <strong>Permisos:</strong> <code>purchases.read</code>, <code>purchases.create</code>.</p>
+  <p>Circuito completo de aprovisionamiento fiduciario desde la orden comercial hasta el ingreso físico a bodega y causación de cuentas por pagar.</p>
+
+  <div class="flow-container">
+    <div class="flow-step">
+      <div class="flow-number">1</div>
+      <div class="flow-text">
+        <strong>Creación de la Orden de Compra:</strong>
+        <p>Seleccionar proveedor, bodega destino, ítems a adquirir, cantidades pactadas y costos de compra acordados con impuestos.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">2</div>
+      <div class="flow-text">
+        <strong>Recepción Física en Bodega (/recepciones):</strong>
+        <p>El almacenista verifica las cantidades que ingresan físicamente al almacén. Puede efectuarse recepción total o parcial.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">3</div>
+      <div class="flow-text">
+        <strong>Impacto Automático en Kardex &amp; Costos:</strong>
+        <p>Se genera movimiento PURCHASE en Kardex y se actualiza el Costo Promedio Ponderado del producto en la bodega.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">4</div>
+      <div class="flow-text">
+        <strong>Generación de Cuenta por Pagar (CxP):</strong>
+        <p>Se crea automáticamente la obligación en el módulo de CxP con la fecha de vencimiento según los días de crédito del proveedor.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 9 — Directorio de Proveedores <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/proveedores</code> | <strong>Permisos:</strong> <code>suppliers.read</code>, <code>suppliers.write</code>.</p>
+  <p>Ficha de terceros comerciales proveedores: NIT, Razón Social, Dígito de Verificación, Régimen tributario, datos de contacto, cupo de crédito asignado y días de plazo. Registra el historial de compras y el saldo pendiente consolidated.</p>
+
+  <h1>Módulo 10 — Cuentas por Pagar (CxP) <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/cuentas-por-pagar</code> | <strong>Permisos:</strong> <code>purchases.read</code>, <code>treasury.create</code>.</p>
+  <p>Monitoreo y liquidación de deudas con proveedores. Permite registrar abonos parciales o liquidación total vinculando la cuenta bancaria de origen o la caja registradora de donde salen los fondos.</p>
+
+  <h1>Módulo 11 — Directorio de Clientes <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/clientes</code>, <code>/estado-de-cuenta</code> | <strong>Permisos:</strong> <code>customers.read</code>, <code>customers.write</code>.</p>
+  <p>Registro de clientes comerciales, mayoristas y consumidor final (identificación <code>222222222222</code>). Permite fijar límites de crédito, plazos de pago y consultar el estado de cuenta histórico de compras y abonos.</p>
+
+  <h1>Módulo 12 — Cuentas por Cobrar (CxC) <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Rutas:</strong> <code>/cuentas-por-cobrar</code>, <code>/pagos-recibidos</code> | <strong>Permisos:</strong> <code>customers.read</code>, <code>treasury.create</code>.</p>
+  <p>Control de cartera comercial de ventas a crédito. Registra la emisión de pagarés, vencimientos de facturas, alertas de mora y recaudos parciales o totales que alimentan la tesorería de la empresa.</p>
+
+  <div class="page-break"></div>
+  <h1>Módulo 13 — Ventas Comerciales <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/ventas</code> | <strong>Permisos:</strong> <code>sales.read</code>, <code>sales.create</code>, <code>sales.cancel</code>.</p>
+  <p>Módulo de facturación comercial interna para pedidos de oficina, despachos mayoristas y ventas institucionales.</p>
+
+  <h3>Flujo de Emisión de Venta:</h3>
+  <ol>
+    <li>Seleccionar Cliente (o Consumidor Final) y Bodega de despacho.</li>
+    <li>Agregar productos al detalle validando existencias en tiempo real.</li>
+    <li>El sistema aplica automáticamente la tarifa correspondiente: normal o mayorista si cumple la cantidad mínima.</li>
+    <li>Indicar condición de pago: Contado (Caja/Banco) o Crédito (genera documento por cobrar).</li>
+    <li>Confirmar venta: descarga existencias en Kardex, registra la transacción comercial y genera el comprobante interno de venta.</li>
+  </ol>
+
+  <div class="callout callout-warning">
+    <strong>DIFERENCIACIÓN CRÍTICA — VENTA INTERNA vs FACTURACIÓN ELECTRÓNICA DIAN:</strong>
+    El documento emitido por este módulo es un <strong>Comprobante Interno de Venta Comercial</strong>. No constituye factura electrónica avalada por la DIAN hasta que se habilite la integración formal en la fase posterior.
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 14 — Terminal de Punto de Venta (POS) <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/pos</code> | <strong>Permisos:</strong> <code>pos.access</code>, <code>pos.cash_register</code>, <code>sales.create</code>.</p>
+  <p>Terminal interactiva de alta velocidad diseñada para mostradores de venta rápida con lectura de código de barras.</p>
+
+  <div class="flow-container">
+    <div class="flow-step">
+      <div class="flow-number">1</div>
+      <div class="flow-text">
+        <strong>Apertura Obligatoria de Turno:</strong>
+        <p>El cajero debe tener una sesión de caja abierta con base inicial en efectivo para poder registrar cobros.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">2</div>
+      <div class="flow-text">
+        <strong>Captura Rápida de Productos:</strong>
+        <p>Búsqueda predictiva o escaneo con lector de código de barras. Incremento ágil de cantidades.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">3</div>
+      <div class="flow-text">
+        <strong>Validación de Existencia &amp; Precios:</strong>
+        <p>Verificación inmediata de disponibilidad en la bodega asociada al punto de venta para evitar ventas sin stock.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">4</div>
+      <div class="flow-text">
+        <strong>Cobro Multiforma:</strong>
+        <p>Acepta Efectivo (con cálculo automático de cambio/vueltas), Datafono/Tarjeta, Transferencia QR o Pagos Divididos.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">5</div>
+      <div class="flow-text">
+        <strong>Emisión de Tirilla Interna &amp; Descuento Kardex:</strong>
+        <p>Genera ticket de venta POS e impacta atómicamente el Kardex y el saldo de la caja registradora.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>Nota sobre el Documento Equivalente POS Electrónico:</strong> Actualmente la terminal emite tirilla comercial interna. La transmisión del documento equivalente electrónico hacia la DIAN está catalogada como <em>Fase Fiscal Futura</em>.
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- MÓDULOS 15 AL 22                                             -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Módulo 15 — Gestión de Cajas &amp; Arqueos <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/cajas</code> | <strong>Permisos:</strong> <code>pos.cash_register</code>, <code>pos.access</code>.</p>
+  <p>Control del flujo físico de dinero en efectivo en los puntos de venta y recepción de pagos de la empresa.</p>
+
+  <h3>Ciclo Operativo de la Caja Registradora:</h3>
+  <ol>
+    <li><strong>Apertura de Turno:</strong> El cajero inicia turno digitando el monto de la base inicial en efectivo. La caja pasa a estado <code>OPEN</code>.</li>
+    <li><strong>Movimientos de Caja (Ingresos y Egresos):</strong> Permite registrar entradas de dinero no operativas o egresos justificados (fletes menores, compra de insumos de aseo, etc.).</li>
+    <li><strong>Registro Automático de Ventas:</strong> Cada venta de contado realizada en el POS o en Ventas incrementa el saldo esperado de la caja.</li>
+    <li><strong>Arqueo Ciego &amp; Cierre de Turno:</strong> Al finalizar la jornada, el cajero realiza el conteo físico del dinero e ingresa el total sin conocer el monto teórico del sistema.</li>
+    <li><strong>Cálculo de Diferencias:</strong> El sistema compara el efectivo contado con las ventas registradas y determina:
+      <ul>
+        <li><em>Caja Cuadrada:</em> Diferencia igual a $0.</li>
+        <li><em>Faltante de Dinero:</em> El efectivo físico es menor al esperado.</li>
+        <li><em>Sobrante de Dinero:</em> El efectivo físico es mayor al esperado.</li>
+      </ul>
+    </li>
+    <li>El turno se cierra definitivamente pasando a estado <code>CLOSED</code>.</li>
+  </ol>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 16 — Bancos &amp; Cuentas <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/tesoreria</code> | <strong>Permisos:</strong> <code>treasury.read</code>, <code>treasury.create</code>.</p>
+  <p>Registro y control de las cuentas bancarias de la empresa (corrientes y de ahorros). Permite monitorear transferencias recibidas de clientes, dispersión de pagos electrónicos a proveedores y conciliación periódica de extractos.</p>
+
+  <h1>Módulo 17 — Tesorería Central <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/tesoreria</code> | <strong>Permisos:</strong> <code>treasury.read</code>, <code>treasury.create</code>.</p>
+  <p>Núcleo fiduciario de pagos y recaudos. Centraliza la salida de dinero hacia proveedores (CxP) y el ingreso de fondos por recaudo de clientes (CxC), garantizando trazabilidad contable y bancaria bajo políticas de seguridad RLS.</p>
+
+  <h1>Módulo 18 — Contabilidad &amp; PUC <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/contabilidad</code> | <strong>Permisos:</strong> <code>accounting.read</code>, <code>accounting.post</code>.</p>
+  <p>Sistema contable integrado bajo principios de causación y partida doble colombiana.</p>
+
+  <h3>Estructura del PUC y Reglas Contables:</h3>
+  <ul>
+    <li><strong>Plan Único de Cuentas (55 Cuentas Maestras):</strong> Estructurado en Activo (1), Pasivo (2), Patrimonio (3), Ingresos (4), Gastos (5) y Costos (6).</li>
+    <li><strong>Partida Doble Obligatoria:</strong> En todo asiento contable se valida estrictamente: <code>SUM(débitos) == SUM(créditos)</code>. Si no cuadra, PostgreSQL rechaza la transacción.</li>
+    <li><strong>Inmutabilidad de Asientos Asentados (<code>POSTED</code>):</strong> Un asiento publicado nunca se edita ni se borra. Si se requiere anular, debe generarse un contraasiento de reversión (<code>REVERSED</code>).</li>
+    <li><strong>Causación Automática:</strong> Las ventas, compras, recaudos y pagos generan automáticamente sus respectivos borradores o comprobantes contables.</li>
+  </ul>
+
+  <div class="page-break"></div>
+  <h1>Módulo 19 — Impuestos &amp; Retenciones <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Rutas:</strong> <code>/impuestos</code>, <code>/exogena</code> | <strong>Permisos:</strong> <code>taxes.read</code>, <code>taxes.write</code>, <code>exogena.read</code>.</p>
+  <p>Configuración y liquidación tributaria según el marco normativo colombiano:</p>
+  <ul>
+    <li><strong>IVA General 19%:</strong> Gravamen estándar para mercancías gravadas.</li>
+    <li><strong>IVA Reducido 5%:</strong> Aplicable a productos de la canasta básica familiar categorizados por ley.</li>
+    <li><strong>IVA 0% (Exentos) &amp; Excluidos:</strong> Productos agropecuarios o de primera necesidad no gravados.</li>
+    <li><strong>Impuesto Nacional al Consumo (INC):</strong> Aplicable a servicios y productos específicos.</li>
+    <li><strong>Retenciones en la Fuente:</strong> Cálculo automático en compras y ventas de Retefuente, ReteIVA y ReteICA conforme a las bases mínimas vigentes.</li>
+    <li><strong>Medios Magnéticos (Exógena):</strong> Módulo preparado para consultar y consolidar terceros y movimientos para reportes DIAN.</li>
+  </ul>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 20 — Transferencias entre Bodegas <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/transferencias</code> | <strong>Permisos:</strong> <code>inventory.transfer</code>, <code>inventory.read</code>.</p>
+  <p>Operaciones logísticas de reabastecimiento y traslado entre sedes de la empresa.</p>
+
+  <div class="flow-container">
+    <div class="flow-step">
+      <div class="flow-number">1</div>
+      <div class="flow-text">
+        <strong>Creación de la Solicitud de Traslado:</strong>
+        <p>Definir bodega de origen, bodega de destino, listado de productos y cantidades a transferir.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">2</div>
+      <div class="flow-text">
+        <strong>Despacho Logístico (Salida Kardex):</strong>
+        <p>Al confirmar el despacho, el sistema descarga el inventario de la bodega origen (TRANSFER_OUT) y el pedido pasa a estado "EN TRÁNSITO".</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-number">3</div>
+      <div class="flow-text">
+        <strong>Recepción en Destino (Entrada Kardex):</strong>
+        <p>La bodega receptora verifica el cargamento. Al confirmar la recepción, se ingresa la mercancía al Kardex destino (TRANSFER_IN).</p>
+      </div>
+    </div>
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 21 — Remisiones de Mercancía <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/remisiones</code> | <strong>Permisos:</strong> <code>remissions.read</code>, <code>remissions.create</code>.</p>
+  <p>Documento de control logístico y despacho físico de pedidos a clientes sin efecto tributario inmediato. Permite preparar la carga, despachar el vehículo y confirmar la entrega en destino. La anulación de una remisión no entregada devuelve automáticamente las existencias a la bodega de origen.</p>
+
+  <h1>Módulo 22 — Devoluciones <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/devoluciones</code> | <strong>Permisos:</strong> <code>sales.cancel</code>, <code>purchases.create</code>.</p>
+  <p>Gestión fiduciaria de devoluciones de mercancía:</p>
+  <ul>
+    <li><strong>Devolución de Cliente:</strong> El cliente regresa mercancía por avería, defecto o error en pedido. Valida contra la venta original, reingresa la mercancía al Kardex (o la envía a merma) y genera nota crédito interna a favor del cliente.</li>
+    <li><strong>Devolución a Proveedor:</strong> Retorno de mercancía defectuosa al proveedor. Descarga el inventario en el Kardex y reduce el saldo de la Cuenta por Pagar (CxP).</li>
+  </ul>
+
+  <!-- ============================================================ -->
+  <!-- MÓDULOS 23 AL 28                                             -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Módulo 23 — Reportes &amp; Analítica de Negocio <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/reportes</code> y submódulos | <strong>Permisos:</strong> <code>financial.read</code>, <code>cost.read</code>, <code>audit.read</code>.</p>
+  <p>Plataforma de inteligencia de negocios con 13 submódulos especializados de análisis, filtrado por fechas/bodegas y exportación de datos en formato CSV e impresión ejecutiva:</p>
+
+  <div class="no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Submódulo</th>
+          <th>Ruta</th>
+          <th>Métricas &amp; Contenido Clave</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ventas</td>
+          <td><code>/reportes/ventas</code></td>
+          <td>Ventas por fecha, vendedor, cliente, forma de pago y margen bruto comercial.</td>
+        </tr>
+        <tr>
+          <td>Compras</td>
+          <td><code>/reportes/compras</code></td>
+          <td>Volumen de abastecimiento por proveedor, estado de pago y costos pactados.</td>
+        </tr>
+        <tr>
+          <td>Inventario</td>
+          <td><code>/reportes/inventario</code></td>
+          <td>Existencias físicas por bodega, stock valorizado al costo y alertas de reposición.</td>
+        </tr>
+        <tr>
+          <td>Kardex</td>
+          <td><code>/reportes/kardex</code></td>
+          <td>Trazabilidad cronológica de entradas/salidas y cálculo de Costo Promedio.</td>
+        </tr>
+        <tr>
+          <td>Costos &amp; Margen</td>
+          <td><code>/reportes/costos</code></td>
+          <td>CMV (Costo de Mercancía Vendida), utilidad bruta por ítem y márgenes porcentuales.</td>
+        </tr>
+        <tr>
+          <td>Bodegas</td>
+          <td><code>/reportes/bodegas</code></td>
+          <td>Ocupación de almacén, valorización por sede y rotación de mercancía.</td>
+        </tr>
+        <tr>
+          <td>Cajas</td>
+          <td><code>/reportes/cajas</code></td>
+          <td>Historial de aperturas, cierres, arqueos, faltantes y sobrantes por cajero.</td>
+        </tr>
+        <tr>
+          <td>Clientes &amp; Cartera</td>
+          <td><code>/reportes/clientes</code></td>
+          <td>Antigüedad de cartera (30, 60, 90+ días), clientes morosos y cupos disponibles.</td>
+        </tr>
+        <tr>
+          <td>Proveedores &amp; CxP</td>
+          <td><code>/reportes/proveedores</code></td>
+          <td>Obligaciones pendientes de pago, cronograma de vencimientos y saldos.</td>
+        </tr>
+        <tr>
+          <td>Contabilidad</td>
+          <td><code>/reportes/contabilidad</code></td>
+          <td>Balance de Prueba, Estado de Resultados (PyG) y Libro Mayor por periodos.</td>
+        </tr>
+        <tr>
+          <td>Facturación</td>
+          <td><code>/reportes/facturacion</code></td>
+          <td>Consolidado de comprobantes de venta emitidos y detalle tributario de IVA.</td>
+        </tr>
+        <tr>
+          <td>Ecommerce</td>
+          <td><code>/reportes/ecommerce</code></td>
+          <td>Pedidos recibidos a través de los catálogos públicos web de Super Más.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 24 — Importador Masivo CSV <span class="badge badge-limit">IMPLEMENTADO — LIMITACIÓN</span></h1>
+  <p><strong>Ubicación:</strong> Modal en <code>/productos</code> | <strong>Permisos:</strong> <code>products.create</code>, <code>inventory.adjust</code>.</p>
+  <p>Motor de migración y carga masiva de productos e inventarios iniciales.</p>
+
+  <div class="callout callout-warning">
+    <strong>ALCANCE REAL DEL IMPORTADOR:</strong>
+    <ul>
+      <li><strong>Archivos CSV (Comas o Punto y Coma):</strong> <span class="badge badge-implemented">100% FUNCIONAL</span>. Detección automática de delimitador (estándar internacional <code>,</code> o Excel en español <code>;</code>), manejo de comillas y formatos monetarios colombianos (ej. <code>$ 15.000,50</code>).</li>
+      <li><strong>Archivos XLSX Nativos Binarios:</strong> <span class="badge badge-pending">PENDIENTE</span>. Si el usuario dispone de un archivo Excel <code>.xlsx</code>, debe utilizar la opción <em>"Guardar como CSV (delimitado por comas o punto y coma)"</em> en Excel antes de subirlo al ERP.</li>
+    </ul>
+  </div>
+
+  <h3>Estructura del Archivo CSV (19 Columnas Estándar):</h3>
+  <p style="font-size: 8.5pt; font-family: monospace; background: #f8fafc; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px;">
+    SKU, Nombre, Código de Barras, Categoría, Marca, Unidad de Medida, Precio Venta Normal, Precio Mayorista, Cantidad Mínima Mayorista, Costo Unitario, Tarifa IVA (%), Exento de IVA, Stock Inicial, Código Bodega, Stock Mínimo, Stock Crítico, Catálogo Super Más, Catálogo Distribuidora, Descripción
+  </p>
+
+  <p><strong>Validación Dry-Run:</strong> Antes de escribir en la base de datos, el importador valida la estructura, detecta SKUs duplicados en el archivo y previene colisiones con productos ya existentes en PostgreSQL.</p>
+
+  <div class="page-break"></div>
+  <h1>Módulo 25 — Auditoría Forense <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Ruta:</strong> <code>/auditoria</code> | <strong>Permiso:</strong> <code>audit.read</code>.</p>
+  <p>Registro inmutable de trazabilidad operativa y de seguridad. Registra automáticamente cada acción sensible ejecutada en el ERP (inicios de sesión, cambios de precios, creaciones, modificaciones y cierres de caja) indicando usuario, fecha/hora, IP, entidad afectada y diff en formato JSONB con los valores anteriores y nuevos.</p>
+
+  <h1>Módulo 26 — Administración &amp; Colaboradores <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Rutas:</strong> <code>/usuarios</code>, <code>/roles</code>, <code>/configuracion</code> | <strong>Permisos:</strong> <code>users.read</code>, <code>users.create</code>, <code>users.update</code>, <code>settings.manage</code>.</p>
+  <p>Gestión de usuarios del sistema, asignación de roles fiduciarios, asignación de sedes/bodegas predeterminadas y parametrización de datos legales de la empresa (NIT, Razón Social, Régimen y Datos de Contacto).</p>
+
+  <h1>Módulo 27 — Seguridad, RBAC &amp; RLS <span class="badge badge-implemented">IMPLEMENTADO</span></h1>
+  <p><strong>Tecnología:</strong> Supabase Auth + PostgreSQL RLS + Middleware Next.js.</p>
+  <p>La seguridad del sistema opera en tres capas concéntricas:</p>
+  <ul>
+    <li><strong>Autenticación Fiduciaria:</strong> Cifrado bcrypt y tokens JWT fiduciarios administrados por Supabase Auth.</li>
+    <li><strong>Recuperación de Contraseña Real:</strong> Flujo completo "¿Olvidaste tu contraseña?" con token temporal enviado por correo, verificación fiduciaria y establecimiento de nueva contraseña en <code>/recuperar-contrasena</code>.</li>
+    <li><strong>Row Level Security (RLS):</strong> Aislamiento estricto por <code>company_id</code> en PostgreSQL. Ninguna consulta puede acceder a datos de otra empresa.</li>
+    <li><strong>Control de Acceso Basado en Roles (RBAC):</strong> Matriz de 42 permisos atómicos asignados a 7 roles de sistema.</li>
+  </ul>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Módulo 28 — Facturación Electrónica DIAN <span class="badge badge-pending">PENDIENTE FISCAL</span></h1>
+  <p><strong>Estado:</strong> <span class="badge badge-pending">FACTURACIÓN ELECTRÓNICA DIAN REAL = PENDIENTE</span></p>
+
+  <div class="callout callout-danger">
+    <strong>DECLARACIÓN EXPRESA DE ESTADO:</strong>
+    El módulo de facturación electrónica DIAN <strong>NO está activo ni conectado con los servidores fiscales de la Dirección de Impuestos y Aduanas Nacionales (DIAN)</strong>. La fase actual concluye el cierre funcional interno del ERP/POS.
+  </div>
+
+  <h3>¿Qué existe actualmente en el código?:</h3>
+  <ul>
+    <li>Tablas preparadas en PostgreSQL: <code>invoices</code>, <code>dian_resolutions</code>, <code>dian_events</code>.</li>
+    <li>Esquema de datos para almacenar prefijo, número, resolución, vigencia y clave técnica.</li>
+    <li>Simulación interna mock para pruebas de ciclo de vida documental.</li>
+  </ul>
+
+  <h3>¿Qué requerirá la futura Fase Fiscal DIAN?:</h3>
+  <ol>
+    <li>Adquisición y custodia de Certificado Digital de Firma Electrónica (.p12 / .pfx).</li>
+    <li>Generador de XML bajo el estándar UBL 2.1 (Invoice, CreditNote, DebitNote).</li>
+    <li>Algoritmo criptográfico de cálculo de CUFE (Código Único de Facturación Electrónica) y CUDE.</li>
+    <li>Generador de código QR bidimensional con la URL de consulta pública de la DIAN.</li>
+    <li>Conexión mediante WebServices SOAP / REST directamente con la DIAN o a través de un Proveedor Tecnológico (PT) autorizado.</li>
+    <li>Habilitación formal en el ambiente de pruebas de la DIAN y paso a producción.</li>
+  </ol>
+
+  <!-- ============================================================ -->
+  <!-- SECCIONES ESPECIALES                                         -->
+  <!-- ============================================================ -->
+  <div class="page-break"></div>
+  <h1>Sección Especial 1 — Flujos de Negocio Completos</h1>
+  <p>Diagramas de interacción entre módulos para las operaciones más frecuentes del ERP.</p>
+
+  <div class="no-break">
+    <h2>1. Flujo Comercial Estándar (Venta de Contado)</h2>
+    <div class="flow-container">
+      <div class="flow-step">
+        <div class="flow-number">A</div>
+        <div class="flow-text"><strong>Selección de Producto &amp; Cliente:</strong> Se valida disponibilidad en bodega.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">B</div>
+        <div class="flow-text"><strong>Confirmación de Venta:</strong> Genera comprobante interno y descarga Kardex (SALE).</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">C</div>
+        <div class="flow-text"><strong>Ingreso a Caja/Banco:</strong> Se suma el dinero en la sesión de caja o cuenta bancaria.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">D</div>
+        <div class="flow-text"><strong>Asiento Contable:</strong> Débito a Caja/Banco (1105/1110) vs Crédito a Comercio (4135) e IVA (2408).</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-break">
+    <h2>2. Flujo de Abastecimiento &amp; Compra a Crédito</h2>
+    <div class="flow-container">
+      <div class="flow-step">
+        <div class="flow-number">A</div>
+        <div class="flow-text"><strong>Orden de Compra:</strong> Selección de proveedor y pacto de costos/cantidades.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">B</div>
+        <div class="flow-text"><strong>Recepción en Bodega:</strong> Conteo físico y entrada a Kardex (PURCHASE). Recalcula Costo Promedio.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">C</div>
+        <div class="flow-text"><strong>Causación CxP:</strong> Se crea la factura por pagar con vencimiento fiduciario.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">D</div>
+        <div class="flow-text"><strong>Pago en Tesorería:</strong> Desembolso bancario, liquidación de la CxP y comprobante contable.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="no-break">
+    <h2>3. Flujo de Venta a Crédito &amp; Cobranza</h2>
+    <div class="flow-container">
+      <div class="flow-step">
+        <div class="flow-number">A</div>
+        <div class="flow-text"><strong>Venta a Crédito:</strong> Valida que el monto no supere el cupo disponible del cliente.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">B</div>
+        <div class="flow-text"><strong>Causación CxC:</strong> La factura queda en estado PENDING en la cartera de cobranza.</div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-number">C</div>
+        <div class="flow-text"><strong>Recaudo de Cartera:</strong> Cliente abona; se emite recibo de caja y se descarga el saldo de la CxC.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-break"></div>
+  <h1>Sección Especial 2 — Matriz de Permisos del Sistema (42 Permisos)</h1>
+  <p>Listado completo y exacto de los 42 permisos atómicos registrados en PostgreSQL y su asignación recomendada por rol:</p>
+
+  <div class="no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Módulo</th>
+          <th>Código del Permiso</th>
+          <th>Descripción Fiduciaria</th>
+          <th>Rol Recomendado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Bodegas</td><td><code>warehouses.read</code></td><td>Ver listado y detalle de bodegas</td><td>Todos los roles</td></tr>
+        <tr><td>Bodegas</td><td><code>warehouses.write</code></td><td>Crear y editar bodegas</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Inventario</td><td><code>inventory.read</code></td><td>Consultar catálogo de existencias y disponibilidad</td><td>Todos los roles</td></tr>
+        <tr><td>Inventario</td><td><code>inventory.adjust</code></td><td>Efectuar ajustes de inventario de entrada o salida</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Inventario</td><td><code>inventory.transfer</code></td><td>Crear y despachar traslados entre bodegas</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Kardex</td><td><code>kardex.read</code></td><td>Consultar movimientos históricos de Kardex</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Productos</td><td><code>products.read</code></td><td>Consultar catálogo maestro de productos</td><td>Todos los roles</td></tr>
+        <tr><td>Productos</td><td><code>products.create</code></td><td>Crear nuevos productos en catálogo maestro</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Productos</td><td><code>products.update</code></td><td>Modificar información y precios de productos</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Productos</td><td><code>products.delete</code></td><td>Eliminar o inactivar productos del catálogo</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Compras</td><td><code>purchases.read</code></td><td>Consultar órdenes y compras a proveedores</td><td>ADMIN, WAREHOUSE_ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Compras</td><td><code>purchases.create</code></td><td>Registrar compras y recepciones de mercancía</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Proveedores</td><td><code>suppliers.read</code></td><td>Consultar directorio de proveedores</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Proveedores</td><td><code>suppliers.write</code></td><td>Crear y editar condiciones de proveedores</td><td>ADMIN, WAREHOUSE_ADMIN</td></tr>
+        <tr><td>Ventas</td><td><code>sales.read</code></td><td>Consultar historial de ventas</td><td>ADMIN, POINT_ADMIN, SELLER, CASHIER</td></tr>
+        <tr><td>Ventas</td><td><code>sales.create</code></td><td>Registrar ventas comerciales</td><td>ADMIN, POINT_ADMIN, SELLER, CASHIER</td></tr>
+        <tr><td>Ventas</td><td><code>sales.cancel</code></td><td>Anular o devolver ventas emitidas</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>POS</td><td><code>pos.access</code></td><td>Ingresar a la terminal de punto de venta POS</td><td>ADMIN, POINT_ADMIN, CASHIER</td></tr>
+        <tr><td>POS</td><td><code>pos.cash_register</code></td><td>Apertura, arqueo y cierre de turnos de caja</td><td>ADMIN, POINT_ADMIN, CASHIER</td></tr>
+        <tr><td>Facturación</td><td><code>invoices.read</code></td><td>Consultar facturas electrónicas emitidas</td><td>ADMIN, POINT_ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Facturación</td><td><code>invoices.create</code></td><td>Emitir facturación electrónica ante DIAN</td><td>ADMIN, POINT_ADMIN</td></tr>
+        <tr><td>Facturación</td><td><code>invoices.cancel</code></td><td>Emitir notas crédito y cancelaciones DIAN</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Remisiones</td><td><code>remissions.read</code></td><td>Consultar remisiones de entrega</td><td>ADMIN, POINT_ADMIN, SELLER</td></tr>
+        <tr><td>Remisiones</td><td><code>remissions.create</code></td><td>Generar remisiones de despacho</td><td>ADMIN, POINT_ADMIN</td></tr>
+        <tr><td>Clientes</td><td><code>customers.read</code></td><td>Consultar directorio de clientes y cartera</td><td>ADMIN, POINT_ADMIN, SELLER, CASHIER</td></tr>
+        <tr><td>Clientes</td><td><code>customers.write</code></td><td>Crear y modificar clientes y cupos</td><td>ADMIN, POINT_ADMIN, SELLER</td></tr>
+        <tr><td>Impuestos</td><td><code>taxes.read</code></td><td>Consultar tarifas y retenciones DIAN</td><td>ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Impuestos</td><td><code>taxes.write</code></td><td>Configurar impuestos y retenciones</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Contabilidad</td><td><code>accounting.read</code></td><td>Consultar balances, estados y libros contables</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Contabilidad</td><td><code>accounting.post</code></td><td>Asentar y contabilizar comprobantes contables</td><td>SUPERADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Financiero</td><td><code>cost.read</code></td><td>Visualizar costos unitarios y márgenes brutos</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Financiero</td><td><code>financial.read</code></td><td>Consultar estadísticas financieras y rentabilidad</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Exógena</td><td><code>exogena.read</code></td><td>Ver formatos de medios magnéticos DIAN</td><td>SUPERADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Exógena</td><td><code>exogena.export</code></td><td>Exportar formatos de medios magnéticos</td><td>SUPERADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Tesorería</td><td><code>treasury.read</code></td><td>Consultar dispersión de pagos y recaudos</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Tesorería</td><td><code>treasury.create</code></td><td>Registrar dispersión de pagos y recaudos</td><td>SUPERADMIN, ADMIN, ACCOUNTANT</td></tr>
+        <tr><td>Usuarios</td><td><code>users.read</code></td><td>Consultar miembros de equipo y roles</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Usuarios</td><td><code>users.create</code></td><td>Crear nuevos colaboradores</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Usuarios</td><td><code>users.update</code></td><td>Modificar roles y asignación de bodegas</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Usuarios</td><td><code>users.activate</code></td><td>Activar o desactivar colaboradores</td><td>SUPERADMIN</td></tr>
+        <tr><td>Auditoría</td><td><code>audit.read</code></td><td>Consultar registro de eventos y auditoría</td><td>SUPERADMIN, ADMIN</td></tr>
+        <tr><td>Configuración</td><td><code>settings.manage</code></td><td>Configurar parámetros generales y legales</td><td>SUPERADMIN</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-break"></div>
+  <h1>Sección Especial 3 — Matriz de Estados &amp; Reglas de Negocio</h1>
+
+  <div class="no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Módulo</th>
+          <th>Estado</th>
+          <th>Significado Operativo</th>
+          <th>Acciones Permitidas</th>
+          <th>Acciones Bloqueadas</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Ventas</td>
+          <td><code>COMPLETED</code></td>
+          <td>Venta finalizada y pagada de contado.</td>
+          <td>Consultar, imprimir tirilla/factura.</td>
+          <td>Edición de ítems o precios.</td>
+        </tr>
+        <tr>
+          <td>Ventas</td>
+          <td><code>PENDING</code></td>
+          <td>Venta a crédito pendiente de recaudo.</td>
+          <td>Registrar abono de cartera.</td>
+          <td>Modificar cantidades despachadas.</td>
+        </tr>
+        <tr>
+          <td>Ventas</td>
+          <td><code>CANCELLED</code></td>
+          <td>Venta anulada formalmente.</td>
+          <td>Consultar motivo en auditoría.</td>
+          <td>Cualquier mutación adicional.</td>
+        </tr>
+        <tr>
+          <td>Compras</td>
+          <td><code>DRAFT</code></td>
+          <td>Orden de compra en preparación.</td>
+          <td>Editar ítems, cambiar proveedor.</td>
+          <td>Afectar inventario en Kardex.</td>
+        </tr>
+        <tr>
+          <td>Compras</td>
+          <td><code>RECEIVED</code></td>
+          <td>Mercancía recibida en bodega.</td>
+          <td>Consultar Kardex, generar CxP.</td>
+          <td>Editar cantidades o costos recibidos.</td>
+        </tr>
+        <tr>
+          <td>Cajas</td>
+          <td><code>OPEN</code></td>
+          <td>Turno de caja activo para cobro.</td>
+          <td>Vender en POS, registrar gastos.</td>
+          <td>Abrir otro turno en la misma caja.</td>
+        </tr>
+        <tr>
+          <td>Cajas</td>
+          <td><code>CLOSED</code></td>
+          <td>Turno arqueado y cerrado definitivamente.</td>
+          <td>Consultar reporte de arqueo.</td>
+          <td>Registrar nuevas ventas en ese turno.</td>
+        </tr>
+        <tr>
+          <td>Contabilidad</td>
+          <td><code>DRAFT</code></td>
+          <td>Comprobante contable borrador.</td>
+          <td>Modificar líneas, cambiar cuentas.</td>
+          <td>Afectar balances oficiales.</td>
+        </tr>
+        <tr>
+          <td>Contabilidad</td>
+          <td><code>POSTED</code></td>
+          <td>Comprobante publicado y definitivo.</td>
+          <td>Consultar en libros mayores, reversar.</td>
+          <td>Modificación o borrado físico.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Sección Especial 4 — Resolución de Errores Comunes</h1>
+  
+  <div class="callout callout-danger">
+    <strong>1. Error: "Stock insuficiente en la bodega seleccionada"</strong>
+    <p>Ocurre cuando la cantidad a vender en el POS o en Ventas supera la existencia física registrada en esa bodega específica. <em>Solución:</em> Verificar existencias en <code>/inventario</code>, realizar una transferencia desde otra bodega con stock o registrar la recepción de compras pendiente.</p>
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>2. Error: "El SKU ya se encuentra registrado en el sistema"</strong>
+    <p>PostgreSQL prohíbe duplicados en la columna <code>sku</code> dentro de la misma empresa. <em>Solución:</em> Utilizar el buscador de productos para verificar si el ítem ya existe o asignarle un código alfanumérico diferente.</p>
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>3. Error: "No es posible vender: La caja registradora se encuentra cerrada"</strong>
+    <p>La terminal POS requiere obligatoriamente que el usuario tenga un turno activo. <em>Solución:</em> Ingresar a <code>/cajas</code>, seleccionar la caja registradora, ingresar la base inicial en efectivo y presionar "Abrir Turno".</p>
+  </div>
+
+  <div class="callout callout-danger">
+    <strong>4. Error: "Acceso denegado: Permisos insuficientes (403)"</strong>
+    <p>El rol del colaborador no posee el permiso atómico requerido para esa pantalla o acción. <em>Solución:</em> El Administrador debe verificar y asignar el rol adecuado en <code>/usuarios</code>.</p>
+  </div>
+
+  <div class="page-break"></div>
+  <h1>Sección Especial 5 — Ciclo de Operación Diaria y Procedimientos Habituales</h1>
+  <p>Descripción detallada de la mecánica funcional y operativa que experimentan los colaboradores durante una jornada de trabajo ordinaria en Super Más ERP/POS:</p>
+
+  <div class="procedure-card">
+    <strong>1. Fase de Apertura y Preparación del Turno</strong>
+    <p>La jornada inicia con el acceso seguro en <code>/login</code> mediante credenciales fiduciarias cifradas. El colaborador accede al Dashboard para analizar el estado de inventarios (atención prioritaria a alertas rojas de Stock Crítico) y los compromisos de cobro en mora. Enseguida, el cajero responsable ingresa al módulo de <strong>Cajas</strong>, realiza el conteo del efectivo de base y registra la apertura con el monto inicial exacto. La caja pasa inmediatamente a estado <code>OPEN</code>, lo cual desbloquea y habilita de forma automática la terminal de cobro POS para comenzar a facturar.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>2. Fase de Ejecución Operativa Continua (Ventas, Abastecimiento y Logística)</strong>
+    <p>A lo largo del día, la plataforma orquesta los flujos de negocio simultáneamente:
+    <br />• <em>Punto de Venta (POS):</em> Cobro ágil de mostrador mediante pistola lectora de código de barras. El sistema valida en milisegundos las existencias en bodega, calculando devueltas o registrando pagos por datáfono/transferencia y descargando el Kardex instantáneamente.
+    <br />• <em>Ventas Mayoristas:</em> Procesamiento de pedidos de volumen con aplicación automática de precios mayoristas y evaluación de cupo crediticio.
+    <br />• <em>Recepción de Mercancía:</em> En <code>/recepciones</code>, el almacenista recibe despachos de camiones de proveedores, verificando físicamente las cantidades contra la orden de compra; al confirmar, el ERP actualiza el Costo Promedio Ponderado, incrementa el stock e ingresa la factura a Cuentas por Pagar (CxP).
+    <br />• <em>Egresos Menores de Caja:</em> Cualquier gasto menor en efectivo (flete, mensajería, insumos) se registra como salida justificada de caja, manteniendo la gaveta cuadrada en todo momento.
+    <br />• <em>Traslados Inter-Bodegas:</em> Despacho de mercancía entre la bodega central y sucursales manteniendo la trazabilidad en tránsito.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>3. Fase de Cierre de Jornada, Arqueo Ciego y Conciliación Financiera</strong>
+    <p>Al concluir el horario de atención, el cajero ingresa al módulo de Cajas y activa el proceso de <strong>Arqueo Ciego</strong>: cuenta físicamente el dinero en efectivo sin conocer el saldo teórico calculado por el sistema, garantizando transparencia absoluta. Al registrar el valor contado, el sistema aplica la fórmula <code>Base Inicial + Ventas Efectivo + Ingresos Manuales - Egresos</code> y determina: Caja Cuadrada (diferencia $0), Faltante de Dinero o Sobrante de Dinero. Se asientan las justificaciones, la caja pasa a estado <code>CLOSED</code> y se consolida el reporte diario en <code>/reportes/ventas</code> para la gerencia y contabilidad.</p>
+  </div>
+
+  <hr style="border:0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+
+  <h1>Sección Especial 6 — Arquitectura Operativa y Funcionamiento Integral del ERP</h1>
+  <p>Explicación estructural de cómo interactúan armónicamente todas las entidades del sistema para conformar una plataforma ERP/POS fiduciaria sólida y trazable:</p>
+
+  <div class="procedure-card">
+    <strong>1. Núcleo Maestro de Empresa y Entorno Multiempresa</strong>
+    <p>Toda la plataforma opera bajo aislamiento multi-tenant estricto. La empresa principal (<em>Distribuidora Super Más S.A.S.</em>) posee un identificador global (<code>company_id</code>). Cada producto, cliente, proveedor, bodega, cuenta contable y venta creada en el sistema queda encapsulada bajo este identificador, imposibilitando fugas de información o interferencias operativas entre razones sociales.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>2. Malla Logística de Bodegas y Motor Kardex Inmutable</strong>
+    <p>El inventario no se gestiona como un número estático editable. Cada cambio físico responde estrictamente a un registro inmutable en el Kardex. La Bodega Principal (<code>BOD-01</code>) alimenta agregaciones atómicas en <code>stock_levels</code> que aseguran que las ventas en mostrador, despachos mayoristas y transferencias reflejen siempre la disponibilidad física real sin riesgo de sobreventa.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>3. Motor Comercial y Dinámica de Precios Multinivel</strong>
+    <p>El catálogo vincula cada producto a reglas comerciales avanzadas. El motor de facturación evalúa automáticamente las cantidades agregadas al carrito: si el volumen alcanza la cantidad mínima mayorista, el sistema conmuta la tarifa al precio mayorista pactado, garantizando agilidad para el vendedor y certeza para el cliente sin requerir intervenciones manuales propensas a error.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>4. Circuito Sincronizado de Tesorería y Partida Doble Contable</strong>
+    <p>La plataforma integra el ciclo operativo con el financiero en tiempo real. Cuando ocurre una compra, se afecta el inventario en Kardex, se genera la obligación en CxP y se produce el asiento contable respectivo. Cuando se realiza un pago desde una cuenta bancaria, se concilia la tesorería, se cancela la deuda con el proveedor y se asienta el débito al pasivo y crédito al banco, manteniendo el balance siempre cuadrado bajo la regla <code>SUM(débitos) == SUM(créditos)</code>.</p>
+  </div>
+
+  <div class="procedure-card">
+    <strong>5. Blindaje Fiduciario: RBAC, RLS y Trazabilidad Forense</strong>
+    <p>La seguridad se fundamenta en 42 permisos atómicos distribuidos en 7 roles operativos. Las políticas de Row Level Security (RLS) en PostgreSQL se ejecutan en el motor de base de datos, garantizando que un cajero solo acceda a su terminal y catálogo, mientras que la administración y contabilidad disponen de visibilidad fiduciaria completa, respaldada por un log de auditoría forense inmutable.</p>
+  </div>
+
+  <div class="page-break"></div>
+  <h1>Sección Especial 7 — Matriz de Estado Real &amp; Pendientes</h1>
+  <p>Resumen técnico fiduciario del estado actual de la plataforma Super Más ERP/POS:</p>
+
+  <div class="no-break">
+    <table>
+      <thead>
+        <tr>
+          <th>Área / Módulo</th>
+          <th>Estado Actual</th>
+          <th>Detalle de Implementación / Pendiente Detectado</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Inicio / Dashboard</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>100% operativo con KPIs en tiempo real y accesos rápidos.</td></tr>
+        <tr><td>Catálogo de Productos</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>CRUD completo, listas de precios (normal/mayorista), stock min/crítico.</td></tr>
+        <tr><td>Categorías &amp; Marcas</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Organización completa, slugs y asociación de catálogo.</td></tr>
+        <tr><td>Inventario &amp; Existencias</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Regla fiduciaria estricta (no edición directa), ajustes con motivo.</td></tr>
+        <tr><td>Bodegas Multisede</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Bodega oficial <code>BOD-01</code>, aislamiento multisede y estadísticas.</td></tr>
+        <tr><td>Kardex Inmutable</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Costo Promedio Ponderado, trazabilidad e inmutabilidad garantizada.</td></tr>
+        <tr><td>Compras &amp; Recepciones</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Circuito proveedor &rarr; orden &rarr; recepción &rarr; inventario &rarr; CxP.</td></tr>
+        <tr><td>Proveedores &amp; CxP</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Ficha tributaria, control de crédito, vencimientos y dispersión de pagos.</td></tr>
+        <tr><td>Clientes &amp; CxC</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Directorio, cupos, consumidor final, cartera vencida y recaudos.</td></tr>
+        <tr><td>Ventas Comerciales</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Facturación interna, descuentos, descarga de Kardex y contabilidad.</td></tr>
+        <tr><td>Terminal POS</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Venta ágil, lector código de barras, cobro mixto y tirilla interna.</td></tr>
+        <tr><td>Cajas &amp; Arqueos</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Apertura de turno, control de gastos, arqueo ciego y caja cuadrada.</td></tr>
+        <tr><td>Bancos &amp; Tesorería</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Dispersión de pagos, cuentas bancarias y RLS <code>treasury.*</code>.</td></tr>
+        <tr><td>Contabilidad &amp; PUC</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>55 cuentas maestras, partida doble y causaciones automáticas.</td></tr>
+        <tr><td>Impuestos &amp; Retenciones</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>IVA 19%, 5%, 0%, Exentos, INC y retenciones en la fuente.</td></tr>
+        <tr><td>Transferencias &amp; Remisiones</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Despacho, tránsito y recepción multisede con impacto Kardex.</td></tr>
+        <tr><td>Devoluciones</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Devoluciones de cliente y proveedor con notas crédito fiduciarias.</td></tr>
+        <tr><td>Reportes &amp; Analítica</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>13 submódulos completos con filtros y exportación CSV.</td></tr>
+        <tr><td>Importador Masivo CSV</td><td><span class="badge badge-limit">IMPLEMENTADO — LIMITACIÓN</span></td><td><strong>CSV (comas y punto y coma) 100% funcional.</strong> Archivos XLSX binarios pendientes.</td></tr>
+        <tr><td>Auditoría Forense</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Registro inmutable de diffs JSONB sin almacenar contraseñas.</td></tr>
+        <tr><td>Administración &amp; Usuarios</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>CRUD colaboradores, asignación de roles y bodegas.</td></tr>
+        <tr><td>Seguridad, RBAC &amp; RLS</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Supabase Auth, aislamiento multiempresa RLS y 42 permisos RBAC.</td></tr>
+        <tr><td>Recuperación de Contraseña</td><td><span class="badge badge-implemented">IMPLEMENTADO</span></td><td>Flujo real con token, email y pantalla <code>/recuperar-contrasena</code>.</td></tr>
+        <tr><td>Facturación Electrónica DIAN</td><td><span class="badge badge-pending">PENDIENTE FISCAL</span></td><td><strong>Pre-DIAN congelada.</strong> Pendiente: Certificado digital, XML UBL 2.1, CUFE, QR y WebServices DIAN.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #cbd5e1; text-align: center; font-size: 8.5pt; color: #64748b;">
+    <p>Manual generado para el proyecto <strong>Super Más ERP/POS</strong> — Distribuidora Super Más S.A.S.</p>
+    <p>Desarrollado por K&amp;T &hearts; (<a href="https://www.kytcode.lat" style="color:#001b5c; text-decoration:none; font-weight:700;">www.kytcode.lat</a>)</p>
+  </div>
+
+</body>
+</html>
+`
+
+  fs.writeFileSync(tempHtmlPath, htmlContent, 'utf-8')
+  console.log(`✅ Archivo HTML preliminar generado en: ${tempHtmlPath}`)
+
+  // Generar PDF con Google Chrome Headless
+  const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+  if (!fs.existsSync(chromePath)) {
+    throw new Error(`Google Chrome no encontrado en: ${chromePath}`)
+  }
+
+  console.log('--- Invocando motor headless de Google Chrome para compilar PDF ---')
+  const chromeCmd = `"${chromePath}" --headless --disable-gpu --run-all-compositor-stages-before-draw --print-to-pdf="${pdfOutputPath}" --no-pdf-header-footer "file://${tempHtmlPath}" 2>&1`
+  
+  try {
+    const output = execSync(chromeCmd, { encoding: 'utf-8' })
+    console.log('Salida de compilación:', output.trim().slice(0, 300))
+  } catch (err: any) {
+    console.warn('Aviso durante la invocación de Chrome:', err?.message || err)
+  }
+
+  if (!fs.existsSync(pdfOutputPath)) {
+    throw new Error(`Error: El archivo PDF no fue creado en: ${pdfOutputPath}`)
+  }
+
+  const fileStats = fs.statSync(pdfOutputPath)
+  const fileSizeKb = (fileStats.size / 1024).toFixed(2)
+
+  // Contar páginas del PDF generado usando regex binario en el buffer
+  const pdfBuffer = fs.readFileSync(pdfOutputPath)
+  const pageMatches = pdfBuffer.toString('binary').match(/\/Type\s*\/Page[^s]/g)
+  const pageCount = pageMatches ? pageMatches.length : 1
+
+  console.log('\n============================================================')
+  console.log('MANUAL DE USUARIO PDF GENERADO EXITOSAMENTE')
+  console.log('============================================================')
+  console.log(`📍 Ruta del PDF: ${pdfOutputPath}`)
+  console.log(`📦 Tamaño del archivo: ${fileSizeKb} KB`)
+  console.log(`📄 Número de páginas: ${pageCount} páginas`)
+  console.log('============================================================\n')
+}
+
+generateManualPdf().catch((err) => {
+  console.error('❌ Error fatal al generar manual PDF:', err)
+  process.exit(1)
+})

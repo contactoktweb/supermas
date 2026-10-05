@@ -107,6 +107,53 @@ export class AuthService {
   }
 
   /**
+   * Solicita el restablecimiento de contraseña enviando un enlace seguro a través de Supabase Auth.
+   */
+  async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
+    const cleanEmail = email.trim().toLowerCase()
+    if (!cleanEmail) {
+      throw new Error('Debe ingresar un correo electrónico válido.')
+    }
+
+    let targetRedirect = redirectTo
+    if (!targetRedirect) {
+      if (typeof window !== 'undefined') {
+        targetRedirect = `${window.location.origin}/recuperar-contrasena`
+      } else {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
+        targetRedirect = `${appUrl.replace(/\/$/, '')}/recuperar-contrasena`
+      }
+    }
+
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: targetRedirect,
+    })
+
+    if (error) {
+      console.error('Error al solicitar recuperación de contraseña en Supabase Auth:', error)
+      throw new Error(error.message || 'No fue posible procesar la solicitud de recuperación.')
+    }
+  }
+
+  /**
+   * Actualiza la contraseña del usuario en Supabase Auth tras verificar el token de recuperación.
+   */
+  async updatePassword(newPassword: string): Promise<void> {
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('La contraseña debe tener al menos 6 caracteres.')
+    }
+
+    const { error } = await supabaseClient.auth.updateUser({
+      password: newPassword,
+    })
+
+    if (error) {
+      console.error('Error al actualizar contraseña en Supabase Auth:', error)
+      throw new Error(error.message || 'Error al actualizar la contraseña.')
+    }
+  }
+
+  /**
    * Obtiene el usuario actualmente autenticado desde la sesión activa de Supabase.
    */
   async getCurrentUser(): Promise<AuthUser | null> {

@@ -21,6 +21,8 @@ interface AuthContextValue {
   signIn: (credentials: LoginCredentials) => Promise<AuthUser>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
+  requestPasswordReset: (email: string, redirectTo?: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
   hasPermission: (permissionCode: string) => boolean
   hasAnyPermission: (permissionCodes: string[]) => boolean
   hasRole: (roles: UserRoleCode[]) => boolean
@@ -110,6 +112,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  // Solicitud de restablecimiento de contraseña
+  const requestPasswordReset = useCallback(async (email: string, redirectTo?: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await authService.requestPasswordReset(email, redirectTo)
+    } catch (err: any) {
+      setError(err?.message || 'Error al solicitar restablecimiento de contraseña.')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Actualización de contraseña tras recuperación
+  const updatePassword = useCallback(async (newPassword: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      await authService.updatePassword(newPassword)
+      await refreshUser()
+    } catch (err: any) {
+      setError(err?.message || 'Error al actualizar contraseña.')
+      throw err
+    } finally {
+      setIsLoading(false)
+    }
+  }, [refreshUser])
+
   // Verificación de permiso individual (SUPERADMIN tiene acceso total a los 42 permisos)
   const hasPermission = useCallback(
     (permissionCode: string): boolean => {
@@ -148,11 +179,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signOut,
       refreshUser,
+      requestPasswordReset,
+      updatePassword,
       hasPermission,
       hasAnyPermission,
       hasRole,
     }),
-    [user, isLoading, error, signIn, signOut, refreshUser, hasPermission, hasAnyPermission, hasRole]
+    [user, isLoading, error, signIn, signOut, refreshUser, requestPasswordReset, updatePassword, hasPermission, hasAnyPermission, hasRole]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -21,10 +21,10 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const isLoginPage = pathname === '/login'
+  const isPublicAuthPage = pathname === '/login' || pathname === '/recuperar-contrasena'
 
   // 1. Usuario NO autenticado intentando acceder a ruta protegida
-  if (!token && !isLoginPage) {
+  if (!token && !isPublicAuthPage) {
     const loginUrl = new URL('/login', request.url)
     if (pathname !== '/') {
       loginUrl.searchParams.set('redirectTo', pathname)
@@ -33,7 +33,7 @@ export function middleware(request: NextRequest) {
   }
 
   // 2. Usuario YA autenticado visitando /login
-  if (token && isLoginPage) {
+  if (token && pathname === '/login') {
     return NextResponse.redirect(new URL('/', request.url))
   }
 

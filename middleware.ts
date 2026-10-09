@@ -12,10 +12,11 @@ export function middleware(request: NextRequest) {
   const role = request.cookies.get('sb-user-role')?.value
   const { pathname } = request.nextUrl
 
-  // Excluir archivos estáticos, imágenes, fuentes o API interna pública
+  // Excluir archivos estáticos, imágenes, fuentes o API pública externa
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/public') ||
     pathname.includes('.')
   ) {
     return NextResponse.next()

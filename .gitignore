@@ -11,10 +11,20 @@ dist
 
 # Environment variables
 .env
+.env.local
+.env.*.local
 .env*.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Digital certificates and private keys (DIAN security)
+*.p12
+*.pfx
+*.pem
+*.key
+*.cer
+*.crt
 
 # Vercel & tools
 .vercel
@@ -35,4 +45,3 @@ tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
-*.pem

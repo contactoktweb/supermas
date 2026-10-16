@@ -19,7 +19,11 @@ function Brand({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`brand ${compact ? 'brand-compact' : ''}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/super-mas-logo.svg" alt="Super Más" />
+      <img
+        src="/logo-super-white.webp"
+        alt="Super Más"
+        style={{ height: '32px', width: 'auto', objectFit: 'contain' }}
+      />
       <span>ERP / POS</span>
     </div>
   )

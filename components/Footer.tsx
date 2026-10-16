@@ -12,9 +12,18 @@ export function Footer({ isDark = false }: FooterProps) {
   return (
     <footer className={`app-footer ${isDark ? 'footer-dark' : 'footer-light'}`}>
       <div className="footer-content">
-        <span className="copyright-text">
-          © {currentYear} Super Más S.A.S. Todos los derechos reservados.
-        </span>
+        <div className="footer-brand-wrap" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={isDark ? '/logo-super-white.webp' : '/logo-super.webp'}
+            alt="Super Más"
+            className="footer-logo"
+            style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
+          />
+          <span className="copyright-text">
+            © {currentYear} Super Más S.A.S. Todos los derechos reservados.
+          </span>
+        </div>
 
         <a
           href="https://www.kytcode.lat"

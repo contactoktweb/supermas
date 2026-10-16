@@ -60,6 +60,34 @@ export type AccountingSourceType =
   | 'ACCOUNTING_ADJUSTMENT'
   | 'CLOSING_ENTRY'
 
+export type LegalNature = 'NATURAL' | 'JURIDICA'
+
+export type ThirdPartyType = 'CLIENTE' | 'PROVEEDOR' | 'EMPLEADO' | 'ACREEDOR' | 'OTRO'
+
+export interface ThirdParty {
+  id: string
+  companyId?: string
+  documentType: string // 'CC' | 'NIT' | 'CE' | 'PASSPORT' | 'TI'
+  documentNumber: string
+  verificationDigit?: string
+  legalNature: LegalNature
+  firstName?: string
+  otherNames?: string
+  firstSurname?: string
+  secondSurname?: string
+  companyName: string // Razón Social o Nombre Completo
+  commercialName?: string
+  thirdPartyType: ThirdPartyType
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  department?: string
+  isActive: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface AccountingEntryLine {
   id: string
   accountId: string
@@ -68,6 +96,7 @@ export interface AccountingEntryLine {
   debit: number
   credit: number
   description: string
+  dueDate?: string
   taxConfigId?: string
   taxRatePercent?: number
   baseAmount?: number
@@ -79,6 +108,7 @@ export interface AccountingEntry {
   id: string
   entryNumber: string
   date: string
+  dueDate?: string
   period: string // YYYY-MM
   sourceType: AccountingSourceType
   sourceId?: string

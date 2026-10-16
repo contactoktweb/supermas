@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingAccount } from '../../types'
+import { AccountingAccount, ThirdParty } from '../../types'
 import { ManualEntryFormData } from '../../schemas/accounting.schema'
 import { supabaseClient } from '@/lib/supabase/client'
 
@@ -11,6 +11,8 @@ interface NewManualEntryDrawerProps {
   isOpen: boolean
   onClose: () => void
   accounts: AccountingAccount[]
+  thirdParties?: ThirdParty[]
+  onOpenNewThirdParty?: () => void
   onSubmit: (data: ManualEntryFormData) => Promise<void>
 }
 
@@ -21,20 +23,23 @@ interface TempLine {
   accountName: string
   debit: number
   credit: number
-  description: string
 }
 
 export function NewManualEntryDrawer({
   isOpen,
   onClose,
   accounts,
+  thirdParties = [],
+  onOpenNewThirdParty,
   onSubmit,
 }: NewManualEntryDrawerProps) {
   const [mounted, setMounted] = useState(false)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
   const [locationId, setLocationId] = useState('')
   const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const [thirdPartyId, setThirdPartyId] = useState('')
   const [thirdPartyName, setThirdPartyName] = useState('')
   const [thirdPartyDoc, setThirdPartyDoc] = useState('')
   const [observation, setObservation] = useState('')
@@ -43,17 +48,38 @@ export function NewManualEntryDrawer({
 
   useEffect(() => {
     setMounted(true)
-    supabaseClient
-      .from('locations')
-      .select('id, name')
-      .eq('is_active', true)
-      .then(({ data }) => {
-        if (data && data.length > 0) {
+    if (!isOpen) return
+
+    const loadLocations = async () => {
+      try {
+        const { data, error } = await supabaseClient
+          .from('locations')
+          .select('id, name, code, status')
+          .neq('status', 'INACTIVE')
+          .order('name', { ascending: true })
+
+        if (!error && data && data.length > 0) {
           setLocations(data)
           setLocationId((prev) => prev || data[0].id)
+          return
         }
-      })
-  }, [])
+
+        const { data: fallback, error: fbErr } = await supabaseClient
+          .from('locations')
+          .select('id, name')
+          .order('name', { ascending: true })
+
+        if (!fbErr && fallback && fallback.length > 0) {
+          setLocations(fallback)
+          setLocationId((prev) => prev || fallback[0].id)
+        }
+      } catch (err) {
+        console.warn('Advertencia al cargar bodegas:', err)
+      }
+    }
+
+    loadLocations()
+  }, [isOpen])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -80,7 +106,6 @@ export function NewManualEntryDrawer({
       accountName: '',
       debit: 0,
       credit: 0,
-      description: '',
     },
     {
       id: 'line-2',
@@ -89,7 +114,6 @@ export function NewManualEntryDrawer({
       accountName: '',
       debit: 0,
       credit: 0,
-      description: '',
     },
   ])
 
@@ -122,7 +146,6 @@ export function NewManualEntryDrawer({
             accountName: defaultDebit.name,
             debit: 0,
             credit: 0,
-            description: '',
           },
           {
             id: 'line-2',
@@ -131,7 +154,6 @@ export function NewManualEntryDrawer({
             accountName: defaultCredit.name,
             debit: 0,
             credit: 0,
-            description: '',
           },
         ]
       })
@@ -157,7 +179,6 @@ export function NewManualEntryDrawer({
         accountName: firstAcc ? firstAcc.name : '',
         debit: 0,
         credit: 0,
-        description: description || '',
       },
     ])
   }
@@ -218,8 +239,10 @@ export function NewManualEntryDrawer({
       setIsSubmitting(true)
       await onSubmit({
         date,
+        dueDate: dueDate.trim() || undefined,
         description,
         locationId,
+        thirdPartyId: thirdPartyId || undefined,
         thirdPartyName: thirdPartyName.trim() || undefined,
         thirdPartyDoc: thirdPartyDoc.trim() || undefined,
         observation: observation.trim() || undefined,
@@ -229,7 +252,7 @@ export function NewManualEntryDrawer({
           accountName: l.accountName,
           debit: Number(l.debit) || 0,
           credit: Number(l.credit) || 0,
-          description: l.description.trim() || description,
+          description: description.trim(),
         })),
       })
       onClose()
@@ -240,13 +263,28 @@ export function NewManualEntryDrawer({
     }
   }
 
+  const handleThirdPartySelect = (id: string) => {
+    setThirdPartyId(id)
+    if (!id) {
+      return
+    }
+    const tp = thirdParties.find((t) => t.id === id)
+    if (tp) {
+      setThirdPartyName(tp.companyName)
+      const doc = tp.verificationDigit
+        ? `${tp.documentNumber}-${tp.verificationDigit}`
+        : tp.documentNumber
+      setThirdPartyDoc(doc)
+    }
+  }
+
   return createPortal(
     <div className="drawer-backdrop modal-center p-3 sm:p-4" onClick={onClose} aria-modal="true" role="dialog">
       <div
         className="modal-card animate-scale-up"
         style={{
           width: '100%',
-          maxWidth: 940,
+          maxWidth: 960,
           maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
@@ -266,7 +304,7 @@ export function NewManualEntryDrawer({
             <div>
               <h2 className="text-base font-bold text-slate-900">Nuevo Asiento Contable Manual</h2>
               <p className="text-xs text-slate-500">
-                Registra comprobantes manuales garantizando estricto balance de partida doble.
+                Registra comprobantes manuales con vencimiento, terceros y partida doble balanceada.
               </p>
             </div>
           </div>
@@ -302,53 +340,215 @@ export function NewManualEntryDrawer({
                 />
               </div>
               <div>
+                <label className="block font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Fecha de Vencimiento:</span>
+                  <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">Opcional</span>
+                </label>
+                <input
+                  type="date"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={dueDate}
+                  min={date}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  placeholder="yyyy-mm-dd"
+                />
+              </div>
+              <div>
                 <label className="block font-semibold text-slate-700 mb-1">Bodega / Centro de Costos:</label>
                 <select
                   className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={locationId}
                   onChange={(e) => setLocationId(e.target.value)}
                 >
-                  {locations.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
+                  {locations.length === 0 ? (
+                    <option value="">Cargando bodegas...</option>
+                  ) : (
+                    locations.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))
+                  )}
                 </select>
-              </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Documento Tercero (NIT / CC):</label>
-                <input
-                  type="text"
-                  placeholder="Ej: NIT 900.123.456-1"
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
-                  value={thirdPartyDoc}
-                  onChange={(e) => setThirdPartyDoc(e.target.value)}
-                />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Descripción / Concepto General:</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Ajuste por depreciación acumulada o provisión cartera..."
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  required
-                />
+            {/* Selección o Registro de Tercero */}
+            <div className="p-3.5 bg-slate-50/80 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 flex items-center gap-1.5 text-xs">
+                  <AppIcon name="users" size={15} />
+                  Tercero del Asiento (Persona Natural o Jurídica)
+                </span>
+                {onOpenNewThirdParty && (
+                  <button
+                    type="button"
+                    onClick={onOpenNewThirdParty}
+                    className="text-[11px] text-blue-700 hover:text-blue-800 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded-md border border-blue-200 hover:border-blue-300 shadow-2xs transition-all hover:bg-blue-50"
+                  >
+                    <AppIcon name="plus" size={12} />
+                    <span>+ Crear Tercero Antes del Asiento</span>
+                  </button>
+                )}
               </div>
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nombre o Razón Social Tercero:</label>
-                <input
-                  type="text"
-                  placeholder="Ej: Distribuidora Aliada S.A.S."
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
-                  value={thirdPartyName}
-                  onChange={(e) => setThirdPartyName(e.target.value)}
-                />
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Seleccionar Tercero Existente:
+                  </label>
+                  <select
+                    className="w-full h-9 px-2.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-medium"
+                    value={thirdPartyId}
+                    onChange={(e) => handleThirdPartySelect(e.target.value)}
+                  >
+                    <option value="">-- Seleccionar o digitar manual --</option>
+                    {/* Proveedores */}
+                    {thirdParties.filter((t) => t.thirdPartyType === 'PROVEEDOR').length > 0 && (
+                      <optgroup label="── 📦 PROVEEDORES (Compras / Insumos) ──">
+                        {thirdParties
+                          .filter((t) => t.thirdPartyType === 'PROVEEDOR')
+                          .map((tp) => (
+                            <option key={tp.id} value={tp.id}>
+                              📦 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Clientes */}
+                    {thirdParties.filter((t) => t.thirdPartyType === 'CLIENTE').length > 0 && (
+                      <optgroup label="── 🛒 CLIENTES (Ventas / Cartera) ──">
+                        {thirdParties
+                          .filter((t) => t.thirdPartyType === 'CLIENTE')
+                          .map((tp) => (
+                            <option key={tp.id} value={tp.id}>
+                              🛒 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Empleados */}
+                    {thirdParties.filter((t) => t.thirdPartyType === 'EMPLEADO').length > 0 && (
+                      <optgroup label="── 👤 EMPLEADOS (Nómina) ──">
+                        {thirdParties
+                          .filter((t) => t.thirdPartyType === 'EMPLEADO')
+                          .map((tp) => (
+                            <option key={tp.id} value={tp.id}>
+                              👤 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                    {/* Acreedores y Otros */}
+                    {thirdParties.filter(
+                      (t) =>
+                        t.thirdPartyType !== 'PROVEEDOR' &&
+                        t.thirdPartyType !== 'CLIENTE' &&
+                        t.thirdPartyType !== 'EMPLEADO'
+                    ).length > 0 && (
+                      <optgroup label="── 🏢 ACREEDORES Y OTROS ──">
+                        {thirdParties
+                          .filter(
+                            (t) =>
+                              t.thirdPartyType !== 'PROVEEDOR' &&
+                              t.thirdPartyType !== 'CLIENTE' &&
+                              t.thirdPartyType !== 'EMPLEADO'
+                          )
+                          .map((tp) => (
+                            <option key={tp.id} value={tp.id}>
+                              🏢 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
+                            </option>
+                          ))}
+                      </optgroup>
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Documento Tercero (NIT / CC):
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: NIT 900.123.456-1"
+                    className="w-full h-9 px-2.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 font-mono"
+                    value={thirdPartyDoc}
+                    onChange={(e) => {
+                      setThirdPartyDoc(e.target.value)
+                      setThirdPartyId('')
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Nombre o Razón Social Tercero:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Distribuidora Aliada S.A.S."
+                    className="w-full h-9 px-2.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={thirdPartyName}
+                    onChange={(e) => {
+                      setThirdPartyName(e.target.value)
+                      setThirdPartyId('')
+                    }}
+                  />
+                </div>
               </div>
+
+              {/* Badge Informativo de Tercero Seleccionado */}
+              {thirdPartyId && (() => {
+                const selectedTp = thirdParties.find((t) => t.id === thirdPartyId)
+                if (!selectedTp) return null
+                return (
+                  <div className="mt-2.5 py-1.5 px-3 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap items-center justify-between text-xs gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-semibold text-slate-600">Clasificación:</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          selectedTp.thirdPartyType === 'CLIENTE'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : selectedTp.thirdPartyType === 'PROVEEDOR'
+                            ? 'bg-blue-50 text-blue-900 border-blue-300'
+                            : selectedTp.thirdPartyType === 'EMPLEADO'
+                            ? 'bg-purple-50 text-purple-800 border-purple-300'
+                            : 'bg-amber-50 text-amber-800 border-amber-300'
+                        }`}
+                      >
+                        {selectedTp.thirdPartyType === 'CLIENTE' && '🛒 CLIENTE'}
+                        {selectedTp.thirdPartyType === 'PROVEEDOR' && '📦 PROVEEDOR'}
+                        {selectedTp.thirdPartyType === 'EMPLEADO' && '👤 EMPLEADO'}
+                        {selectedTp.thirdPartyType === 'ACREEDOR' && '🏢 ACREEDOR'}
+                        {selectedTp.thirdPartyType === 'OTRO' && '⚪ OTRO'}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {selectedTp.legalNature === 'JURIDICA' ? '• Persona Jurídica (NIT)' : '• Persona Natural (CC)'}
+                      </span>
+                    </div>
+                    {selectedTp.email && (
+                      <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+                        ✉️ {selectedTp.email}
+                      </span>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Concepto General */}
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1">Descripción / Concepto General:</label>
+              <input
+                type="text"
+                placeholder="Ej: Causación factura proveedor, provisión nómina o ajuste de inventarios..."
+                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                required
+              />
             </div>
 
             {/* Constructor Dinámico de Líneas de Partida Doble */}
@@ -376,26 +576,22 @@ export function NewManualEntryDrawer({
                 <table
                   className="w-full text-xs"
                   style={{
-                    minWidth: '720px',
+                    minWidth: '600px',
                     width: '100%',
                     tableLayout: 'fixed',
                     borderCollapse: 'collapse',
                   }}
                 >
                   <colgroup>
-                    <col style={{ width: '42%' }} />
-                    <col style={{ width: '26%' }} />
-                    <col style={{ width: '14%' }} />
-                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '64%' }} />
+                    <col style={{ width: '16%' }} />
+                    <col style={{ width: '16%' }} />
                     <col style={{ width: '4%' }} />
                   </colgroup>
                   <thead>
                     <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-semibold text-left">
                       <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
                         Cuenta PUC (Subcuenta / Auxiliar)
-                      </th>
-                      <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
-                        Detalle Línea
                       </th>
                       <th className="py-2.5 px-3 text-right text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
                         DEBE
@@ -437,15 +633,6 @@ export function NewManualEntryDrawer({
                               <option value="">No hay cuentas imputables disponibles</option>
                             )}
                           </select>
-                        </td>
-                        <td className="p-2.5" style={{ padding: '8px 10px' }}>
-                          <input
-                            type="text"
-                            className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-md text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            placeholder="Concepto específico..."
-                            value={line.description}
-                            onChange={(e) => handleUpdateLine(idx, { description: e.target.value })}
-                          />
                         </td>
                         <td className="p-2.5" style={{ padding: '8px 10px' }}>
                           <input
@@ -495,7 +682,7 @@ export function NewManualEntryDrawer({
                     ))}
                     {/* Fila de Totales y Balance */}
                     <tr className="bg-slate-50 font-bold border-t border-slate-200">
-                      <td colSpan={2} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700" style={{ padding: '10px 12px' }}>
+                      <td className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700" style={{ padding: '10px 12px' }}>
                         Sumas Iguales:
                       </td>
                       <td className="py-2.5 px-3 font-mono text-right text-blue-900 text-xs" style={{ padding: '10px 12px' }}>

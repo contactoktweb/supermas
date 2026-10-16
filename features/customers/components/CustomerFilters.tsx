@@ -84,72 +84,148 @@ export function CustomerFilters({
       className="toolbar inventory-toolbar products-toolbar page-enter"
       role="search"
       aria-label="Filtros de clientes"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 12,
+        padding: '14px 18px',
+        marginBottom: 16,
+      }}
     >
-      {/* 1. Main Search Bar */}
-      <div className="search-box wide products-search-box">
-        <AppIcon name="search" size={16} />
-        <input
-          value={filters.query || ''}
-          onChange={(e) => onFilterChange('query', e.target.value)}
-          placeholder="Buscar por cliente, NIT, CC, email, teléfono..."
-          aria-label="Buscar clientes"
-        />
-        {filters.query && (
-          <button
-            type="button"
-            className="search-clear-btn"
-            onClick={() => onFilterChange('query', '')}
-            aria-label="Limpiar búsqueda"
-          >
-            <AppIcon name="close" size={12} />
-          </button>
-        )}
-      </div>
-
-      {/* 2. Direct Document Search */}
+      {/* 1. Fila Principal: Buscador + Búsqueda por Documento + Selector de Estado Elegante */}
       <div
-        className="search-box filter-search-secondary"
-        style={{ width: 175, flexShrink: 0 }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flexWrap: 'wrap',
+          width: '100%',
+        }}
       >
-        <AppIcon name="fileText" size={14} color="#64748b" />
-        <input
-          value={filters.documentNumber || ''}
-          onChange={(e) => onFilterChange('documentNumber', e.target.value)}
-          placeholder="N° Documento..."
-          aria-label="Filtrar por número de documento"
-        />
-        {filters.documentNumber && (
+        {/* Buscador General */}
+        <div className="search-box wide products-search-box" style={{ flex: '1 1 280px', minWidth: 260 }}>
+          <AppIcon name="search" size={16} />
+          <input
+            value={filters.query || ''}
+            onChange={(e) => onFilterChange('query', e.target.value)}
+            placeholder="Buscar por cliente, NIT, CC, email, teléfono..."
+            aria-label="Buscar clientes"
+          />
+          {filters.query && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => onFilterChange('query', '')}
+              aria-label="Limpiar búsqueda"
+            >
+              <AppIcon name="close" size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Búsqueda Directa por Documento */}
+        <div
+          className="search-box filter-search-secondary"
+          style={{ width: 180, flexShrink: 0 }}
+        >
+          <AppIcon name="fileText" size={14} color="#64748b" />
+          <input
+            value={filters.documentNumber || ''}
+            onChange={(e) => onFilterChange('documentNumber', e.target.value)}
+            placeholder="N° Documento..."
+            aria-label="Filtrar por número de documento"
+          />
+          {filters.documentNumber && (
+            <button
+              type="button"
+              className="search-clear-btn"
+              onClick={() => onFilterChange('documentNumber', '')}
+              aria-label="Limpiar filtro de documento"
+            >
+              <AppIcon name="close" size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Selector Segmentado de Estado (Estilo SaaS estándar Super Más: gris suave y azul marino seleccionado) */}
+        <div
+          className="period-segmented-tabs"
+          role="tablist"
+          aria-label="Filtrar por estado"
+          style={{ flexShrink: 0 }}
+        >
           <button
             type="button"
-            className="search-clear-btn"
-            onClick={() => onFilterChange('documentNumber', '')}
-            aria-label="Limpiar filtro de documento"
+            role="tab"
+            aria-selected={status === 'ALL'}
+            className={`period-tab-btn ${status === 'ALL' ? 'selected' : ''}`}
+            onClick={() => onFilterChange('status', 'ALL')}
+          >
+            <span>Todos</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={status === 'ACTIVE'}
+            className={`period-tab-btn ${status === 'ACTIVE' ? 'selected' : ''}`}
+            onClick={() => onFilterChange('status', 'ACTIVE')}
+          >
+            <AppIcon name="check" size={12} />
+            <span>Activos</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={status === 'INACTIVE'}
+            className={`period-tab-btn ${status === 'INACTIVE' ? 'selected' : ''}`}
+            onClick={() => onFilterChange('status', 'INACTIVE')}
           >
             <AppIcon name="close" size={12} />
+            <span>Inactivos</span>
+          </button>
+        </div>
+
+        {/* Botón Limpiar Filtros cuando hay filtros activos */}
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="outline-button compact reset-filter-btn"
+            onClick={onResetFilters}
+            title="Limpiar todos los filtros aplicados"
+            style={{
+              marginLeft: 'auto',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              color: 'var(--red)',
+              borderColor: '#fca5a5',
+              background: '#fef2f2',
+            }}
+          >
+            <AppIcon name="close" size={12} color="var(--red)" />
+            <span>Limpiar</span>
           </button>
         )}
       </div>
 
-      {/* 3. Segmented Status Tabs */}
-      <div className="period-segmented-tabs" role="tablist" aria-label="Filtrar por estado">
-        {(['ALL', 'ACTIVE', 'INACTIVE'] as (CustomerStatus | 'ALL')[]).map((st) => (
-          <button
-            key={st}
-            type="button"
-            className={`tab-pill ${status === st ? 'active' : ''}`}
-            onClick={() => onFilterChange('status', st)}
-          >
-            {st === 'ALL' && 'Todos'}
-            {st === 'ACTIVE' && 'Activos'}
-            {st === 'INACTIVE' && 'Inactivos'}
-          </button>
-        ))}
-      </div>
-
-      {/* 4. Dropdown Selectors Group */}
-      <div className="filter-select-group">
+      {/* 2. Fila Secundaria: Filtros Avanzados (Tipo, Categoría, Lista, Ciudad, Actividad, Fechas) */}
+      <div
+        className="filter-select-group"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flexWrap: 'wrap',
+          width: '100%',
+          paddingTop: 10,
+          borderTop: '1px solid #f1f5f9',
+        }}
+      >
         {/* Tipo de cliente */}
-        <div className="filter-select-item" style={{ minWidth: 160 }}>
+        <div className="filter-select-item" style={{ minWidth: 155, flex: '1 1 155px' }}>
           <CustomSelect
             options={TYPE_OPTIONS}
             value={filters.customerType || 'ALL'}
@@ -161,7 +237,7 @@ export function CustomerFilters({
         </div>
 
         {/* Categoría */}
-        <div className="filter-select-item" style={{ minWidth: 170 }}>
+        <div className="filter-select-item" style={{ minWidth: 165, flex: '1 1 165px' }}>
           <CustomSelect
             options={CATEGORY_OPTIONS}
             value={filters.category || 'ALL'}
@@ -173,7 +249,7 @@ export function CustomerFilters({
         </div>
 
         {/* Lista de precios */}
-        <div className="filter-select-item" style={{ minWidth: 160 }}>
+        <div className="filter-select-item" style={{ minWidth: 155, flex: '1 1 155px' }}>
           <CustomSelect
             options={PRICE_LIST_OPTIONS}
             value={filters.priceList || 'ALL'}
@@ -185,7 +261,7 @@ export function CustomerFilters({
         </div>
 
         {/* Ciudad */}
-        <div className="filter-select-item" style={{ minWidth: 155 }}>
+        <div className="filter-select-item" style={{ minWidth: 150, flex: '1 1 150px' }}>
           <CustomSelect
             options={cityOptions}
             value={filters.city || 'ALL'}
@@ -197,7 +273,7 @@ export function CustomerFilters({
         </div>
 
         {/* Actividad / Saldo */}
-        <div className="filter-select-item" style={{ minWidth: 175 }}>
+        <div className="filter-select-item" style={{ minWidth: 170, flex: '1 1 170px' }}>
           <CustomSelect
             options={ACTIVITY_OPTIONS}
             value={currentActivityVal}
@@ -223,31 +299,19 @@ export function CustomerFilters({
         </div>
 
         {/* Date Range Filter */}
-        <DateRangeFilter
-          startDate={filters.startDate}
-          endDate={filters.endDate}
-          onChange={({ startDate, endDate }) => {
-            onFilterChange('startDate', startDate)
-            onFilterChange('endDate', endDate)
-          }}
-          placeholder="Fecha registro"
-          size="sm"
-        />
+        <div style={{ flex: '1 1 200px', minWidth: 180 }}>
+          <DateRangeFilter
+            startDate={filters.startDate}
+            endDate={filters.endDate}
+            onChange={({ startDate, endDate }) => {
+              onFilterChange('startDate', startDate)
+              onFilterChange('endDate', endDate)
+            }}
+            placeholder="Fecha registro"
+            size="sm"
+          />
+        </div>
       </div>
-
-      {/* 5. Reset Button */}
-      {hasActiveFilters && (
-        <button
-          type="button"
-          className="outline-button compact reset-filter-btn"
-          onClick={onResetFilters}
-          title="Limpiar todos los filtros"
-          style={{ marginLeft: 'auto' }}
-        >
-          <AppIcon name="close" size={12} />
-          <span>Limpiar</span>
-        </button>
-      )}
     </div>
   )
 }

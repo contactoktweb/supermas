@@ -66,7 +66,7 @@ export function CustomersPage({ onNavigate }: CustomersPageProps) {
 
   useEffect(() => {
     async function loadLocations() {
-      const { data } = await supabaseClient.from('locations').select('id, name, code').eq('is_active', true)
+      const { data } = await supabaseClient.from('locations').select('id, name, code').neq('status', 'INACTIVE')
       if (data) {
         setLocations(data.map((l: any) => ({ id: l.id, name: l.name, code: l.code })))
       }

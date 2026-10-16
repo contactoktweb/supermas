@@ -20,8 +20,16 @@ import {
   AccountingFilters,
   InventoryAccountMapping,
   AccountingPeriod,
+  ThirdParty,
+  LegalNature,
+  ThirdPartyType,
+  AccountNature,
 } from '../types'
-import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
+import {
+  AccountFormData,
+  ManualEntryFormData,
+  ThirdPartyFormData,
+} from '../schemas/accounting.schema'
 
 export class AccountingRepository {
   /**
@@ -274,6 +282,7 @@ export class AccountingRepository {
       consecutive,
       entry_number,
       date,
+      due_date,
       concept,
       document_type,
       document_reference,
@@ -291,6 +300,7 @@ export class AccountingRepository {
         account_id,
         debit_amount,
         credit_amount,
+        due_date,
         third_party_doc,
         third_party_name,
         cost_center_id,
@@ -350,6 +360,7 @@ export class AccountingRepository {
         debit: Number(l.debit_amount) || 0,
         credit: Number(l.credit_amount) || 0,
         description: l.description || '',
+        dueDate: l.due_date || (row as any).due_date || undefined,
         thirdPartyDoc: l.third_party_doc,
         thirdPartyName: l.third_party_name,
         costCenterId: l.cost_center_id,
@@ -362,6 +373,7 @@ export class AccountingRepository {
         id: row.id,
         entryNumber: row.entry_number,
         date: row.date,
+        dueDate: (row as any).due_date || undefined,
         period: (row.date || '').slice(0, 7),
         sourceType: (row.document_type as any) || 'MANUAL',
         documentNumber: row.document_reference,
@@ -399,6 +411,7 @@ export class AccountingRepository {
         consecutive,
         entry_number,
         date,
+        due_date,
         concept,
         document_type,
         document_reference,
@@ -414,6 +427,7 @@ export class AccountingRepository {
           account_id,
           debit_amount,
           credit_amount,
+          due_date,
           third_party_doc,
           third_party_name,
           cost_center_id,
@@ -426,7 +440,7 @@ export class AccountingRepository {
 
     if (error || !data) return null
 
-    const rawLines = data.accounting_entry_lines || []
+    const rawLines = (data as any).accounting_entry_lines || []
     const lines = rawLines.map((l: any) => ({
       id: l.id,
       accountId: l.account_id,
@@ -435,6 +449,7 @@ export class AccountingRepository {
       debit: Number(l.debit_amount) || 0,
       credit: Number(l.credit_amount) || 0,
       description: l.description || '',
+      dueDate: l.due_date || (data as any).due_date || undefined,
       thirdPartyDoc: l.third_party_doc,
       thirdPartyName: l.third_party_name,
       costCenterId: l.cost_center_id,
@@ -445,25 +460,26 @@ export class AccountingRepository {
 
     return {
       id: data.id,
-      entryNumber: data.entry_number,
-      date: data.date,
-      period: (data.date || '').slice(0, 7),
-      sourceType: (data.document_type as any) || 'MANUAL',
-      documentNumber: data.document_reference,
-      description: data.concept,
-      status: (data.status as any) || 'DRAFT',
-      locationId: data.location_id,
-      locationName: (data.locations as any)?.name || null,
+      entryNumber: (data as any).entry_number,
+      date: (data as any).date,
+      dueDate: (data as any).due_date || undefined,
+      period: ((data as any).date || '').slice(0, 7),
+      sourceType: ((data as any).document_type as any) || 'MANUAL',
+      documentNumber: (data as any).document_reference,
+      description: (data as any).concept,
+      status: ((data as any).status as any) || 'DRAFT',
+      locationId: (data as any).location_id,
+      locationName: ((data as any).locations as any)?.name || null,
       thirdPartyDoc: lines[0]?.thirdPartyDoc,
       thirdPartyName: lines[0]?.thirdPartyName,
       lines,
       totalDebit,
       totalCredit,
       isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
-      createdByUserId: data.created_by_user_id,
-      confirmedAt: data.posted_at,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      createdByUserId: (data as any).created_by_user_id,
+      confirmedAt: (data as any).posted_at,
+      createdAt: (data as any).created_at,
+      updatedAt: (data as any).updated_at,
     }
   }
 
@@ -486,6 +502,7 @@ export class AccountingRepository {
     }))
 
     const dateOnly = data.date.includes('T') ? data.date.slice(0, 10) : data.date
+    const dueDateOnly = data.dueDate ? (data.dueDate.includes('T') ? data.dueDate.slice(0, 10) : data.dueDate) : null
 
     const { data: res, error } = await supabaseClient.rpc('fn_create_accounting_entry', {
       p_date: dateOnly,
@@ -495,6 +512,7 @@ export class AccountingRepository {
       p_lines: linesPayload,
       p_location_id: data.locationId || null,
       p_auto_post: true,
+      p_due_date: dueDateOnly,
     })
 
     if (error || !res?.success) {
@@ -839,6 +857,284 @@ export class AccountingRepository {
     const p = await this.getPeriodByCode(periodCode)
     if (!p) throw new Error('No se pudo recuperar el periodo reabierto.')
     return p
+  }
+
+  /**
+   * Mapeo de fila a ThirdParty
+   */
+  private mapThirdParty(row: any): ThirdParty {
+    return {
+      id: row.id,
+      companyId: row.company_id,
+      documentType: row.document_type || 'NIT',
+      documentNumber: row.document_number,
+      verificationDigit: row.verification_digit || undefined,
+      legalNature: (row.legal_nature as LegalNature) || 'JURIDICA',
+      firstName: row.first_name || undefined,
+      otherNames: row.other_names || undefined,
+      firstSurname: row.first_surname || undefined,
+      secondSurname: row.second_surname || undefined,
+      companyName: row.company_name || row.document_number,
+      commercialName: row.commercial_name || undefined,
+      thirdPartyType: (row.third_party_type as ThirdPartyType) || 'OTRO',
+      email: row.email || undefined,
+      phone: row.phone || undefined,
+      address: row.address || undefined,
+      city: row.city || 'Medellín',
+      department: row.department || 'Antioquia',
+      isActive: row.is_active ?? true,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }
+  }
+
+  /**
+   * Obtiene la lista de terceros registrados con filtros opcionales
+   */
+  async getThirdParties(filters?: {
+    query?: string
+    nature?: LegalNature | 'ALL'
+    type?: ThirdPartyType | 'ALL'
+  }): Promise<ThirdParty[]> {
+    let query = supabaseClient
+      .from('third_parties')
+      .select('*')
+      .eq('is_active', true)
+      .order('company_name', { ascending: true })
+
+    if (filters?.nature && filters.nature !== 'ALL') {
+      query = query.eq('legal_nature', filters.nature)
+    }
+
+    if (filters?.type && filters.type !== 'ALL') {
+      query = query.eq('third_party_type', filters.type)
+    }
+
+    if (filters?.query?.trim()) {
+      const q = filters.query.trim()
+      query = query.or(`document_number.ilike.%${q}%,company_name.ilike.%${q}%,commercial_name.ilike.%${q}%`)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error consultando terceros:', error)
+      return []
+    }
+
+    return (data || []).map((row) => this.mapThirdParty(row))
+  }
+
+  /**
+   * Crea un nuevo tercero contable especificando naturaleza jurídica
+   */
+  async createThirdParty(data: ThirdPartyFormData): Promise<ThirdParty> {
+    const { data: userRow } = await supabaseClient.auth.getUser()
+    let companyId: string | undefined
+
+    if (userRow?.user?.id) {
+      const { data: u } = await supabaseClient
+        .from('users')
+        .select('company_id')
+        .eq('id', userRow.user.id)
+        .single()
+      companyId = u?.company_id
+    }
+
+    if (!companyId) {
+      const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
+      companyId = comp?.id
+    }
+
+    // Normalizar nombre completo para persona natural si no se suministró explícitamente
+    let finalCompanyName = data.companyName?.trim()
+    if (data.legalNature === 'NATURAL') {
+      const parts = [data.firstSurname, data.secondSurname, data.firstName, data.otherNames].filter(Boolean)
+      if (parts.length > 0) {
+        finalCompanyName = parts.join(' ')
+      }
+    }
+
+    const payload = {
+      company_id: companyId,
+      document_type: data.documentType,
+      document_number: data.documentNumber.trim(),
+      verification_digit: data.verificationDigit?.trim() || null,
+      legal_nature: data.legalNature,
+      first_name: data.firstName?.trim() || null,
+      other_names: data.otherNames?.trim() || null,
+      first_surname: data.firstSurname?.trim() || null,
+      second_surname: data.secondSurname?.trim() || null,
+      company_name: finalCompanyName,
+      commercial_name: data.commercialName?.trim() || null,
+      third_party_type: data.thirdPartyType,
+      email: data.email?.trim() || null,
+      phone: data.phone?.trim() || null,
+      address: data.address?.trim() || null,
+      city: data.city?.trim() || 'Medellín',
+      department: data.department?.trim() || 'Antioquia',
+      is_active: true,
+    }
+
+    const { data: created, error } = await supabaseClient
+      .from('third_parties')
+      .insert(payload)
+      .select()
+      .single()
+
+    if (error || !created) {
+      console.error('Error creando tercero en Supabase:', error)
+      throw new Error(`Error al registrar tercero: ${error?.message || 'Error desconocido'}`)
+    }
+
+    const mapped = this.mapThirdParty(created)
+
+    // Sincronización preventiva con módulos de Clientes o Proveedores según el rol
+    try {
+      if (data.thirdPartyType === 'CLIENTE' && companyId) {
+        const { data: existingCust } = await supabaseClient
+          .from('customers')
+          .select('id')
+          .eq('document_number', data.documentNumber.trim())
+          .limit(1)
+        if (!existingCust || existingCust.length === 0) {
+          await supabaseClient.from('customers').insert({
+            company_id: companyId,
+            document_type: data.documentType || 'CC',
+            document_number: data.documentNumber.trim(),
+            verification_digit: data.verificationDigit?.trim() || null,
+            first_name: data.legalNature === 'NATURAL' ? data.firstName?.trim() || null : null,
+            last_name: data.legalNature === 'NATURAL' ? data.firstSurname?.trim() || null : null,
+            company_name: finalCompanyName,
+            commercial_name: data.commercialName?.trim() || finalCompanyName,
+            person_type: data.legalNature === 'JURIDICA' ? 'COMPANY' : 'NATURAL',
+            customer_type: data.legalNature === 'JURIDICA' ? 'COMPANY' : 'INDIVIDUAL',
+            customer_category: 'RETAIL',
+            phone: data.phone?.trim() || null,
+            email: data.email?.trim().toLowerCase() || null,
+            address: data.address?.trim() || null,
+            city: data.city?.trim() || 'Medellín',
+            department: data.department?.trim() || 'Antioquia',
+            is_active: true,
+          })
+        }
+      } else if (data.thirdPartyType === 'PROVEEDOR' && companyId) {
+        const { data: existingSupp } = await supabaseClient
+          .from('suppliers')
+          .select('id')
+          .eq('tax_id', data.documentNumber.trim())
+          .limit(1)
+        if (!existingSupp || existingSupp.length === 0) {
+          await supabaseClient.from('suppliers').insert({
+            company_id: companyId,
+            tax_id: data.documentNumber.trim(),
+            verification_digit: data.verificationDigit?.trim() || null,
+            legal_name: finalCompanyName,
+            commercial_name: data.commercialName?.trim() || finalCompanyName,
+            name: data.commercialName?.trim() || finalCompanyName,
+            person_type: data.legalNature === 'JURIDICA' ? 'JURIDICA' : 'NATURAL',
+            phone: data.phone?.trim() || null,
+            email: data.email?.trim().toLowerCase() || null,
+            address: data.address?.trim() || null,
+            city: data.city?.trim() || 'Medellín',
+            department: data.department?.trim() || 'Antioquia',
+            is_active: true,
+          })
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Sincronización opcional de tercero con tabla legacy (clientes/proveedores):', syncErr)
+    }
+
+    return mapped
+  }
+
+  /**
+   * Actualiza el tipo o rol del tercero (CLIENTE, PROVEEDOR, EMPLEADO, ACREEDOR, OTRO)
+   */
+  async updateThirdPartyType(id: string, thirdPartyType: ThirdPartyType): Promise<ThirdParty> {
+    const { data: updated, error } = await supabaseClient
+      .from('third_parties')
+      .update({
+        third_party_type: thirdPartyType,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error || !updated) {
+      console.error('Error actualizando rol de tercero:', error)
+      throw new Error(`Error al actualizar rol del tercero: ${error?.message || 'Error desconocido'}`)
+    }
+
+    const mapped = this.mapThirdParty(updated)
+
+    // Sincronización preventiva si fue cambiado a Cliente o Proveedor
+    try {
+      if (thirdPartyType === 'CLIENTE' && mapped.companyId) {
+        const { data: existingCust } = await supabaseClient
+          .from('customers')
+          .select('id')
+          .eq('document_number', mapped.documentNumber)
+          .limit(1)
+        if (!existingCust || existingCust.length === 0) {
+          await supabaseClient.from('customers').insert({
+            company_id: mapped.companyId,
+            document_type: mapped.documentType || 'CC',
+            document_number: mapped.documentNumber,
+            verification_digit: mapped.verificationDigit || null,
+            first_name: mapped.firstName || null,
+            last_name: mapped.firstSurname || null,
+            company_name: mapped.companyName,
+            commercial_name: mapped.commercialName || mapped.companyName,
+            person_type: mapped.legalNature === 'JURIDICA' ? 'COMPANY' : 'NATURAL',
+            customer_type: mapped.legalNature === 'JURIDICA' ? 'COMPANY' : 'INDIVIDUAL',
+            customer_category: 'RETAIL',
+            phone: mapped.phone || null,
+            email: mapped.email?.toLowerCase() || null,
+            address: mapped.address || null,
+            city: mapped.city || 'Medellín',
+            department: mapped.department || 'Antioquia',
+            is_active: true,
+          })
+        }
+      } else if (thirdPartyType === 'PROVEEDOR' && mapped.companyId) {
+        const { data: existingSupp } = await supabaseClient
+          .from('suppliers')
+          .select('id')
+          .eq('tax_id', mapped.documentNumber)
+          .limit(1)
+        if (!existingSupp || existingSupp.length === 0) {
+          await supabaseClient.from('suppliers').insert({
+            company_id: mapped.companyId,
+            tax_id: mapped.documentNumber,
+            verification_digit: mapped.verificationDigit || null,
+            legal_name: mapped.companyName,
+            commercial_name: mapped.commercialName || mapped.companyName,
+            name: mapped.commercialName || mapped.companyName,
+            person_type: mapped.legalNature === 'JURIDICA' ? 'JURIDICA' : 'NATURAL',
+            phone: mapped.phone || null,
+            email: mapped.email?.toLowerCase() || null,
+            address: mapped.address || null,
+            city: mapped.city || 'Medellín',
+            department: mapped.department || 'Antioquia',
+            is_active: true,
+          })
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Sincronización opcional al actualizar tipo de tercero:', syncErr)
+    }
+
+    return mapped
+  }
+
+  /**
+   * Actualiza la naturaleza contable (Débito o Crédito) de una cuenta PUC
+   */
+  async updateAccountNature(accountId: string, nature: AccountNature): Promise<AccountingAccount> {
+    return this.updateAccount(accountId, { nature })
   }
 }
 

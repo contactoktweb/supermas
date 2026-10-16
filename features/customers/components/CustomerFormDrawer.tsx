@@ -326,7 +326,7 @@ export function CustomerFormDrawer({
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <button
                     type="button"
-                    className={`tab-pill ${customerType === 'NATURAL' ? 'active' : ''}`}
+                    className="outline-button"
                     onClick={() => {
                       setCustomerType('NATURAL')
                       if (documentType === 'NIT') setDocumentType('CC')
@@ -336,16 +336,21 @@ export function CustomerFormDrawer({
                       justifyContent: 'center',
                       borderRadius: 10,
                       fontWeight: 700,
+                      background: customerType === 'NATURAL' ? '#e9eef8' : '#ffffff',
+                      color: customerType === 'NATURAL' ? 'var(--navy)' : '#64748b',
                       border: customerType === 'NATURAL' ? '2px solid var(--navy)' : '1.5px solid #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                     }}
                   >
-                    <AppIcon name="users" size={15} />
+                    <AppIcon name="users" size={15} color={customerType === 'NATURAL' ? 'var(--navy)' : '#64748b'} />
                     <span>Persona Natural</span>
                   </button>
 
                   <button
                     type="button"
-                    className={`tab-pill ${customerType === 'COMPANY' ? 'active' : ''}`}
+                    className="outline-button"
                     onClick={() => {
                       setCustomerType('COMPANY')
                       setDocumentType('NIT')
@@ -355,11 +360,16 @@ export function CustomerFormDrawer({
                       justifyContent: 'center',
                       borderRadius: 10,
                       fontWeight: 700,
+                      background: customerType === 'COMPANY' ? '#e9eef8' : '#ffffff',
+                      color: customerType === 'COMPANY' ? 'var(--navy)' : '#64748b',
                       border: customerType === 'COMPANY' ? '2px solid var(--navy)' : '1.5px solid #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
                     }}
                   >
-                    <AppIcon name="warehouse" size={15} />
-                    <span>Empresa / Persona Jurídica</span>
+                    <AppIcon name="warehouse" size={15} color={customerType === 'COMPANY' ? 'var(--navy)' : '#64748b'} />
+                    <span>Empresa / Jurídica</span>
                   </button>
                 </div>
               </div>

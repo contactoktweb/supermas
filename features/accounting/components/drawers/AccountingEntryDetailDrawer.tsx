@@ -138,16 +138,22 @@ export function AccountingEntryDetailDrawer({
               <strong className="text-gray-800 font-medium">{formatDate(entry.date)}</strong>
             </div>
             <div>
+              <span className="text-gray-400 block text-[11px]">Fecha de Vencimiento</span>
+              {entry.dueDate ? (
+                <span className="text-xs font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
+                  {entry.dueDate}
+                </span>
+              ) : (
+                <strong className="text-gray-400 font-medium">Sin vencimiento</strong>
+              )}
+            </div>
+            <div>
               <span className="text-gray-400 block text-[11px]">Tipo de Origen</span>
               <strong className="text-gray-800 font-medium">{entry.sourceType}</strong>
             </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Documento Fuente</span>
               <strong className="font-mono text-blue-900">{entry.documentNumber || '—'}</strong>
-            </div>
-            <div>
-              <span className="text-gray-400 block text-[11px]">Bodega / CEDI</span>
-              <strong className="text-gray-800 font-medium">{entry.locationName || 'Bodega Principal'}</strong>
             </div>
           </div>
 

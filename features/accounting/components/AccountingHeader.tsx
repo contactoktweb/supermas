@@ -6,6 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 interface AccountingHeaderProps {
   onOpenNewEntry: () => void
   onOpenNewAccount: () => void
+  onOpenNewThirdParty?: () => void
   onExport: () => void
   onRefresh: () => void
   canCreateEntry: boolean
@@ -16,6 +17,7 @@ interface AccountingHeaderProps {
 export function AccountingHeader({
   onOpenNewEntry,
   onOpenNewAccount,
+  onOpenNewThirdParty,
   onExport,
   onRefresh,
   canCreateEntry,
@@ -57,6 +59,18 @@ export function AccountingHeader({
           <AppIcon name="download" size={16} />
           <span>Exportar</span>
         </button>
+
+        {canManageAccounts && onOpenNewThirdParty && (
+          <button
+            type="button"
+            className="outline-button"
+            onClick={onOpenNewThirdParty}
+            title="Registrar nuevo tercero contable (Persona Jurídica o Natural)"
+          >
+            <AppIcon name="users" size={16} />
+            <span>Nuevo Tercero</span>
+          </button>
+        )}
 
         {canManageAccounts && (
           <button

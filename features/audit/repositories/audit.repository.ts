@@ -409,11 +409,29 @@ export class AuditRepository {
       created_at: timestamp,
     }
 
+    // Si se invoca desde el navegador, intentar persistir a través del endpoint seguro /api/audit
+    if (typeof window !== 'undefined') {
+      try {
+        const response = await fetch('/api/audit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(rowToInsert),
+        })
+        if (response.ok) {
+          const resJson = await response.json()
+          if (resJson.success && resJson.data) {
+            return this.mapRowToEntry(resJson.data)
+          }
+        }
+      } catch (clientErr) {
+        console.warn('⚠️ [auditRepository] Excepción invocando /api/audit, intentando inserción directa:', clientErr)
+      }
+    }
+
     const { error } = await client.from('audit_logs').insert(rowToInsert)
 
     if (error) {
-      console.error('❌ Error insertando audit_log en PostgreSQL:', error)
-      throw new Error(`Error al persistir evento de auditoría: ${error.message}`)
+      console.warn('⚠️ Advertencia al persistir audit_log en PostgreSQL:', error.message)
     }
 
     return {

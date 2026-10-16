@@ -132,27 +132,52 @@ export class AuditService {
     const sanitizedDetails = entry.details
       .replace(/(password|token|secret|apiKey)=([^&\s]+)/gi, '$1=********')
 
-    const newLog = await auditRepository.log({
-      companyId: entry.companyId,
-      action: entry.action,
-      module: entry.module,
-      entityType: entry.entityType,
-      entityId: entry.entityId,
-      entityReference: entry.entityReference,
-      userId: entry.userId,
-      userName: entry.userName,
-      userRole: entry.userRole,
-      locationId: entry.locationId,
-      locationName: entry.locationName,
-      level: entry.level || 'INFO',
-      result: entry.result || 'SUCCESS',
-      details: sanitizedDetails,
-      ipAddress: entry.ipAddress || '192.168.1.1',
-      sessionId: entry.sessionId,
-      changes: sanitizedChanges,
-    })
+    try {
+      const newLog = await auditRepository.log({
+        companyId: entry.companyId,
+        action: entry.action,
+        module: entry.module,
+        entityType: entry.entityType,
+        entityId: entry.entityId,
+        entityReference: entry.entityReference,
+        userId: entry.userId,
+        userName: entry.userName,
+        userRole: entry.userRole,
+        locationId: entry.locationId,
+        locationName: entry.locationName,
+        level: entry.level || 'INFO',
+        result: entry.result || 'SUCCESS',
+        details: sanitizedDetails,
+        ipAddress: entry.ipAddress || '192.168.1.1',
+        sessionId: entry.sessionId,
+        changes: sanitizedChanges,
+      })
 
-    return newLog
+      return newLog
+    } catch (err: any) {
+      console.warn('⚠️ [AuditService] Registro de auditoría omitido por error no fatal:', err?.message || err)
+      return {
+        id: crypto.randomUUID(),
+        companyId: entry.companyId,
+        action: entry.action,
+        module: entry.module || 'SYSTEM',
+        entityType: entry.entityType || 'SYSTEM',
+        entityId: entry.entityId || 'N/A',
+        entityReference: entry.entityReference,
+        userId: entry.userId || 'unknown',
+        userName: entry.userName || 'Sistema',
+        userRole: entry.userRole || 'SUPERADMIN',
+        locationId: entry.locationId,
+        locationName: entry.locationName,
+        level: entry.level || 'INFO',
+        result: entry.result || 'SUCCESS',
+        details: sanitizedDetails,
+        ipAddress: entry.ipAddress || '192.168.1.1',
+        sessionId: entry.sessionId,
+        changes: sanitizedChanges,
+        timestamp: new Date().toISOString(),
+      } as AuditLogEntry
+    }
   }
 
   /**

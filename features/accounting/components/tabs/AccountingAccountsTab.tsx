@@ -1,8 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingAccount, AccountClass, AccountingFilters } from '../../types'
+import { AccountingAccount, AccountClass, AccountingFilters, AccountNature } from '../../types'
 
 interface AccountingAccountsTabProps {
   accounts: AccountingAccount[]
@@ -10,6 +10,7 @@ interface AccountingAccountsTabProps {
   onFilterChange: (filters: Partial<AccountingFilters>) => void
   onOpenNewAccount: () => void
   onInspectAccount: (accountId: string) => void
+  onUpdateNature?: (accountId: string, nature: AccountNature) => Promise<void>
   canManageAccounts: boolean
 }
 
@@ -29,8 +30,20 @@ export function AccountingAccountsTab({
   onFilterChange,
   onOpenNewAccount,
   onInspectAccount,
+  onUpdateNature,
   canManageAccounts,
 }: AccountingAccountsTabProps) {
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  const handleNatureChange = async (accountId: string, newNature: AccountNature) => {
+    if (!onUpdateNature || updatingId) return
+    try {
+      setUpdatingId(accountId)
+      await onUpdateNature(accountId, newNature)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
   return (
     <div className="space-y-4 page-enter">
       {/* Selector de Clases del PUC Colombia */}
@@ -200,13 +213,35 @@ export function AccountingAccountsTab({
                         </span>
                       </td>
                       <td>
-                        <span
-                          className={`badge text-[11px] font-semibold ${
-                            acc.nature === 'DEBIT' ? 'badge-blue' : 'badge-amber'
-                          }`}
-                        >
-                          {acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}
-                        </span>
+                        {canManageAccounts && onUpdateNature ? (
+                          <div className="relative inline-flex items-center">
+                            <select
+                              value={acc.nature}
+                              disabled={updatingId === acc.id}
+                              onChange={(e) => handleNatureChange(acc.id, e.target.value as AccountNature)}
+                              className={`text-[11px] font-bold py-1 px-2 pr-5 rounded-md border appearance-none cursor-pointer transition-all shadow-2xs ${
+                                acc.nature === 'DEBIT'
+                                  ? 'bg-blue-50/90 text-blue-900 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                                  : 'bg-amber-50/90 text-amber-900 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
+                              } ${updatingId === acc.id ? 'opacity-50 cursor-wait' : ''}`}
+                              title={`Naturaleza: ${acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}. Haz clic para cambiar.`}
+                            >
+                              <option value="DEBIT">Débito</option>
+                              <option value="CREDIT">Crédito</option>
+                            </select>
+                            <span className="pointer-events-none absolute right-1.5 text-slate-400 text-[9px]">
+                              ▼
+                            </span>
+                          </div>
+                        ) : (
+                          <span
+                            className={`badge text-[11px] font-semibold ${
+                              acc.nature === 'DEBIT' ? 'badge-blue' : 'badge-amber'
+                            }`}
+                          >
+                            {acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}
+                          </span>
+                        )}
                       </td>
                       <td>
                         {isAuxiliary ? (

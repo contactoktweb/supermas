@@ -11,6 +11,7 @@ import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { AccountingDashboardTab } from './tabs/AccountingDashboardTab'
 import { AccountingAccountsTab } from './tabs/AccountingAccountsTab'
 import { AccountingEntriesTab } from './tabs/AccountingEntriesTab'
+import { AccountingThirdPartiesTab } from './tabs/AccountingThirdPartiesTab'
 import { AccountingMovementsTab } from './tabs/AccountingMovementsTab'
 import { AccountingGeneralJournalTab } from './tabs/AccountingGeneralJournalTab'
 import { AccountingGeneralLedgerTab } from './tabs/AccountingGeneralLedgerTab'
@@ -24,17 +25,19 @@ import { AccountingConfigTab } from './tabs/AccountingConfigTab'
 import { AccountingEntryDetailDrawer } from './drawers/AccountingEntryDetailDrawer'
 import { NewManualEntryDrawer } from './drawers/NewManualEntryDrawer'
 import { NewAccountDrawer } from './drawers/NewAccountDrawer'
+import { NewThirdPartyModal } from './modals/NewThirdPartyModal'
 
 // Skeletons & Toasts
 import { AccountingStatsSkeleton, AccountingTableSkeleton } from './AccountingSkeleton'
 import { AccountingToastContainer, AccountingToastMessage } from './AccountingToast'
-import { AccountingEntry } from '../types'
-import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
+import { AccountingEntry, AccountNature, ThirdPartyType } from '../types'
+import { AccountFormData, ManualEntryFormData, ThirdPartyFormData } from '../schemas/accounting.schema'
 
 const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] = [
   { id: 'dashboard', label: 'Dashboard Contable', icon: 'dashboard' },
   { id: 'accounts', label: 'Plan de Cuentas (PUC)', icon: 'layers' },
   { id: 'entries', label: 'Asientos Contables', icon: 'receipt' },
+  { id: 'third_parties', label: 'Terceros (DIAN)', icon: 'users' },
   { id: 'movements', label: 'Libro Auxiliar', icon: 'table' },
   { id: 'journal', label: 'Libro Diario', icon: 'fileText' },
   { id: 'ledger', label: 'Libro Mayor', icon: 'accounting' },
@@ -55,6 +58,7 @@ export function AccountingPage() {
     dashboard,
     accounts,
     entries,
+    thirdParties,
     movements,
     auxiliaryReport,
     balanceSheet,
@@ -70,6 +74,9 @@ export function AccountingPage() {
     loadData,
     loadLedgerForAccount,
     createAccount,
+    updateAccountNature,
+    createThirdParty,
+    updateThirdPartyType,
     createManualEntry,
     reverseEntry,
     updateCategoryMapping,
@@ -91,6 +98,7 @@ export function AccountingPage() {
   // Modales y Drawers
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
   const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
+  const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
   const [selectedEntry, setSelectedEntry] = useState<AccountingEntry | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -125,6 +133,56 @@ export function AccountingPage() {
       )
     } catch (err: any) {
       addToast('error', 'No se pudo crear la cuenta', err.message)
+      throw err
+    }
+  }
+
+  const handleCreateThirdParty = async (data: ThirdPartyFormData) => {
+    try {
+      const created = await createThirdParty(data)
+      addToast(
+        'success',
+        'Tercero Registrado Exitosamente',
+        `${created.companyName} (${created.legalNature === 'JURIDICA' ? 'Persona Jurídica' : 'Persona Natural'}) ha sido guardado.`
+      )
+      return created
+    } catch (err: any) {
+      addToast('error', 'Error al registrar tercero', err.message)
+      throw err
+    }
+  }
+
+  const handleUpdateThirdPartyType = async (id: string, newType: ThirdPartyType) => {
+    try {
+      await updateThirdPartyType(id, newType)
+      const roleName =
+        newType === 'CLIENTE'
+          ? 'Cliente (Ventas)'
+          : newType === 'PROVEEDOR'
+          ? 'Proveedor (Compras)'
+          : newType === 'EMPLEADO'
+          ? 'Empleado'
+          : newType === 'ACREEDOR'
+          ? 'Acreedor'
+          : 'Otro'
+      addToast('success', 'Rol de Tercero Actualizado', `Clasificación modificada a: ${roleName}.`)
+    } catch (err: any) {
+      addToast('error', 'Error al cambiar rol del tercero', err.message)
+      throw err
+    }
+  }
+
+  const handleUpdateAccountNature = async (accountId: string, nature: AccountNature) => {
+    try {
+      await updateAccountNature(accountId, nature)
+      const acc = accounts.find((a) => a.id === accountId)
+      addToast(
+        'success',
+        'Naturaleza Contable Actualizada',
+        `Cuenta ${acc?.code || ''} configurada como naturaleza ${nature === 'DEBIT' ? 'Débito' : 'Crédito'}.`
+      )
+    } catch (err: any) {
+      addToast('error', 'Error al actualizar naturaleza', err.message)
       throw err
     }
   }
@@ -171,6 +229,7 @@ export function AccountingPage() {
       <AccountingHeader
         onOpenNewEntry={() => setIsNewEntryOpen(true)}
         onOpenNewAccount={() => setIsNewAccountOpen(true)}
+        onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
         onExport={handleExportCSV}
         onRefresh={handleRefresh}
         canCreateEntry={permissions.canCreateEntries}
@@ -241,6 +300,7 @@ export function AccountingPage() {
               onFilterChange={updateFilters}
               onOpenNewAccount={() => setIsNewAccountOpen(true)}
               onInspectAccount={handleInspectAccountInLedger}
+              onUpdateNature={handleUpdateAccountNature}
               canManageAccounts={permissions.canManageAccounts}
             />
           )}
@@ -253,6 +313,15 @@ export function AccountingPage() {
               onSelectEntry={(e) => setSelectedEntry(e)}
               onOpenNewEntry={() => setIsNewEntryOpen(true)}
               canCreateEntry={permissions.canCreateEntries}
+            />
+          )}
+
+          {activeTab === 'third_parties' && (
+            <AccountingThirdPartiesTab
+              thirdParties={thirdParties}
+              onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
+              canManageThirdParties={permissions.canManageAccounts}
+              onUpdateThirdPartyType={handleUpdateThirdPartyType}
             />
           )}
 
@@ -340,6 +409,8 @@ export function AccountingPage() {
         isOpen={isNewEntryOpen}
         onClose={() => setIsNewEntryOpen(false)}
         accounts={accounts}
+        thirdParties={thirdParties}
+        onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
         onSubmit={handleCreateManualEntry}
       />
 
@@ -348,6 +419,12 @@ export function AccountingPage() {
         onClose={() => setIsNewAccountOpen(false)}
         accounts={accounts}
         onSubmit={handleCreateAccount}
+      />
+
+      <NewThirdPartyModal
+        isOpen={isNewThirdPartyOpen}
+        onClose={() => setIsNewThirdPartyOpen(false)}
+        onSubmit={handleCreateThirdParty}
       />
 
       {/* Notificaciones flotantes */}

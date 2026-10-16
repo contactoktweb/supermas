@@ -26,8 +26,16 @@ import {
   ExogenaPrepItem,
   AccountingPermission,
   AccountingPeriod,
+  ThirdParty,
+  LegalNature,
+  ThirdPartyType,
+  AccountNature,
 } from '../types'
-import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
+import {
+  AccountFormData,
+  ManualEntryFormData,
+  ThirdPartyFormData,
+} from '../schemas/accounting.schema'
 
 const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
   SUPERADMIN: [
@@ -143,6 +151,102 @@ export class AccountingService {
       changes: [
         { field: 'name', label: 'Nombre', previousValue: previous?.name || '—', newValue: updated.name || '—' },
         { field: 'description', label: 'Descripción', previousValue: previous?.description || '—', newValue: updated.description || '—' },
+      ],
+    })
+
+    return updated
+  }
+
+  async updateAccountNature(
+    id: string,
+    nature: AccountNature,
+    user: { id: string; name: string; role: string }
+  ): Promise<AccountingAccount> {
+    this.assertPermission('accounting.accounts', user.role)
+    const previous = await accountingRepository.getAccountById(id)
+    const updated = await accountingRepository.updateAccountNature(id, nature)
+
+    await auditService.log({
+      action: 'ACCOUNT_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'ACCOUNTING_ACCOUNT',
+      entityId: updated.id,
+      entityReference: `${updated.code} - ${updated.name}`,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Cambio de naturaleza contable a ${nature} para la cuenta ${updated.code} (${updated.name})`,
+      changes: [
+        { field: 'nature', label: 'Naturaleza', previousValue: previous?.nature || '—', newValue: updated.nature },
+      ],
+    })
+
+    return updated
+  }
+
+  // --- TERCEROS CONTABLES (CLIENTES, PROVEEDORES, EMPLEADOS, ACREEDORES) ---
+
+  async getThirdParties(
+    filters?: { query?: string; nature?: LegalNature | 'ALL'; type?: ThirdPartyType | 'ALL' },
+    userRole: string = 'SUPERADMIN'
+  ): Promise<ThirdParty[]> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getThirdParties(filters)
+  }
+
+  async createThirdParty(
+    data: ThirdPartyFormData,
+    user: { id: string; name: string; role: string }
+  ): Promise<ThirdParty> {
+    const created = await accountingRepository.createThirdParty(data)
+
+    await auditService.log({
+      action: 'THIRD_PARTY_CREATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'THIRD_PARTY',
+      entityId: created.id,
+      entityReference: `${created.documentType} ${created.documentNumber} - ${created.companyName}`,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Registro de tercero: ${created.companyName} (${created.documentType} ${created.documentNumber}) - Rol: ${created.thirdPartyType} - Naturaleza Jurídica: ${created.legalNature}`,
+      changes: [
+        { field: 'documentNumber', label: 'Documento', previousValue: '—', newValue: created.documentNumber },
+        { field: 'companyName', label: 'Razón Social / Nombre', previousValue: '—', newValue: created.companyName },
+        { field: 'thirdPartyType', label: 'Rol / Tipo', previousValue: '—', newValue: created.thirdPartyType },
+        { field: 'legalNature', label: 'Naturaleza Jurídica', previousValue: '—', newValue: created.legalNature },
+      ],
+    })
+
+    return created
+  }
+
+  async updateThirdPartyType(
+    id: string,
+    thirdPartyType: ThirdPartyType,
+    user: { id: string; name: string; role: string }
+  ): Promise<ThirdParty> {
+    this.assertPermission('accounting.accounts', user.role)
+    const updated = await accountingRepository.updateThirdPartyType(id, thirdPartyType)
+
+    await auditService.log({
+      action: 'THIRD_PARTY_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'THIRD_PARTY',
+      entityId: updated.id,
+      entityReference: `${updated.documentType} ${updated.documentNumber} - ${updated.companyName}`,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Actualización de rol de tercero a: ${thirdPartyType} (${updated.companyName})`,
+      changes: [
+        { field: 'thirdPartyType', label: 'Rol / Tipo de Tercero', previousValue: 'ANTERIOR', newValue: thirdPartyType },
       ],
     })
 

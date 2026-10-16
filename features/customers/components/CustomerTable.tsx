@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { Customer, CustomerFilterParams } from '../types'
 
@@ -65,6 +65,26 @@ export function CustomerTable({
 }: CustomerTableProps) {
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
 
+  // Cerrar menú desplegable al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (activeMenuId && !(event.target as HTMLElement).closest('.customer-dropdown-menu-wrap')) {
+        setActiveMenuId(null)
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setActiveMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [activeMenuId])
+
   const handleSortClick = (field: CustomerFilterParams['sortBy']) => {
     onSort(field)
   }
@@ -86,7 +106,7 @@ export function CustomerTable({
 
   return (
     <div className="table-panel products-table-panel page-enter">
-      <div className="table-scroll">
+      <div className="table-scroll" style={{ minHeight: 300, paddingBottom: 70 }}>
         <table aria-label="Directorio de clientes">
           <thead>
             <tr>
@@ -219,16 +239,21 @@ export function CustomerTable({
               </tr>
             ) : (
               // Customer Rows
-              customers.map((c) => {
+              customers.map((c, idx) => {
                 const isGeneric = c.documentNumber === '222222222222'
                 const hasBalance = c.currentBalance > 0
                 const isMenuOpen = activeMenuId === c.id
+                const isNearBottom = idx >= Math.max(0, customers.length - 2) || customers.length <= 4
 
                 return (
                   <tr
                     key={c.id}
                     onClick={() => onViewDetail(c)}
-                    style={{ cursor: 'pointer' }}
+                    style={{
+                      cursor: 'pointer',
+                      position: 'relative',
+                      zIndex: isMenuOpen ? 50 : 1,
+                    }}
                   >
                     {/* Cliente / Razón Social (Sticky) */}
                     <td className="sticky-col">
@@ -350,7 +375,7 @@ export function CustomerTable({
 
                     {/* Acciones */}
                     <td
-                      style={{ textAlign: 'center', position: 'relative' }}
+                      style={{ textAlign: 'center', position: 'relative', zIndex: isMenuOpen ? 60 : 2 }}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -375,28 +400,40 @@ export function CustomerTable({
                         </button>
 
                         {/* Dropdown Menu Toggle */}
-                        <div style={{ position: 'relative' }}>
+                        <div className="customer-dropdown-menu-wrap" style={{ position: 'relative' }}>
                           <button
                             type="button"
                             className="icon-button"
                             title="Más opciones"
                             onClick={() => setActiveMenuId(isMenuOpen ? null : c.id)}
-                            style={{ width: 28, height: 28, borderRadius: 6 }}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 6,
+                              background: isMenuOpen ? '#e2e8f0' : undefined,
+                            }}
                           >
                             <AppIcon name="chevronDown" size={13} color="#64748b" />
                           </button>
 
                           {isMenuOpen && (
                             <div
-                              className="custom-select-dropdown"
+                              className="custom-select-dropdown animate-scale-up"
                               style={{
                                 position: 'absolute',
                                 right: 0,
-                                top: '100%',
-                                minWidth: 175,
+                                ...(isNearBottom
+                                  ? { bottom: 'calc(100% + 6px)', top: 'auto' }
+                                  : { top: 'calc(100% + 6px)', bottom: 'auto' }),
+                                minWidth: 195,
                                 zIndex: 99999,
                                 textAlign: 'left',
                                 padding: '6px 0',
+                                background: '#ffffff',
+                                borderRadius: 10,
+                                border: '1px solid #cbd5e1',
+                                boxShadow:
+                                  '0 12px 30px -4px rgba(15, 23, 42, 0.22), 0 4px 10px -2px rgba(15, 23, 42, 0.08)',
                               }}
                             >
                               <button

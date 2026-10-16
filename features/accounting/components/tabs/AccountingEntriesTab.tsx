@@ -174,7 +174,14 @@ export function AccountingEntriesTab({
                       </span>
                     </td>
                     <td>
-                      <span className="text-xs text-gray-600">{formatDate(entry.date)}</span>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-700">{formatDate(entry.date)}</span>
+                        {entry.dueDate && (
+                          <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 w-fit mt-0.5 font-medium" title="Fecha límite de vencimiento">
+                            Vence: {entry.dueDate}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>{getSourceTypeBadge(entry.sourceType)}</td>
                     <td>

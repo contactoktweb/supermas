@@ -52,6 +52,7 @@ export const manualEntryLineSchema = z.object({
 export const manualEntrySchema = z
   .object({
     date: z.string().min(1, 'La fecha es obligatoria'),
+    dueDate: z.string().optional(),
     description: z
       .string()
       .min(5, 'La descripción general debe tener al menos 5 caracteres')
@@ -89,6 +90,33 @@ export const manualEntrySchema = z
   )
 
 export type ManualEntryFormData = z.infer<typeof manualEntrySchema>
+
+export const thirdPartySchema = z.object({
+  documentType: z.enum(['CC', 'NIT', 'CE', 'PASSPORT', 'TI']).default('NIT'),
+  documentNumber: z
+    .string()
+    .min(3, 'El número de identificación debe tener al menos 3 caracteres')
+    .max(30, 'Máximo 30 caracteres'),
+  verificationDigit: z.string().max(1).optional(),
+  legalNature: z.enum(['NATURAL', 'JURIDICA']).default('JURIDICA'),
+  firstName: z.string().max(100).optional(),
+  otherNames: z.string().max(100).optional(),
+  firstSurname: z.string().max(100).optional(),
+  secondSurname: z.string().max(100).optional(),
+  companyName: z
+    .string()
+    .min(2, 'La razón social o nombre completo es obligatorio')
+    .max(200, 'Máximo 200 caracteres'),
+  commercialName: z.string().max(200).optional(),
+  thirdPartyType: z.enum(['CLIENTE', 'PROVEEDOR', 'EMPLEADO', 'ACREEDOR', 'OTRO']).default('OTRO'),
+  email: z.string().email('Correo electrónico inválido').optional().or(z.literal('')),
+  phone: z.string().max(50).optional(),
+  address: z.string().max(250).optional(),
+  city: z.string().max(100).default('Medellín'),
+  department: z.string().max(100).default('Antioquia'),
+})
+
+export type ThirdPartyFormData = z.infer<typeof thirdPartySchema>
 
 export const reverseEntrySchema = z.object({
   reason: z

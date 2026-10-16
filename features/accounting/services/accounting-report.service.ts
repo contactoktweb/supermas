@@ -757,7 +757,7 @@ export class AccountingReportService {
       .from('locations')
       .select('id, name, code, type')
       .eq('company_id', companyId)
-      .eq('is_active', true)
+      .neq('status', 'INACTIVE')
 
     const movements = await accountingRepository.getAllMovements()
 

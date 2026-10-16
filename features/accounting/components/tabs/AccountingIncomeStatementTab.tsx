@@ -22,7 +22,8 @@ export function AccountingIncomeStatementTab({
     supabaseClient
       .from('locations')
       .select('id, name')
-      .eq('is_active', true)
+      .neq('status', 'INACTIVE')
+      .order('name')
       .then(({ data }) => {
         if (data) setLocations(data)
       })

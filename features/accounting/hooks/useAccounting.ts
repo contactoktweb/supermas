@@ -17,13 +17,22 @@ import {
   InventoryAccountMapping,
   ExogenaPrepItem,
   AccountingFilters,
+  ThirdParty,
+  LegalNature,
+  ThirdPartyType,
+  AccountNature,
 } from '../types'
-import { AccountFormData, ManualEntryFormData } from '../schemas/accounting.schema'
+import {
+  AccountFormData,
+  ManualEntryFormData,
+  ThirdPartyFormData,
+} from '../schemas/accounting.schema'
 
 export type AccountingTab =
   | 'dashboard'
   | 'accounts'
   | 'entries'
+  | 'third_parties'
   | 'movements'
   | 'journal'
   | 'ledger'
@@ -44,6 +53,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
   const [totalAccounts, setTotalAccounts] = useState(0)
   const [entries, setEntries] = useState<AccountingEntry[]>([])
   const [totalEntries, setTotalEntries] = useState(0)
+  const [thirdParties, setThirdParties] = useState<ThirdParty[]>([])
   const [movements, setMovements] = useState<AccountingMovement[]>([])
   const [totalMovements, setTotalMovements] = useState(0)
   const [auxiliaryReport, setAuxiliaryReport] = useState<AuxiliaryLedgerReport | null>(null)
@@ -83,7 +93,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       setIsLoading(true)
       setError(null)
 
-      const [dashRes, accsRes, entriesRes, movsRes, auxRes, bsRes, isRes, cxcRes, cxpRes, costsRes, mapRes, exoRes] =
+      const [dashRes, accsRes, entriesRes, movsRes, auxRes, bsRes, isRes, cxcRes, cxpRes, costsRes, mapRes, exoRes, tpsRes] =
         await Promise.all([
           accountingService.getDashboard(userRole),
           accountingService.getAccounts(filters, userRole),
@@ -97,6 +107,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
           accountingService.getCostAnalysis({ locationId: filters.locationId }, userRole),
           accountingService.getCategoryMappings(userRole),
           accountingService.getExogenaPreparation(userRole),
+          accountingService.getThirdParties({}, userRole),
         ])
 
       setDashboard(dashRes)
@@ -104,6 +115,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       setTotalAccounts(accsRes.total)
       setEntries(entriesRes.data)
       setTotalEntries(entriesRes.total)
+      setThirdParties(tpsRes)
       setMovements(movsRes.data)
       setTotalMovements(movsRes.total)
       setAuxiliaryReport(auxRes)
@@ -180,6 +192,42 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       role: userRole,
     })
     await loadData()
+    return updated
+  }
+
+  const updateAccountNature = async (id: string, nature: AccountNature) => {
+    const updated = await accountingService.updateAccountNature(id, nature, {
+      id: 'usr-admin',
+      name: 'Admin Mauricio',
+      role: userRole,
+    })
+    await loadData()
+    return updated
+  }
+
+  const loadThirdParties = async (filters?: { query?: string; nature?: LegalNature | 'ALL'; type?: ThirdPartyType | 'ALL' }) => {
+    const data = await accountingService.getThirdParties(filters, userRole)
+    setThirdParties(data)
+    return data
+  }
+
+  const createThirdParty = async (data: ThirdPartyFormData) => {
+    const created = await accountingService.createThirdParty(data, {
+      id: 'usr-admin',
+      name: 'Admin Mauricio',
+      role: userRole,
+    })
+    setThirdParties((prev) => [created, ...prev])
+    return created
+  }
+
+  const updateThirdPartyType = async (id: string, type: ThirdPartyType) => {
+    const updated = await accountingService.updateThirdPartyType(id, type, {
+      id: 'usr-admin',
+      name: 'Admin Mauricio',
+      role: userRole,
+    })
+    setThirdParties((prev) => prev.map((tp) => (tp.id === id ? { ...tp, thirdPartyType: type } : tp)))
     return updated
   }
 
@@ -284,6 +332,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     totalAccounts,
     entries,
     totalEntries,
+    thirdParties,
     movements,
     totalMovements,
     auxiliaryReport,
@@ -302,6 +351,10 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     loadLedgerForAccount,
     createAccount,
     updateAccount,
+    updateAccountNature,
+    createThirdParty,
+    updateThirdPartyType,
+    loadThirdParties,
     createManualEntry,
     reverseEntry,
     updateCategoryMapping,

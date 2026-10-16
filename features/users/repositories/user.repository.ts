@@ -7,9 +7,17 @@
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
+import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import { User, UserFilters, UserStats, UserRole, UserStatus } from '../types'
 import { AuditLogEntry } from '@/features/audit/types'
+
+function getDbClient() {
+  if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return supabaseAdmin
+  }
+  return supabaseClient
+}
 
 function mapDbUserToDomain(row: any): User {
   const fullName = row.full_name || row.email || ''
@@ -57,7 +65,7 @@ export class UserRepository {
    * Consulta el listado de usuarios con filtros aplicados desde PostgreSQL.
    */
   async getUsers(filters: UserFilters = {}): Promise<User[]> {
-    let query = supabaseClient
+    let query = getDbClient()
       .from('users')
       .select(`
         id,
@@ -120,7 +128,7 @@ export class UserRepository {
    * Obtiene un usuario por ID desde PostgreSQL.
    */
   async getUserById(id: string): Promise<User | null> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await getDbClient()
       .from('users')
       .select(`
         id,
@@ -368,7 +376,7 @@ export class UserRepository {
     }
 
     if (updates.role !== undefined) {
-      const { data: roleRow, error: roleError } = await supabaseClient
+      const { data: roleRow, error: roleError } = await getDbClient()
         .from('roles')
         .select('id')
         .eq('code', updates.role)
@@ -380,7 +388,7 @@ export class UserRepository {
       updatesPayload.role_id = roleRow.id
     }
 
-    const { error: updateError } = await supabaseClient
+    const { error: updateError } = await getDbClient()
       .from('users')
       .update(updatesPayload)
       .eq('id', id)
@@ -392,14 +400,14 @@ export class UserRepository {
 
     // Sincronizar bodegas asignadas si se proporcionaron
     if (updates.locationIds !== undefined) {
-      await supabaseClient.from('user_locations').delete().eq('user_id', id)
+      await getDbClient().from('user_locations').delete().eq('user_id', id)
       if (updates.locationIds.length > 0) {
         const locRows = updates.locationIds.map((locId, idx) => ({
           user_id: id,
           location_id: locId,
           is_primary: idx === 0,
         }))
-        const { error: locError } = await supabaseClient
+        const { error: locError } = await getDbClient()
           .from('user_locations')
           .insert(locRows)
 
@@ -427,7 +435,7 @@ export class UserRepository {
    * Consulta la actividad histórica reciente de un usuario desde public.audit_logs.
    */
   async getUserActivity(userId: string): Promise<AuditLogEntry[]> {
-    const { data, error } = await supabaseClient
+    const { data, error } = await getDbClient()
       .from('audit_logs')
       .select('*')
       .eq('user_id', userId)

@@ -135,6 +135,7 @@ export interface AccountingFilters {
   query?: string
   accountClass?: AccountClass | 'ALL'
   nature?: AccountNature | 'ALL'
+  level?: AccountLevel | 'ALL' | 'IMPUTABLE'
   status?: AccountStatus | 'ALL'
   sourceType?: AccountingSourceType | 'ALL'
   entryStatus?: AccountingEntryStatus | 'ALL'

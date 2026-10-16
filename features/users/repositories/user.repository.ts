@@ -195,18 +195,43 @@ export class UserRepository {
   }
 
   /**
-   * Registra un nuevo usuario en PostgreSQL.
+   * Registra un nuevo usuario en PostgreSQL vinculándolo fiduciariamente a Supabase Auth.
    */
   async createUser(
     data: Omit<User, 'id' | 'createdAt' | 'lastLoginAt' | 'avatar' | 'name' | 'locationName'> & {
       id?: string
       companyId?: string
+      password?: string
     }
   ): Promise<User> {
-    const companyId = data.companyId || (await resolveUserCompanyId())
+    // Si se invoca desde el navegador del cliente, delegar al endpoint de servidor seguro
+    if (typeof window !== 'undefined') {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Error al registrar el usuario en el servidor.')
+      }
+      return result.data
+    }
+
+    // Contexto de servidor (scripts, tests, SSR)
+    const { supabaseAdmin } = await import('@/lib/supabase/admin')
+    let companyId = data.companyId
+    if (!companyId) {
+      try {
+        companyId = await resolveUserCompanyId()
+      } catch {
+        const { data: comp } = await supabaseAdmin.from('companies').select('id').limit(1).maybeSingle()
+        companyId = comp?.id || ''
+      }
+    }
 
     // Resolver role_id según código de rol
-    const { data: roleRow, error: roleError } = await supabaseClient
+    const { data: roleRow, error: roleError } = await supabaseAdmin
       .from('roles')
       .select('id')
       .eq('code', data.role)
@@ -216,11 +241,32 @@ export class UserRepository {
       throw new Error(`No se encontró el rol especificado: ${data.role}`)
     }
 
-    const userId = data.id || crypto.randomUUID()
+    let userId = data.id
+    if (!userId) {
+      const password = data.password || `SuperMas${new Date().getFullYear()}*`
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email.toLowerCase().trim(),
+        password,
+        email_confirm: true,
+        app_metadata: {
+          role: data.role,
+          company_id: companyId,
+        },
+        user_metadata: {
+          full_name: `${data.firstName.trim()} ${data.lastName.trim()}`,
+          phone: data.phone || null,
+        },
+      })
+      if (authError || !authData?.user) {
+        throw new Error(`Error al crear usuario en Supabase Auth: ${authError?.message || 'Fallo desconocido'}`)
+      }
+      userId = authData.user.id
+    }
+
     const fullName = `${data.firstName.trim()} ${data.lastName.trim()}`
     const initials = `${data.firstName.charAt(0)}${data.lastName.charAt(0) || data.firstName.charAt(1) || ''}`.toUpperCase()
 
-    const { error: insertUserError } = await supabaseClient
+    const { error: insertUserError } = await supabaseAdmin
       .from('users')
       .upsert(
         {
@@ -244,12 +290,13 @@ export class UserRepository {
 
     // Insertar asignaciones a bodegas
     if (data.locationIds && data.locationIds.length > 0) {
+      await supabaseAdmin.from('user_locations').delete().eq('user_id', userId)
       const locRows = data.locationIds.map((locId, idx) => ({
         user_id: userId,
         location_id: locId,
         is_primary: idx === 0,
       }))
-      const { error: locError } = await supabaseClient
+      const { error: locError } = await supabaseAdmin
         .from('user_locations')
         .insert(locRows)
 
@@ -258,11 +305,34 @@ export class UserRepository {
       }
     }
 
-    const created = await this.getUserById(userId)
-    if (!created) {
+    const { data: createdRow } = await supabaseAdmin
+      .from('users')
+      .select(`
+        id,
+        company_id,
+        role_id,
+        email,
+        full_name,
+        phone,
+        avatar_url,
+        is_active,
+        last_login_at,
+        created_at,
+        updated_at,
+        roles:role_id ( id, code, name ),
+        user_locations (
+          location_id,
+          is_primary,
+          locations:location_id ( id, code, name )
+        )
+      `)
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!createdRow) {
       throw new Error('No se pudo recuperar el usuario recién creado.')
     }
-    return created
+    return mapDbUserToDomain(createdRow)
   }
 
   /**

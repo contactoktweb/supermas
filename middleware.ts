@@ -24,6 +24,14 @@ export function middleware(request: NextRequest) {
 
   const isPublicAuthPage = pathname === '/login' || pathname === '/recuperar-contrasena'
 
+  // Manejo de llamadas API sin autenticación (retornar JSON en lugar de redirección HTML)
+  if (pathname.startsWith('/api/')) {
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'No autorizado: sesión requerida' }, { status: 401 })
+    }
+    return NextResponse.next()
+  }
+
   // 1. Usuario NO autenticado intentando acceder a ruta protegida
   if (!token && !isPublicAuthPage) {
     const loginUrl = new URL('/login', request.url)

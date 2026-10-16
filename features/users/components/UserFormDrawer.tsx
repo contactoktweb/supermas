@@ -31,6 +31,7 @@ export function UserFormDrawer({
   const [role, setRole] = useState<UserRole>('SELLER')
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
   const [status, setStatus] = useState<UserStatus>('ACTIVE')
+  const [password, setPassword] = useState('')
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -45,6 +46,7 @@ export function UserFormDrawer({
       setRole(initialData.role)
       setSelectedLocations(initialData.locationIds || [])
       setStatus(initialData.status)
+      setPassword('')
     } else {
       setFirstName('')
       setLastName('')
@@ -54,6 +56,7 @@ export function UserFormDrawer({
       setRole('SELLER')
       setSelectedLocations(locations.length > 0 ? [locations[0].id] : [])
       setStatus('ACTIVE')
+      setPassword('')
     }
     setErrorMessage(null)
   }, [initialData, isOpen, locations])
@@ -114,6 +117,7 @@ export function UserFormDrawer({
         role,
         locationIds: selectedLocations,
         status,
+        password: password.trim() ? password.trim() : undefined,
       }
 
       await onSave(payload)
@@ -332,6 +336,31 @@ export function UserFormDrawer({
               </select>
             </div>
           </div>
+
+          {/* Contraseña Inicial (Solo al registrar nuevo usuario) */}
+          {!isEditing && (
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+                Contraseña Inicial (Opcional)
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Por defecto: SuperMas2026*"
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: 6,
+                  border: '1px solid var(--line, #cbd5e1)',
+                  fontSize: 14,
+                }}
+              />
+              <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                Si se deja en blanco, el sistema asignará automáticamente <code>SuperMas{new Date().getFullYear()}*</code>.
+              </span>
+            </div>
+          )}
 
           {/* Selección de Rol Predefinido */}
           <div>

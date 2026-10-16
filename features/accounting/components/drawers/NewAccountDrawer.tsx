@@ -154,9 +154,9 @@ export function NewAccountDrawer({
         <form onSubmit={handleSubmit} className="space-y-3 py-3 text-xs flex-1 flex flex-col justify-between">
           <div className="space-y-3">
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">Clase PUC:</label>
+              <label className="block font-semibold text-slate-700 mb-1">Clase PUC:</label>
               <select
-                className="filter-select w-full"
+                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                 value={accountClass}
                 onChange={(e) => handleClassChange(Number(e.target.value) as AccountClass)}
               >
@@ -172,38 +172,64 @@ export function NewAccountDrawer({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Código de Cuenta:</label>
+                <label className="block font-semibold text-slate-700 mb-1">Código de Cuenta:</label>
                 <input
                   type="text"
-                  placeholder="Ej: 143505"
-                  className="filter-select w-full font-mono font-semibold"
+                  placeholder="Ej: 111005.01"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 font-mono font-semibold placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    const cleaned = e.target.value.replace(/[^0-9.]/g, '')
+                    setCode(cleaned)
+                    if (cleaned.includes('.') || cleaned.length >= 8) {
+                      setLevel('AUXILIARY')
+                    } else if (cleaned.length === 6) {
+                      setLevel('SUBACCOUNT')
+                    } else if (cleaned.length === 4) {
+                      setLevel('ACCOUNT')
+                    } else if (cleaned.length === 2) {
+                      setLevel('GROUP')
+                    } else if (cleaned.length === 1) {
+                      setLevel('CLASS')
+                    }
+                  }}
                   required
                 />
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Nivel Jerárquico:</label>
+                <label className="block font-semibold text-slate-700 mb-1">Nivel Jerárquico:</label>
                 <select
-                  className="filter-select w-full"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={level}
                   onChange={(e) => setLevel(e.target.value as AccountLevel)}
                 >
-                  <option value="CLASS">Clase (1 dígito)</option>
-                  <option value="GROUP">Grupo (2 dígitos)</option>
-                  <option value="ACCOUNT">Cuenta (4 dígitos)</option>
-                  <option value="SUBACCOUNT">Subcuenta (6 dígitos)</option>
-                  <option value="AUXILIARY">Auxiliar (8 dígitos)</option>
+                  <option value="CLASS">Clase (1 dígito - Nivel 1)</option>
+                  <option value="GROUP">Grupo (2 dígitos - Nivel 2)</option>
+                  <option value="ACCOUNT">Cuenta Mayor (4 dígitos - Nivel 3 - No imputable)</option>
+                  <option value="SUBACCOUNT">Subcuenta (6 dígitos - Nivel 4 - Imputable)</option>
+                  <option value="AUXILIARY">Auxiliar / Subcuenta Detalle (ej: 111005.01 - Nivel 5 - Imputable)</option>
                 </select>
               </div>
             </div>
 
+            <div className="text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+              {level === 'ACCOUNT' || level === 'GROUP' || level === 'CLASS' ? (
+                <span className="text-amber-700 font-medium">
+                  ⚠️ Nivel no imputable: Las cuentas de mayor (4 dígitos) son de acumulación. No se usan directamente para transacciones.
+                </span>
+              ) : (
+                <span className="text-emerald-700 font-medium">
+                  ✅ Nivel imputable: Las subcuentas y auxiliares (ej: 111005 o 111005.01) se utilizan directamente en asientos y comprobantes.
+                </span>
+              )}
+            </div>
+
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">Nombre de la Cuenta:</label>
+              <label className="block font-semibold text-slate-700 mb-1">Nombre de la Cuenta:</label>
               <input
                 type="text"
                 placeholder="Ej: Inventario - Línea Cuidado Personal"
-                className="filter-select w-full font-medium"
+                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 font-medium placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -212,9 +238,9 @@ export function NewAccountDrawer({
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Naturaleza Contable:</label>
+                <label className="block font-semibold text-slate-700 mb-1">Naturaleza Contable:</label>
                 <select
-                  className="filter-select w-full font-semibold"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={nature}
                   onChange={(e) => setNature(e.target.value as AccountNature)}
                 >
@@ -223,9 +249,9 @@ export function NewAccountDrawer({
                 </select>
               </div>
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Cuenta Padre (Superior):</label>
+                <label className="block font-semibold text-slate-700 mb-1">Cuenta Padre (Superior):</label>
                 <select
-                  className="filter-select w-full"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={parentId}
                   onChange={(e) => setParentId(e.target.value)}
                 >
@@ -242,9 +268,9 @@ export function NewAccountDrawer({
             </div>
 
             <div>
-              <label className="block font-semibold text-gray-700 mb-1">Descripción / Uso:</label>
+              <label className="block font-semibold text-slate-700 mb-1">Descripción / Uso:</label>
               <textarea
-                className="filter-select w-full h-16"
+                className="w-full h-16 p-2.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm resize-none"
                 placeholder="Describe el tipo de operaciones o mercancías que se registran en esta cuenta..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}

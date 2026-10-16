@@ -11,8 +11,8 @@ export const accountSchema = z.object({
   code: z
     .string()
     .min(1, 'El código de cuenta es obligatorio')
-    .max(10, 'El código no puede exceder 10 caracteres')
-    .regex(/^\d+$/, 'El código debe contener únicamente números'),
+    .max(20, 'El código no puede exceder 20 caracteres')
+    .regex(/^[\d.]+$|^[\d]+(\.[\d]+)*$/, 'El código debe contener números y puntos para subcuentas (ej: 111005.01)'),
   name: z
     .string()
     .min(3, 'El nombre debe tener al menos 3 caracteres')

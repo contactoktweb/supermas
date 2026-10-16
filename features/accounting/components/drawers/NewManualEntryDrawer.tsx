@@ -65,29 +65,80 @@ export function NewManualEntryDrawer({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
+  // Separar cuentas imputables para la selección
+  const imputableAccounts = accounts.filter(
+    (a) => a.level === 'SUBACCOUNT' || a.level === 'AUXILIARY'
+  )
+  const auxiliaryAccounts = imputableAccounts.filter((a) => a.level === 'AUXILIARY')
+  const subAccounts = imputableAccounts.filter((a) => a.level === 'SUBACCOUNT')
+
   const [lines, setLines] = useState<TempLine[]>([
     {
       id: 'line-1',
-      accountId: 'acc-110505',
-      accountCode: '110505',
-      accountName: 'Caja General y Puntos de Venta',
+      accountId: '',
+      accountCode: '',
+      accountName: '',
       debit: 0,
       credit: 0,
       description: '',
     },
     {
       id: 'line-2',
-      accountId: 'acc-413501',
-      accountCode: '413501',
-      accountName: 'Venta de Abarrotes y Víveres',
+      accountId: '',
+      accountCode: '',
+      accountName: '',
       debit: 0,
       credit: 0,
       description: '',
     },
   ])
 
-  if (!isOpen || !mounted) return null
+  // Sincronizar con cuentas imputables reales cuando se abra el modal o carguen las cuentas
+  useEffect(() => {
+    if (isOpen && accounts.length > 0) {
+      setLines((prev) => {
+        const hasValidAccs =
+          prev.length >= 2 &&
+          prev.every((l) => l.accountId && accounts.some((a) => a.id === l.accountId))
+        if (hasValidAccs) return prev
 
+        const imp = accounts.filter((a) => a.level === 'AUXILIARY' || a.level === 'SUBACCOUNT')
+        if (imp.length === 0) return prev
+
+        // Débito sugerido: Caja o Bancos (auxiliar o subcuenta)
+        const defaultDebit =
+          imp.find((a) => a.code.startsWith('111005') || a.code.startsWith('110505')) || imp[0]
+        // Crédito sugerido: Ventas o Proveedores
+        const defaultCredit =
+          imp.find((a) => a.code.startsWith('413501') || a.code.startsWith('220505')) ||
+          imp[1] ||
+          imp[0]
+
+        return [
+          {
+            id: 'line-1',
+            accountId: defaultDebit.id,
+            accountCode: defaultDebit.code,
+            accountName: defaultDebit.name,
+            debit: 0,
+            credit: 0,
+            description: '',
+          },
+          {
+            id: 'line-2',
+            accountId: defaultCredit.id,
+            accountCode: defaultCredit.code,
+            accountName: defaultCredit.name,
+            debit: 0,
+            credit: 0,
+            description: '',
+          },
+        ]
+      })
+    }
+  }, [isOpen, accounts])
+
+  if (!isOpen || !mounted) return null
 
   const totalDebit = lines.reduce((acc, l) => acc + (Number(l.debit) || 0), 0)
   const totalCredit = lines.reduce((acc, l) => acc + (Number(l.credit) || 0), 0)
@@ -95,7 +146,8 @@ export function NewManualEntryDrawer({
   const isBalanced = difference < 0.01 && totalDebit > 0
 
   const handleAddLine = () => {
-    const firstAcc = accounts[0]
+    // Buscar la primera cuenta imputable (auxiliar preferentemente o subcuenta)
+    const firstAcc = auxiliaryAccounts[0] || subAccounts[0] || accounts[0]
     setLines((prev) => [
       ...prev,
       {
@@ -126,6 +178,11 @@ export function NewManualEntryDrawer({
   const handleAccountSelect = (index: number, accountId: string) => {
     const acc = accounts.find((a) => a.id === accountId)
     if (acc) {
+      if (acc.level === 'ACCOUNT' || acc.level === 'GROUP' || acc.level === 'CLASS') {
+        setFormError(`La cuenta ${acc.code} (${acc.name}) es de nivel Mayor y no es imputable. Debe utilizar una subcuenta (nivel 4) o auxiliar (nivel 5, ej: 111005.01).`)
+        return
+      }
+      setFormError(null)
       handleUpdateLine(index, {
         accountId: acc.id,
         accountCode: acc.code,
@@ -146,6 +203,15 @@ export function NewManualEntryDrawer({
     if (!isBalanced) {
       setFormError('Partida doble descuadrada: El Total Débito debe ser exactamente igual al Total Crédito y mayor a cero.')
       return
+    }
+
+    // Validar que ninguna línea use cuenta de nivel Mayor (no imputable)
+    for (const l of lines) {
+      const acc = accounts.find((a) => a.id === l.accountId || a.code === l.accountCode)
+      if (acc && (acc.level === 'CLASS' || acc.level === 'GROUP' || acc.level === 'ACCOUNT')) {
+        setFormError(`La cuenta "${acc.code} - ${acc.name}" es de nivel Mayor (no imputable). En los asientos deben utilizarse subcuentas o auxiliares (ej: 111005.01).`)
+        return
+      }
     }
 
     try {
@@ -175,251 +241,311 @@ export function NewManualEntryDrawer({
   }
 
   return createPortal(
-    <div className="drawer-backdrop" onClick={onClose} aria-modal="true" role="dialog">
+    <div className="drawer-backdrop modal-center p-3 sm:p-4" onClick={onClose} aria-modal="true" role="dialog">
       <div
-        className="product-drawer page-enter"
+        className="modal-card animate-scale-up"
         style={{
-          width: 'min(100%, 820px)',
+          width: '100%',
+          maxWidth: 940,
+          maxHeight: '92vh',
           display: 'flex',
           flexDirection: 'column',
-          height: '100%',
-          maxHeight: '100vh',
           background: '#ffffff',
-          padding: '24px 28px',
-          overflowY: 'auto',
+          borderRadius: 16,
+          boxShadow: '0 25px 50px -12px rgba(15, 23, 42, 0.25)',
+          overflow: 'hidden',
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Cabecera */}
-        <div className="drawer-header border-b pb-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-900 flex items-center justify-center font-bold">
-              <AppIcon name="plusMinus" size={18} />
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-900 flex items-center justify-center font-bold shrink-0">
+              <AppIcon name="plusMinus" size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-gray-900">Nuevo Asiento Contable Manual</h2>
-              <p className="text-xs text-gray-500">
+              <h2 className="text-base font-bold text-slate-900">Nuevo Asiento Contable Manual</h2>
+              <p className="text-xs text-slate-500">
                 Registra comprobantes manuales garantizando estricto balance de partida doble.
               </p>
             </div>
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Cerrar modal">
-            <AppIcon name="close" size={18} />
+          <button
+            type="button"
+            className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
+            onClick={onClose}
+            aria-label="Cerrar modal"
+          >
+            <AppIcon name="close" size={20} />
           </button>
         </div>
 
         {formError && (
-          <div className="my-3 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-lg flex items-center gap-2">
+          <div className="mx-6 mt-4 p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center gap-2">
             <AppIcon name="warning" size={16} />
             <span>{formError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="drawer-body space-y-4 py-3 text-xs">
-          {/* Campos Generales */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Fecha del Asiento:</label>
-              <input
-                type="date"
-                className="filter-select w-full"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Bodega / Centro de Costos:</label>
-              <select
-                className="filter-select w-full"
-                value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-              >
-                {locations.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Documento Tercero (NIT / CC):</label>
-              <input
-                type="text"
-                placeholder="Ej: NIT 900.123.456-1"
-                className="filter-select w-full"
-                value={thirdPartyDoc}
-                onChange={(e) => setThirdPartyDoc(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Descripción / Concepto General:</label>
-              <input
-                type="text"
-                placeholder="Ej: Ajuste por depreciación acumulada o provisión cartera..."
-                className="filter-select w-full"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label className="block font-semibold text-gray-700 mb-1">Nombre o Razón Social Tercero:</label>
-              <input
-                type="text"
-                placeholder="Ej: Distribuidora Aliada S.A.S."
-                className="filter-select w-full"
-                value={thirdPartyName}
-                onChange={(e) => setThirdPartyName(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Constructor Dinámico de Líneas de Partida Doble */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                Líneas del Asiento (Mínimo 2 líneas para Débito y Crédito)
-              </h3>
-              <button
-                type="button"
-                className="outline-button text-xs py-1"
-                onClick={handleAddLine}
-              >
-                <AppIcon name="plus" size={13} />
-                <span>Agregar Línea</span>
-              </button>
-            </div>
-
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-gray-100 text-gray-700 border-b font-semibold text-left">
-                    <th className="py-2 px-3 w-5/12">Cuenta PUC</th>
-                    <th className="py-2 px-3 w-3/12">Detalle Línea</th>
-                    <th className="py-2 px-3 w-2/12 text-right">DEBE</th>
-                    <th className="py-2 px-3 w-2/12 text-right">HABER</th>
-                    <th className="py-2 px-2 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {lines.map((line, idx) => (
-                    <tr key={line.id} className="hover:bg-gray-50/50">
-                      <td className="p-2">
-                        <select
-                          className="filter-select w-full text-xs font-mono"
-                          value={line.accountId}
-                          onChange={(e) => handleAccountSelect(idx, e.target.value)}
-                        >
-                          {accounts.map((a) => (
-                            <option key={a.id} value={a.id}>
-                              {a.code} - {a.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="text"
-                          className="filter-select w-full text-xs"
-                          placeholder="Concepto específico..."
-                          value={line.description}
-                          onChange={(e) => handleUpdateLine(idx, { description: e.target.value })}
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          className="filter-select w-full text-xs text-right font-mono font-semibold"
-                          value={line.debit || ''}
-                          onChange={(e) =>
-                            handleUpdateLine(idx, {
-                              debit: Number(e.target.value) || 0,
-                              credit: 0, // Si ingresa débito, limpia crédito
-                            })
-                          }
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="p-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="any"
-                          className="filter-select w-full text-xs text-right font-mono font-semibold"
-                          value={line.credit || ''}
-                          onChange={(e) =>
-                            handleUpdateLine(idx, {
-                              credit: Number(e.target.value) || 0,
-                              debit: 0, // Si ingresa crédito, limpia débito
-                            })
-                          }
-                          placeholder="0"
-                        />
-                      </td>
-                      <td className="p-2 text-center">
-                        {lines.length > 2 && (
-                          <button
-                            type="button"
-                            className="text-gray-400 hover:text-rose-600 p-1"
-                            onClick={() => handleRemoveLine(idx)}
-                            title="Eliminar fila"
-                          >
-                            <AppIcon name="trash" size={14} />
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+            {/* Campos Generales */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Fecha del Asiento:</label>
+                <input
+                  type="date"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Bodega / Centro de Costos:</label>
+                <select
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={locationId}
+                  onChange={(e) => setLocationId(e.target.value)}
+                >
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
                   ))}
-                  {/* Fila de Totales y Balance */}
-                  <tr className="bg-gray-50 font-bold border-t">
-                    <td colSpan={2} className="py-2.5 px-3 text-right uppercase text-[11px] text-gray-700">
-                      Sumas Iguales:
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-right text-blue-900 text-sm">
-                      ${totalDebit.toLocaleString('es-CO')}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-right text-blue-900 text-sm">
-                      ${totalCredit.toLocaleString('es-CO')}
-                    </td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
+                </select>
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Documento Tercero (NIT / CC):</label>
+                <input
+                  type="text"
+                  placeholder="Ej: NIT 900.123.456-1"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={thirdPartyDoc}
+                  onChange={(e) => setThirdPartyDoc(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Banner Dinámico de Validación de Partida Doble */}
-          <div
-            className={`p-3 rounded-lg border flex items-center justify-between text-xs font-semibold ${
-              isBalanced
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                : 'bg-rose-50 border-rose-200 text-rose-900'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <AppIcon name={isBalanced ? 'check' : 'warning'} size={18} />
-              <span>
-                {isBalanced
-                  ? 'Partida doble cuadrada: Total Débito == Total Crédito'
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Descripción / Concepto General:</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Ajuste por depreciación acumulada o provisión cartera..."
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nombre o Razón Social Tercero:</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Distribuidora Aliada S.A.S."
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={thirdPartyName}
+                  onChange={(e) => setThirdPartyName(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Constructor Dinámico de Líneas de Partida Doble */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Líneas del Asiento (Mínimo 2 líneas para Débito y Crédito)
+                  </h3>
+                  <span className="text-[11px] text-slate-500">
+                    Solo se pueden imputar subcuentas (Nivel 4) y auxiliares (Nivel 5 con formato .01).
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="outline-button compact text-xs py-1 px-3 flex items-center gap-1.5"
+                  onClick={handleAddLine}
+                >
+                  <AppIcon name="plus" size={13} />
+                  <span>Agregar Línea</span>
+                </button>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
+                <table
+                  className="w-full text-xs"
+                  style={{
+                    minWidth: '720px',
+                    width: '100%',
+                    tableLayout: 'fixed',
+                    borderCollapse: 'collapse',
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: '42%' }} />
+                    <col style={{ width: '26%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '4%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 font-semibold text-left">
+                      <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
+                        Cuenta PUC (Subcuenta / Auxiliar)
+                      </th>
+                      <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
+                        Detalle Línea
+                      </th>
+                      <th className="py-2.5 px-3 text-right text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
+                        DEBE
+                      </th>
+                      <th className="py-2.5 px-3 text-right text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>
+                        HABER
+                      </th>
+                      <th className="py-2.5 px-2 text-center" style={{ padding: '10px 6px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {lines.map((line, idx) => (
+                      <tr key={line.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="p-2.5" style={{ padding: '8px 10px' }}>
+                          <select
+                            className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate"
+                            value={line.accountId}
+                            onChange={(e) => handleAccountSelect(idx, e.target.value)}
+                          >
+                            {auxiliaryAccounts.length > 0 && (
+                              <optgroup label="── Cuentas Auxiliares (Nivel 5 - ej: 111005.01) ──">
+                                {auxiliaryAccounts.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {a.code} - {a.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {subAccounts.length > 0 && (
+                              <optgroup label="── Subcuentas (Nivel 4 - 6 dígitos) ──">
+                                {subAccounts.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {a.code} - {a.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            )}
+                            {imputableAccounts.length === 0 && (
+                              <option value="">No hay cuentas imputables disponibles</option>
+                            )}
+                          </select>
+                        </td>
+                        <td className="p-2.5" style={{ padding: '8px 10px' }}>
+                          <input
+                            type="text"
+                            className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-md text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="Concepto específico..."
+                            value={line.description}
+                            onChange={(e) => handleUpdateLine(idx, { description: e.target.value })}
+                          />
+                        </td>
+                        <td className="p-2.5" style={{ padding: '8px 10px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="w-full h-8 px-2.5 text-xs text-right font-mono font-semibold bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={line.debit || ''}
+                            onChange={(e) =>
+                              handleUpdateLine(idx, {
+                                debit: Number(e.target.value) || 0,
+                                credit: 0,
+                              })
+                            }
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="p-2.5" style={{ padding: '8px 10px' }}>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            className="w-full h-8 px-2.5 text-xs text-right font-mono font-semibold bg-white border border-slate-300 rounded-md text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={line.credit || ''}
+                            onChange={(e) =>
+                              handleUpdateLine(idx, {
+                                credit: Number(e.target.value) || 0,
+                                debit: 0,
+                              })
+                            }
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="p-2.5 text-center" style={{ padding: '8px 6px' }}>
+                          {lines.length > 2 && (
+                            <button
+                              type="button"
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 transition-colors"
+                              onClick={() => handleRemoveLine(idx)}
+                              title="Eliminar fila"
+                            >
+                              <AppIcon name="trash" size={15} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Fila de Totales y Balance */}
+                    <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                      <td colSpan={2} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700" style={{ padding: '10px 12px' }}>
+                        Sumas Iguales:
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-right text-blue-900 text-xs" style={{ padding: '10px 12px' }}>
+                        ${totalDebit.toLocaleString('es-CO')}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-right text-blue-900 text-xs" style={{ padding: '10px 12px' }}>
+                        ${totalCredit.toLocaleString('es-CO')}
+                      </td>
+                      <td style={{ padding: '10px 6px' }}></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Banner Dinámico de Validación de Partida Doble */}
+            <div
+              className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-semibold ${
+                isBalanced
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                   : totalDebit === 0 && totalCredit === 0
-                  ? 'Ingresa montos para debitar y acreditar el asiento'
-                  : `Asiento descuadrado: Diferencia de $${difference.toLocaleString('es-CO')} COP`}
+                  ? 'bg-slate-50 border-slate-200 text-slate-700'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <AppIcon name={isBalanced ? 'check' : 'warning'} size={18} />
+                <span>
+                  {isBalanced
+                    ? `Partida doble cuadrada: Total Débito == Total Crédito ($${totalDebit.toLocaleString('es-CO')} COP)`
+                    : totalDebit === 0 && totalCredit === 0
+                    ? 'Ingresa montos en DEBE y HABER para validar el balance de partida doble.'
+                    : `Asiento descuadrado: Diferencia de $${difference.toLocaleString('es-CO')} COP`}
+                </span>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
+                isBalanced
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}>
+                {isBalanced ? 'LISTO PARA CONFIRMAR' : 'BLOQUEADO'}
               </span>
             </div>
-            <span>{isBalanced ? 'LISTO PARA CONFIRMAR' : 'BLOQUEADO'}</span>
           </div>
 
           {/* Pie del Formulario */}
-          <div className="drawer-footer border-t pt-3 flex items-center justify-end gap-2">
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 shrink-0">
             <button
               type="button"
-              className="outline-button text-xs py-1.5"
+              className="outline-button compact text-xs"
               onClick={onClose}
               disabled={isSubmitting}
             >
@@ -427,7 +553,7 @@ export function NewManualEntryDrawer({
             </button>
             <button
               type="submit"
-              className="primary-button text-xs py-1.5"
+              className="primary-button compact text-xs"
               disabled={isSubmitting || !isBalanced}
               title={isBalanced ? 'Guardar y confirmar asiento' : 'Cuadra el asiento antes de guardar'}
             >
@@ -440,3 +566,4 @@ export function NewManualEntryDrawer({
     document.body
   )
 }
+

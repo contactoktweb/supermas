@@ -21,6 +21,7 @@ export const CreateUserSchema = z.object({
     .min(3, 'El nombre de usuario debe tener al menos 3 caracteres')
     .regex(/^[a-zA-Z0-9._-]+$/, 'Solo se permiten letras, números, puntos, guiones'),
   phone: z.string().optional().default(''),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   role: UserRoleSchema,
   locationIds: z.array(z.string()).min(1, 'Debes asignar al menos una bodega o punto'),
   status: UserStatusSchema.default('ACTIVE'),

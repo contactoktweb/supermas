@@ -35,7 +35,16 @@ export class AccountingRepository {
       accountClass: row.account_class,
       type: row.nature === 'DEBIT' ? 'ASSET' : 'LIABILITY', // fallback tipológico
       nature: row.nature,
-      level: row.level === 1 ? 'CLASS' : row.level === 2 ? 'GROUP' : row.level === 3 ? 'ACCOUNT' : 'SUBACCOUNT',
+      level:
+        row.level === 1
+          ? 'CLASS'
+          : row.level === 2
+          ? 'GROUP'
+          : row.level === 3
+          ? 'ACCOUNT'
+          : row.level === 4
+          ? 'SUBACCOUNT'
+          : 'AUXILIARY',
       parentId: row.parent_id || null,
       balance: balance,
       status: row.is_active ? 'ACTIVE' : 'INACTIVE',
@@ -113,6 +122,23 @@ export class AccountingRepository {
       query = query.eq('is_active', filters.status === 'ACTIVE')
     }
 
+    if (filters?.level && filters.level !== ('ALL' as any)) {
+      if (filters.level === 'IMPUTABLE') {
+        query = query.in('level', [4, 5])
+      } else {
+        const lvlMap: Record<string, number> = {
+          CLASS: 1,
+          GROUP: 2,
+          ACCOUNT: 3,
+          SUBACCOUNT: 4,
+          AUXILIARY: 5,
+        }
+        if (lvlMap[filters.level]) {
+          query = query.eq('level', lvlMap[filters.level])
+        }
+      }
+    }
+
     query = query.order('code', { ascending: true })
 
     const page = filters?.page || 1
@@ -170,7 +196,16 @@ export class AccountingRepository {
   }
 
   async createAccount(data: AccountFormData): Promise<AccountingAccount> {
-    const levelNumber = data.level === 'CLASS' ? 1 : data.level === 'GROUP' ? 2 : data.level === 'ACCOUNT' ? 3 : 4
+    const levelNumber =
+      data.level === 'CLASS'
+        ? 1
+        : data.level === 'GROUP'
+        ? 2
+        : data.level === 'ACCOUNT'
+        ? 3
+        : data.level === 'SUBACCOUNT'
+        ? 4
+        : 5
 
     const { data: newRow, error } = await supabaseClient
       .from('accounting_accounts')
@@ -198,6 +233,18 @@ export class AccountingRepository {
   async updateAccount(id: string, data: Partial<AccountFormData>): Promise<AccountingAccount> {
     const updatePayload: any = {}
     if (data.name !== undefined) updatePayload.name = data.name
+    if (data.level !== undefined) {
+      updatePayload.level =
+        data.level === 'CLASS'
+          ? 1
+          : data.level === 'GROUP'
+          ? 2
+          : data.level === 'ACCOUNT'
+          ? 3
+          : data.level === 'SUBACCOUNT'
+          ? 4
+          : 5
+    }
     if (data.requiresThirdParty !== undefined) updatePayload.requires_third_party = data.requiresThirdParty
     if (data.requiresCostCenter !== undefined) updatePayload.requires_cost_center = data.requiresCostCenter
 

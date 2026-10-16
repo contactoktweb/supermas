@@ -171,46 +171,60 @@ export function AccountingEntryDetailDrawer({
             <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">
               Líneas del Asiento Contable (Partida Doble)
             </h3>
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <table className="w-full text-xs">
+            <div className="border border-slate-200 rounded-xl overflow-x-auto bg-white shadow-sm">
+              <table
+                className="w-full text-xs"
+                style={{
+                  minWidth: '100%',
+                  width: '100%',
+                  tableLayout: 'fixed',
+                  borderCollapse: 'collapse',
+                }}
+              >
+                <colgroup>
+                  <col style={{ width: '22%' }} />
+                  <col style={{ width: '48%' }} />
+                  <col style={{ width: '15%' }} />
+                  <col style={{ width: '15%' }} />
+                </colgroup>
                 <thead>
-                  <tr className="bg-gray-100 text-gray-700 text-left border-b font-semibold">
-                    <th className="py-2.5 px-3 w-24">Cuenta</th>
-                    <th className="py-2.5 px-3">Nombre y Detalle</th>
-                    <th className="py-2.5 px-3 text-right w-28">DEBE</th>
-                    <th className="py-2.5 px-3 text-right w-28">HABER</th>
+                  <tr className="bg-slate-100 text-slate-700 text-left border-b border-slate-200 font-semibold">
+                    <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>Cuenta</th>
+                    <th className="py-2.5 px-3 text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>Nombre y Detalle</th>
+                    <th className="py-2.5 px-3 text-right text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>DEBE</th>
+                    <th className="py-2.5 px-3 text-right text-slate-700 text-xs font-semibold" style={{ padding: '10px 12px' }}>HABER</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-slate-100">
                   {entry.lines.map((line) => (
-                    <tr key={line.id} className="hover:bg-gray-50/60">
-                      <td className="py-2.5 px-3 font-mono font-bold text-blue-900">{line.accountCode}</td>
-                      <td className="py-2.5 px-3">
-                        <strong className="text-gray-900 block">{line.accountName}</strong>
-                        <span className="text-[11px] text-gray-500">{line.description}</span>
+                    <tr key={line.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-2.5 px-3 font-mono font-bold text-blue-900" style={{ padding: '10px 12px' }}>{line.accountCode}</td>
+                      <td className="py-2.5 px-3" style={{ padding: '10px 12px' }}>
+                        <strong className="text-slate-900 block">{line.accountName}</strong>
+                        <span className="text-[11px] text-slate-500">{line.description}</span>
                         {line.baseAmount && line.taxRatePercent ? (
-                          <span className="text-[10px] text-gray-400 block font-mono">
+                          <span className="text-[10px] text-slate-400 block font-mono">
                             Base: ${line.baseAmount.toLocaleString('es-CO')} (Tarifa {line.taxRatePercent}%)
                           </span>
                         ) : null}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-right font-semibold text-gray-900">
+                      <td className="py-2.5 px-3 font-mono text-right font-semibold text-slate-900" style={{ padding: '10px 12px' }}>
                         {line.debit > 0 ? `$${line.debit.toLocaleString('es-CO')}` : '—'}
                       </td>
-                      <td className="py-2.5 px-3 font-mono text-right font-semibold text-gray-900">
+                      <td className="py-2.5 px-3 font-mono text-right font-semibold text-slate-900" style={{ padding: '10px 12px' }}>
                         {line.credit > 0 ? `$${line.credit.toLocaleString('es-CO')}` : '—'}
                       </td>
                     </tr>
                   ))}
                   {/* Totales y Verificación */}
-                  <tr className="bg-gray-50 font-bold border-t">
-                    <td colSpan={2} className="py-2.5 px-3 text-right uppercase text-[11px] text-gray-700">
+                  <tr className="bg-slate-50 font-bold border-t border-slate-200">
+                    <td colSpan={2} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-700" style={{ padding: '10px 12px' }}>
                       Sumas Iguales:
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-right text-blue-900">
+                    <td className="py-2.5 px-3 font-mono text-right text-blue-900" style={{ padding: '10px 12px' }}>
                       ${entry.totalDebit.toLocaleString('es-CO')}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-right text-blue-900">
+                    <td className="py-2.5 px-3 font-mono text-right text-blue-900" style={{ padding: '10px 12px' }}>
                       ${entry.totalCredit.toLocaleString('es-CO')}
                     </td>
                   </tr>

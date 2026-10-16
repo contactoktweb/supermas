@@ -80,6 +80,18 @@ export function AccountingAccountsTab({
         <div className="flex items-center gap-2">
           <select
             className="filter-select text-xs"
+            value={filters.level || 'ALL'}
+            onChange={(e) => onFilterChange({ level: e.target.value as any })}
+          >
+            <option value="ALL">Todos los niveles</option>
+            <option value="IMPUTABLE">Solo Imputables (Subcuentas y Auxiliares)</option>
+            <option value="ACCOUNT">Nivel 3: Cuentas Mayor</option>
+            <option value="SUBACCOUNT">Nivel 4: Subcuentas</option>
+            <option value="AUXILIARY">Nivel 5: Auxiliares (ej: 111005.01)</option>
+          </select>
+
+          <select
+            className="filter-select text-xs"
             value={filters.nature || 'ALL'}
             onChange={(e) => onFilterChange({ nature: e.target.value as any })}
           >
@@ -107,45 +119,78 @@ export function AccountingAccountsTab({
           <table>
             <thead>
               <tr>
-                <th style={{ width: 120 }}>Código</th>
+                <th style={{ width: 130 }}>Código</th>
                 <th>Nombre de la Cuenta</th>
-                <th style={{ width: 120 }}>Clase PUC</th>
-                <th style={{ width: 100 }}>Naturaleza</th>
-                <th style={{ width: 110 }}>Nivel</th>
-                <th style={{ width: 150, textAlign: 'right' }}>Saldo Actual</th>
-                <th style={{ width: 90 }}>Estado</th>
-                <th style={{ width: 100, textAlign: 'right' }}>Acciones</th>
+                <th style={{ width: 100 }}>Clase PUC</th>
+                <th style={{ width: 95 }}>Naturaleza</th>
+                <th style={{ width: 130 }}>Nivel</th>
+                <th style={{ width: 110 }}>Uso Operativo</th>
+                <th style={{ width: 140, textAlign: 'right' }}>Saldo Actual</th>
+                <th style={{ width: 85 }}>Estado</th>
+                <th style={{ width: 80, textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {accounts.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-8 text-gray-500">
+                  <td colSpan={9} className="text-center py-8 text-gray-500">
                     No se encontraron cuentas contables que coincidan con la búsqueda.
                   </td>
                 </tr>
               ) : (
                 accounts.map((acc) => {
                   const isClassLevel = acc.level === 'CLASS' || acc.level === 'GROUP'
+                  const isAccountLevel = acc.level === 'ACCOUNT'
+                  const isSubaccount = acc.level === 'SUBACCOUNT'
+                  const isAuxiliary = acc.level === 'AUXILIARY' || acc.code.includes('.')
+                  const isImputable = isSubaccount || isAuxiliary
+
                   return (
                     <tr
                       key={acc.id}
                       className={`hover:bg-blue-50/40 transition-colors ${
-                        isClassLevel ? 'bg-gray-50/60 font-semibold' : ''
+                        isClassLevel
+                          ? 'bg-gray-100/70 font-bold'
+                          : isAccountLevel
+                          ? 'bg-gray-50/50 font-semibold'
+                          : ''
                       }`}
                     >
                       <td>
-                        <span className="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded">
+                        <span
+                          className={`font-mono text-xs font-bold px-2 py-0.5 rounded inline-block ${
+                            isAuxiliary
+                              ? 'text-emerald-900 bg-emerald-50 border border-emerald-300 ml-4'
+                              : isSubaccount
+                              ? 'text-blue-900 bg-blue-50 border border-blue-200 ml-2'
+                              : isAccountLevel
+                              ? 'text-gray-800 bg-gray-100 border border-gray-300'
+                              : 'text-gray-900 bg-gray-200'
+                          }`}
+                        >
                           {acc.code}
                         </span>
                       </td>
                       <td>
                         <div className="flex flex-col">
-                          <span className={`text-xs ${isClassLevel ? 'text-gray-900 font-bold' : 'text-gray-800'}`}>
+                          <span
+                            className={`text-xs ${
+                              isClassLevel
+                                ? 'text-gray-900 font-bold'
+                                : isAccountLevel
+                                ? 'text-gray-900 font-semibold'
+                                : isAuxiliary
+                                ? 'text-emerald-950 font-medium pl-3'
+                                : 'text-gray-800 font-medium pl-1'
+                            }`}
+                          >
+                            {isAuxiliary && '↳ '}
                             {acc.name}
                           </span>
                           {acc.description && (
-                            <span className="text-[11px] text-gray-400 line-clamp-1">{acc.description}</span>
+                            <span className="text-[11px] text-gray-400 line-clamp-1 pl-1">
+                              {acc.description}
+                            </span>
                           )}
                         </div>
                       </td>
@@ -164,7 +209,45 @@ export function AccountingAccountsTab({
                         </span>
                       </td>
                       <td>
-                        <span className="text-[11px] text-gray-500 uppercase">{acc.level}</span>
+                        {isAuxiliary ? (
+                          <span
+                            className="badge text-[10px] font-bold"
+                            style={{ backgroundColor: '#ecfdf5', color: '#047857', border: '1px solid #a7f3d0' }}
+                          >
+                            Auxiliar (Nivel 5)
+                          </span>
+                        ) : isSubaccount ? (
+                          <span className="badge badge-blue text-[10px] font-semibold">
+                            Subcuenta (Nivel 4)
+                          </span>
+                        ) : isAccountLevel ? (
+                          <span className="badge badge-gray text-[10px] font-medium text-gray-600">
+                            Cuenta Mayor (Nivel 3)
+                          </span>
+                        ) : (
+                          <span className="badge badge-gray text-[10px] uppercase font-medium">
+                            {acc.level}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {isImputable ? (
+                          <span
+                            className="badge text-[10px] font-semibold"
+                            style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
+                            title="Esta subcuenta/auxiliar se puede utilizar directamente en asientos contables"
+                          >
+                            ✅ Imputable
+                          </span>
+                        ) : (
+                          <span
+                            className="badge text-[10px] font-medium text-gray-500"
+                            style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}
+                            title="Cuenta de resumen/mayor. No admite imputación directa."
+                          >
+                            📁 No Imputable
+                          </span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'right' }}>
                         <span className="font-mono text-xs font-semibold text-gray-900">

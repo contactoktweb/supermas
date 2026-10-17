@@ -57,6 +57,7 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
     closeGenerateModal,
     pendingSales,
     pendingSalesLoading,
+    loadPendingSales,
     handleGenerateInvoice,
     // Credit Note Modal
     invoiceForCreditNote,
@@ -253,6 +254,8 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
         pendingSales={pendingSales}
         loadingPendingSales={pendingSalesLoading}
         onGenerateInvoice={handleGenerateInvoice}
+        onRefreshPendingSales={loadPendingSales}
+        onNavigate={onNavigate}
       />
 
       {/* 7. Credit Note Modal */}

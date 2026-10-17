@@ -21,6 +21,7 @@ import { ProductColumnSelector } from './ProductColumnSelector'
 import { ProductFormDrawer } from './ProductFormDrawer'
 import { ProductDetailDrawer } from './ProductDetailDrawer'
 import { ProductDeactivateDialog } from './ProductDeactivateDialog'
+import { ProductDeleteDialog } from './ProductDeleteDialog'
 import { ProductImportModal } from './ProductImportModal'
 import { ProductExportModal } from './ProductExportModal'
 import { ProductSkeleton } from './ProductSkeleton'
@@ -105,6 +106,14 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
   })
 
   const [deactivateDialog, setDeactivateDialog] = useState<{
+    isOpen: boolean
+    product: Product | null
+  }>({
+    isOpen: false,
+    product: null,
+  })
+
+  const [deleteDialog, setDeleteDialog] = useState<{
     isOpen: boolean
     product: Product | null
   }>({
@@ -268,6 +277,27 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
     }
   }
 
+  // Delete Product handler (Double confirmation & typing CONFIRMAR)
+  const handleDeleteProduct = async (id: string) => {
+    try {
+      const res = await productService.deleteProduct(id, userContext)
+      showToast(
+        res.mode === 'HARD_DELETE'
+          ? 'Producto eliminado definitivamente'
+          : 'Producto retirado y desvinculado',
+        res.message,
+        'success'
+      )
+      if (selectedProduct?.id === id) {
+        setSelectedProduct(null)
+      }
+      loadData()
+    } catch (err: any) {
+      showToast('Error al eliminar', err.message || 'No se pudo eliminar el producto', 'error')
+      throw err
+    }
+  }
+
   // Navigation callbacks
   const handleViewKardex = (product: Product) => {
     if (onNavigate) {
@@ -370,6 +400,9 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
           onDeactivateProduct={(p) =>
             setDeactivateDialog({ isOpen: true, product: p })
           }
+          onDeleteProduct={(p) =>
+            setDeleteDialog({ isOpen: true, product: p })
+          }
           onViewKardex={handleViewKardex}
           onTransferProduct={handleTransfer}
           onAdjustStock={handleAdjustStock}
@@ -417,6 +450,10 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
           setSelectedProduct(null)
           setFormDrawer({ isOpen: true, mode: 'edit', product: p })
         }}
+        onDelete={(p) => {
+          setSelectedProduct(null)
+          setDeleteDialog({ isOpen: true, product: p })
+        }}
         onViewKardex={handleViewKardex}
         onTransfer={handleTransfer}
         onAdjustStock={handleAdjustStock}
@@ -428,6 +465,14 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
         isOpen={deactivateDialog.isOpen}
         onClose={() => setDeactivateDialog({ isOpen: false, product: null })}
         onConfirm={handleDeactivateProduct}
+      />
+
+      {/* Permanent / Complete Delete Dialog with double confirmation */}
+      <ProductDeleteDialog
+        product={deleteDialog.product}
+        isOpen={deleteDialog.isOpen}
+        onClose={() => setDeleteDialog({ isOpen: false, product: null })}
+        onConfirm={handleDeleteProduct}
       />
 
       {/* Import Modal */}

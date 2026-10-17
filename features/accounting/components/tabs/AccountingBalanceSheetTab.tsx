@@ -9,12 +9,14 @@ interface AccountingBalanceSheetTabProps {
   balanceSheet: BalanceSheetReport | null
   locationId?: string
   onLocationChange: (locId: string) => void
+  onOpenTrialBalancePdf?: () => void
 }
 
 export function AccountingBalanceSheetTab({
   balanceSheet,
   locationId = 'ALL',
   onLocationChange,
+  onOpenTrialBalancePdf,
 }: AccountingBalanceSheetTabProps) {
   const [locations, setLocations] = React.useState<{ id: string; name: string }[]>([])
 
@@ -42,7 +44,20 @@ export function AccountingBalanceSheetTab({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {onOpenTrialBalancePdf && (
+            <button
+              type="button"
+              className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5 shadow-sm font-bold"
+              style={{ background: 'var(--navy, #001B5C)' }}
+              onClick={onOpenTrialBalancePdf}
+              title="Exportar Balance de Comprobación en PDF seleccionando Cuenta Principal PUC, subcuentas, fechas y terceros"
+            >
+              <AppIcon name="receipt" size={14} />
+              <span>Balance de Comprobación (PDF)</span>
+            </button>
+          )}
+
           <label className="text-xs font-semibold text-gray-600">Filtrar por Bodega:</label>
           <select
             className="filter-select text-xs"

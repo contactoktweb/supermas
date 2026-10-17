@@ -444,7 +444,16 @@ export class InvoiceRepository {
         total_amount,
         created_at,
         customer_id,
-        customers ( first_name, last_name, company_name )
+        location_id,
+        customers ( first_name, last_name, company_name, document_type, document_number, email ),
+        locations ( name, code ),
+        sale_items (
+          id,
+          quantity,
+          unit_price,
+          total,
+          products ( name, sku )
+        )
       `)
       .neq('status', 'CANCELLED')
       .order('created_at', { ascending: false })
@@ -462,12 +471,38 @@ export class InvoiceRepository {
       .filter((s) => !invoicedSet.has(s.id))
       .map((s: any) => {
         const cust = s.customers || {}
+        const loc = s.locations || {}
+        const customerName =
+          cust.company_name ||
+          `${cust.first_name || ''} ${cust.last_name || ''}`.trim() ||
+          'Consumidor Final'
+        const customerDoc = cust.document_number || ''
+        const customerEmail = cust.email || ''
+
+        const items = (s.sale_items || []).map((it: any) => ({
+          id: it.id,
+          productName: it.products?.name || 'Producto comercial',
+          sku: it.products?.sku || '',
+          quantity: Number(it.quantity || 1),
+          unitPrice: Number(it.unit_price || 0),
+          total: Number(it.total || (it.quantity || 1) * (it.unit_price || 0)),
+        }))
+
+        const totalVal = Number(s.total_amount || 0)
+
         return {
           id: s.id,
           saleNumber: s.sale_number,
-          customerName: cust.company_name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || 'Consumidor Final',
-          total: Number(s.total_amount || 0),
+          customerName,
+          customerDoc,
+          customerDocType: cust.document_type || 'CC',
+          customerEmail,
+          locationId: s.location_id,
+          locationName: loc.name || 'Sede Principal',
+          totalAmount: totalVal,
+          total: totalVal,
           date: s.created_at,
+          items,
         }
       })
   }

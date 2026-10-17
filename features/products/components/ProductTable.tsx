@@ -28,6 +28,7 @@ interface ProductTableProps {
   onSelectProduct: (product: Product) => void
   onEditProduct: (product: Product) => void
   onDeactivateProduct: (product: Product) => void
+  onDeleteProduct?: (product: Product) => void
   onViewKardex: (product: Product) => void
   onTransferProduct: (product: Product) => void
   onAdjustStock: (product: Product) => void
@@ -50,6 +51,7 @@ export function ProductTable({
   onSelectProduct,
   onEditProduct,
   onDeactivateProduct,
+  onDeleteProduct,
   onViewKardex,
   onTransferProduct,
   onAdjustStock,
@@ -572,6 +574,21 @@ export function ProductTable({
                               >
                                 <AppIcon name="warning" size={14} />
                                 <span>Desactivar</span>
+                              </button>
+                            )}
+
+                            {canDeactivate && onDeleteProduct && (
+                              <button
+                                type="button"
+                                className="popover-action-item danger"
+                                onClick={() => {
+                                  setActiveMenuId(null)
+                                  onDeleteProduct(product)
+                                }}
+                                title="Eliminar producto con doble confirmación y palabra de seguridad"
+                              >
+                                <AppIcon name="trash" size={14} />
+                                <span>Eliminar producto</span>
                               </button>
                             )}
                           </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   Purchase,
   PurchaseFilterParams,
@@ -39,14 +39,16 @@ interface PurchasesPageProps {
 
 export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   const { user } = useAuth()
-  const effectiveUserContext: UserPermissionContext | undefined = user
-    ? {
-        userId: user.id,
-        userName: user.fullName || user.email,
-        userRole: user.roleCode,
-        permissions: user.permissions || [],
-      }
-    : userContext
+  const permissionsKey = Array.isArray(user?.permissions) ? user.permissions.join(',') : ''
+  const effectiveUserContext = useMemo<UserPermissionContext | undefined>(() => {
+    if (!user) return userContext
+    return {
+      userId: user.id,
+      userName: user.fullName || user.email,
+      userRole: user.roleCode,
+      permissions: user.permissions || [],
+    }
+  }, [user?.id, user?.fullName, user?.email, user?.roleCode, permissionsKey, userContext])
 
   // 1. Data States
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -61,7 +63,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Loading & Error
   const [loading, setLoading] = useState(true)
-  const [statsLoading, setStatsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // 2. Filters
@@ -124,16 +125,20 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     loadOptions()
   }, [])
 
-  // 6. Fetch Purchases
-  const fetchPurchases = useCallback(async () => {
+  // 6. Unified Data Loading Function (Purchases + Stats)
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const resp = await purchaseService.list(filters, effectiveUserContext)
+      const [resp, statsData] = await Promise.all([
+        purchaseService.list(filters, effectiveUserContext),
+        purchaseService.getPurchaseStats(effectiveUserContext),
+      ])
       setPurchases(resp.items)
       setTotal(resp.total)
       setTotalPages(resp.totalPages)
       setIsCostRedacted(resp.isCostRedacted)
+      setStats(statsData)
     } catch (err: any) {
       setError(err.message || 'Error al consultar órdenes de compra.')
     } finally {
@@ -141,27 +146,9 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     }
   }, [filters, effectiveUserContext])
 
-  // 7. Fetch Stats
-  const fetchStats = useCallback(async () => {
-    setStatsLoading(true)
-    try {
-      const data = await purchaseService.getPurchaseStats(effectiveUserContext)
-      setStats(data)
-    } catch (err) {
-      console.error('Error cargando estadísticas de compras:', err)
-    } finally {
-      setStatsLoading(false)
-    }
-  }, [effectiveUserContext])
-
-  // Trigger loads
   useEffect(() => {
-    fetchPurchases()
-  }, [fetchPurchases])
-
-  useEffect(() => {
-    fetchStats()
-  }, [fetchStats])
+    loadData()
+  }, [loadData])
 
   // Filter Handlers
   const handleFilterChange = (key: keyof PurchaseFilterParams, value: any) => {
@@ -209,8 +196,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${created.purchaseNumber} fue registrada con éxito (${created.status === "BORRADOR" || created.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
-    fetchPurchases()
-    fetchStats()
+    loadData()
   }
 
   // Action: Update Purchase (Draft)
@@ -221,8 +207,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${updated.purchaseNumber} fue actualizada con éxito (${updated.status === "BORRADOR" || updated.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
-    fetchPurchases()
-    fetchStats()
+    loadData()
   }
 
   // Action: Confirm Draft Purchase
@@ -237,8 +222,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       if (selectedPurchase?.id === purchase.id) {
         setSelectedPurchase(confirmed)
       }
-      fetchPurchases()
-      fetchStats()
+      loadData()
     } catch (err: any) {
       addToast('Error al confirmar', err.message || 'No se pudo confirmar la orden.', 'error')
     }
@@ -275,8 +259,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     if (selectedPurchase?.id === purchaseId) {
       setSelectedPurchase(received)
     }
-    fetchPurchases()
-    fetchStats()
+    loadData()
   }
 
   // Action: Register Payment
@@ -290,8 +273,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     if (selectedPurchase?.id === input.purchaseId) {
       setSelectedPurchase(updated)
     }
-    fetchPurchases()
-    fetchStats()
+    loadData()
   }
 
   // Action: Cancel Purchase
@@ -305,8 +287,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     if (selectedPurchase?.id === purchaseId) {
       setSelectedPurchase(cancelled)
     }
-    fetchPurchases()
-    fetchStats()
+    loadData()
   }
 
   // Action: Quick Receive (open first pending reception)
@@ -373,11 +354,11 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       />
 
       {/* 2. Key Metrics & Stats */}
-      {statsLoading || !stats ? (
+      {loading && !stats ? (
         <PurchaseStatsSkeleton />
-      ) : (
+      ) : stats ? (
         <PurchaseStats stats={stats} />
-      )}
+      ) : null}
 
       {/* 3. Toolbar & Dynamic Filters */}
       <PurchaseFilters
@@ -389,10 +370,10 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       />
 
       {/* 4. Purchases Main Table */}
-      {loading ? (
+      {loading && purchases.length === 0 ? (
         <PurchaseTableSkeleton />
       ) : error ? (
-        <PurchaseErrorState message={error} onRetry={fetchPurchases} />
+        <PurchaseErrorState message={error} onRetry={loadData} />
       ) : (
         <PurchaseTable
           purchases={purchases}

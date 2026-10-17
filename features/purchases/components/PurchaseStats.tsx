@@ -20,18 +20,24 @@ interface PurchaseStatCardProps {
   index: number
 }
 
-function useCountUp(target: number, duration: number = 600) {
-  const [count, setCount] = useState(target)
+function useCountUp(target: number = 0, duration: number = 600) {
+  const safeTarget = Number.isFinite(target) ? target : 0
+  const [count, setCount] = useState(safeTarget)
 
   useEffect(() => {
-    let startTimestamp: number | null = null
-    const startVal = 0
-    const endVal = target
-    if (endVal === 0) {
+    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setCount(safeTarget)
+      return
+    }
+
+    if (safeTarget === 0) {
       setCount(0)
       return
     }
 
+    let startTimestamp: number | null = null
+    const startVal = 0
+    const endVal = safeTarget
     let animationFrameId: number
 
     const step = (timestamp: number) => {
@@ -47,7 +53,7 @@ function useCountUp(target: number, duration: number = 600) {
 
     animationFrameId = requestAnimationFrame(step)
     return () => cancelAnimationFrame(animationFrameId)
-  }, [target, duration])
+  }, [safeTarget, duration])
 
   return count
 }

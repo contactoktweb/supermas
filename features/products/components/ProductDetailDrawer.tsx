@@ -18,6 +18,7 @@ interface ProductDetailDrawerProps {
   userContext?: UserPermissionContext
   onClose: () => void
   onEdit: (product: Product) => void
+  onDelete?: (product: Product) => void
   onViewKardex: (product: Product) => void
   onTransfer: (product: Product) => void
   onAdjustStock: (product: Product) => void
@@ -30,6 +31,7 @@ export function ProductDetailDrawer({
   userContext,
   onClose,
   onEdit,
+  onDelete,
   onViewKardex,
   onTransfer,
   onAdjustStock,
@@ -560,6 +562,18 @@ export function ProductDetailDrawer({
             <AppIcon name="kardex" size={15} />
             <span>Kardex</span>
           </button>
+
+          {canEdit && onDelete && (
+            <button
+              type="button"
+              className="outline-button text-red-600 hover:text-red-700 hover:bg-red-50 hover:border-red-300"
+              onClick={() => onDelete(product)}
+              title="Eliminar producto definitivamente del catálogo"
+            >
+              <AppIcon name="trash" size={15} />
+              <span>Eliminar</span>
+            </button>
+          )}
 
           {canEdit && (
             <button

@@ -27,11 +27,12 @@ import { NewManualEntryDrawer } from './drawers/NewManualEntryDrawer'
 import { NewAccountDrawer } from './drawers/NewAccountDrawer'
 import { NewThirdPartyModal } from './modals/NewThirdPartyModal'
 import { AccountingExportModal } from './modals/AccountingExportModal'
+import { TrialBalancePdfModal } from './modals/TrialBalancePdfModal'
 
 // Skeletons & Toasts
 import { AccountingStatsSkeleton, AccountingTableSkeleton } from './AccountingSkeleton'
 import { AccountingToastContainer, AccountingToastMessage } from './AccountingToast'
-import { AccountingEntry, AccountNature, ThirdPartyType, AccountingExportType } from '../types'
+import { AccountingEntry, AccountNature, ThirdPartyType, AccountingExportType, TrialBalanceLevelFilter } from '../types'
 import { AccountFormData, ManualEntryFormData, ThirdPartyFormData } from '../schemas/accounting.schema'
 
 const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] = [
@@ -102,8 +103,63 @@ export function AccountingPage() {
   const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [exportInitialType, setExportInitialType] = useState<AccountingExportType>('third_parties')
+  const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
+  const [trialBalancePdfParams, setTrialBalancePdfParams] = useState<{
+    mainAccountCode: string
+    startAccountCode?: string
+    endAccountCode?: string
+    branch?: string
+    costCenter?: string
+    administrativeArea?: string
+    voucherType?: string
+    selectedThirdPartyId?: string
+    maxLevel: TrialBalanceLevelFilter
+    includeThirdParties: boolean
+    startDate?: string
+    endDate?: string
+  }>({
+    mainAccountCode: 'ALL',
+    maxLevel: 'SUBACCOUNT',
+    includeThirdParties: true,
+  })
   const [selectedEntry, setSelectedEntry] = useState<AccountingEntry | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleOpenTrialBalancePdf = useCallback(
+    (params?: {
+      mainAccountCode?: string
+      startAccountCode?: string
+      endAccountCode?: string
+      branch?: string
+      costCenter?: string
+      administrativeArea?: string
+      voucherType?: string
+      selectedThirdPartyId?: string
+      maxLevel?: TrialBalanceLevelFilter
+      includeThirdParties?: boolean
+      startDate?: string
+      endDate?: string
+    }) => {
+      if (params) {
+        setTrialBalancePdfParams({
+          mainAccountCode: params.mainAccountCode || 'ALL',
+          startAccountCode: params.startAccountCode || '',
+          endAccountCode: params.endAccountCode || '',
+          branch: params.branch || '01 - SUPER MÁS PRINCIPAL',
+          costCenter: params.costCenter || 'TODOS',
+          administrativeArea: params.administrativeArea || 'TODAS',
+          voucherType: params.voucherType || 'TODOS',
+          selectedThirdPartyId: params.selectedThirdPartyId || 'ALL',
+          maxLevel: params.maxLevel || 'SUBACCOUNT',
+          includeThirdParties: params.includeThirdParties !== undefined ? params.includeThirdParties : true,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        })
+      }
+      setIsTrialBalancePdfOpen(true)
+    },
+    []
+  )
 
   const handleOpenExportModal = useCallback((preferredType?: AccountingExportType) => {
     if (preferredType) {
@@ -115,7 +171,7 @@ export function AccountingPage() {
         movements: 'movements',
         journal: 'journal',
         accounts: 'accounts',
-        balance: 'balance',
+        balance: 'trial_balance',
       }
       setExportInitialType(tabToExportMap[activeTab] || 'third_parties')
     }
@@ -366,6 +422,7 @@ export function AccountingPage() {
               balanceSheet={balanceSheet}
               locationId={filters.locationId}
               onLocationChange={(locId) => updateFilters({ locationId: locId })}
+              onOpenTrialBalancePdf={() => handleOpenTrialBalancePdf()}
             />
           )}
 
@@ -444,6 +501,27 @@ export function AccountingPage() {
         movements={movements}
         accounts={accounts}
         onSuccessToast={(title, desc) => addToast('success', title, desc)}
+        onOpenTrialBalancePdf={handleOpenTrialBalancePdf}
+      />
+
+      <TrialBalancePdfModal
+        isOpen={isTrialBalancePdfOpen}
+        onClose={() => setIsTrialBalancePdfOpen(false)}
+        accounts={accounts}
+        movements={movements}
+        thirdParties={thirdParties}
+        initialMainAccountCode={trialBalancePdfParams.mainAccountCode}
+        initialStartAccountCode={trialBalancePdfParams.startAccountCode}
+        initialEndAccountCode={trialBalancePdfParams.endAccountCode}
+        initialBranch={trialBalancePdfParams.branch}
+        initialCostCenter={trialBalancePdfParams.costCenter}
+        initialAdministrativeArea={trialBalancePdfParams.administrativeArea}
+        initialVoucherType={trialBalancePdfParams.voucherType}
+        initialSelectedThirdPartyId={trialBalancePdfParams.selectedThirdPartyId}
+        initialMaxLevel={trialBalancePdfParams.maxLevel}
+        initialIncludeThirdParties={trialBalancePdfParams.includeThirdParties}
+        initialStartDate={trialBalancePdfParams.startDate}
+        initialEndDate={trialBalancePdfParams.endDate}
       />
 
       {/* Notificaciones flotantes */}

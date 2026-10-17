@@ -337,6 +337,7 @@ export function useInvoices() {
     closeGenerateModal: () => setIsGenerateModalOpen(false),
     pendingSales,
     pendingSalesLoading,
+    loadPendingSales,
     handleGenerateInvoice,
     // Credit Note Modal
     invoiceForCreditNote,

@@ -452,6 +452,16 @@ export type AccountingExportFormat = 'CSV' | 'EXCEL' | 'JSON' | 'PDF'
 export interface AccountingExportFilterOptions {
   startDate?: string
   endDate?: string
+  startAccountCode?: string
+  endAccountCode?: string
+  branch?: string
+  costCenter?: string
+  administrativeArea?: string
+  voucherType?: string
+  prefix?: string
+  startNumber?: string
+  endNumber?: string
+  selectedThirdPartyId?: string
   thirdPartyType?: ThirdPartyType | 'ALL'
   legalNature?: LegalNature | 'ALL'
   entryStatus?: AccountingEntryStatus | 'ALL'
@@ -494,6 +504,13 @@ export interface TrialBalanceReportData {
   companyNit: string
   startDate: string
   endDate: string
+  branch?: string
+  costCenter?: string
+  administrativeArea?: string
+  startAccountCode?: string
+  endAccountCode?: string
+  voucherType?: string
+  selectedThirdPartyName?: string
   mainAccountCode: string
   mainAccountName: string
   maxLevel: TrialBalanceLevelFilter
@@ -508,4 +525,5 @@ export interface TrialBalanceReportData {
   isBalanced: boolean
   generatedAt: string
 }
+
 

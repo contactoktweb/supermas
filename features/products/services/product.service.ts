@@ -215,6 +215,46 @@ export class ProductService {
   }
 
   /**
+   * Comprueba transacciones históricas en Kardex, ventas y compras
+   */
+  async checkProductTransactions(productId: string) {
+    return productRepository.checkProductTransactions(productId)
+  }
+
+  /**
+   * Elimina un producto de forma definitiva tras doble confirmación.
+   * Si no tiene transacciones asociadas, ejecuta DELETE físico en PostgreSQL.
+   * Si tiene transacciones históricas protegidas por FK (ON DELETE RESTRICT), ejecuta soft delete completo.
+   */
+  async deleteProduct(
+    id: string,
+    _userContext?: UserPermissionContext
+  ): Promise<{ mode: 'HARD_DELETE' | 'SOFT_DELETE'; message: string }> {
+    const existing = await productRepository.findById(id)
+    if (!existing) {
+      throw new Error(`Producto con ID ${id} no encontrado.`)
+    }
+
+    const usage = await productRepository.checkProductTransactions(id)
+
+    if (usage.hasHistoricalRecords) {
+      // Tiene ventas o Kardex: desvinculación completa (soft delete) para proteger integridad contable
+      await productRepository.softDelete(id)
+      return {
+        mode: 'SOFT_DELETE',
+        message: `El producto "${existing.name}" tiene transacciones históricas (${usage.salesCount} ventas, ${usage.movementsCount} movimientos en Kardex). Por normativa fiscal y contable DIAN, se retiró y desvinculó completamente de todos los catálogos y vitrinas sin romper la integridad contable.`,
+      }
+    }
+
+    // No tiene transacciones: borrado físico completo de PostgreSQL
+    await productRepository.delete(id)
+    return {
+      mode: 'HARD_DELETE',
+      message: `El producto "${existing.name}" fue eliminado definitivamente de la base de datos.`,
+    }
+  }
+
+  /**
    * Obtiene las estadísticas globales del catálogo de productos con protección RBAC.
    */
   async getGlobalStats(

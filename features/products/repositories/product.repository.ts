@@ -696,7 +696,44 @@ export class ProductRepository {
   }
 
   /**
-   * Eliminación física (utilizada exclusivamente para limpieza Zero Pollution en pruebas)
+   * Comprueba transacciones históricas en Kardex, ventas y compras
+   */
+  async checkProductTransactions(productId: string): Promise<{
+    movementsCount: number
+    salesCount: number
+    purchasesCount: number
+    hasHistoricalRecords: boolean
+  }> {
+    const [movementsRes, salesRes, purchasesRes] = await Promise.all([
+      supabaseClient
+        .from('inventory_movements')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', productId),
+      supabaseClient
+        .from('sale_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', productId),
+      supabaseClient
+        .from('purchase_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', productId),
+    ])
+
+    const movementsCount = movementsRes.count || 0
+    const salesCount = salesRes.count || 0
+    const purchasesCount = purchasesRes.count || 0
+    const hasHistoricalRecords = movementsCount > 0 || salesCount > 0 || purchasesCount > 0
+
+    return {
+      movementsCount,
+      salesCount,
+      purchasesCount,
+      hasHistoricalRecords,
+    }
+  }
+
+  /**
+   * Eliminación física (utilizada exclusivamente para limpieza Zero Pollution o borrado definitivo)
    */
   async delete(id: string): Promise<void> {
     const { error } = await supabaseClient

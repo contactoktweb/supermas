@@ -124,6 +124,8 @@ export class ProductService {
       isPublishedDistributor: validated.webDistribuidora,
       inventoryType: 'MERCHANDISE',
       prices: validated.prices,
+      accountingAccountId: (validated as any).accountingAccountId || (input as any).accountingAccountId || undefined,
+      accountingCategoryId: (validated as any).accountingCategoryId || (input as any).accountingCategoryId || undefined,
     })
 
     return created
@@ -189,6 +191,12 @@ export class ProductService {
     }
     if ((validated as any).estimatedCost !== undefined) {
       updatePayload.costPrice = (validated as any).estimatedCost
+    }
+    if ((validated as any).accountingAccountId !== undefined || (input as any).accountingAccountId !== undefined) {
+      updatePayload.accountingAccountId = (validated as any).accountingAccountId ?? (input as any).accountingAccountId
+    }
+    if ((validated as any).accountingCategoryId !== undefined || (input as any).accountingCategoryId !== undefined) {
+      updatePayload.accountingCategoryId = (validated as any).accountingCategoryId ?? (input as any).accountingCategoryId
     }
 
     const updated = await productRepository.update(id, updatePayload)

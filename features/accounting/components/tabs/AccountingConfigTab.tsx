@@ -101,16 +101,16 @@ export function AccountingConfigTab({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
-              🌾 Harina de Trigo → <strong className="text-amber-800">Materia Prima</strong> → <code className="text-blue-800 font-bold">140501</code>
+              Harina de Trigo → <strong className="text-amber-800">Materia Prima</strong> → <code className="text-blue-800 font-bold">140501</code>
             </span>
             <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
-              🥣 Masa Preparada → <strong className="text-purple-800">En Proceso</strong> → <code className="text-blue-800 font-bold">141001</code>
+              Masa Preparada → <strong className="text-purple-800">En Proceso</strong> → <code className="text-blue-800 font-bold">141001</code>
             </span>
             <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
-              🍞 Pan Tajado → <strong className="text-emerald-800">Prod. Terminado</strong> → <code className="text-blue-800 font-bold">143001</code>
+              Pan Tajado → <strong className="text-emerald-800">Prod. Terminado</strong> → <code className="text-blue-800 font-bold">143001</code>
             </span>
             <span className="bg-white px-2.5 py-1 rounded-md border border-blue-200 text-gray-700 shadow-2xs">
-              🥫 Abarrotes / Granos → <strong className="text-blue-800">Mercancía Venta</strong> → <code className="text-blue-800 font-bold">143501</code>
+              Abarrotes / Granos → <strong className="text-blue-800">Mercancía Venta</strong> → <code className="text-blue-800 font-bold">143501</code>
             </span>
           </div>
         </div>

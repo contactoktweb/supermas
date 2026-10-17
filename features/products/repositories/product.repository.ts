@@ -24,6 +24,7 @@ import {
 function mapDbToDomain(row: any): Product {
   const categoryRel = row.categories || row.category || null
   const brandRel = row.brands || row.brand || null
+  const accountRel = row.accounting_accounts || row.accounting_account || null
 
   const costPrice = Number(row.cost_price ?? 0)
   const publicSalePrice = Number(row.public_sale_price ?? 0)
@@ -146,6 +147,14 @@ function mapDbToDomain(row: any): Product {
       isPublishedDistributor: Boolean(row.is_published_distributor),
       inventoryType: row.inventory_type || 'MERCHANDISE',
       accountingCategoryId: row.accounting_category_id || null,
+      accountingAccountId: row.accounting_account_id || row.accounting_category_id || null,
+      accountingAccount: accountRel
+        ? {
+            id: accountRel.id,
+            code: accountRel.code,
+            name: accountRel.name,
+          }
+        : null,
 
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -218,6 +227,7 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
+        accounting_accounts ( id, code, name ),
         stock_levels ( quantity, location_id ),
         product_prices ( * )
       `,
@@ -322,6 +332,7 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
+        accounting_accounts ( id, code, name ),
         stock_levels ( quantity, location_id ),
         product_prices ( * )
       `)
@@ -343,6 +354,7 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
+        accounting_accounts ( id, code, name ),
         stock_levels ( quantity, location_id ),
         product_prices ( * )
       `)
@@ -366,6 +378,7 @@ export class ProductRepository {
         *,
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
+        accounting_accounts ( id, code, name ),
         stock_levels ( quantity, location_id ),
         product_prices ( * )
       `)
@@ -448,7 +461,8 @@ export class ProductRepository {
       is_published_distributor:
         (data as any).isPublishedDistributor ?? (data as any).webDistribuidora ?? true,
       inventory_type: (data as any).inventoryType || 'MERCHANDISE',
-      accounting_category_id: (data as any).accountingCategoryId || null,
+      accounting_category_id: (data as any).accountingAccountId || (data as any).accountingCategoryId || null,
+      accounting_account_id: (data as any).accountingAccountId || null,
     }
 
     const { data: createdRow, error } = await supabaseClient
@@ -639,6 +653,14 @@ export class ProductRepository {
       updatePayload.is_published_distributor = u.isPublishedDistributor
     else if (u.webDistribuidora !== undefined)
       updatePayload.is_published_distributor = u.webDistribuidora
+
+    if (u.accountingAccountId !== undefined) {
+      updatePayload.accounting_account_id = u.accountingAccountId || null
+      updatePayload.accounting_category_id = u.accountingAccountId || null
+    } else if (u.accountingCategoryId !== undefined) {
+      updatePayload.accounting_account_id = u.accountingCategoryId || null
+      updatePayload.accounting_category_id = u.accountingCategoryId || null
+    }
 
     const { data: updatedRow, error } = await supabaseClient
       .from('products')

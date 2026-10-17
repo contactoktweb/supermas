@@ -405,12 +405,12 @@ export function NewManualEntryDrawer({
                     <option value="">-- Seleccionar o digitar manual --</option>
                     {/* Proveedores */}
                     {thirdParties.filter((t) => t.thirdPartyType === 'PROVEEDOR').length > 0 && (
-                      <optgroup label="── 📦 PROVEEDORES (Compras / Insumos) ──">
+                      <optgroup label="── PROVEEDORES (Compras / Insumos) ──">
                         {thirdParties
                           .filter((t) => t.thirdPartyType === 'PROVEEDOR')
                           .map((tp) => (
                             <option key={tp.id} value={tp.id}>
-                              📦 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
                               {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
                             </option>
                           ))}
@@ -418,12 +418,12 @@ export function NewManualEntryDrawer({
                     )}
                     {/* Clientes */}
                     {thirdParties.filter((t) => t.thirdPartyType === 'CLIENTE').length > 0 && (
-                      <optgroup label="── 🛒 CLIENTES (Ventas / Cartera) ──">
+                      <optgroup label="── CLIENTES (Ventas / Cartera) ──">
                         {thirdParties
                           .filter((t) => t.thirdPartyType === 'CLIENTE')
                           .map((tp) => (
                             <option key={tp.id} value={tp.id}>
-                              🛒 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
                               {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
                             </option>
                           ))}
@@ -431,12 +431,12 @@ export function NewManualEntryDrawer({
                     )}
                     {/* Empleados */}
                     {thirdParties.filter((t) => t.thirdPartyType === 'EMPLEADO').length > 0 && (
-                      <optgroup label="── 👤 EMPLEADOS (Nómina) ──">
+                      <optgroup label="── EMPLEADOS (Nómina) ──">
                         {thirdParties
                           .filter((t) => t.thirdPartyType === 'EMPLEADO')
                           .map((tp) => (
                             <option key={tp.id} value={tp.id}>
-                              👤 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
                               {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
                             </option>
                           ))}
@@ -449,7 +449,7 @@ export function NewManualEntryDrawer({
                         t.thirdPartyType !== 'CLIENTE' &&
                         t.thirdPartyType !== 'EMPLEADO'
                     ).length > 0 && (
-                      <optgroup label="── 🏢 ACREEDORES Y OTROS ──">
+                      <optgroup label="── ACREEDORES Y OTROS ──">
                         {thirdParties
                           .filter(
                             (t) =>
@@ -459,7 +459,7 @@ export function NewManualEntryDrawer({
                           )
                           .map((tp) => (
                             <option key={tp.id} value={tp.id}>
-                              🏢 {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
+                              {tp.companyName} ({tp.legalNature === 'JURIDICA' ? 'NIT' : 'CC'}: {tp.documentNumber}
                               {tp.verificationDigit ? `-${tp.verificationDigit}` : ''})
                             </option>
                           ))}
@@ -508,7 +508,7 @@ export function NewManualEntryDrawer({
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-semibold text-slate-600">Clasificación:</span>
                       <span
-                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                           selectedTp.thirdPartyType === 'CLIENTE'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                             : selectedTp.thirdPartyType === 'PROVEEDOR'
@@ -518,19 +518,45 @@ export function NewManualEntryDrawer({
                             : 'bg-amber-50 text-amber-800 border-amber-300'
                         }`}
                       >
-                        {selectedTp.thirdPartyType === 'CLIENTE' && '🛒 CLIENTE'}
-                        {selectedTp.thirdPartyType === 'PROVEEDOR' && '📦 PROVEEDOR'}
-                        {selectedTp.thirdPartyType === 'EMPLEADO' && '👤 EMPLEADO'}
-                        {selectedTp.thirdPartyType === 'ACREEDOR' && '🏢 ACREEDOR'}
-                        {selectedTp.thirdPartyType === 'OTRO' && '⚪ OTRO'}
+                        {selectedTp.thirdPartyType === 'CLIENTE' && (
+                          <>
+                            <AppIcon name="purchases" size={11} className="text-emerald-700" />
+                            CLIENTE
+                          </>
+                        )}
+                        {selectedTp.thirdPartyType === 'PROVEEDOR' && (
+                          <>
+                            <AppIcon name="package" size={11} className="text-blue-700" />
+                            PROVEEDOR
+                          </>
+                        )}
+                        {selectedTp.thirdPartyType === 'EMPLEADO' && (
+                          <>
+                            <AppIcon name="users" size={11} className="text-purple-700" />
+                            EMPLEADO
+                          </>
+                        )}
+                        {selectedTp.thirdPartyType === 'ACREEDOR' && (
+                          <>
+                            <AppIcon name="warehouse" size={11} className="text-amber-700" />
+                            ACREEDOR
+                          </>
+                        )}
+                        {selectedTp.thirdPartyType === 'OTRO' && (
+                          <>
+                            <AppIcon name="layers" size={11} className="text-slate-600" />
+                            OTRO
+                          </>
+                        )}
                       </span>
                       <span className="text-[11px] text-slate-500">
                         {selectedTp.legalNature === 'JURIDICA' ? '• Persona Jurídica (NIT)' : '• Persona Natural (CC)'}
                       </span>
                     </div>
                     {selectedTp.email && (
-                      <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
-                        ✉️ {selectedTp.email}
+                      <span className="text-[11px] text-slate-500 font-mono hidden sm:inline-flex items-center gap-1">
+                        <AppIcon name="mail" size={11} className="text-slate-400" />
+                        <span>{selectedTp.email}</span>
                       </span>
                     )}
                   </div>

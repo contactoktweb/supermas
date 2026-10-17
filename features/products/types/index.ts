@@ -127,6 +127,12 @@ export interface Product {
   isPublishedDistributor: boolean
   inventoryType: string
   accountingCategoryId?: string
+  accountingAccountId?: string
+  accountingAccount?: {
+    id: string
+    code: string
+    name: string
+  } | null
   createdAt: string
   updatedAt: string
 
@@ -248,6 +254,8 @@ export interface CreateProductInput {
   description?: string
   categoryId: string
   brandId: string
+  accountingAccountId?: string
+  accountingCategoryId?: string
   unitOfMeasure: UnitOfMeasure
   imageUrl?: string
   images?: string[]

@@ -214,12 +214,14 @@ export function NewAccountDrawer({
 
             <div className="text-[11px] px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
               {level === 'ACCOUNT' || level === 'GROUP' || level === 'CLASS' ? (
-                <span className="text-amber-700 font-medium">
-                  ⚠️ Nivel no imputable: Las cuentas de mayor (4 dígitos) son de acumulación. No se usan directamente para transacciones.
+                <span className="text-amber-700 font-medium inline-flex items-center gap-1.5">
+                  <AppIcon name="warning" size={13} className="shrink-0" />
+                  <span>Nivel no imputable: Las cuentas de mayor (4 dígitos) son de acumulación. No se usan directamente para transacciones.</span>
                 </span>
               ) : (
-                <span className="text-emerald-700 font-medium">
-                  ✅ Nivel imputable: Las subcuentas y auxiliares (ej: 111005 o 111005.01) se utilizan directamente en asientos y comprobantes.
+                <span className="text-emerald-700 font-medium inline-flex items-center gap-1.5">
+                  <AppIcon name="check" size={13} className="shrink-0" />
+                  <span>Nivel imputable: Las subcuentas y auxiliares (ej: 111005 o 111005.01) se utilizan directamente en asientos y comprobantes.</span>
                 </span>
               )}
             </div>

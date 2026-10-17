@@ -268,19 +268,21 @@ export function AccountingAccountsTab({
                       <td>
                         {isImputable ? (
                           <span
-                            className="badge text-[10px] font-semibold"
+                            className="badge text-[10px] font-semibold inline-flex items-center gap-1"
                             style={{ backgroundColor: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }}
                             title="Esta subcuenta/auxiliar se puede utilizar directamente en asientos contables"
                           >
-                            ✅ Imputable
+                            <AppIcon name="check" size={11} className="text-blue-700" />
+                            <span>Imputable</span>
                           </span>
                         ) : (
                           <span
-                            className="badge text-[10px] font-medium text-gray-500"
+                            className="badge text-[10px] font-medium text-gray-500 inline-flex items-center gap-1"
                             style={{ backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0' }}
                             title="Cuenta de resumen/mayor. No admite imputación directa."
                           >
-                            📁 No Imputable
+                            <AppIcon name="layers" size={11} className="text-slate-400" />
+                            <span>No Imputable</span>
                           </span>
                         )}
                       </td>

@@ -88,6 +88,13 @@ export const baseProductFormSchema = z.object({
     .trim()
     .min(1, 'La marca es obligatoria')
     .uuid('Identificador de marca inválido'),
+  accountingAccountId: z
+    .string()
+    .trim()
+    .min(1, 'Debes seleccionar la cuenta contable PUC a la cual estará enlazado el producto')
+    .optional()
+    .or(z.literal('')),
+  accountingCategoryId: z.string().trim().optional(),
   unitOfMeasure: unitOfMeasureSchema.default('UND'),
   imageUrl: z.string().trim().default(''),
   images: z.array(z.string()).default([]),

@@ -258,6 +258,14 @@ export function ProductDetailDrawer({
                     {product.taxProfile} ({product.vatRatePercent}%)
                   </b>
                 </p>
+                <p>
+                  <span>Cuenta Contable PUC:</span>
+                  <b>
+                    {product.accountingAccount
+                      ? `${product.accountingAccount.code} — ${product.accountingAccount.name}`
+                      : '—'}
+                  </b>
+                </p>
                 {product.description && (
                   <div style={{ marginTop: 12 }}>
                     <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>

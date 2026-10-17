@@ -64,6 +64,8 @@ export function ProductFormDrawer({
   const [brandId, setBrandId] = useState('')
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([])
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
+  const [accountingAccountId, setAccountingAccountId] = useState('')
+  const [pucAccountOptions, setPucAccountOptions] = useState<SelectOption[]>([])
   const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
   const [loadingCatalogs, setLoadingCatalogs] = useState(true)
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('UND')
@@ -119,8 +121,14 @@ export function ProductFormDrawer({
       brandService.listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' }),
       productService.getTaxConfigs(),
       supabaseClient.from('locations').select('id, code, name').eq('status', 'ACTIVE').order('name', { ascending: true }),
+      supabaseClient
+        .from('accounting_accounts')
+        .select('id, code, name, level')
+        .like('code', '14%')
+        .eq('is_active', true)
+        .order('code', { ascending: true }),
     ])
-      .then(([catsRes, brandsRes, taxesRes, locsRes]) => {
+      .then(([catsRes, brandsRes, taxesRes, locsRes, pucsRes]) => {
         if (!isMounted) return
 
         const cats: SelectOption[] = ((catsRes as any).data || []).map((c: any) => ({
@@ -133,8 +141,24 @@ export function ProductFormDrawer({
           label: b.name,
         }))
 
+        // Solo cuentas coherentes de inventarios (Clase 1, Grupo 14 del PUC)
+        const pucOptions: SelectOption[] = ((pucsRes as any).data || [])
+          .filter((acc: any) => typeof acc.code === 'string' && acc.code.startsWith('14'))
+          .sort((a: any, b: any) => {
+            // Priorizar exactamente 1435 en primer lugar
+            if (a.code === '1435') return -1
+            if (b.code === '1435') return 1
+            return a.code.localeCompare(b.code)
+          })
+          .map((acc: any) => ({
+            value: acc.id,
+            label: `${acc.code} — ${acc.name}`,
+            badge: acc.code === '1435' ? 'Comercialización' : 'Inventario',
+          }))
+
         setCategoryOptions(cats)
         setBrandOptions(brands)
+        setPucAccountOptions(pucOptions)
         setTaxRates(taxesRes || [])
         if (locsRes?.data) {
           setActiveWarehouses(locsRes.data)
@@ -143,6 +167,16 @@ export function ProductFormDrawer({
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
           if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
+          if (pucOptions.length > 0) {
+            // Por defecto preseleccionar cuenta 1435
+            const defaultAcc =
+              pucOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435') ||
+              pucOptions.find((p) => p.label.startsWith('1435')) ||
+              pucOptions[0]
+            if (defaultAcc) {
+              setAccountingAccountId((prev) => prev || defaultAcc.value)
+            }
+          }
         }
       })
       .catch((err) => {
@@ -210,6 +244,13 @@ export function ProductFormDrawer({
         setStatus(initialProduct.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
         setMinStockThreshold(initialProduct.minStockThreshold)
         setCriticalStockThreshold(initialProduct.criticalStockThreshold)
+        setAccountingAccountId(
+          initialProduct.accountingAccountId ||
+          initialProduct.accountingCategoryId ||
+          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
+          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
+          ''
+        )
         setAuditReason('')
       } else {
         // Reset defaults for Create
@@ -238,10 +279,16 @@ export function ProductFormDrawer({
         setStatus('ACTIVE')
         setMinStockThreshold(15)
         setCriticalStockThreshold(5)
+        const defaultPuc =
+          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
+          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
+          pucAccountOptions[0]?.value ||
+          ''
+        setAccountingAccountId(defaultPuc)
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions, pucAccountOptions])
 
   if (!isOpen || !mounted) return null
 
@@ -323,6 +370,15 @@ export function ProductFormDrawer({
       })
       .filter((s) => s.quantity > 0)
 
+    if (!accountingAccountId) {
+      setErrors((prev) => ({
+        ...prev,
+        accountingAccountId: 'Debes seleccionar la cuenta contable PUC a la cual estará enlazado el producto',
+      }))
+      setActiveTab('info')
+      return
+    }
+
     const payload: CreateProductInput = {
       name: name.trim(),
       sku: sku.trim().toUpperCase(),
@@ -330,6 +386,8 @@ export function ProductFormDrawer({
       description: description.trim(),
       categoryId,
       brandId,
+      accountingAccountId,
+      accountingCategoryId: accountingAccountId,
       unitOfMeasure,
       imageUrl: imageUrl.trim(),
       status,
@@ -381,6 +439,8 @@ export function ProductFormDrawer({
           setActiveTab('web')
         } else if (firstField === 'auditReason' && activeTab !== 'governance') {
           setActiveTab('governance')
+        } else if (firstField === 'accountingAccountId' && activeTab !== 'info') {
+          setActiveTab('info')
         }
       } else {
         setErrors({ general: cleanMessage })
@@ -617,12 +677,44 @@ export function ProductFormDrawer({
 
               <div className="form-grid-2">
                 <div className="form-field">
-                  <label>Unidad de medida</label>
+                  <label>
+                    Unidad de medida <em>*</em>
+                  </label>
                   <CustomSelect
                     options={UNIT_OPTIONS}
                     value={unitOfMeasure}
                     onChange={(val) => setUnitOfMeasure(val as UnitOfMeasure)}
                   />
+                </div>
+
+                <div className="form-field">
+                  <label className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                    <AppIcon name="accounting" size={14} className="text-blue-900" />
+                    <span>Cuenta Contable PUC <em>*</em></span>
+                  </label>
+                  <CustomSelect
+                    options={pucAccountOptions}
+                    value={accountingAccountId}
+                    onChange={(val) => {
+                      setAccountingAccountId(val)
+                      setErrors((prev) => ({ ...prev, accountingAccountId: '' }))
+                    }}
+                    disabled={pucAccountOptions.length === 0}
+                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona una cuenta contable PUC'}
+                  />
+                  {errors.accountingAccountId && (
+                    <span className="field-error-text">{errors.accountingAccountId}</span>
+                  )}
+                  {pucAccountOptions.length === 0 && !loadingCatalogs && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * No hay cuentas contables PUC activas en el sistema.
+                    </small>
+                  )}
+                  {pucAccountOptions.length > 0 && (
+                    <small className="field-hint text-[10.5px] text-slate-500">
+                      Cuenta del PUC vinculada para movimientos de inventario y compras.
+                    </small>
+                  )}
                 </div>
               </div>
 

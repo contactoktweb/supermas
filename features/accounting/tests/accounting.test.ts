@@ -20,10 +20,10 @@ let failed = 0
 
 function assert(condition: boolean, testName: string, detail?: string) {
   if (condition) {
-    console.log(`  ✅ PASÓ: ${testName}`)
+    console.log(`  [PASS] PASÓ: ${testName}`)
     passed++
   } else {
-    console.error(`  ❌ FALLÓ: ${testName}`)
+    console.error(`  [FAIL] FALLÓ: ${testName}`)
     if (detail) console.error(`     Detalle: ${detail}`)
     failed++
   }
@@ -31,7 +31,7 @@ function assert(condition: boolean, testName: string, detail?: string) {
 
 async function runAccountingTestSuite() {
   console.log('========================================================')
-  console.log('🧪 INICIANDO SUITE DE PRUEBAS DEL MÓDULO DE CONTABILIDAD')
+  console.log('--- INICIANDO SUITE DE PRUEBAS DEL MÓDULO DE CONTABILIDAD ---')
   console.log('========================================================\n')
 
   const adminUser = {
@@ -243,7 +243,7 @@ async function runAccountingTestSuite() {
   )
 
   console.log('\n========================================================')
-  console.log(`📊 RESULTADO FINAL: ${passed} PASARON, ${failed} FALLARON`)
+  console.log(`[RESUMEN] RESULTADO FINAL: ${passed} PASARON, ${failed} FALLARON`)
   console.log('========================================================')
 
   if (failed > 0) {

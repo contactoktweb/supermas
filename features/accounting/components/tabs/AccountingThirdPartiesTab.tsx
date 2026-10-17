@@ -107,7 +107,7 @@ export function AccountingThirdPartiesTab({
             <strong className="text-xl font-bold text-slate-900">{countClientes}</strong>
           </div>
           <div className="w-9 h-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
-            🛒
+            <AppIcon name="purchases" size={18} className="text-emerald-700" />
           </div>
         </button>
 
@@ -126,7 +126,7 @@ export function AccountingThirdPartiesTab({
             <strong className="text-xl font-bold text-slate-900">{countProveedores}</strong>
           </div>
           <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-900 flex items-center justify-center font-bold text-sm">
-            📦
+            <AppIcon name="package" size={18} className="text-blue-700" />
           </div>
         </button>
 
@@ -145,7 +145,7 @@ export function AccountingThirdPartiesTab({
             <strong className="text-xl font-bold text-slate-900">{countJuridica}</strong>
           </div>
           <div className="w-9 h-9 rounded-lg bg-indigo-100 text-indigo-800 flex items-center justify-center font-bold text-sm">
-            🏢
+            <AppIcon name="suppliers" size={18} className="text-indigo-700" />
           </div>
         </button>
 
@@ -164,7 +164,7 @@ export function AccountingThirdPartiesTab({
             <strong className="text-xl font-bold text-slate-900">{countNatural}</strong>
           </div>
           <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-sm">
-            👤
+            <AppIcon name="users" size={18} className="text-slate-700" />
           </div>
         </button>
       </div>
@@ -194,7 +194,8 @@ export function AccountingThirdPartiesTab({
               : 'text-emerald-800 hover:bg-emerald-50'
           }`}
         >
-          <span>🛒 Clientes</span>
+          <AppIcon name="purchases" size={13} className={selectedType === 'CLIENTE' ? 'text-white' : 'text-emerald-700'} />
+          <span>Clientes</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             selectedType === 'CLIENTE' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'
           }`}>
@@ -210,7 +211,8 @@ export function AccountingThirdPartiesTab({
               : 'text-blue-900 hover:bg-blue-50'
           }`}
         >
-          <span>📦 Proveedores</span>
+          <AppIcon name="package" size={13} className={selectedType === 'PROVEEDOR' ? 'text-white' : 'text-blue-700'} />
+          <span>Proveedores</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             selectedType === 'PROVEEDOR' ? 'bg-blue-800 text-white' : 'bg-blue-100 text-blue-900'
           }`}>
@@ -226,7 +228,8 @@ export function AccountingThirdPartiesTab({
               : 'text-purple-800 hover:bg-purple-50'
           }`}
         >
-          <span>👤 Empleados</span>
+          <AppIcon name="users" size={13} className={selectedType === 'EMPLEADO' ? 'text-white' : 'text-purple-700'} />
+          <span>Empleados</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             selectedType === 'EMPLEADO' ? 'bg-purple-800 text-white' : 'bg-purple-100 text-purple-800'
           }`}>
@@ -242,7 +245,8 @@ export function AccountingThirdPartiesTab({
               : 'text-amber-800 hover:bg-amber-50'
           }`}
         >
-          <span>🏢 Acreedores</span>
+          <AppIcon name="warehouse" size={13} className={selectedType === 'ACREEDOR' ? 'text-white' : 'text-amber-700'} />
+          <span>Acreedores</span>
           <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
             selectedType === 'ACREEDOR' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-800'
           }`}>
@@ -259,7 +263,13 @@ export function AccountingThirdPartiesTab({
                 : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            <span>Otros ({countOtros})</span>
+            <AppIcon name="layers" size={13} className={selectedType === 'OTRO' ? 'text-white' : 'text-slate-600'} />
+            <span>Otros</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              selectedType === 'OTRO' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {countOtros}
+            </span>
           </button>
         )}
       </div>
@@ -388,39 +398,56 @@ export function AccountingThirdPartiesTab({
                       {/* Selector interactivo de Rol / Tipo de Tercero */}
                       {canManageThirdParties && onUpdateThirdPartyType ? (
                         <div className="relative inline-flex items-center">
+                          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 flex items-center">
+                            {tp.thirdPartyType === 'CLIENTE' && <AppIcon name="purchases" size={13} className="text-emerald-700" />}
+                            {tp.thirdPartyType === 'PROVEEDOR' && <AppIcon name="package" size={13} className="text-blue-700" />}
+                            {tp.thirdPartyType === 'EMPLEADO' && <AppIcon name="users" size={13} className="text-purple-700" />}
+                            {tp.thirdPartyType === 'ACREEDOR' && <AppIcon name="warehouse" size={13} className="text-amber-700" />}
+                            {tp.thirdPartyType === 'OTRO' && <AppIcon name="layers" size={13} className="text-slate-600" />}
+                          </span>
                           <select
                             value={tp.thirdPartyType}
                             disabled={updatingId === tp.id}
                             onChange={(e) => handleTypeChange(tp.id, e.target.value as ThirdPartyType)}
-                            className={`text-xs font-semibold px-2 py-1 pr-6 rounded-lg border appearance-none cursor-pointer transition-all shadow-2xs ${getTypeBadgeStyle(
+                            className={`text-xs font-semibold pl-6 pr-6 py-1 rounded-lg border appearance-none cursor-pointer transition-all shadow-2xs ${getTypeBadgeStyle(
                               tp.thirdPartyType
                             )} ${updatingId === tp.id ? 'opacity-50 cursor-wait' : ''}`}
                             title="Cambiar clasificación (Cliente ↔ Proveedor ↔ Empleado ↔ Acreedor)"
                           >
-                            <option value="CLIENTE">🛒 Cliente</option>
-                            <option value="PROVEEDOR">📦 Proveedor</option>
-                            <option value="EMPLEADO">👤 Empleado</option>
-                            <option value="ACREEDOR">🏢 Acreedor</option>
-                            <option value="OTRO">⚪ Otro</option>
+                            <option value="CLIENTE">Cliente</option>
+                            <option value="PROVEEDOR">Proveedor</option>
+                            <option value="EMPLEADO">Empleado</option>
+                            <option value="ACREEDOR">Acreedor</option>
+                            <option value="OTRO">Otro</option>
                           </select>
-                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] text-slate-400">
-                            ▼
+                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 flex items-center">
+                            <AppIcon name="chevronDown" size={11} />
                           </span>
                         </div>
                       ) : (
-                        <span className={`badge text-xs font-semibold ${getTypeBadgeStyle(tp.thirdPartyType)}`}>
-                          {tp.thirdPartyType === 'CLIENTE' && '🛒 Cliente'}
-                          {tp.thirdPartyType === 'PROVEEDOR' && '📦 Proveedor'}
-                          {tp.thirdPartyType === 'EMPLEADO' && '👤 Empleado'}
-                          {tp.thirdPartyType === 'ACREEDOR' && '🏢 Acreedor'}
-                          {tp.thirdPartyType === 'OTRO' && '⚪ Otro'}
+                        <span className={`badge text-xs font-semibold inline-flex items-center gap-1.5 ${getTypeBadgeStyle(tp.thirdPartyType)}`}>
+                          {tp.thirdPartyType === 'CLIENTE' && <><AppIcon name="purchases" size={12} className="text-emerald-700" /> Cliente</>}
+                          {tp.thirdPartyType === 'PROVEEDOR' && <><AppIcon name="package" size={12} className="text-blue-700" /> Proveedor</>}
+                          {tp.thirdPartyType === 'EMPLEADO' && <><AppIcon name="users" size={12} className="text-purple-700" /> Empleado</>}
+                          {tp.thirdPartyType === 'ACREEDOR' && <><AppIcon name="warehouse" size={12} className="text-amber-700" /> Acreedor</>}
+                          {tp.thirdPartyType === 'OTRO' && <><AppIcon name="layers" size={12} className="text-slate-600" /> Otro</>}
                         </span>
                       )}
                     </td>
                     <td>
-                      <div className="flex flex-col text-[11px] text-slate-600">
-                        {tp.email && <span className="truncate max-w-[150px]">{tp.email}</span>}
-                        {tp.phone && <span className="font-mono text-slate-500">{tp.phone}</span>}
+                      <div className="flex flex-col text-[11px] text-slate-600 gap-0.5">
+                        {tp.email && (
+                          <span className="inline-flex items-center gap-1 truncate max-w-[170px]" title={tp.email}>
+                            <AppIcon name="mail" size={11} className="text-slate-400 shrink-0" />
+                            <span className="truncate">{tp.email}</span>
+                          </span>
+                        )}
+                        {tp.phone && (
+                          <span className="inline-flex items-center gap-1 font-mono text-slate-500">
+                            <AppIcon name="phone" size={11} className="text-slate-400 shrink-0" />
+                            <span>{tp.phone}</span>
+                          </span>
+                        )}
                         {!tp.email && !tp.phone && <span className="text-slate-400">—</span>}
                       </div>
                     </td>

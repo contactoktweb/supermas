@@ -472,6 +472,27 @@ export interface AccountingExportFilterOptions {
   hideZeroBalances?: boolean
 }
 
+export interface AccountingExportPdfParams {
+  reportType: AccountingExportType
+  mainAccountCode?: string
+  startAccountCode?: string
+  endAccountCode?: string
+  branch?: string
+  costCenter?: string
+  administrativeArea?: string
+  voucherType?: string
+  selectedThirdPartyId?: string
+  thirdPartyType?: ThirdPartyType | 'ALL'
+  legalNature?: LegalNature | 'ALL'
+  entryStatus?: AccountingEntryStatus | 'ALL'
+  searchQuery?: string
+  maxLevel?: TrialBalanceLevelFilter
+  includeThirdParties?: boolean
+  hideZeroBalances?: boolean
+  startDate?: string
+  endDate?: string
+}
+
 export type TrialBalanceLevelFilter = 'CLASS' | 'GROUP' | 'ACCOUNT' | 'SUBACCOUNT' | 'AUXILIARY' | 'ALL'
 
 export interface TrialBalanceThirdPartyDetail {

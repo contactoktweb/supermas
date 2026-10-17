@@ -1,6 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import {
   Product,
@@ -56,7 +57,60 @@ export function ProductTable({
   onTransferProduct,
   onAdjustStock,
 }: ProductTableProps) {
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [activeMenuProduct, setActiveMenuProduct] = useState<Product | null>(null)
+  const [menuRect, setMenuRect] = useState<DOMRect | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Cerrar el popover al hacer clic afuera, scroll o presionar Escape
+  useEffect(() => {
+    if (!activeMenuProduct) return
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('.product-action-portal-menu') && !target.closest('.row-more-btn')) {
+        setActiveMenuProduct(null)
+        setMenuRect(null)
+      }
+    }
+
+    const handleScroll = (e: Event) => {
+      const target = e.target as HTMLElement
+      // No cerrar si el scroll ocurre dentro del propio menú desplegable
+      if (target && target.closest && target.closest('.product-action-portal-menu')) {
+        return
+      }
+      setActiveMenuProduct(null)
+      setMenuRect(null)
+    }
+
+    const handleResize = () => {
+      setActiveMenuProduct(null)
+      setMenuRect(null)
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveMenuProduct(null)
+        setMenuRect(null)
+      }
+    }
+
+    window.addEventListener('click', handleOutsideClick)
+    window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('click', handleOutsideClick)
+      window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [activeMenuProduct])
 
   const canUpdate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('products.update')
   const canDeactivate = !userContext || userContext.userRole === 'ADMIN' || userContext.permissions.includes('products.delete')
@@ -298,7 +352,7 @@ export function ProductTable({
               </tr>
             ) : (
               products.map((product) => {
-                const isMenuOpen = activeMenuId === product.id
+                const isMenuOpen = activeMenuProduct?.id === product.id
 
               return (
                 <tr
@@ -491,108 +545,21 @@ export function ProductTable({
                         <button
                           type="button"
                           className="icon-button row-more-btn"
-                          onClick={() =>
-                            setActiveMenuId(isMenuOpen ? null : product.id)
-                          }
-                          aria-label="Acciones de producto"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (activeMenuProduct?.id === product.id) {
+                              setActiveMenuProduct(null)
+                              setMenuRect(null)
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setActiveMenuProduct(product)
+                              setMenuRect(rect)
+                            }
+                          }}
+                          aria-label={`Acciones para ${product.name}`}
                         >
                           <AppIcon name="more" size={16} />
                         </button>
-
-                        {isMenuOpen && (
-                          <div className="row-action-popover page-enter">
-                            <button
-                              type="button"
-                              className="popover-action-item"
-                              onClick={() => {
-                                setActiveMenuId(null)
-                                onSelectProduct(product)
-                              }}
-                            >
-                              <AppIcon name="eye" size={14} />
-                              <span>Ver detalle</span>
-                            </button>
-
-                            {canUpdate && (
-                              <button
-                                type="button"
-                                className="popover-action-item"
-                                onClick={() => {
-                                  setActiveMenuId(null)
-                                  onEditProduct(product)
-                                }}
-                              >
-                                <AppIcon name="edit" size={14} />
-                                <span>Editar producto</span>
-                              </button>
-                            )}
-
-                            <button
-                              type="button"
-                              className="popover-action-item"
-                              onClick={() => {
-                                setActiveMenuId(null)
-                                onViewKardex(product)
-                              }}
-                            >
-                              <AppIcon name="kardex" size={14} />
-                              <span>Ver Kardex</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="popover-action-item"
-                              onClick={() => {
-                                setActiveMenuId(null)
-                                onTransferProduct(product)
-                              }}
-                            >
-                              <AppIcon name="transfers" size={14} />
-                              <span>Transferir</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              className="popover-action-item"
-                              onClick={() => {
-                                setActiveMenuId(null)
-                                onAdjustStock(product)
-                              }}
-                            >
-                              <AppIcon name="inventory" size={14} />
-                              <span>Ajustar inventario</span>
-                            </button>
-
-                            {canDeactivate && product.status === 'ACTIVE' && (
-                              <button
-                                type="button"
-                                className="popover-action-item danger"
-                                onClick={() => {
-                                  setActiveMenuId(null)
-                                  onDeactivateProduct(product)
-                                }}
-                              >
-                                <AppIcon name="warning" size={14} />
-                                <span>Desactivar</span>
-                              </button>
-                            )}
-
-                            {canDeactivate && onDeleteProduct && (
-                              <button
-                                type="button"
-                                className="popover-action-item danger"
-                                onClick={() => {
-                                  setActiveMenuId(null)
-                                  onDeleteProduct(product)
-                                }}
-                                title="Eliminar producto con doble confirmación y palabra de seguridad"
-                              >
-                                <AppIcon name="trash" size={14} />
-                                <span>Eliminar producto</span>
-                              </button>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </td>
                   )}
@@ -603,6 +570,166 @@ export function ProductTable({
         </tbody>
       </table>
     </div>
+
+      {/* Portal Popover para Acciones de Fila (Evita overflow clipping por contenedor de tabla) */}
+      {mounted &&
+        activeMenuProduct &&
+        menuRect &&
+        createPortal(
+          (() => {
+            const menuHeight = 310
+            const spaceBelow = window.innerHeight - menuRect.bottom - 12
+            const spaceAbove = menuRect.top - 12
+            const openUpwards = spaceBelow < menuHeight && spaceAbove > spaceBelow
+            const availableSpace = openUpwards ? spaceAbove : spaceBelow
+            const maxHeight = Math.min(360, Math.max(160, availableSpace))
+            const product = activeMenuProduct
+            const right = Math.max(12, Math.min(window.innerWidth - 220, window.innerWidth - menuRect.right))
+
+            return (
+              <div
+                className="product-action-portal-menu animate-scale-up"
+                style={{
+                  position: 'fixed',
+                  zIndex: 99999,
+                  right,
+                  ...(openUpwards
+                    ? { bottom: window.innerHeight - menuRect.top + 6 }
+                    : { top: menuRect.bottom + 6 }),
+                  width: 204,
+                  maxHeight,
+                  overflowY: 'auto',
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: 12,
+                  padding: '6px 4px',
+                  boxShadow: '0 20px 38px -6px rgba(0, 27, 92, 0.24), 0 8px 16px -4px rgba(0, 0, 0, 0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 2,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Cabecera sutil del producto */}
+                <div className="px-2.5 py-1.5 border-b border-slate-100 mb-0.5">
+                  <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">
+                    Opciones de Producto
+                  </span>
+                  <strong className="text-[11px] font-semibold text-slate-800 block truncate" title={product.name}>
+                    {product.name}
+                  </strong>
+                </div>
+
+                <button
+                  type="button"
+                  className="popover-action-item"
+                  onClick={() => {
+                    setActiveMenuProduct(null)
+                    setMenuRect(null)
+                    onSelectProduct(product)
+                  }}
+                >
+                  <AppIcon name="eye" size={14} className="text-blue-900 shrink-0" />
+                  <span>Ver detalle</span>
+                </button>
+
+                {canUpdate && (
+                  <button
+                    type="button"
+                    className="popover-action-item"
+                    onClick={() => {
+                      setActiveMenuProduct(null)
+                      setMenuRect(null)
+                      onEditProduct(product)
+                    }}
+                  >
+                    <AppIcon name="edit" size={14} className="text-indigo-600 shrink-0" />
+                    <span>Editar producto</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="popover-action-item"
+                  onClick={() => {
+                    setActiveMenuProduct(null)
+                    setMenuRect(null)
+                    onViewKardex(product)
+                  }}
+                >
+                  <AppIcon name="kardex" size={14} className="text-sky-600 shrink-0" />
+                  <span>Ver Kardex</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="popover-action-item"
+                  onClick={() => {
+                    setActiveMenuProduct(null)
+                    setMenuRect(null)
+                    onTransferProduct(product)
+                  }}
+                >
+                  <AppIcon name="transfers" size={14} className="text-purple-600 shrink-0" />
+                  <span>Transferir</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="popover-action-item"
+                  onClick={() => {
+                    setActiveMenuProduct(null)
+                    setMenuRect(null)
+                    onAdjustStock(product)
+                  }}
+                >
+                  <AppIcon name="inventory" size={14} className="text-emerald-600 shrink-0" />
+                  <span>Ajustar inventario</span>
+                </button>
+
+                {canDeactivate && product.status === 'ACTIVE' && (
+                  <>
+                    <div className="border-t border-slate-100 my-0.5" />
+                    <button
+                      type="button"
+                      className="popover-action-item danger"
+                      onClick={() => {
+                        setActiveMenuProduct(null)
+                        setMenuRect(null)
+                        onDeactivateProduct(product)
+                      }}
+                    >
+                      <AppIcon name="warning" size={14} className="text-amber-600 shrink-0" />
+                      <span>Desactivar</span>
+                    </button>
+                  </>
+                )}
+
+                {canDeactivate && onDeleteProduct && (
+                  <>
+                    {(!canDeactivate || product.status !== 'ACTIVE') && (
+                      <div className="border-t border-slate-100 my-0.5" />
+                    )}
+                    <button
+                      type="button"
+                      className="popover-action-item danger"
+                      onClick={() => {
+                        setActiveMenuProduct(null)
+                        setMenuRect(null)
+                        onDeleteProduct(product)
+                      }}
+                      title="Eliminar producto con doble confirmación y palabra de seguridad"
+                    >
+                      <AppIcon name="trash" size={14} className="text-rose-600 shrink-0" />
+                      <span>Eliminar producto</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )
+          })(),
+          document.body
+        )}
 
       {/* Pagination Bar */}
       {total > 0 && (

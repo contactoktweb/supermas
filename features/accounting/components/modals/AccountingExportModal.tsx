@@ -14,6 +14,7 @@ import {
   LegalNature,
   AccountingEntryStatus,
   TrialBalanceLevelFilter,
+  AccountingExportPdfParams,
 } from '../../types'
 import { accountingExportService } from '../../services/accounting-export.service'
 
@@ -26,6 +27,7 @@ interface AccountingExportModalProps {
   movements: AccountingMovement[]
   accounts: AccountingAccount[]
   onSuccessToast?: (title: string, message: string) => void
+  onOpenPdfReport?: (reportType: AccountingExportType, params: AccountingExportPdfParams) => void
   onOpenTrialBalancePdf?: (params: {
     mainAccountCode: string
     startAccountCode?: string
@@ -62,6 +64,7 @@ export function AccountingExportModal({
   movements,
   accounts,
   onSuccessToast,
+  onOpenPdfReport,
   onOpenTrialBalancePdf,
 }: AccountingExportModalProps) {
   const [mounted, setMounted] = useState(false)
@@ -69,7 +72,7 @@ export function AccountingExportModal({
   const [format, setFormat] = useState<AccountingExportFormat>('PDF')
   const [isExporting, setIsExporting] = useState(false)
 
-  // 1. Rango de Cuentas PUC (TNS SAS)
+  // 1. Rango de Cuentas PUC
   const [startAccountCode, setStartAccountCode] = useState<string>('')
   const [endAccountCode, setEndAccountCode] = useState<string>('')
   const [mainAccountCode, setMainAccountCode] = useState<string>('ALL')
@@ -85,7 +88,7 @@ export function AccountingExportModal({
   const [startDate, setStartDate] = useState<string>(defaultStartDate)
   const [endDate, setEndDate] = useState<string>(defaultEndDate)
 
-  // 3. Estructura Organizacional y Comprobantes (TNS SAS)
+  // 3. Estructura Organizacional y Comprobantes
   const [branch, setBranch] = useState<string>('01 - SUPER MÁS PRINCIPAL')
   const [costCenter, setCostCenter] = useState<string>('TODOS')
   const [administrativeArea, setAdministrativeArea] = useState<string>('TODAS')
@@ -340,9 +343,32 @@ export function AccountingExportModal({
 
         let result: { count: number; filename: string } = { count: 0, filename: '' }
 
-        // Si se solicita PDF en Balance de Comprobación o Libro Auxiliar
+        // Si se solicita PDF en cualquier módulo contable oficial
         if (format === 'PDF') {
-          if (onOpenTrialBalancePdf) {
+          const pdfParams: AccountingExportPdfParams = {
+            reportType: selectedType,
+            mainAccountCode,
+            startAccountCode: startAccountCode || undefined,
+            endAccountCode: endAccountCode || undefined,
+            branch,
+            costCenter,
+            administrativeArea,
+            voucherType,
+            selectedThirdPartyId,
+            thirdPartyType,
+            legalNature,
+            entryStatus,
+            searchQuery,
+            maxLevel: selectedType === 'movements' ? 'AUXILIARY' : maxLevel,
+            includeThirdParties,
+            hideZeroBalances,
+            startDate: startDate || undefined,
+            endDate: endDate || undefined,
+          }
+
+          if (onOpenPdfReport) {
+            onOpenPdfReport(selectedType, pdfParams)
+          } else if (onOpenTrialBalancePdf) {
             onOpenTrialBalancePdf({
               mainAccountCode,
               startAccountCode: startAccountCode || undefined,
@@ -459,7 +485,7 @@ export function AccountingExportModal({
                 Exportación de Información Contable
               </h2>
               <p className="text-[11px] text-slate-500 m-0">
-                Parámetros unificados de libros contables oficiales (TNS SAS)
+                Parámetros de libros contables oficiales y fiscales
               </p>
             </div>
           </div>
@@ -523,14 +549,14 @@ export function AccountingExportModal({
             </div>
           </div>
 
-          {/* PASO 2: RANGO A IMPRIMIR / EXPORTAR (PARÁMETROS TNS SAS ESTÁNDAR) */}
+          {/* PASO 2: RANGO A IMPRIMIR / EXPORTAR */}
           <div className="bg-slate-50/90 p-4 rounded-xl border border-slate-200 space-y-3.5">
             <div className="flex items-center justify-between">
               <label className="font-bold text-slate-900 text-xs uppercase tracking-wider flex items-center gap-1.5">
                 <span className="w-4.5 h-4.5 rounded-full bg-blue-900 text-white inline-flex items-center justify-center text-[10px] font-bold">
                   2
                 </span>
-                Rango a Imprimir / Exportar (Criterios TNS)
+                Rango a Imprimir / Exportar (Criterios Oficiales)
               </label>
               <span className="text-[10px] font-mono font-semibold text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200">
                 Filtros Generales
@@ -761,7 +787,7 @@ export function AccountingExportModal({
               </div>
             </div>
 
-            {/* Fila 4: Casillas de verificación del estándar contable TNS */}
+            {/* Fila 4: Opciones avanzadas de presentación */}
             <div className="pt-2 border-t border-slate-200 flex flex-wrap items-center gap-4 text-xs">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
@@ -819,7 +845,7 @@ export function AccountingExportModal({
                 <div className="w-7 h-7 rounded-lg bg-red-100 text-red-800 flex items-center justify-center font-bold text-xs">
                   <AppIcon name="receipt" size={14} />
                 </div>
-                <strong className="text-xs">PDF Oficial (TNS SAS)</strong>
+                <strong className="text-xs">PDF Oficial Imprimible</strong>
                 <span className="text-[10px] text-slate-500 leading-tight">
                   Formato fiduciario ajustado al 100% en hoja Carta, con membrete y firmas
                 </span>

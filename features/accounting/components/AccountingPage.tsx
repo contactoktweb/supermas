@@ -32,7 +32,14 @@ import { TrialBalancePdfModal } from './modals/TrialBalancePdfModal'
 // Skeletons & Toasts
 import { AccountingStatsSkeleton, AccountingTableSkeleton } from './AccountingSkeleton'
 import { AccountingToastContainer, AccountingToastMessage } from './AccountingToast'
-import { AccountingEntry, AccountNature, ThirdPartyType, AccountingExportType, TrialBalanceLevelFilter } from '../types'
+import {
+  AccountingEntry,
+  AccountNature,
+  ThirdPartyType,
+  AccountingExportType,
+  TrialBalanceLevelFilter,
+  AccountingExportPdfParams,
+} from '../types'
 import { AccountFormData, ManualEntryFormData, ThirdPartyFormData } from '../schemas/accounting.schema'
 
 const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] = [
@@ -104,44 +111,23 @@ export function AccountingPage() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [exportInitialType, setExportInitialType] = useState<AccountingExportType>('third_parties')
   const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
-  const [trialBalancePdfParams, setTrialBalancePdfParams] = useState<{
-    mainAccountCode: string
-    startAccountCode?: string
-    endAccountCode?: string
-    branch?: string
-    costCenter?: string
-    administrativeArea?: string
-    voucherType?: string
-    selectedThirdPartyId?: string
-    maxLevel: TrialBalanceLevelFilter
-    includeThirdParties: boolean
-    startDate?: string
-    endDate?: string
-  }>({
+  const [pdfReportType, setPdfReportType] = useState<AccountingExportType>('trial_balance')
+  const [accountingPdfParams, setAccountingPdfParams] = useState<AccountingExportPdfParams>({
+    reportType: 'trial_balance',
     mainAccountCode: 'ALL',
     maxLevel: 'SUBACCOUNT',
     includeThirdParties: true,
+    hideZeroBalances: true,
   })
   const [selectedEntry, setSelectedEntry] = useState<AccountingEntry | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const handleOpenTrialBalancePdf = useCallback(
-    (params?: {
-      mainAccountCode?: string
-      startAccountCode?: string
-      endAccountCode?: string
-      branch?: string
-      costCenter?: string
-      administrativeArea?: string
-      voucherType?: string
-      selectedThirdPartyId?: string
-      maxLevel?: TrialBalanceLevelFilter
-      includeThirdParties?: boolean
-      startDate?: string
-      endDate?: string
-    }) => {
+  const handleOpenAccountingPdf = useCallback(
+    (type: AccountingExportType, params?: Partial<AccountingExportPdfParams>) => {
+      setPdfReportType(type)
       if (params) {
-        setTrialBalancePdfParams({
+        setAccountingPdfParams({
+          reportType: type,
           mainAccountCode: params.mainAccountCode || 'ALL',
           startAccountCode: params.startAccountCode || '',
           endAccountCode: params.endAccountCode || '',
@@ -150,8 +136,13 @@ export function AccountingPage() {
           administrativeArea: params.administrativeArea || 'TODAS',
           voucherType: params.voucherType || 'TODOS',
           selectedThirdPartyId: params.selectedThirdPartyId || 'ALL',
+          thirdPartyType: params.thirdPartyType || 'ALL',
+          legalNature: params.legalNature || 'ALL',
+          entryStatus: params.entryStatus || 'ALL',
+          searchQuery: params.searchQuery || '',
           maxLevel: params.maxLevel || 'SUBACCOUNT',
           includeThirdParties: params.includeThirdParties !== undefined ? params.includeThirdParties : true,
+          hideZeroBalances: params.hideZeroBalances !== undefined ? params.hideZeroBalances : true,
           startDate: params.startDate,
           endDate: params.endDate,
         })
@@ -160,6 +151,10 @@ export function AccountingPage() {
     },
     []
   )
+
+  const handleOpenTrialBalancePdf = useCallback(() => {
+    handleOpenAccountingPdf('trial_balance')
+  }, [handleOpenAccountingPdf])
 
   const handleOpenExportModal = useCallback((preferredType?: AccountingExportType) => {
     if (preferredType) {
@@ -501,27 +496,40 @@ export function AccountingPage() {
         movements={movements}
         accounts={accounts}
         onSuccessToast={(title, desc) => addToast('success', title, desc)}
-        onOpenTrialBalancePdf={handleOpenTrialBalancePdf}
+        onOpenPdfReport={handleOpenAccountingPdf}
+        onOpenTrialBalancePdf={(params) =>
+          handleOpenAccountingPdf('trial_balance', {
+            reportType: 'trial_balance',
+            ...params,
+          })
+        }
       />
 
       <TrialBalancePdfModal
         isOpen={isTrialBalancePdfOpen}
         onClose={() => setIsTrialBalancePdfOpen(false)}
+        reportType={pdfReportType}
         accounts={accounts}
         movements={movements}
+        entries={entries}
         thirdParties={thirdParties}
-        initialMainAccountCode={trialBalancePdfParams.mainAccountCode}
-        initialStartAccountCode={trialBalancePdfParams.startAccountCode}
-        initialEndAccountCode={trialBalancePdfParams.endAccountCode}
-        initialBranch={trialBalancePdfParams.branch}
-        initialCostCenter={trialBalancePdfParams.costCenter}
-        initialAdministrativeArea={trialBalancePdfParams.administrativeArea}
-        initialVoucherType={trialBalancePdfParams.voucherType}
-        initialSelectedThirdPartyId={trialBalancePdfParams.selectedThirdPartyId}
-        initialMaxLevel={trialBalancePdfParams.maxLevel}
-        initialIncludeThirdParties={trialBalancePdfParams.includeThirdParties}
-        initialStartDate={trialBalancePdfParams.startDate}
-        initialEndDate={trialBalancePdfParams.endDate}
+        initialMainAccountCode={accountingPdfParams.mainAccountCode}
+        initialStartAccountCode={accountingPdfParams.startAccountCode}
+        initialEndAccountCode={accountingPdfParams.endAccountCode}
+        initialBranch={accountingPdfParams.branch}
+        initialCostCenter={accountingPdfParams.costCenter}
+        initialAdministrativeArea={accountingPdfParams.administrativeArea}
+        initialVoucherType={accountingPdfParams.voucherType}
+        initialSelectedThirdPartyId={accountingPdfParams.selectedThirdPartyId}
+        initialThirdPartyType={accountingPdfParams.thirdPartyType}
+        initialLegalNature={accountingPdfParams.legalNature}
+        initialEntryStatus={accountingPdfParams.entryStatus}
+        initialSearchQuery={accountingPdfParams.searchQuery}
+        initialMaxLevel={accountingPdfParams.maxLevel}
+        initialIncludeThirdParties={accountingPdfParams.includeThirdParties}
+        initialHideZeroBalances={accountingPdfParams.hideZeroBalances}
+        initialStartDate={accountingPdfParams.startDate}
+        initialEndDate={accountingPdfParams.endDate}
       />
 
       {/* Notificaciones flotantes */}

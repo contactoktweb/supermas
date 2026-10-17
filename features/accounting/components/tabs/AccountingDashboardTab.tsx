@@ -15,19 +15,6 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
 
   return (
     <div className="accounting-dashboard-view space-y-6 page-enter">
-      {/* Banner Informativo si no existen comprobantes registrados */}
-      {dashboard.postedEntriesCount === 0 && dashboard.totalAssets === 0 && (
-        <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-xl flex items-center gap-3 text-xs text-blue-900">
-          <AppIcon name="accounting" size={18} className="text-blue-700 shrink-0" />
-          <div>
-            <strong className="font-semibold block">Módulo Contable Inicializado — Base Limpia</strong>
-            <span className="text-blue-700 text-[11px]">
-              El catálogo PUC base está configurado con saldo inicial $0. Todos los indicadores, libros y reportes se calcularán en tiempo real a partir de comprobantes de diario reales.
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Grid principal de 9 indicadores financieros */}
       <section className="stats-grid products-stats" aria-label="Indicadores financieros principales">
         <StatCard

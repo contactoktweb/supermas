@@ -249,9 +249,11 @@ export function NewThirdPartyModal({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl">🛒</span>
+                    <AppIcon name="purchases" size={20} color="#059669" />
                     {thirdPartyType === 'CLIENTE' && (
-                      <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">✓</span>
+                      <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
+                        <AppIcon name="check" size={10} color="#ffffff" />
+                      </span>
                     )}
                   </div>
                   <div>
@@ -273,9 +275,11 @@ export function NewThirdPartyModal({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl">📦</span>
+                    <AppIcon name="package" size={20} color="#2563eb" />
                     {thirdPartyType === 'PROVEEDOR' && (
-                      <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">✓</span>
+                      <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">
+                        <AppIcon name="check" size={10} color="#ffffff" />
+                      </span>
                     )}
                   </div>
                   <div>
@@ -297,9 +301,11 @@ export function NewThirdPartyModal({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl">👤</span>
+                    <AppIcon name="users" size={20} color="#7c3aed" />
                     {thirdPartyType === 'EMPLEADO' && (
-                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">✓</span>
+                      <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px]">
+                        <AppIcon name="check" size={10} color="#ffffff" />
+                      </span>
                     )}
                   </div>
                   <div>
@@ -321,9 +327,11 @@ export function NewThirdPartyModal({
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xl">🏢</span>
+                    <AppIcon name="warehouse" size={20} color="#d97706" />
                     {(thirdPartyType === 'ACREEDOR' || thirdPartyType === 'OTRO') && (
-                      <span className="w-4 h-4 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">✓</span>
+                      <span className="w-4 h-4 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px]">
+                        <AppIcon name="check" size={10} color="#ffffff" />
+                      </span>
                     )}
                   </div>
                   <div>
@@ -339,11 +347,11 @@ export function NewThirdPartyModal({
               <div className="mt-2 py-1.5 px-3 bg-slate-50 rounded-lg border border-slate-200 text-[11px] flex items-center justify-between">
                 <span className="text-slate-600">
                   Clasificación seleccionada: <strong className="text-slate-900">
-                    {thirdPartyType === 'CLIENTE' && '🛒 CLIENTE (Módulo de Ventas & Cartera)'}
-                    {thirdPartyType === 'PROVEEDOR' && '📦 PROVEEDOR (Módulo de Compras & Cuentas por Pagar)'}
-                    {thirdPartyType === 'EMPLEADO' && '👤 EMPLEADO (Nómina & Seguridad Social)'}
-                    {thirdPartyType === 'ACREEDOR' && '🏢 ACREEDOR VARIOS (Servicios, Bancos, Arriendos)'}
-                    {thirdPartyType === 'OTRO' && '⚪ OTRO TERCERO'}
+                    {thirdPartyType === 'CLIENTE' && 'CLIENTE (Módulo de Ventas & Cartera)'}
+                    {thirdPartyType === 'PROVEEDOR' && 'PROVEEDOR (Módulo de Compras & Cuentas por Pagar)'}
+                    {thirdPartyType === 'EMPLEADO' && 'EMPLEADO (Nómina & Seguridad Social)'}
+                    {thirdPartyType === 'ACREEDOR' && 'ACREEDOR VARIOS (Servicios, Bancos, Arriendos)'}
+                    {thirdPartyType === 'OTRO' && 'OTRO TERCERO'}
                   </strong>
                 </span>
                 <span className="text-blue-700 font-semibold text-[10px]">Tercero Contable Oficial</span>

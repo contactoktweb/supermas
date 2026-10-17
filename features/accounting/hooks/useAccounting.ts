@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { accountingService } from '../services/accounting.service'
+import { accountingExportService } from '../services/accounting-export.service'
 import {
   AccountingAccount,
   AccountingEntry,
@@ -261,65 +262,31 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     return updated
   }
 
-  const exportCSV = async (type: 'entries' | 'accounts' | 'journal' | 'ledger' | 'balance' | 'exogena' | 'auxiliary') => {
-    let filename = `supermas-${type}-${new Date().toISOString().split('T')[0]}.csv`
-    let csvContent = ''
-
+  const exportCSV = async (
+    type: 'entries' | 'accounts' | 'journal' | 'ledger' | 'balance' | 'exogena' | 'auxiliary' | 'third_parties',
+    format: 'CSV' | 'EXCEL' | 'JSON' = 'CSV'
+  ) => {
+    if (type === 'third_parties') {
+      return accountingExportService.exportThirdParties(thirdParties, format)
+    }
     if (type === 'auxiliary') {
-      const headers = ['Fecha', 'Doc Origen', 'Cuenta', 'Nombre Cuenta', 'Descripcion', 'Tercero', 'Centro Costo / Bodega', 'Debito', 'Credito', 'Saldo Acumulado']
-      const rows = (auxiliaryReport?.movements || []).map((m) => [
-        m.date.slice(0, 10),
-        m.sourceDocumentNumber || m.entryNumber,
-        m.accountCode,
-        `"${m.accountName.replace(/"/g, '""')}"`,
-        `"${m.description.replace(/"/g, '""')}"`,
-        `"${(m.thirdPartyName || '').replace(/"/g, '""')}"`,
-        `"${(m.costCenterName || '').replace(/"/g, '""')}"`,
-        m.debit,
-        m.credit,
-        m.runningBalance,
-      ])
-      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    } else if (type === 'entries' || type === 'journal') {
-      const headers = ['Numero', 'Fecha', 'Tipo', 'Documento', 'Descripcion', 'Tercero', 'Debito', 'Credito', 'Estado']
-      const rows = entries.map((e) => [
-        e.entryNumber,
-        e.date,
-        e.sourceType,
-        e.documentNumber || '',
-        `"${e.description.replace(/"/g, '""')}"`,
-        `"${(e.thirdPartyName || '').replace(/"/g, '""')}"`,
-        e.totalDebit,
-        e.totalCredit,
-        e.status,
-      ])
-      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    } else if (type === 'accounts') {
-      const headers = ['Codigo', 'Nombre', 'Clase', 'Tipo', 'Naturaleza', 'Nivel', 'Saldo']
-      const rows = accounts.map((a) => [
-        a.code,
-        `"${a.name.replace(/"/g, '""')}"`,
-        a.accountClass,
-        a.type,
-        a.nature,
-        a.level,
-        a.balance,
-      ])
-      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    } else {
-      const headers = ['Cuenta', 'Nombre', 'Saldo']
-      const rows = accounts.map((a) => [a.code, `"${a.name}"`, a.balance])
-      csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+      return accountingExportService.exportAuxiliary(auxiliaryReport?.movements || movements, format)
+    }
+    if (type === 'entries') {
+      return accountingExportService.exportEntries(entries, format)
+    }
+    if (type === 'journal') {
+      return accountingExportService.exportJournal(entries, format)
+    }
+    if (type === 'accounts') {
+      return accountingExportService.exportAccounts(accounts, format)
+    }
+    if (type === 'balance') {
+      return accountingExportService.exportBalance(accounts, format)
     }
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    // Fallback estándar
+    return accountingExportService.exportAccounts(accounts, format)
   }
 
   return {

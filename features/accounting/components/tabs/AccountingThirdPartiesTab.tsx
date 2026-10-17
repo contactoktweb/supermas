@@ -7,6 +7,7 @@ import { ThirdParty, LegalNature, ThirdPartyType } from '../../types'
 interface AccountingThirdPartiesTabProps {
   thirdParties: ThirdParty[]
   onOpenNewThirdParty: () => void
+  onExport?: () => void
   canManageThirdParties?: boolean
   onUpdateThirdPartyType?: (id: string, newType: ThirdPartyType) => Promise<any>
 }
@@ -14,6 +15,7 @@ interface AccountingThirdPartiesTabProps {
 export function AccountingThirdPartiesTab({
   thirdParties,
   onOpenNewThirdParty,
+  onExport,
   canManageThirdParties = true,
   onUpdateThirdPartyType,
 }: AccountingThirdPartiesTabProps) {
@@ -284,6 +286,18 @@ export function AccountingThirdPartiesTab({
             <option value="JURIDICA">Personas Jurídicas (NIT)</option>
             <option value="NATURAL">Personas Naturales (CC / CE)</option>
           </select>
+
+          {onExport && (
+            <button
+              type="button"
+              className="outline-button text-xs py-1.5 px-3 flex items-center gap-1.5 shadow-2xs hover:border-slate-400 transition-all"
+              onClick={onExport}
+              title="Exportar directorio de terceros a Excel, CSV o JSON con filtros y fechas"
+            >
+              <AppIcon name="download" size={14} />
+              <span>Exportar</span>
+            </button>
+          )}
 
           {canManageThirdParties && (
             <button

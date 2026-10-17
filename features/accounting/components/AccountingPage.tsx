@@ -26,11 +26,12 @@ import { AccountingEntryDetailDrawer } from './drawers/AccountingEntryDetailDraw
 import { NewManualEntryDrawer } from './drawers/NewManualEntryDrawer'
 import { NewAccountDrawer } from './drawers/NewAccountDrawer'
 import { NewThirdPartyModal } from './modals/NewThirdPartyModal'
+import { AccountingExportModal } from './modals/AccountingExportModal'
 
 // Skeletons & Toasts
 import { AccountingStatsSkeleton, AccountingTableSkeleton } from './AccountingSkeleton'
 import { AccountingToastContainer, AccountingToastMessage } from './AccountingToast'
-import { AccountingEntry, AccountNature, ThirdPartyType } from '../types'
+import { AccountingEntry, AccountNature, ThirdPartyType, AccountingExportType } from '../types'
 import { AccountFormData, ManualEntryFormData, ThirdPartyFormData } from '../schemas/accounting.schema'
 
 const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] = [
@@ -99,8 +100,27 @@ export function AccountingPage() {
   const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
   const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
   const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [exportInitialType, setExportInitialType] = useState<AccountingExportType>('third_parties')
   const [selectedEntry, setSelectedEntry] = useState<AccountingEntry | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const handleOpenExportModal = useCallback((preferredType?: AccountingExportType) => {
+    if (preferredType) {
+      setExportInitialType(preferredType)
+    } else {
+      const tabToExportMap: Partial<Record<AccountingTab, AccountingExportType>> = {
+        third_parties: 'third_parties',
+        entries: 'entries',
+        movements: 'movements',
+        journal: 'journal',
+        accounts: 'accounts',
+        balance: 'balance',
+      }
+      setExportInitialType(tabToExportMap[activeTab] || 'third_parties')
+    }
+    setIsExportModalOpen(true)
+  }, [activeTab])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -202,20 +222,7 @@ export function AccountingPage() {
   }
 
   const handleExportCSV = async () => {
-    try {
-      await exportCSV(
-        activeTab === 'accounts'
-          ? 'accounts'
-          : activeTab === 'journal'
-          ? 'journal'
-          : activeTab === 'entries'
-          ? 'entries'
-          : 'balance'
-      )
-      addToast('success', 'Archivo Exportado', 'El reporte contable ha sido descargado en formato CSV.')
-    } catch (err: any) {
-      addToast('error', 'Error en Exportación', err.message)
-    }
+    handleOpenExportModal()
   }
 
   const handleInspectAccountInLedger = (accountId: string) => {
@@ -230,7 +237,7 @@ export function AccountingPage() {
         onOpenNewEntry={() => setIsNewEntryOpen(true)}
         onOpenNewAccount={() => setIsNewAccountOpen(true)}
         onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
-        onExport={handleExportCSV}
+        onExport={() => handleOpenExportModal()}
         onRefresh={handleRefresh}
         canCreateEntry={permissions.canCreateEntries}
         canManageAccounts={permissions.canManageAccounts}
@@ -320,6 +327,7 @@ export function AccountingPage() {
             <AccountingThirdPartiesTab
               thirdParties={thirdParties}
               onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
+              onExport={() => handleOpenExportModal('third_parties')}
               canManageThirdParties={permissions.canManageAccounts}
               onUpdateThirdPartyType={handleUpdateThirdPartyType}
             />
@@ -334,14 +342,14 @@ export function AccountingPage() {
               filters={filters}
               onFilterChange={updateFilters}
               onSelectEntry={(e) => setSelectedEntry(e)}
-              onExportAuxiliary={() => exportCSV('auxiliary')}
+              onExportAuxiliary={() => handleOpenExportModal('movements')}
             />
           )}
 
           {activeTab === 'journal' && (
             <AccountingGeneralJournalTab
               entries={entries}
-              onExport={handleExportCSV}
+              onExport={() => handleOpenExportModal('journal')}
             />
           )}
 
@@ -425,6 +433,17 @@ export function AccountingPage() {
         isOpen={isNewThirdPartyOpen}
         onClose={() => setIsNewThirdPartyOpen(false)}
         onSubmit={handleCreateThirdParty}
+      />
+
+      <AccountingExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        initialType={exportInitialType}
+        thirdParties={thirdParties}
+        entries={entries}
+        movements={movements}
+        accounts={accounts}
+        onSuccessToast={(title, desc) => addToast('success', title, desc)}
       />
 
       {/* Notificaciones flotantes */}

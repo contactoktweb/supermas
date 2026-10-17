@@ -437,3 +437,75 @@ export interface AccountingPeriod {
   createdAt?: string
   updatedAt?: string
 }
+
+export type AccountingExportType =
+  | 'third_parties'
+  | 'entries'
+  | 'movements'
+  | 'accounts'
+  | 'journal'
+  | 'balance'
+  | 'trial_balance'
+
+export type AccountingExportFormat = 'CSV' | 'EXCEL' | 'JSON' | 'PDF'
+
+export interface AccountingExportFilterOptions {
+  startDate?: string
+  endDate?: string
+  thirdPartyType?: ThirdPartyType | 'ALL'
+  legalNature?: LegalNature | 'ALL'
+  entryStatus?: AccountingEntryStatus | 'ALL'
+  searchQuery?: string
+  mainAccountCode?: string
+  maxLevel?: TrialBalanceLevelFilter
+  includeThirdParties?: boolean
+  hideZeroBalances?: boolean
+}
+
+export type TrialBalanceLevelFilter = 'CLASS' | 'GROUP' | 'ACCOUNT' | 'SUBACCOUNT' | 'AUXILIARY' | 'ALL'
+
+export interface TrialBalanceThirdPartyDetail {
+  id?: string
+  docType: string
+  docNumber: string
+  name: string
+  initialBalance: number
+  debit: number
+  credit: number
+  finalBalance: number
+}
+
+export interface TrialBalanceRow {
+  code: string
+  name: string
+  accountClass: number
+  level: AccountLevel
+  nature: AccountNature
+  initialBalance: number
+  debit: number
+  credit: number
+  finalBalance: number
+  hasMovements: boolean
+  thirdParties?: TrialBalanceThirdPartyDetail[]
+}
+
+export interface TrialBalanceReportData {
+  companyName: string
+  companyNit: string
+  startDate: string
+  endDate: string
+  mainAccountCode: string
+  mainAccountName: string
+  maxLevel: TrialBalanceLevelFilter
+  includeThirdParties: boolean
+  rows: TrialBalanceRow[]
+  totalInitialDebit: number
+  totalInitialCredit: number
+  totalDebit: number
+  totalCredit: number
+  totalFinalDebit: number
+  totalFinalCredit: number
+  isBalanced: boolean
+  generatedAt: string
+}
+

@@ -13,6 +13,7 @@ import {
   TaxRateConfig,
   PriceTier,
   ProductPrice,
+  PriceChangeRequest,
 } from '../types'
 import { productRepository } from '../repositories/product.repository'
 import { productFormSchema, updateProductSchema } from '../schemas/product.schema'
@@ -566,6 +567,82 @@ export class ProductService {
     }
 
     return productRepository.togglePriceListActive(productId, priceListCode, isActive)
+  }
+
+  /**
+   * Solicita un cambio de precio que queda pendiente de aprobación (prices.request).
+   * Utilizado por JEFE_INGRESOS_SALIDAS y ADMIN.
+   */
+  async requestPriceChange(
+    productId: string,
+    priceListCode: string,
+    proposedPrice: number,
+    reason?: string,
+    userContext?: UserPermissionContext
+  ): Promise<{ success: boolean; requestId: string; message: string }> {
+    const canRequest =
+      !userContext ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.userRole === 'JEFE_INGRESOS_SALIDAS' ||
+      userContext.permissions.includes('*') ||
+      userContext.permissions.includes('prices.request')
+
+    if (!canRequest) {
+      throw new Error('No tiene permisos para proponer modificaciones de precios.')
+    }
+
+    return productRepository.requestPriceChange(productId, priceListCode, proposedPrice, reason)
+  }
+
+  /**
+   * Aprueba o rechaza una solicitud de cambio de precio (prices.approve).
+   * Exclusivo para rol ADMIN. Prohíbe terminantemente la autoaprobación.
+   */
+  async reviewPriceChange(
+    requestId: string,
+    approved: boolean,
+    reviewNotes?: string,
+    userContext?: UserPermissionContext
+  ): Promise<{ success: boolean; status: string; message: string }> {
+    const canApprove =
+      !userContext ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.permissions.includes('*') ||
+      userContext.permissions.includes('prices.approve')
+
+    if (!canApprove) {
+      throw new Error('Acceso denegado: Solo el Administrador puede aprobar o rechazar precios.')
+    }
+
+    return productRepository.reviewPriceChange(requestId, approved, reviewNotes)
+  }
+
+  /**
+   * Consulta el listado de solicitudes de cambios de precios.
+   */
+  async getPriceChangeRequests(
+    filters: {
+      status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'
+      productId?: string
+    } = {},
+    userContext?: UserPermissionContext
+  ): Promise<PriceChangeRequest[]> {
+    const canView =
+      !userContext ||
+      userContext.userRole === 'ADMIN' ||
+      userContext.userRole === 'SUPERADMIN' ||
+      userContext.userRole === 'JEFE_INGRESOS_SALIDAS' ||
+      userContext.permissions.includes('*') ||
+      userContext.permissions.includes('prices.request') ||
+      userContext.permissions.includes('prices.approve')
+
+    if (!canView) {
+      throw new Error('No tiene permisos para consultar solicitudes de cambio de precios.')
+    }
+
+    return productRepository.getPriceChangeRequests(filters)
   }
 }
 

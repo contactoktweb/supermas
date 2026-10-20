@@ -3,8 +3,16 @@
  */
 
 export type UserRole =
-  | 'SUPERADMIN'
+  // 7 Roles Definitivos del ERP
   | 'ADMIN'
+  | 'JEFE_INGRESOS_SALIDAS'
+  | 'FACTURACION_POS'
+  | 'ENCARGADA_VENTA'
+  | 'VENDEDORES'
+  | 'JEFE_BODEGA'
+  | 'RECURSOS_HUMANOS'
+  // Roles Legacy preservados
+  | 'SUPERADMIN'
   | 'WAREHOUSE_ADMIN'
   | 'POINT_ADMIN'
   | 'ACCOUNTANT'
@@ -25,6 +33,8 @@ export interface User {
   status: UserStatus
   locationIds: string[]
   locationName: string
+  assignedCashRegisterId?: string | null
+  assignedCashRegisterName?: string | null
   avatar: string
   createdAt: string
   lastLoginAt: string | null
@@ -45,7 +55,7 @@ export interface UserStats {
   activeUsersCount: number
   inactiveUsersCount: number
   recentlyConnectedCount: number
-  usersByRole: Record<UserRole, number>
+  usersByRole: Record<string, number>
 }
 
 export interface UserFilters {

@@ -48,22 +48,83 @@ export function middleware(request: NextRequest) {
 
   // 3. Protección de rutas restringidas según el rol fiduciario
   if (token && role) {
-    const adminOnlyRoutes = ['/usuarios', '/roles', '/auditoria', '/configuracion']
-    const accountingRoutes = ['/contabilidad', '/exogena', '/impuestos']
+    const isGlobalAdmin = role === 'ADMIN' || role === 'SUPERADMIN'
 
-    // Cajeros y Asesores de Venta no pueden ingresar a configuración administrativa ni contabilidad
-    if (role === 'CASHIER' || role === 'SELLER') {
+    if (!isGlobalAdmin) {
+      const adminOnlyRoutes = ['/roles', '/configuracion']
+      const accountingRoutes = ['/contabilidad', '/exogena', '/impuestos']
+      const commercialRoutes = ['/ventas', '/pos', '/facturacion', '/cajas', '/pedidos-web']
+      const inventoryRoutes = ['/inventario', '/kardex', '/transferencias', '/bodegas', '/recepciones']
+      const purchaseRoutes = ['/compras', '/proveedores', '/cuentas-por-pagar']
+
+      // 1. Roles nunca pueden entrar a roles o configuración del sistema (solo ADMIN)
       if (adminOnlyRoutes.some((route) => pathname.startsWith(route))) {
         return NextResponse.redirect(new URL('/?denied=admin', request.url))
       }
-      if (accountingRoutes.some((route) => pathname.startsWith(route))) {
-        return NextResponse.redirect(new URL('/?denied=accounting', request.url))
-      }
-    }
 
-    // Contabilidad no puede modificar roles ni usuarios
-    if (role === 'ACCOUNTANT') {
-      if (['/usuarios', '/roles'].some((route) => pathname.startsWith(route))) {
+      // 2. RECURSOS HUMANOS: solo gestiona usuarios/colaboradores y auditoría
+      if (role === 'RECURSOS_HUMANOS') {
+        const hrBlockedRoutes = [
+          ...accountingRoutes,
+          ...commercialRoutes,
+          ...inventoryRoutes,
+          ...purchaseRoutes,
+          '/productos',
+          '/categorias',
+          '/marcas',
+          '/remisiones',
+          '/devoluciones',
+          '/tesoreria',
+          '/catalogo-supermas',
+          '/catalogo-distribuidora',
+        ]
+        if (hrBlockedRoutes.some((route) => pathname.startsWith(route))) {
+          return NextResponse.redirect(new URL('/?denied=unauthorized_hr', request.url))
+        }
+      }
+
+      // 3. JEFE DE BODEGA: no entra a comercial, contabilidad, ni usuarios
+      if (role === 'JEFE_BODEGA' || role === 'WAREHOUSE_ADMIN') {
+        const whBlocked = [...accountingRoutes, ...commercialRoutes, '/usuarios', '/auditoria']
+        if (whBlocked.some((route) => pathname.startsWith(route))) {
+          return NextResponse.redirect(new URL('/?denied=unauthorized_warehouse', request.url))
+        }
+      }
+
+      // 4. FACTURACIÓN POS y ENCARGADA DE VENTA: no entran a compras, contabilidad, ni usuarios
+      if (role === 'FACTURACION_POS' || role === 'ENCARGADA_VENTA' || role === 'CASHIER') {
+        const posBlocked = [...accountingRoutes, ...purchaseRoutes, '/usuarios', '/auditoria']
+        if (posBlocked.some((route) => pathname.startsWith(route))) {
+          return NextResponse.redirect(new URL('/?denied=unauthorized_pos', request.url))
+        }
+      }
+
+      // 5. VENDEDORES: no entran a compras, pos/cajas (cobro es de encargada), contabilidad, ni usuarios
+      if (role === 'VENDEDORES' || role === 'SELLER') {
+        const sellerBlocked = [
+          ...accountingRoutes,
+          ...purchaseRoutes,
+          ...inventoryRoutes,
+          '/pos',
+          '/cajas',
+          '/usuarios',
+          '/auditoria',
+        ]
+        if (sellerBlocked.some((route) => pathname.startsWith(route))) {
+          return NextResponse.redirect(new URL('/?denied=unauthorized_seller', request.url))
+        }
+      }
+
+      // 6. JEFE DE INGRESOS Y SALIDAS OPERATIVA: no entra a contabilidad ni usuarios
+      if (role === 'JEFE_INGRESOS_SALIDAS') {
+        const jefeBlocked = [...accountingRoutes, '/usuarios']
+        if (jefeBlocked.some((route) => pathname.startsWith(route))) {
+          return NextResponse.redirect(new URL('/?denied=unauthorized_ops', request.url))
+        }
+      }
+
+      // 7. ACCOUNTANT legacy: no modifica usuarios
+      if (role === 'ACCOUNTANT' && pathname.startsWith('/usuarios')) {
         return NextResponse.redirect(new URL('/?denied=admin', request.url))
       }
     }

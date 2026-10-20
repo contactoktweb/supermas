@@ -22,7 +22,7 @@ export function RolesView() {
             Roles y Permisos
           </h1>
           <p className="welcome-subtitle">
-            Consulta la matriz de los 6 roles base inmutables del ERP Super Más y sus permisos asignados por módulo.
+            Consulta la matriz oficial de los 7 roles definitivos del ERP Super Más y sus permisos asignados por módulo.
           </p>
         </div>
       </header>

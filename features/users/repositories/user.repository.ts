@@ -42,6 +42,9 @@ function mapDbUserToDomain(row: any): User {
       ? `Múltiples Sedes (${locs.length})`
       : primaryLoc?.name || 'Consolidado General'
 
+  const assignedCashRegisterId = row.assigned_cash_register_id || null
+  const assignedCashRegisterName = row.cash_registers?.name || null
+
   return {
     id: row.id,
     name: fullName,
@@ -54,6 +57,8 @@ function mapDbUserToDomain(row: any): User {
     status,
     locationIds,
     locationName,
+    assignedCashRegisterId,
+    assignedCashRegisterName,
     avatar: row.avatar_url || initials,
     createdAt: row.created_at || new Date().toISOString(),
     lastLoginAt: row.last_login_at || null,
@@ -76,10 +81,12 @@ export class UserRepository {
         phone,
         avatar_url,
         is_active,
+        assigned_cash_register_id,
         last_login_at,
         created_at,
         updated_at,
         roles:role_id ( id, code, name ),
+        cash_registers:assigned_cash_register_id ( id, code, name ),
         user_locations (
           location_id,
           is_primary,
@@ -139,10 +146,12 @@ export class UserRepository {
         phone,
         avatar_url,
         is_active,
+        assigned_cash_register_id,
         last_login_at,
         created_at,
         updated_at,
         roles:role_id ( id, code, name ),
+        cash_registers:assigned_cash_register_id ( id, code, name ),
         user_locations (
           location_id,
           is_primary,
@@ -177,20 +186,10 @@ export class UserRepository {
       (u) => u.lastLoginAt && new Date(u.lastLoginAt).getTime() >= sevenDaysAgo
     ).length
 
-    const usersByRole: Record<UserRole, number> = {
-      SUPERADMIN: 0,
-      ADMIN: 0,
-      WAREHOUSE_ADMIN: 0,
-      POINT_ADMIN: 0,
-      ACCOUNTANT: 0,
-      SELLER: 0,
-      CASHIER: 0,
-    }
+    const usersByRole: Record<string, number> = {}
 
     users.forEach((u) => {
-      if (usersByRole[u.role] !== undefined) {
-        usersByRole[u.role]++
-      }
+      usersByRole[u.role] = (usersByRole[u.role] || 0) + 1
     })
 
     return {
@@ -285,6 +284,7 @@ export class UserRepository {
           full_name: fullName,
           phone: data.phone || null,
           is_active: data.status === 'ACTIVE',
+          assigned_cash_register_id: (data as any).assignedCashRegisterId || null,
           avatar_url: initials,
           updated_at: new Date().toISOString(),
         },
@@ -324,10 +324,12 @@ export class UserRepository {
         phone,
         avatar_url,
         is_active,
+        assigned_cash_register_id,
         last_login_at,
         created_at,
         updated_at,
         roles:role_id ( id, code, name ),
+        cash_registers:assigned_cash_register_id ( id, code, name ),
         user_locations (
           location_id,
           is_primary,
@@ -386,6 +388,10 @@ export class UserRepository {
         throw new Error(`No se encontró el rol especificado: ${updates.role}`)
       }
       updatesPayload.role_id = roleRow.id
+    }
+
+    if (updates.assignedCashRegisterId !== undefined) {
+      updatesPayload.assigned_cash_register_id = updates.assignedCashRegisterId || null
     }
 
     const { error: updateError } = await getDbClient()
@@ -486,6 +492,34 @@ export class UserRepository {
       code: loc.code,
       name: loc.name,
       type: loc.type,
+    }))
+  }
+
+  /**
+   * Obtiene las cajas registradoras de la empresa, opcionalmente filtradas por ubicación.
+   */
+  async getCashRegisters(locationId?: string): Promise<Array<{ id: string; code: string; name: string; locationId: string; status: string }>> {
+    let query = supabaseClient
+      .from('cash_registers')
+      .select('id, code, name, location_id, current_status')
+      .order('code', { ascending: true })
+
+    if (locationId && locationId !== 'ALL') {
+      query = query.eq('location_id', locationId)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      console.error('Error al consultar cajas registradoras:', error)
+      return []
+    }
+
+    return (data || []).map((cr: any) => ({
+      id: cr.id,
+      code: cr.code,
+      name: cr.name,
+      locationId: cr.location_id,
+      status: cr.current_status,
     }))
   }
 }

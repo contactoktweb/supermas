@@ -1,8 +1,16 @@
 import { z } from 'zod'
 
 export const UserRoleSchema = z.enum([
-  'SUPERADMIN',
+  // 7 Roles Definitivos del ERP
   'ADMIN',
+  'JEFE_INGRESOS_SALIDAS',
+  'FACTURACION_POS',
+  'ENCARGADA_VENTA',
+  'VENDEDORES',
+  'JEFE_BODEGA',
+  'RECURSOS_HUMANOS',
+  // Roles Legacy
+  'SUPERADMIN',
   'WAREHOUSE_ADMIN',
   'POINT_ADMIN',
   'ACCOUNTANT',
@@ -24,6 +32,7 @@ export const CreateUserSchema = z.object({
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
   role: UserRoleSchema,
   locationIds: z.array(z.string()).min(1, 'Debes asignar al menos una bodega o punto'),
+  assignedCashRegisterId: z.string().uuid().optional().nullable(),
   status: UserStatusSchema.default('ACTIVE'),
 })
 

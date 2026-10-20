@@ -60,6 +60,11 @@ export class UserService {
     this.assertPermission('users.create', userRole)
     const validated = CreateUserSchema.parse(input)
 
+    // Restricción crítica: Recursos Humanos no puede crear ni asignarse ADMIN
+    if (actor.role === 'RECURSOS_HUMANOS' && (validated.role === 'ADMIN' || validated.role === 'SUPERADMIN')) {
+      throw new Error('Permiso denegado: El rol Recursos Humanos no puede crear ni asignar usuarios con rol Administrador.')
+    }
+
     // Validar duplicidad de email o username
     const existingUsers = await userRepository.getUsers()
     const emailExists = existingUsers.some(
@@ -107,6 +112,11 @@ export class UserService {
   ): Promise<User> {
     this.assertPermission('users.update', userRole)
     const validated = UpdateUserSchema.parse(input)
+
+    // Restricción crítica: Recursos Humanos no puede ascender usuarios a ADMIN
+    if (actor.role === 'RECURSOS_HUMANOS' && (validated.role === 'ADMIN' || validated.role === 'SUPERADMIN')) {
+      throw new Error('Permiso denegado: El rol Recursos Humanos no puede asignar el rol Administrador.')
+    }
 
     const current = await userRepository.getUserById(id)
     if (!current) {
@@ -221,6 +231,13 @@ export class UserService {
    */
   async getLocations() {
     return userRepository.getLocations()
+  }
+
+  /**
+   * Obtiene la lista de cajas registradoras disponibles (opcionalmente filtradas por sede).
+   */
+  async getCashRegisters(locationId?: string) {
+    return userRepository.getCashRegisters(locationId)
   }
 
   /**

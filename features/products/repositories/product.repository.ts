@@ -19,6 +19,7 @@ import {
   ProductMovementSummary,
   PriceTier,
   ProductPrice,
+  PriceChangeRequest,
 } from '../types'
 
 function mapDbToDomain(row: any): Product {
@@ -965,6 +966,134 @@ export class ProductRepository {
       console.error('Error modificando estado de lista de precio:', error)
       throw new Error(this.translateDbError(error))
     }
+  }
+
+  /**
+   * Registra una solicitud de cambio de precio en public.price_change_requests (estado PENDING).
+   * Invocado por roles con permiso 'prices.request' (ej. JEFE_INGRESOS_SALIDAS).
+   */
+  async requestPriceChange(
+    productId: string,
+    priceListCode: string,
+    proposedPrice: number,
+    reason?: string
+  ): Promise<{ success: boolean; requestId: string; message: string }> {
+    const { data, error } = await supabaseClient.rpc('fn_request_price_change', {
+      p_product_id: productId,
+      p_price_list_code: priceListCode.trim().toUpperCase(),
+      p_proposed_price: proposedPrice,
+      p_reason: reason || null,
+    })
+
+    if (error) {
+      console.error('Error al solicitar cambio de precio:', error)
+      throw new Error(error.message || 'Error al registrar solicitud de cambio de precio.')
+    }
+
+    return {
+      success: data?.success ?? true,
+      requestId: data?.request_id,
+      message: data?.message || 'Solicitud de precio registrada exitosamente.',
+    }
+  }
+
+  /**
+   * Aprueba o rechaza una solicitud de cambio de precio.
+   * Exclusivo para rol ADMIN con permiso 'prices.approve'.
+   * Regla de negocio crítica: requested_by != reviewed_by (sin autoaprobación).
+   */
+  async reviewPriceChange(
+    requestId: string,
+    approved: boolean,
+    reviewNotes?: string
+  ): Promise<{ success: boolean; status: string; message: string }> {
+    const { data, error } = await supabaseClient.rpc('fn_review_price_change', {
+      p_request_id: requestId,
+      p_approved: approved,
+      p_review_notes: reviewNotes || null,
+    })
+
+    if (error) {
+      console.error('Error al revisar solicitud de cambio de precio:', error)
+      throw new Error(error.message || 'Error al procesar la aprobación de precio.')
+    }
+
+    return {
+      success: data?.success ?? true,
+      status: data?.status,
+      message: data?.message || (approved ? 'Precio aprobado.' : 'Precio rechazado.'),
+    }
+  }
+
+  /**
+   * Consulta las solicitudes de cambio de precio filtradas por estado o producto.
+   */
+  async getPriceChangeRequests(filters: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'
+    productId?: string
+  } = {}): Promise<PriceChangeRequest[]> {
+    let query = supabaseClient
+      .from('price_change_requests')
+      .select(`
+        id,
+        company_id,
+        product_id,
+        price_list_code,
+        price_list_name,
+        previous_price,
+        proposed_price,
+        status,
+        requested_by,
+        requested_at,
+        reason,
+        reviewed_by,
+        reviewed_at,
+        review_notes,
+        created_at,
+        updated_at,
+        products:product_id ( id, name, sku ),
+        requester:requested_by ( id, full_name, email ),
+        reviewer:reviewed_by ( id, full_name, email )
+      `)
+      .order('created_at', { ascending: false })
+
+    if (filters.status && filters.status !== 'ALL') {
+      query = query.eq('status', filters.status)
+    }
+
+    if (filters.productId) {
+      query = query.eq('product_id', filters.productId)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error al consultar price_change_requests:', error)
+      return []
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      companyId: row.company_id,
+      productId: row.product_id,
+      productName: row.products?.name || 'Producto',
+      productSku: row.products?.sku || '',
+      priceListCode: row.price_list_code,
+      priceListName: row.price_list_name,
+      previousPrice: Number(row.previous_price ?? 0),
+      proposedPrice: Number(row.proposed_price ?? 0),
+      status: row.status,
+      requestedBy: row.requested_by,
+      requestedByName: row.requester?.full_name || row.requester?.email || 'Colaborador',
+      requestedAt: row.requested_at,
+      reason: row.reason,
+      reviewedBy: row.reviewed_by,
+      reviewedByName: row.reviewer?.full_name || row.reviewer?.email || null,
+      reviewedAt: row.reviewed_at,
+      reviewNotes: row.review_notes,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
   }
 
   private slugify(name: string): string {

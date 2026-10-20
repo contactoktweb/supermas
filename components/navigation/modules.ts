@@ -74,7 +74,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'remisiones', label: 'Remisiones', icon: 'remisiones', path: '/remisiones', permission: 'remissions.read' },
       { id: 'devoluciones', label: 'Devoluciones', icon: 'returns', path: '/devoluciones', permission: 'sales.read' },
       { id: 'cajas', label: 'Cajas', icon: 'cashRegisters', path: '/cajas', permission: 'pos.cash_register' },
-      { id: 'tesoreria', label: 'Tesorería', icon: 'wallet', path: '/tesoreria', permission: 'reports.financial' },
+      { id: 'tesoreria', label: 'Tesorería', icon: 'wallet', path: '/tesoreria', permission: 'treasury.read' },
     ],
   },
   {
@@ -109,8 +109,8 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'ADMINISTRACIÓN',
     items: [
       { id: 'usuarios', label: 'Usuarios', icon: 'users', path: '/usuarios', permission: 'users.read' },
-      { id: 'roles', label: 'Roles', icon: 'roles', path: '/roles', permission: 'users.read' },
-      { id: 'configuracion', label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'users.update' },
+      { id: 'roles', label: 'Roles', icon: 'roles', path: '/roles', permission: 'settings.manage' },
+      { id: 'configuracion', label: 'Configuración', icon: 'settings', path: '/configuracion', permission: 'settings.manage' },
     ],
   },
 ]

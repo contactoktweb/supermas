@@ -376,6 +376,37 @@ export function UserDetailDrawer({
                     Sede Operativa
                   </span>
                 </div>
+
+                {user.assignedCashRegisterName && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: 6,
+                      border: '1px solid #ddd6fe',
+                      background: '#f5f3ff',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ padding: 8, borderRadius: 6, background: '#ede9fe', color: '#6d28d9' }}>
+                        <AppIcon name="cashRegisters" size={16} />
+                      </div>
+                      <div>
+                        <strong style={{ fontSize: 13, color: '#4c1d95', display: 'block' }}>
+                          {user.assignedCashRegisterName}
+                        </strong>
+                        <span style={{ fontSize: 12, color: '#6d28d9' }}>
+                          Caja Registradora Exclusiva
+                        </span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 4, background: '#ede9fe', color: '#6d28d9' }}>
+                      Caja Asignada
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -2,15 +2,25 @@
 
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { DEFINITIVE_ROLES } from '@/features/users/services/role-permissions'
 
 interface RolesConsultationViewProps {
   roles: any[]
 }
 
 export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
-  const [selectedRoleCode, setSelectedRoleCode] = useState<string>(roles[0]?.code || 'SUPERADMIN')
+  const sortedRoles = [...roles].sort((a, b) => {
+    const aDefIndex = DEFINITIVE_ROLES.indexOf(a.code)
+    const bDefIndex = DEFINITIVE_ROLES.indexOf(b.code)
+    if (aDefIndex !== -1 && bDefIndex !== -1) return aDefIndex - bDefIndex
+    if (aDefIndex !== -1) return -1
+    if (bDefIndex !== -1) return 1
+    return a.name.localeCompare(b.name)
+  })
 
-  const activeRole = roles.find((r) => r.code === selectedRoleCode) || roles[0]
+  const [selectedRoleCode, setSelectedRoleCode] = useState<string>('ADMIN')
+
+  const activeRole = sortedRoles.find((r) => r.code === selectedRoleCode) || sortedRoles[0]
 
   return (
     <div className="space-y-6">
@@ -31,7 +41,7 @@ export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
 
       {/* Role selector tabs */}
       <div className="flex flex-wrap gap-2 pb-2 border-b border-[#e2e8f0]">
-        {roles.map((r) => (
+        {sortedRoles.map((r) => (
           <button
             key={r.code}
             onClick={() => setSelectedRoleCode(r.code)}

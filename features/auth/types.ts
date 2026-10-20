@@ -6,8 +6,16 @@
  */
 
 export type UserRoleCode =
-  | 'SUPERADMIN'
+  // 7 Roles Definitivos del ERP
   | 'ADMIN'
+  | 'JEFE_INGRESOS_SALIDAS'
+  | 'FACTURACION_POS'
+  | 'ENCARGADA_VENTA'
+  | 'VENDEDORES'
+  | 'JEFE_BODEGA'
+  | 'RECURSOS_HUMANOS'
+  // Roles Legacy preservados para compatibilidad
+  | 'SUPERADMIN'
   | 'ACCOUNTANT'
   | 'WAREHOUSE_ADMIN'
   | 'POINT_ADMIN'

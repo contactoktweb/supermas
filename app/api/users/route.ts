@@ -26,6 +26,9 @@ function mapDbUserToDomain(row: any): User {
       ? `Múltiples Sedes (${locs.length})`
       : primaryLoc?.name || 'Consolidado General'
 
+  const assignedCashRegisterId = row.assigned_cash_register_id || null
+  const assignedCashRegisterName = row.cash_registers?.name || null
+
   return {
     id: row.id,
     name: fullName,
@@ -38,6 +41,8 @@ function mapDbUserToDomain(row: any): User {
     status,
     locationIds,
     locationName,
+    assignedCashRegisterId,
+    assignedCashRegisterName,
     avatar: row.avatar_url || initials,
     createdAt: row.created_at || new Date().toISOString(),
     lastLoginAt: row.last_login_at || null,
@@ -105,6 +110,32 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 3.1 Validar consistencia de caja registradora asignada (si se proporciona)
+    if (data.assignedCashRegisterId) {
+      const { data: reg, error: regErr } = await supabaseAdmin
+        .from('cash_registers')
+        .select('id, location_id, name')
+        .eq('id', data.assignedCashRegisterId)
+        .maybeSingle()
+
+      if (regErr || !reg) {
+        return NextResponse.json(
+          { success: false, error: 'La caja registradora asignada no existe en el sistema.' },
+          { status: 400 }
+        )
+      }
+
+      if (!data.locationIds.includes(reg.location_id)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `La caja registradora seleccionada (${reg.name}) no pertenece a la sede o punto de venta asignado.`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
     // 4. Determinar contraseña de acceso (provista o temporal segura)
     const initialPassword = (data as any).password?.trim() || `SuperMas${new Date().getFullYear()}*`
 
@@ -168,6 +199,7 @@ export async function POST(request: NextRequest) {
           full_name: fullName,
           phone: data.phone || null,
           is_active: data.status === 'ACTIVE',
+          assigned_cash_register_id: data.assignedCashRegisterId || null,
           avatar_url: initials,
           updated_at: new Date().toISOString(),
         },
@@ -208,10 +240,12 @@ export async function POST(request: NextRequest) {
         phone,
         avatar_url,
         is_active,
+        assigned_cash_register_id,
         last_login_at,
         created_at,
         updated_at,
         roles:role_id ( id, code, name ),
+        cash_registers:assigned_cash_register_id ( id, code, name ),
         user_locations (
           location_id,
           is_primary,

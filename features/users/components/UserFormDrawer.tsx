@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { User, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
-import { SYSTEM_ROLES } from '../services/role-permissions'
+import { SYSTEM_ROLES, DEFINITIVE_ROLES } from '../services/role-permissions'
+import { userService } from '../services/user.service'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -28,13 +29,29 @@ export function UserFormDrawer({
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
   const [phone, setPhone] = useState('')
-  const [role, setRole] = useState<UserRole>('SELLER')
+  const [role, setRole] = useState<UserRole>('VENDEDORES')
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [assignedCashRegisterId, setAssignedCashRegisterId] = useState<string>('')
   const [status, setStatus] = useState<UserStatus>('ACTIVE')
   const [password, setPassword] = useState('')
 
+  const [cashRegisters, setCashRegisters] = useState<Array<{ id: string; code: string; name: string; locationId: string; status: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  // Cargar cajas registradoras del sistema
+  useEffect(() => {
+    if (isOpen) {
+      userService
+        .getCashRegisters()
+        .then((regs) => {
+          setCashRegisters(regs)
+        })
+        .catch((err) => {
+          console.error('Error al cargar cajas registradoras:', err)
+        })
+    }
+  }, [isOpen])
 
   useEffect(() => {
     if (initialData) {
@@ -45,6 +62,7 @@ export function UserFormDrawer({
       setPhone(initialData.phone || '')
       setRole(initialData.role)
       setSelectedLocations(initialData.locationIds || [])
+      setAssignedCashRegisterId(initialData.assignedCashRegisterId || '')
       setStatus(initialData.status)
       setPassword('')
     } else {
@@ -53,8 +71,9 @@ export function UserFormDrawer({
       setEmail('')
       setUsername('')
       setPhone('')
-      setRole('SELLER')
+      setRole('VENDEDORES')
       setSelectedLocations(locations.length > 0 ? [locations[0].id] : [])
+      setAssignedCashRegisterId('')
       setStatus('ACTIVE')
       setPassword('')
     }
@@ -82,6 +101,12 @@ export function UserFormDrawer({
     }
   }
 
+  // Filtrar cajas registradoras para la sede actualmente seleccionada
+  const activeLocationId = selectedLocations[0] || ''
+  const availableRegistersForLocation = cashRegisters.filter(
+    (cr) => cr.locationId === activeLocationId
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage(null)
@@ -106,6 +131,28 @@ export function UserFormDrawer({
       return
     }
 
+    // Validación de Encargada de Venta: Caja Asignada obligatoria
+    if (role === 'ENCARGADA_VENTA') {
+      if (!assignedCashRegisterId) {
+        setErrorMessage('Debes seleccionar una caja registradora asignada para la Encargada de Venta.')
+        return
+      }
+      // Verificar consistencia: la caja debe pertenecer a la sede asignada
+      const matchingReg = cashRegisters.find((cr) => cr.id === assignedCashRegisterId)
+      if (matchingReg && !selectedLocations.includes(matchingReg.locationId)) {
+        setErrorMessage(`La caja seleccionada (${matchingReg.name}) no pertenece al punto de venta asignado.`)
+        return
+      }
+    }
+
+    // Validación de Jefe de Bodega: Bodega Asignada obligatoria
+    if (role === 'JEFE_BODEGA') {
+      if (selectedLocations.length !== 1) {
+        setErrorMessage('El Jefe de Bodega debe tener exactamente una bodega asignada como base de operación.')
+        return
+      }
+    }
+
     try {
       setIsSubmitting(true)
       const payload: CreateUserInput = {
@@ -116,6 +163,7 @@ export function UserFormDrawer({
         phone: phone.trim() || '',
         role,
         locationIds: selectedLocations,
+        assignedCashRegisterId: role === 'ENCARGADA_VENTA' ? assignedCashRegisterId : undefined,
         status,
         password: password.trim() ? password.trim() : undefined,
       }
@@ -129,6 +177,8 @@ export function UserFormDrawer({
   }
 
   const roleDef = SYSTEM_ROLES[role]
+  const warehouseLocations = locations.filter((l) => l.type === 'WAREHOUSE')
+  const availableWarehouses = warehouseLocations.length > 0 ? warehouseLocations : locations
 
   return (
     <div
@@ -141,7 +191,7 @@ export function UserFormDrawer({
       <div
         className="product-drawer"
         style={{
-          width: 'min(100%, 620px)',
+          width: 'min(100%, 640px)',
           padding: '24px',
           display: 'flex',
           flexDirection: 'column',
@@ -366,13 +416,19 @@ export function UserFormDrawer({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                Rol Predefinido del Sistema *
+                Rol del Colaborador (7 Roles Oficiales) *
               </label>
               <span style={{ fontSize: 11, color: '#64748b' }}>Inmutable por UI</span>
             </div>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
+              onChange={(e) => {
+                const newRole = e.target.value as UserRole
+                setRole(newRole)
+                if (newRole !== 'ENCARGADA_VENTA') {
+                  setAssignedCashRegisterId('')
+                }
+              }}
               style={{
                 width: '100%',
                 padding: '10px 12px',
@@ -383,11 +439,31 @@ export function UserFormDrawer({
                 fontWeight: 600,
               }}
             >
-              {Object.values(SYSTEM_ROLES).map((r) => (
-                <option key={r.code} value={r.code}>
-                  {r.name} ({r.code})
-                </option>
-              ))}
+              <optgroup label="7 Roles Definitivos del ERP">
+                {DEFINITIVE_ROLES.map((roleCode) => {
+                  const r = SYSTEM_ROLES[roleCode]
+                  return (
+                    <option key={roleCode} value={roleCode}>
+                      {r?.name || roleCode}
+                    </option>
+                  )
+                })}
+              </optgroup>
+              {/* Opciones legacy si el usuario actual fue creado con rol legacy */}
+              {Object.keys(SYSTEM_ROLES).some((k) => !DEFINITIVE_ROLES.includes(k as UserRole)) && (
+                <optgroup label="Roles Legacy (Compatibilidad)">
+                  {Object.keys(SYSTEM_ROLES)
+                    .filter((k) => !DEFINITIVE_ROLES.includes(k as UserRole))
+                    .map((legacyCode) => {
+                      const r = SYSTEM_ROLES[legacyCode as UserRole]
+                      return (
+                        <option key={legacyCode} value={legacyCode}>
+                          {r?.name || legacyCode} ({legacyCode})
+                        </option>
+                      )
+                    })}
+                </optgroup>
+              )}
             </select>
 
             {/* Explicación del rol seleccionado */}
@@ -406,64 +482,193 @@ export function UserFormDrawer({
                 <div style={{ fontWeight: 600, marginBottom: 2 }}>{roleDef.name}</div>
                 <div>{roleDef.description}</div>
                 <div style={{ marginTop: 6, fontWeight: 600, fontSize: 11 }}>
-                  Alcance: {roleDef.scope === 'ALL_LOCATIONS' ? 'Acceso Global a todas las sedes' : 'Acceso restringido a sede(s) asignada(s)'}
+                  Alcance: {roleDef.scope === 'ALL_LOCATIONS' ? 'Acceso Global a todas las sedes' : 'Acceso restringido a sede o caja asignada'}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Asignación de Bodegas / Sedes */}
-          <div>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
-              Sedes / Puntos de Venta Asignados *
-            </label>
+          {/* CASO ESPECIAL: ENCARGADA DE VENTA (Punto de Venta Asignado + Caja Asignada) */}
+          {role === 'ENCARGADA_VENTA' && (
             <div
               style={{
+                padding: '14px',
+                borderRadius: 8,
+                backgroundColor: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#6d28d9', fontWeight: 700, fontSize: 13 }}>
+                <AppIcon name="cashRegisters" size={16} />
+                <span>Configuración de Punto de Venta y Caja (Encargada de Venta)</span>
+              </div>
+
+              {/* Punto de Venta Asignado */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                  Punto de Venta Asignado *
+                </label>
+                <select
+                  value={selectedLocations[0] || ''}
+                  onChange={(e) => {
+                    setSelectedLocations([e.target.value])
+                    setAssignedCashRegisterId('')
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #c4b5fd',
+                    fontSize: 13,
+                    background: '#ffffff',
+                  }}
+                >
+                  {locations.map((loc) => (
+                    <option key={loc.id} value={loc.id}>
+                      {loc.name} ({loc.code} - {loc.type})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Caja Asignada */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
+                  Caja Registradora Asignada *
+                </label>
+                <select
+                  value={assignedCashRegisterId}
+                  onChange={(e) => setAssignedCashRegisterId(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    border: '1px solid #c4b5fd',
+                    fontSize: 13,
+                    background: '#ffffff',
+                  }}
+                >
+                  <option value="">-- Seleccionar Caja Registradora --</option>
+                  {availableRegistersForLocation.map((cr) => (
+                    <option key={cr.id} value={cr.id}>
+                      {cr.name} ({cr.code}) — Estado: {cr.status === 'OPEN' ? 'ABIERTA' : 'CERRADA'}
+                    </option>
+                  ))}
+                </select>
+                {availableRegistersForLocation.length === 0 && (
+                  <span style={{ fontSize: 11, color: '#dc2626', marginTop: 4, display: 'block' }}>
+                    No hay cajas registradoras creadas en esta sede. Crea una caja en el módulo POS antes de asignar.
+                  </span>
+                )}
+              </div>
+
+              <span style={{ fontSize: 11, color: '#6d28d9' }}>
+                Restricción: La encargada solo podrá abrir sesión y operar cobros en la caja asignada a su punto.
+              </span>
+            </div>
+          )}
+
+          {/* CASO ESPECIAL: JEFE DE BODEGA (Bodega Asignada Obligatoria) */}
+          {role === 'JEFE_BODEGA' && (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 8,
+                backgroundColor: '#f0fdf4',
+                border: '1px solid #bbf7d0',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
-                padding: '12px',
-                border: '1px solid var(--line, #cbd5e1)',
-                borderRadius: 6,
-                maxHeight: 180,
-                overflowY: 'auto',
-                background: '#f8fafc',
               }}
             >
-              {locations.map((loc) => {
-                const isSelected = selectedLocations.includes(loc.id)
-                return (
-                  <label
-                    key={loc.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      padding: '6px 8px',
-                      borderRadius: 4,
-                      backgroundColor: isSelected ? '#ffffff' : 'transparent',
-                      border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => handleToggleLocation(loc.id)}
-                    />
-                    <div>
-                      <strong style={{ color: 'var(--text)' }}>{loc.name}</strong>{' '}
-                      <span style={{ color: '#64748b', fontSize: 11 }}>({loc.code} - {loc.type})</span>
-                    </div>
-                  </label>
-                )
-              })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#15803d', fontWeight: 700, fontSize: 13 }}>
+                <AppIcon name="warehouse" size={16} />
+                <span>Asignación Exclusiva de Bodega (Jefe de Bodega)</span>
+              </div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                Bodega Asignada *
+              </label>
+              <select
+                value={selectedLocations[0] || ''}
+                onChange={(e) => setSelectedLocations([e.target.value])}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: '1px solid #86efac',
+                  fontSize: 13,
+                  background: '#ffffff',
+                }}
+              >
+                {availableWarehouses.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name} ({loc.code} - {loc.type})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: 11, color: '#166534' }}>
+                Restricción: El Jefe de Bodega solo podrá consultar existencias, despachar y recibir transferencias en la bodega asignada.
+              </span>
             </div>
-            <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
-              Puedes asignar múltiples sedes si el rol lo requiere. La primera sede actúa como base operativa principal.
-            </span>
-          </div>
+          )}
+
+          {/* Asignación estándar de Bodegas / Sedes (Para roles generales) */}
+          {role !== 'ENCARGADA_VENTA' && role !== 'JEFE_BODEGA' && (
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+                Sedes / Puntos de Venta Asignados *
+              </label>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  padding: '12px',
+                  border: '1px solid var(--line, #cbd5e1)',
+                  borderRadius: 6,
+                  maxHeight: 180,
+                  overflowY: 'auto',
+                  background: '#f8fafc',
+                }}
+              >
+                {locations.map((loc) => {
+                  const isSelected = selectedLocations.includes(loc.id)
+                  return (
+                    <label
+                      key={loc.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 10,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        padding: '6px 8px',
+                        borderRadius: 4,
+                        backgroundColor: isSelected ? '#ffffff' : 'transparent',
+                        border: isSelected ? '1px solid #bfdbfe' : '1px solid transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleLocation(loc.id)}
+                      />
+                      <div>
+                        <strong style={{ color: 'var(--text)' }}>{loc.name}</strong>{' '}
+                        <span style={{ color: '#64748b', fontSize: 11 }}>({loc.code} - {loc.type})</span>
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
+                Puedes asignar múltiples sedes si el rol lo requiere. La primera sede actúa como base operativa principal.
+              </span>
+            </div>
+          )}
 
           {/* Aviso de Seguridad de Contraseña */}
           <div
@@ -481,8 +686,8 @@ export function UserFormDrawer({
           >
             <AppIcon name="lock" size={16} />
             <div>
-              <strong>Seguridad y Autenticación:</strong> Las contraseñas de acceso nunca se almacenan en las tablas administrativas.
-              Al crear un nuevo usuario, se enviará una invitación segura a su correo electrónico a través de Supabase Auth para configurar sus credenciales.
+              <strong>Seguridad y Autenticación:</strong> Las contraseñas nunca se almacenan en tablas administrativas.
+              Al crear un nuevo usuario, se enviará una invitación segura o podrá acceder con la clave inicial configurada.
             </div>
           </div>
 

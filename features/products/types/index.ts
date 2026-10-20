@@ -297,3 +297,26 @@ export interface ProductColumnVisibility {
   webDistribuidora: boolean
   actions: boolean
 }
+
+export interface PriceChangeRequest {
+  id: string
+  companyId: string
+  productId: string
+  productName?: string
+  productSku?: string
+  priceListCode: string
+  priceListName: string
+  previousPrice: number
+  proposedPrice: number
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  requestedBy: string
+  requestedByName?: string
+  requestedAt: string
+  reason?: string | null
+  reviewedBy?: string | null
+  reviewedByName?: string | null
+  reviewedAt?: string | null
+  reviewNotes?: string | null
+  createdAt: string
+  updatedAt: string
+}

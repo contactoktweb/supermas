@@ -123,6 +123,11 @@ export const baseProductFormSchema = z.object({
   initialStock: z.array(initialStockItemSchema).optional().default([]),
   warehouseDistribution: z.array(warehouseStockConfigSchema).optional().default([]),
   auditReason: z.string().trim().optional(),
+  priceChangeReason: z
+    .string()
+    .trim()
+    .max(500, 'El motivo del cambio de precio no puede exceder 500 caracteres')
+    .optional(),
 })
 
 const UNCLASSIFIED_ZERO_RATE_MESSAGE =

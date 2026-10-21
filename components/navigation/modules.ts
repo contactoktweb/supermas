@@ -42,6 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'inventario', label: 'Inventario', icon: 'inventory', path: '/inventario', permission: 'inventory.read' },
       { id: 'kardex', label: 'Kardex', icon: 'kardex', path: '/kardex', permission: 'kardex.read' },
       { id: 'transferencias', label: 'Transferencias', icon: 'transfers', path: '/transferencias', permission: 'inventory.transfer' },
+      { id: 'aprobaciones-precios', label: 'Aprobación de precios', icon: 'dollar', path: '/aprobaciones-precios', permission: 'prices.request' },
     ],
   },
   {

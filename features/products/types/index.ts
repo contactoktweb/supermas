@@ -278,6 +278,8 @@ export interface CreateProductInput {
 
 export interface UpdateProductInput extends Partial<CreateProductInput> {
   auditReason?: string
+  /** Motivo del cambio de precio (obligatorio cuando el cambio queda pendiente de aprobación). */
+  priceChangeReason?: string
 }
 
 export interface ProductColumnVisibility {
@@ -298,6 +300,8 @@ export interface ProductColumnVisibility {
   actions: boolean
 }
 
+export type PriceChangeStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
 export interface PriceChangeRequest {
   id: string
   companyId: string
@@ -308,7 +312,14 @@ export interface PriceChangeRequest {
   priceListName: string
   previousPrice: number
   proposedPrice: number
-  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  /** Variación % frente al precio vigente al solicitar (null si el vigente era 0). */
+  variationPercent: number | null
+  /** Costo del producto al solicitar y costo actual (para el margen). */
+  costAtRequest: number | null
+  currentCost: number | null
+  taxRatePercent: number
+  status: PriceChangeStatus
+  requestGroupId: string | null
   requestedBy: string
   requestedByName?: string
   requestedAt: string
@@ -317,6 +328,42 @@ export interface PriceChangeRequest {
   reviewedByName?: string | null
   reviewedAt?: string | null
   reviewNotes?: string | null
+  /** Precio vigente al momento de la revisión. */
+  priceAtReview: number | null
   createdAt: string
   updatedAt: string
+}
+
+export interface PriceChangeRequestFilters {
+  status?: PriceChangeStatus | 'ALL'
+  productId?: string
+  requestedBy?: string
+  limit?: number
+}
+
+/** Cambio de precio de una lista enviado a fn_submit_price_changes. */
+export interface PriceChangeInput {
+  priceListCode: string
+  priceListName: string
+  proposedPrice: number
+  /** Precio vigente de la lista (null si la lista es nueva). Solo informativo para la UI. */
+  currentPrice?: number | null
+  minQuantity?: number
+  isActive?: boolean
+  startDate?: string | null
+  endDate?: string | null
+}
+
+export type PriceChangeSubmissionMode = 'APPLIED' | 'PENDING' | 'NO_CHANGES'
+
+export interface PriceChangeSubmissionResult {
+  mode: PriceChangeSubmissionMode
+  requestIds: string[]
+  notifiedApprovers: number
+  message: string
+}
+
+export interface ProductUpdateResult {
+  product: Product
+  priceChange: PriceChangeSubmissionResult | null
 }

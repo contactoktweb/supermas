@@ -7,6 +7,8 @@
  * - Invocación a RPCs atómicas con bloqueo pesimista y actualización del Kardex:
  *   * fn_process_customer_return (CUSTOMER_RETURN reingresa a Kardex)
  *   * fn_process_supplier_return (SUPPLIER_RETURN descuenta de Kardex)
+ *   * fn_return_disposition_options / fn_list_damaged_return_items / fn_dispatch_damaged_return_item
+ *     (068: productos en mal estado con destino producción o proveedor, sin reingreso al stock vendible)
  */
 
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -19,7 +21,15 @@ import {
   ProcessCustomerReturnInput,
   ProcessSupplierReturnInput,
   ReturnItem,
+  ReturnDispositionOptions,
+  DamagedReturnFilters,
+  DamagedReturnListResult,
+  DamagedReturnItem,
+  DispatchDamagedItemInput,
+  DispatchDamagedItemResult,
 } from '../types'
+
+const DEFAULT_DAMAGED_PAGE_SIZE = 15
 
 const RETURN_QUERY_SELECT = `
   id,
@@ -73,6 +83,18 @@ const RETURN_QUERY_SELECT = `
     unit_price,
     total_amount,
     reason,
+    item_condition,
+    disposition_destination,
+    disposition_status,
+    disposition_notes,
+    dispatched_at,
+    disposition_supplier:suppliers!disposition_supplier_id (
+      name,
+      commercial_name
+    ),
+    disposition_location:locations!disposition_location_id (
+      name
+    ),
     product:products!product_id (
       id,
       name,
@@ -266,6 +288,12 @@ export class ReturnRepository {
       product_id: it.productId,
       quantity: it.quantity,
       reason: it.reason || null,
+      condition: it.condition,
+      destination: it.condition === 'MAL_ESTADO' ? it.destination || null : null,
+      supplier_id: it.condition === 'MAL_ESTADO' && it.destination === 'PROVEEDOR' ? it.supplierId || null : null,
+      production_location_id:
+        it.condition === 'MAL_ESTADO' && it.destination === 'PRODUCCION' ? it.productionLocationId || null : null,
+      disposition_notes: it.condition === 'MAL_ESTADO' ? it.dispositionNotes?.trim() || null : null,
     }))
 
     const { data, error } = await this.client.rpc('fn_process_customer_return', {
@@ -408,6 +436,142 @@ export class ReturnRepository {
     })
   }
 
+  /**
+   * Proveedores activos, sedes activas y proveedor sugerido por producto (última compra recibida)
+   * para elegir el destino de los productos en mal estado de una venta.
+   */
+  async getDispositionOptions(saleId: string): Promise<ReturnDispositionOptions> {
+    const { data, error } = await this.client.rpc('fn_return_disposition_options', { p_sale_id: saleId })
+
+    if (error) {
+      throw new Error(`No se pudieron cargar proveedores y sedes para la devolución: ${error.message}`)
+    }
+
+    const raw = (data || {}) as {
+      suppliers?: { id: string; name: string; tax_id: string }[]
+      locations?: { id: string; code: string; name: string }[]
+      suggestions?: {
+        product_id: string
+        supplier_id: string
+        supplier_name: string
+        purchase_number: string
+        purchase_date: string | null
+      }[]
+    }
+
+    return {
+      suppliers: (raw.suppliers || []).map((s) => ({ id: s.id, name: s.name, taxId: s.tax_id })),
+      locations: (raw.locations || []).map((l) => ({ id: l.id, code: l.code, name: l.name })),
+      suggestions: (raw.suggestions || []).map((s) => ({
+        productId: s.product_id,
+        supplierId: s.supplier_id,
+        supplierName: s.supplier_name,
+        purchaseNumber: s.purchase_number,
+        purchaseDate: s.purchase_date,
+      })),
+    }
+  }
+
+  /**
+   * Listado "Productos en mal estado por destino" (paginado en PostgreSQL).
+   */
+  async listDamagedItems(filters: DamagedReturnFilters = {}): Promise<DamagedReturnListResult> {
+    const page = filters.page && filters.page > 0 ? filters.page : 1
+    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : DEFAULT_DAMAGED_PAGE_SIZE
+
+    const { data, error } = await this.client.rpc('fn_list_damaged_return_items', {
+      p_destination: filters.destination && filters.destination !== 'ALL' ? filters.destination : null,
+      p_status: filters.status && filters.status !== 'ALL' ? filters.status : null,
+      p_search: filters.query?.trim() || null,
+      p_limit: pageSize,
+      p_offset: (page - 1) * pageSize,
+    })
+
+    if (error) {
+      throw new Error(`Error al consultar productos en mal estado: ${error.message}`)
+    }
+
+    const raw = (data || {}) as {
+      rows?: any[]
+      total?: number
+      show_cost?: boolean
+      summary?: {
+        pending_supplier_units?: number
+        pending_production_units?: number
+        pending_lines?: number
+        sent_lines?: number
+      }
+    }
+
+    return {
+      data: (raw.rows || []).map((row) => this.mapDamagedItem(row)),
+      total: Number(raw.total || 0),
+      page,
+      pageSize,
+      showCost: Boolean(raw.show_cost),
+      summary: {
+        pendingSupplierUnits: Number(raw.summary?.pending_supplier_units || 0),
+        pendingProductionUnits: Number(raw.summary?.pending_production_units || 0),
+        pendingLines: Number(raw.summary?.pending_lines || 0),
+        sentLines: Number(raw.summary?.sent_lines || 0),
+      },
+    }
+  }
+
+  /**
+   * Marca una línea en mal estado como enviada a producción o al proveedor (Kardex, auditoría y DC).
+   */
+  async dispatchDamagedItem(input: DispatchDamagedItemInput): Promise<DispatchDamagedItemResult> {
+    const { data, error } = await this.client.rpc('fn_dispatch_damaged_return_item', {
+      p_return_item_id: input.returnItemId,
+      p_dispatch_reference: input.dispatchReference?.trim() || null,
+      p_notes: input.notes?.trim() || null,
+    })
+
+    if (error) {
+      throw new Error(`No se pudo marcar como enviado: ${error.message}`)
+    }
+
+    return {
+      alreadyDispatched: Boolean(data?.already_dispatched),
+      accountingEntryNumber: data?.accounting_entry_number || null,
+      accountingNote: data?.accounting_note || null,
+    }
+  }
+
+  private mapDamagedItem(row: any): DamagedReturnItem {
+    return {
+      id: row.id,
+      returnId: row.return_id,
+      returnCode: row.return_code,
+      returnDate: row.return_date,
+      saleNumber: row.sale_number || null,
+      locationName: row.location_name || null,
+      customerName: row.customer_name || null,
+      productId: row.product_id,
+      productName: row.product_name || 'Producto',
+      sku: row.sku || null,
+      quantity: Number(row.quantity || 0),
+      unitCost: row.unit_cost === null || row.unit_cost === undefined ? null : Number(row.unit_cost),
+      totalCost: row.total_cost === null || row.total_cost === undefined ? null : Number(row.total_cost),
+      reason: row.reason || null,
+      destination: row.destination,
+      status: row.status,
+      supplierName: row.supplier_name || null,
+      supplierTaxId: row.supplier_tax_id || null,
+      purchaseNumber: row.purchase_number || null,
+      productionLocationName: row.production_location_name || null,
+      dispositionNotes: row.disposition_notes || null,
+      registeredByName: row.registered_by_name || null,
+      dispatchedAt: row.dispatched_at || null,
+      dispatchedByName: row.dispatched_by_name || null,
+      dispatchReference: row.dispatch_reference || null,
+      dispatchNotes: row.dispatch_notes || null,
+      returnEntryNumber: row.return_entry_number || null,
+      dispatchEntryNumber: row.dispatch_entry_number || null,
+    }
+  }
+
   private mapToDomain(raw: any): ReturnRecord {
     const custName = raw.customer
       ? (raw.customer.company_name || raw.customer.commercial_name || `${raw.customer.first_name || ''} ${raw.customer.last_name || ''}`).trim()
@@ -429,6 +593,15 @@ export class ReturnRepository {
       unitPrice: Number(it.unit_price || 0),
       totalAmount: Number(it.total_amount || 0),
       reason: it.reason || undefined,
+      condition: it.item_condition === 'MAL_ESTADO' ? 'MAL_ESTADO' : 'BUENO',
+      destination: it.disposition_destination || null,
+      dispositionStatus: it.disposition_status || null,
+      dispositionSupplierName: it.disposition_supplier
+        ? (it.disposition_supplier.commercial_name || it.disposition_supplier.name || '').trim() || null
+        : null,
+      dispositionLocationName: it.disposition_location?.name || null,
+      dispositionNotes: it.disposition_notes || null,
+      dispatchedAt: it.dispatched_at || null,
     }))
 
     return {

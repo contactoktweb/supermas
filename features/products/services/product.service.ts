@@ -14,12 +14,19 @@ import {
   PriceTier,
   ProductPrice,
   PriceChangeRequest,
+  PriceChangeRequestFilters,
+  PriceChangeSubmissionResult,
+  ProductUpdateResult,
 } from '../types'
 import { productRepository } from '../repositories/product.repository'
 import { productFormSchema, updateProductSchema } from '../schemas/product.schema'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
 import { PostingAccountOption } from '@/features/accounting/utils/posting-accounts'
+import { planPriceChanges } from '../utils/price-change-plan'
+
+/** Longitud mínima del motivo de un cambio o rechazo de precio (la base exige lo mismo). */
+export const PRICE_CHANGE_REASON_MIN_LENGTH = 5
 
 export class ProductService {
   /**
@@ -142,7 +149,7 @@ export class ProductService {
     id: string,
     input: UpdateProductInput,
     userContext?: UserPermissionContext
-  ): Promise<Product> {
+  ): Promise<ProductUpdateResult> {
     const existing = await productRepository.findById(id)
     if (!existing) {
       throw new Error(`Producto con ID ${id} no encontrado.`)
@@ -190,13 +197,16 @@ export class ProductService {
           validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO'
       }
     }
-    if (validated.prices) {
-      const normalPrice = validated.prices.find((p) => p.code === 'NORMAL')?.price
-      if (normalPrice !== undefined) updatePayload.publicSalePrice = normalPrice
-      const wholesalePrice = validated.prices.find((p) => p.code === 'MAYORISTA')?.price
-      if (wholesalePrice !== undefined) updatePayload.wholesalePrice = wholesalePrice
-      updatePayload.prices = validated.prices as any
-    }
+    // Los precios nunca se escriben directamente: pasan por fn_submit_price_changes (069),
+    // que los aplica si el usuario es aprobador o crea una solicitud pendiente si no lo es.
+    const pricePlan = validated.prices
+      ? planPriceChanges({
+          existingTiers: existing.prices || [],
+          currentNormalPrice: existing.normalPrice,
+          currentWholesalePrice: existing.wholesalePrice,
+          desiredTiers: validated.prices,
+        })
+      : { priceChanges: [], metadataTiers: [] }
     if ((validated as any).estimatedCost !== undefined) {
       updatePayload.costPrice = (validated as any).estimatedCost
     }
@@ -207,9 +217,31 @@ export class ProductService {
       updatePayload.accountingCategoryId = (validated as any).accountingCategoryId ?? (input as any).accountingCategoryId
     }
 
+    // 3. Cambios de precio primero: si faltan el motivo o hay una solicitud pendiente, no se guarda nada.
+    let priceChange: PriceChangeSubmissionResult | null = null
+    if (pricePlan.priceChanges.length > 0) {
+      priceChange = await productRepository.submitPriceChanges(
+        id,
+        pricePlan.priceChanges,
+        validated.priceChangeReason || input.priceChangeReason
+      )
+    }
+
+    // 4. Metadatos de listas existentes con el precio vigente (el recién aplicado, si se aplicó).
+    if (pricePlan.metadataTiers.length > 0) {
+      const appliedPrices = new Map<string, number>()
+      if (priceChange?.mode === 'APPLIED') {
+        pricePlan.priceChanges.forEach((change) => appliedPrices.set(change.priceListCode, change.proposedPrice))
+      }
+      updatePayload.prices = pricePlan.metadataTiers.map((tier) => ({
+        ...tier,
+        price: appliedPrices.get(tier.code) ?? tier.price,
+      }))
+    }
+
     const updated = await productRepository.update(id, updatePayload)
     const canReadCost = this.hasPermission(userContext, 'cost.read')
-    return this.sanitizeProductForUser(updated, canReadCost)
+    return { product: this.sanitizeProductForUser(updated, canReadCost), priceChange }
   }
 
   /**
@@ -584,79 +616,33 @@ export class ProductService {
   }
 
   /**
-   * Solicita un cambio de precio que queda pendiente de aprobación (prices.request).
-   * Utilizado por JEFE_INGRESOS_SALIDAS y ADMIN.
-   */
-  async requestPriceChange(
-    productId: string,
-    priceListCode: string,
-    proposedPrice: number,
-    reason?: string,
-    userContext?: UserPermissionContext
-  ): Promise<{ success: boolean; requestId: string; message: string }> {
-    const canRequest =
-      !userContext ||
-      userContext.userRole === 'ADMIN' ||
-      userContext.userRole === 'SUPERADMIN' ||
-      userContext.userRole === 'JEFE_INGRESOS_SALIDAS' ||
-      userContext.permissions.includes('*') ||
-      userContext.permissions.includes('prices.request')
-
-    if (!canRequest) {
-      throw new Error('No tiene permisos para proponer modificaciones de precios.')
-    }
-
-    return productRepository.requestPriceChange(productId, priceListCode, proposedPrice, reason)
-  }
-
-  /**
    * Aprueba o rechaza una solicitud de cambio de precio (prices.approve).
-   * Exclusivo para rol ADMIN. Prohíbe terminantemente la autoaprobación.
+   * La base impone el permiso, la empresa, la prohibición de autoaprobación y el motivo de rechazo.
    */
   async reviewPriceChange(
     requestId: string,
     approved: boolean,
-    reviewNotes?: string,
-    userContext?: UserPermissionContext
+    reviewNotes?: string
   ): Promise<{ success: boolean; status: string; message: string }> {
-    const canApprove =
-      !userContext ||
-      userContext.userRole === 'ADMIN' ||
-      userContext.userRole === 'SUPERADMIN' ||
-      userContext.permissions.includes('*') ||
-      userContext.permissions.includes('prices.approve')
-
-    if (!canApprove) {
-      throw new Error('Acceso denegado: Solo el Administrador puede aprobar o rechazar precios.')
+    const notes = reviewNotes?.trim() || ''
+    if (!approved && notes.length < PRICE_CHANGE_REASON_MIN_LENGTH) {
+      throw new Error(`El motivo del rechazo es obligatorio (mínimo ${PRICE_CHANGE_REASON_MIN_LENGTH} caracteres).`)
     }
-
-    return productRepository.reviewPriceChange(requestId, approved, reviewNotes)
+    return productRepository.reviewPriceChange(requestId, approved, notes)
   }
 
   /**
-   * Consulta el listado de solicitudes de cambios de precios.
+   * Consulta solicitudes de cambio de precio (RLS: el solicitante ve las suyas; el aprobador, todas).
    */
-  async getPriceChangeRequests(
-    filters: {
-      status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'
-      productId?: string
-    } = {},
-    userContext?: UserPermissionContext
-  ): Promise<PriceChangeRequest[]> {
-    const canView =
-      !userContext ||
-      userContext.userRole === 'ADMIN' ||
-      userContext.userRole === 'SUPERADMIN' ||
-      userContext.userRole === 'JEFE_INGRESOS_SALIDAS' ||
-      userContext.permissions.includes('*') ||
-      userContext.permissions.includes('prices.request') ||
-      userContext.permissions.includes('prices.approve')
-
-    if (!canView) {
-      throw new Error('No tiene permisos para consultar solicitudes de cambio de precios.')
-    }
-
+  async getPriceChangeRequests(filters: PriceChangeRequestFilters = {}): Promise<PriceChangeRequest[]> {
     return productRepository.getPriceChangeRequests(filters)
+  }
+
+  /**
+   * Número de solicitudes pendientes visibles para el usuario (para el aprobador: las de su empresa).
+   */
+  async countPendingPriceChangeRequests(): Promise<number> {
+    return productRepository.countPriceChangeRequests('PENDING')
   }
 }
 

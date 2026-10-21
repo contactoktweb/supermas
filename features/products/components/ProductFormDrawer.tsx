@@ -16,7 +16,11 @@ import {
   PriceTier,
 } from '../types'
 import { productFormSchema, productEditFormSchema } from '../schemas/product.schema'
-import { productService } from '../services/product.service'
+import { productService, PRICE_CHANGE_REASON_MIN_LENGTH } from '../services/product.service'
+import { planPriceChanges } from '../utils/price-change-plan'
+import { canApprovePrices } from '../utils/price-permissions'
+import { useAuth } from '@/features/auth'
+import { PriceChangeNotice } from './PriceChangeNotice'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
 import { extractErrorMessage } from '@/lib/utils'
@@ -107,6 +111,10 @@ export function ProductFormDrawer({
   const [minStockThreshold, setMinStockThreshold] = useState<number>(15)
   const [criticalStockThreshold, setCriticalStockThreshold] = useState<number>(5)
   const [auditReason, setAuditReason] = useState('')
+  const [priceChangeReason, setPriceChangeReason] = useState('')
+
+  const { user } = useAuth()
+  const userCanApprovePrices = canApprovePrices(user)
 
   useEffect(() => {
     setMounted(true)
@@ -232,6 +240,7 @@ export function ProductFormDrawer({
         // La cuenta real es la del vínculo (FK); los productos antiguos pueden no tenerla.
         setAccountingAccountId(initialProduct.accountingAccount?.id || '')
         setAuditReason('')
+        setPriceChangeReason('')
       } else {
         // Reset defaults for Create
         setName('')
@@ -316,10 +325,7 @@ export function ProductFormDrawer({
     estimatedCost
   )
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrors({})
-
+  const buildPricesPayload = (): PriceTier[] => {
     const pricesPayload: PriceTier[] = [
       {
         code: 'NORMAL',
@@ -362,6 +368,35 @@ export function ProductFormDrawer({
         endDate: tier.endDate || null,
       })
     })
+
+    return pricesPayload
+  }
+
+  // Cambios de precio frente a lo vigente (solo edición). La base decide si se aplican o quedan pendientes.
+  const pendingPriceChanges =
+    mode === 'edit' && initialProduct
+      ? planPriceChanges({
+          existingTiers: initialProduct.prices || [],
+          currentNormalPrice: initialProduct.normalPrice,
+          currentWholesalePrice: initialProduct.wholesalePrice,
+          desiredTiers: buildPricesPayload(),
+        }).priceChanges
+      : []
+  const requiresPriceApproval = pendingPriceChanges.length > 0 && !userCanApprovePrices
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrors({})
+
+    const pricesPayload = buildPricesPayload()
+
+    if (requiresPriceApproval && priceChangeReason.trim().length < PRICE_CHANGE_REASON_MIN_LENGTH) {
+      setErrors({
+        priceChangeReason: `Indica el motivo del cambio de precio (mínimo ${PRICE_CHANGE_REASON_MIN_LENGTH} caracteres). El administrador lo verá al aprobar.`,
+      })
+      setActiveTab('prices')
+      return
+    }
 
     const initialStockPayload = activeWarehouses
       .map((w) => {
@@ -420,7 +455,11 @@ export function ProductFormDrawer({
       setIsSubmitting(true)
       await onSubmit(
         mode === 'edit'
-          ? { ...payload, auditReason: auditReason.trim() || 'Actualización de producto' }
+          ? {
+              ...payload,
+              auditReason: auditReason.trim() || 'Actualización de producto',
+              priceChangeReason: priceChangeReason.trim() || undefined,
+            }
           : payload
       )
       onClose()
@@ -768,6 +807,16 @@ export function ProductFormDrawer({
           {/* TAB 2: LISTAS DE PRECIOS EXTENSIBLES (public.product_prices) */}
           {activeTab === 'prices' && (
             <div className="form-tab-content page-enter">
+              {pendingPriceChanges.length > 0 && (
+                <PriceChangeNotice
+                  changes={pendingPriceChanges}
+                  requiresApproval={!userCanApprovePrices}
+                  reason={priceChangeReason}
+                  onReasonChange={setPriceChangeReason}
+                  error={errors.priceChangeReason}
+                />
+              )}
+
               <div className="info-banner-compact">
                 <AppIcon name="sales" size={16} />
                 <span>
@@ -1602,6 +1651,8 @@ export function ProductFormDrawer({
                   ? 'Guardando...'
                   : mode === 'create'
                   ? 'Crear producto'
+                  : requiresPriceApproval
+                  ? 'Guardar y enviar precio a aprobación'
                   : 'Guardar cambios'}
               </span>
             </button>

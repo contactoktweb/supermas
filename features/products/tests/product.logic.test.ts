@@ -1,6 +1,7 @@
 import assert from 'node:assert'
 import { productService } from '../services/product.service'
 import { Product } from '../types'
+import { planPriceChanges, calculatePriceVariation } from '../utils/price-change-plan'
 
 async function runTests() {
   console.log('--- RUNNING PRODUCTS MODULE BUSINESS LOGIC TESTS ---')
@@ -98,6 +99,33 @@ async function runTests() {
     'arroz-diana-extra-1000g'
   )
   console.log('✓ Slug Generation passed')
+
+  // Test 6: Plan de cambios de precio (069)
+  console.log('Test 6: Price Change Plan')
+  const plan = planPriceChanges({
+    existingTiers: [
+      { id: 'row-1', code: 'NORMAL', name: 'Precio Público', price: 10000, minQuantity: 1, isActive: true },
+      { id: 'row-2', code: 'MAYORISTA', name: 'Precio Mayorista', price: 9000, minQuantity: 6, isActive: true },
+    ],
+    currentNormalPrice: 10000,
+    currentWholesalePrice: 9000,
+    desiredTiers: [
+      { code: 'NORMAL', name: 'Precio Normal (Público)', price: 11000, minQuantity: 1, isActive: true },
+      { code: 'MAYORISTA', name: 'Precio Mayorista', price: 9000, minQuantity: 12, isActive: true },
+      { code: 'HORECA', name: 'Precio HORECA', price: 9500, minQuantity: 1, isActive: true },
+    ],
+  })
+  assert.deepStrictEqual(plan.priceChanges.map((c) => c.priceListCode), ['NORMAL', 'HORECA'])
+  assert.strictEqual(plan.priceChanges[0].currentPrice, 10000)
+  assert.strictEqual(plan.priceChanges[1].currentPrice, null)
+  // Solo metadatos de la lista mayorista; conserva nombre y precio vigentes.
+  assert.strictEqual(plan.metadataTiers.length, 1)
+  assert.strictEqual(plan.metadataTiers[0].code, 'MAYORISTA')
+  assert.strictEqual(plan.metadataTiers[0].price, 9000)
+  assert.strictEqual(plan.metadataTiers[0].minQuantity, 12)
+  assert.strictEqual(calculatePriceVariation(10000, 11000), 10)
+  assert.strictEqual(calculatePriceVariation(0, 11000), null)
+  console.log('✓ Price Change Plan passed')
 
   console.log('\n======================================')
   console.log('ALL PRODUCTS MODULE BUSINESS LOGIC TESTS PASSED!')

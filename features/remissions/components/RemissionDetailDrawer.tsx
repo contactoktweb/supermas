@@ -118,7 +118,7 @@ export function RemissionDetailDrawer({
                       boxShadow: isCreated ? '0 0 0 3px rgba(0, 27, 92, 0.15)' : 'none',
                     }}
                   >
-                    ✓
+                    <AppIcon name="checkSimple" size={14} aria-hidden="true" />
                   </div>
                   <strong style={{ fontSize: 11, color: 'var(--navy)', marginTop: 4 }}>1. Creada</strong>
                   <span style={{ fontSize: 10, color: 'var(--muted)' }}>
@@ -154,7 +154,7 @@ export function RemissionDetailDrawer({
                       boxShadow: isDispatched ? '0 0 0 3px rgba(37, 99, 235, 0.15)' : 'none',
                     }}
                   >
-                    {isDispatched ? '✓' : '2'}
+                    {isDispatched ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '2'}
                   </div>
                   <strong style={{ fontSize: 11, color: isDispatched ? '#2563eb' : '#64748b', marginTop: 4 }}>
                     2. En tránsito
@@ -192,7 +192,7 @@ export function RemissionDetailDrawer({
                       boxShadow: isDelivered ? '0 0 0 3px rgba(16, 185, 129, 0.15)' : 'none',
                     }}
                   >
-                    {isDelivered ? '✓' : '3'}
+                    {isDelivered ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '3'}
                   </div>
                   <strong style={{ fontSize: 11, color: isDelivered ? '#10b981' : '#64748b', marginTop: 4 }}>
                     3. Entregada

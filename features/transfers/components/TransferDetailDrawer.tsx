@@ -127,7 +127,7 @@ export function TransferDetailDrawer({
                 {/* Step 1: Creada */}
                 <div className={`stepper-node completed`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-                    ✓
+                    <AppIcon name="checkSimple" size={14} aria-hidden="true" />
                   </div>
                   <div>
                     <strong style={{ display: 'block', fontSize: 12, color: 'var(--text-main)' }}>Creada</strong>
@@ -140,7 +140,7 @@ export function TransferDetailDrawer({
                 {/* Step 2: Despachada / En tránsito */}
                 <div className={`stepper-node ${isInTransit || isReceived ? 'completed' : 'pending'}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 26, height: 26, borderRadius: '50%', background: isInTransit ? 'var(--blue)' : isReceived ? 'var(--green)' : '#cbd5e1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-                    {isReceived ? '✓' : '2'}
+                    {isReceived ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '2'}
                   </div>
                   <div>
                     <strong style={{ display: 'block', fontSize: 12, color: isInTransit ? 'var(--blue)' : 'var(--text-main)' }}>
@@ -157,7 +157,7 @@ export function TransferDetailDrawer({
                 {/* Step 3: Recibida */}
                 <div className={`stepper-node ${isReceived ? 'completed' : 'pending'}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ width: 26, height: 26, borderRadius: '50%', background: isReceived ? 'var(--green)' : '#cbd5e1', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>
-                    {isReceived ? '✓' : '3'}
+                    {isReceived ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '3'}
                   </div>
                   <div>
                     <strong style={{ display: 'block', fontSize: 12, color: isReceived ? 'var(--green)' : 'var(--text-main)' }}>

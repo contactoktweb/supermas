@@ -109,8 +109,9 @@ export function WebOrderCancelModal({
             <p className="font-bold mb-1">Políticas de Cancelación:</p>
             El pedido no será borrado físicamente para preservar la trazabilidad contable y de auditoría.
             {hasReservation && (
-              <span className="block mt-1 font-semibold text-rose-800">
-                ✓ Se liberará automáticamente la reserva de stock en Bodega CEDI ({order.totalUnits} unidades).
+              <span className="mt-1 font-semibold text-rose-800 flex items-start gap-1.5">
+                <AppIcon name="checkSimple" size={14} aria-hidden="true" />
+                Se liberará automáticamente la reserva de stock en Bodega CEDI ({order.totalUnits} unidades).
               </span>
             )}
           </div>

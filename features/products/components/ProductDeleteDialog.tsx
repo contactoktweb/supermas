@@ -222,7 +222,7 @@ export function ProductDeleteDialog({
                 </div>
               ) : (
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2">
-                  <span className="text-emerald-700 font-bold">✓</span>
+                  <AppIcon name="checkSimple" size={14} className="text-emerald-700" aria-hidden="true" />
                   <span>
                     El producto no registra movimientos de inventario ni ventas históricas. Será <strong>borrado al 100%</strong> de la base de datos sin dejar rastro.
                   </span>
@@ -280,14 +280,16 @@ export function ProductDeleteDialog({
                   />
                   {isConfirmedCorrectly && (
                     <span className="absolute right-3 top-2.5 text-emerald-600 font-bold text-xs flex items-center gap-1">
-                      ✓ Correcto
+                      <AppIcon name="checkSimple" size={12} aria-hidden="true" />
+                      Correcto
                     </span>
                   )}
                 </div>
 
                 {isLowercaseWarning && (
                   <p className="text-[11px] text-amber-700 font-semibold mt-1.5 m-0 flex items-center gap-1">
-                    ⚠️ Debe estar escrito en <strong>MAYÚSCULAS</strong>: CONFIRMAR
+                    <AppIcon name="warning" size={12} aria-hidden="true" />
+                    Debe estar escrito en <strong>MAYÚSCULAS</strong>: CONFIRMAR
                   </p>
                 )}
               </div>

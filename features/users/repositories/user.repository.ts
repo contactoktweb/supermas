@@ -10,8 +10,8 @@ import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import { MUST_CHANGE_PASSWORD_KEY } from '@/lib/auth/password-change-flag'
-import { getDefaultInitialPassword } from '../constants/initial-password'
-import { User, UserFilters, UserStats, UserRole, UserStatus } from '../types'
+import { generateTemporaryPassword } from '@/lib/auth/temporary-password'
+import { User, UserFilters, UserStats, UserRole, UserStatus, CreatedUserResult } from '../types'
 import { AuditLogEntry } from '@/features/audit/types'
 
 function getDbClient() {
@@ -205,6 +205,7 @@ export class UserRepository {
 
   /**
    * Registra un nuevo usuario en PostgreSQL vinculándolo fiduciariamente a Supabase Auth.
+   * Si no se envía contraseña, el servidor genera una temporal y la devuelve una sola vez.
    */
   async createUser(
     data: Omit<User, 'id' | 'createdAt' | 'lastLoginAt' | 'avatar' | 'name' | 'locationName'> & {
@@ -212,7 +213,7 @@ export class UserRepository {
       companyId?: string
       password?: string
     }
-  ): Promise<User> {
+  ): Promise<CreatedUserResult> {
     // Si se invoca desde el navegador del cliente, delegar al endpoint de servidor seguro
     if (typeof window !== 'undefined') {
       const response = await fetch('/api/users', {
@@ -224,7 +225,10 @@ export class UserRepository {
       if (!response.ok || !result.success) {
         throw new Error(result.error || 'Error al registrar el usuario en el servidor.')
       }
-      return result.data
+      return {
+        user: result.data as User,
+        temporaryPassword: typeof result.temporaryPassword === 'string' ? result.temporaryPassword : undefined,
+      }
     }
 
     // Contexto de servidor (scripts, tests, SSR)
@@ -251,8 +255,10 @@ export class UserRepository {
     }
 
     let userId = data.id
+    let temporaryPassword: string | undefined
     if (!userId) {
-      const password = data.password || getDefaultInitialPassword()
+      temporaryPassword = data.password ? undefined : generateTemporaryPassword()
+      const password = data.password ?? (temporaryPassword as string)
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email.toLowerCase().trim(),
         password,
@@ -345,7 +351,7 @@ export class UserRepository {
     if (!createdRow) {
       throw new Error('No se pudo recuperar el usuario recién creado.')
     }
-    return mapDbUserToDomain(createdRow)
+    return { user: mapDbUserToDomain(createdRow), temporaryPassword }
   }
 
   /**

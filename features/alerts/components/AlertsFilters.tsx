@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
+import { ALERT_PRIORITY_SELECT_OPTIONS } from './alertPriorityOptions'
 import { AlertFilterCriteria, AlertPriority, AlertStatus, AlertModule } from '../types'
 import { warehouseRepository } from '@/features/warehouses/repositories/warehouse.repository'
 
@@ -15,10 +16,7 @@ interface AlertsFiltersProps {
 
 const PRIORITY_OPTIONS: SelectOption[] = [
   { value: 'ALL', label: 'Todas las prioridades' },
-  { value: 'CRITICA', label: '🔴 Crítica' },
-  { value: 'ALTA', label: '🟠 Alta' },
-  { value: 'MEDIA', label: '🟡 Media' },
-  { value: 'BAJA', label: '🟢 Baja' },
+  ...ALERT_PRIORITY_SELECT_OPTIONS,
 ]
 
 const STATUS_OPTIONS: SelectOption[] = [

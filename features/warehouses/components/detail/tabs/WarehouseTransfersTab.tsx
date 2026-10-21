@@ -164,7 +164,7 @@ export function WarehouseTransfersTab({
 
                 {/* Visual Stepper */}
                 <div className="stepper" style={{ margin: '14px 0 10px' }}>
-                  <span className="done" title="Creada">✓</span>
+                  <span className="done" title="Creada"><AppIcon name="checkSimple" size={14} aria-hidden="true" /></span>
                   <i className={t.status !== 'PENDIENTE' ? 'done' : ''} />
                   <span
                     className={
@@ -174,14 +174,14 @@ export function WarehouseTransfersTab({
                     }
                     title="Despachada"
                   >
-                    {t.status === 'EN_TRANSITO' || t.status === 'RECIBIDA' ? '✓' : '2'}
+                    {t.status === 'EN_TRANSITO' || t.status === 'RECIBIDA' ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '2'}
                   </span>
                   <i className={t.status === 'RECIBIDA' ? 'done' : ''} />
                   <span
                     className={t.status === 'RECIBIDA' ? 'done' : ''}
                     title="Recibida"
                   >
-                    {t.status === 'RECIBIDA' ? '✓' : '3'}
+                    {t.status === 'RECIBIDA' ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '3'}
                   </span>
                 </div>
 

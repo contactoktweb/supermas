@@ -184,7 +184,7 @@ async function runPhase21TestSuite() {
     })
     createdUserId = collabAuthRes.data.user!.id
 
-    const createdUser = await userRepository.createUser({
+    const { user: createdUser } = await userRepository.createUser({
       id: createdUserId,
       firstName: 'Andrea',
       lastName: `Rios ${testSuffix}`,

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
 
 export const UserRoleSchema = z.enum([
   // 7 Roles Definitivos del ERP
@@ -29,7 +30,8 @@ export const CreateUserSchema = z.object({
     .min(3, 'El nombre de usuario debe tener al menos 3 caracteres')
     .regex(/^[a-zA-Z0-9._-]+$/, 'Solo se permiten letras, números, puntos, guiones'),
   phone: z.string().optional().default(''),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres').optional(),
+  /** Opcional: si se omite, el servidor genera una contraseña temporal aleatoria. */
+  password: newPasswordSchema.optional(),
   role: UserRoleSchema,
   locationIds: z.array(z.string()).min(1, 'Debes asignar al menos una bodega o punto'),
   assignedCashRegisterId: z.string().uuid().optional().nullable(),

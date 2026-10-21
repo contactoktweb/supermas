@@ -6,7 +6,8 @@ import { User, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
 import { SYSTEM_ROLES, DEFINITIVE_ROLES } from '../services/role-permissions'
 import { userService } from '../services/user.service'
-import { getDefaultInitialPassword } from '../constants/initial-password'
+import { evaluatePasswordStrength, newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
+import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -35,7 +36,7 @@ export function UserFormDrawer({
   const [assignedCashRegisterId, setAssignedCashRegisterId] = useState<string>('')
   const [status, setStatus] = useState<UserStatus>('ACTIVE')
   const [password, setPassword] = useState('')
-  const defaultInitialPassword = getDefaultInitialPassword()
+  const trimmedPassword = password.trim()
 
   const [cashRegisters, setCashRegisters] = useState<Array<{ id: string; code: string; name: string; locationId: string; status: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -118,6 +119,14 @@ export function UserFormDrawer({
       return
     }
 
+    if (!isEditing && trimmedPassword) {
+      const passwordCheck = newPasswordSchema.safeParse(trimmedPassword)
+      if (!passwordCheck.success) {
+        setErrorMessage(passwordCheck.error.issues[0]?.message || 'La contraseña no cumple la política de seguridad.')
+        return
+      }
+    }
+
     if (!email.trim() || !email.includes('@')) {
       setErrorMessage('Ingresa un correo electrónico corporativo válido.')
       return
@@ -167,7 +176,7 @@ export function UserFormDrawer({
         locationIds: selectedLocations,
         assignedCashRegisterId: role === 'ENCARGADA_VENTA' ? assignedCashRegisterId : undefined,
         status,
-        password: password.trim() ? password.trim() : undefined,
+        password: trimmedPassword || undefined,
       }
 
       await onSave(payload)
@@ -403,7 +412,7 @@ export function UserFormDrawer({
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={`Por defecto: ${defaultInitialPassword}`}
+                placeholder="Déjela en blanco para generar una segura"
                 autoComplete="new-password"
                 aria-describedby="user-initial-password-help"
                 style={{
@@ -415,8 +424,13 @@ export function UserFormDrawer({
                 }}
               />
               <span id="user-initial-password-help" style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block', lineHeight: 1.5 }}>
-                Si se deja en blanco, el sistema asignará automáticamente <code>{defaultInitialPassword}</code>.
+                Si se deja en blanco, el sistema generará una contraseña temporal aleatoria y se la mostrará una sola vez al guardar.
               </span>
+              {trimmedPassword && (
+                <div style={{ marginTop: 8 }}>
+                  <PasswordStrengthMeter id="user-initial-password-strength" strength={evaluatePasswordStrength(trimmedPassword)} />
+                </div>
+              )}
               <span
                 style={{
                   marginTop: 8,

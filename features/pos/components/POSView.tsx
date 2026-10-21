@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { supabaseClient } from '@/lib/supabase/client'
+import { AppIcon } from '@/components/ui/Icon'
 import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 import { usePOS } from '../hooks/usePOS'
 import { POSHeader } from './POSHeader'
@@ -201,7 +202,7 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
           fontSize: '13px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 16 }}>⚠️</span>
+            <AppIcon name="warning" size={16} aria-hidden="true" />
             <strong>Configure la empresa antes de operar</strong>
             <span style={{ color: '#b45309' }}>
               — Debes registrar la información legal y tributaria de tu empresa para habilitar la facturación y ventas en caja.

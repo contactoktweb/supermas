@@ -163,10 +163,10 @@ export class QuoteService {
   ): string {
     const lines = [
       `*COTIZACIÓN COMERCIAL - ${companyName}*`,
-      `📄 *Nº:* ${quote.quoteNumber}`,
-      `👤 *Cliente:* ${quote.customerName}`,
-      `📅 *Fecha de Emisión:* ${quote.issueDate}`,
-      `⏳ *Válida Hasta:* ${quote.validUntil}`,
+      `*Nº:* ${quote.quoteNumber}`,
+      `*Cliente:* ${quote.customerName}`,
+      `*Fecha de Emisión:* ${quote.issueDate}`,
+      `*Válida Hasta:* ${quote.validUntil}`,
       ``,
       `*DETALLE DE PRODUCTOS:*`,
     ]
@@ -179,14 +179,14 @@ export class QuoteService {
 
     lines.push(``)
     if (quote.discountAmount > 0) {
-      lines.push(`💰 *Descuento:* -$${quote.discountAmount.toLocaleString('es-CO')} COP`)
+      lines.push(`*Descuento:* -$${quote.discountAmount.toLocaleString('es-CO')} COP`)
     }
     if (quote.taxAmount > 0) {
-      lines.push(`🏛️ *IVA:* $${quote.taxAmount.toLocaleString('es-CO')} COP`)
+      lines.push(`*IVA:* $${quote.taxAmount.toLocaleString('es-CO')} COP`)
     }
-    lines.push(`💵 *TOTAL GENERAL:* *$${quote.totalAmount.toLocaleString('es-CO')} COP*`)
+    lines.push(`*TOTAL GENERAL:* *$${quote.totalAmount.toLocaleString('es-CO')} COP*`)
     lines.push(``)
-    lines.push(`ℹ️ _${quote.termsConditions || 'Precios sujetos a disponibilidad y vigencia de la oferta.'}_`)
+    lines.push(`_${quote.termsConditions || 'Precios sujetos a disponibilidad y vigencia de la oferta.'}_`)
 
     const encodedText = encodeURIComponent(lines.join('\n'))
     const phoneClean = quote.customerPhone ? quote.customerPhone.replace(/\D/g, '') : ''

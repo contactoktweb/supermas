@@ -423,8 +423,9 @@ export function SettingsDetailDrawer({
                     <option value="WEIGHTED_AVERAGE">Promedio Ponderado (Estándar NIIF)</option>
                     <option value="PEPS_FIFO">PEPS / FIFO (Primeras en Entrar, Primeras en Salir)</option>
                   </select>
-                  <span className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 block font-medium">
-                    ⚠️ Cambiar este parámetro requiere confirmación y afecta el costeo contable.
+                  <span className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 flex items-start gap-1.5 font-medium">
+                    <AppIcon name="warning" size={14} aria-hidden="true" />
+                    <span>Cambiar este parámetro requiere confirmación y afecta el costeo contable.</span>
                   </span>
                 </div>
               </div>

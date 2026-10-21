@@ -4,7 +4,7 @@ import { requireServerUser, requireAnyPermission, AuthError } from '@/lib/auth/s
 import { CreateUserSchema } from '@/features/users/schemas/user.schema'
 import { User, UserRole, UserStatus } from '@/features/users/types'
 import { MUST_CHANGE_PASSWORD_KEY } from '@/lib/auth/password-change-flag'
-import { getDefaultInitialPassword } from '@/features/users/constants/initial-password'
+import { generateTemporaryPassword } from '@/lib/auth/temporary-password'
 
 function mapDbUserToDomain(row: any): User {
   const fullName = row.full_name || row.email || ''
@@ -149,8 +149,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 4. Determinar contraseña de acceso (provista o temporal segura)
-    const initialPassword = (data as any).password?.trim() || getDefaultInitialPassword()
+    // 4. Contraseña de acceso: la del administrador (ya validada contra la política por el schema)
+    //    o una temporal aleatoria generada aquí, que se devuelve una sola vez y nunca se registra.
+    const temporaryPassword = data.password ? undefined : generateTemporaryPassword()
+    const initialPassword = data.password ?? (temporaryPassword as string)
 
     // 5. Verificar si ya existe en auth.users (caso huérfano de intentos previos)
     let authUserId: string | null = null
@@ -168,7 +170,7 @@ export async function POST(request: NextRequest) {
       }
       authUserId = foundAuth.id
       // Actualizar metadatos y contraseña
-      await supabaseAdmin.auth.admin.updateUserById(authUserId, {
+      const { error: authUpdateErr } = await supabaseAdmin.auth.admin.updateUserById(authUserId, {
         password: initialPassword,
         app_metadata: {
           role: data.role,
@@ -181,6 +183,13 @@ export async function POST(request: NextRequest) {
           phone: data.phone || null,
         },
       })
+      if (authUpdateErr) {
+        console.error('Error en supabaseAdmin.auth.admin.updateUserById:', authUpdateErr.message)
+        return NextResponse.json(
+          { success: false, error: 'No se pudo actualizar la cuenta en el sistema de autenticación.' },
+          { status: 400 }
+        )
+      }
     } else {
       // Crear en auth.users
       const { data: createdAuth, error: authCreateErr } = await supabaseAdmin.auth.admin.createUser({
@@ -289,11 +298,14 @@ export async function POST(request: NextRequest) {
 
     const domainUser = mapDbUserToDomain(finalRow)
 
-    return NextResponse.json({
-      success: true,
-      data: domainUser,
-      assignedPassword: initialPassword,
-    })
+    return NextResponse.json(
+      {
+        success: true,
+        data: domainUser,
+        ...(temporaryPassword ? { temporaryPassword } : {}),
+      },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
   } catch (err: any) {
     console.error('Error inesperado en POST /api/users:', err)
     return NextResponse.json(

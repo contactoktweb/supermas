@@ -7,7 +7,7 @@
 
 import { userRepository } from '../repositories/user.repository'
 import { auditService } from '@/features/audit/services/audit.service'
-import { User, UserFilters, UserStats, UserPermission, UserRole, UserStatus } from '../types'
+import { User, UserFilters, UserStats, UserPermission, UserRole, UserStatus, CreatedUserResult } from '../types'
 import { CreateUserInput, UpdateUserInput, CreateUserSchema, UpdateUserSchema } from '../schemas/user.schema'
 import { hasPermission } from './role-permissions'
 
@@ -56,7 +56,7 @@ export class UserService {
     input: CreateUserInput,
     actor: { id: string; name: string; role: string },
     userRole: UserRole = 'SUPERADMIN'
-  ): Promise<User> {
+  ): Promise<CreatedUserResult> {
     this.assertPermission('users.create', userRole)
     const validated = CreateUserSchema.parse(input)
 
@@ -81,7 +81,8 @@ export class UserService {
       throw new Error(`El nombre de usuario '${validated.username}' ya está en uso.`)
     }
 
-    const created = await userRepository.createUser(validated)
+    const result = await userRepository.createUser(validated)
+    const created = result.user
 
     // Registrar en auditoría
     await auditService.log({
@@ -98,7 +99,7 @@ export class UserService {
       details: `Creación de nuevo usuario ${created.name} con rol ${created.role} asignado a ${created.locationName}.`,
     })
 
-    return created
+    return result
   }
 
   /**

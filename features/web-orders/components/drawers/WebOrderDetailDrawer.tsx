@@ -371,11 +371,12 @@ export function WebOrderDetailDrawer({
 
                       {/* Chequeo en bodega ecommerce */}
                       <span
-                        className={`text-xs font-semibold ${
+                        className={`text-xs font-semibold inline-flex items-center gap-1 ${
                           av.canFulfill ? 'text-emerald-700' : 'text-amber-700'
                         }`}
                       >
-                        {av.canFulfill ? '✓ CEDI Disponible' : '⚠ Requiere traslado'}
+                        <AppIcon name={av.canFulfill ? 'checkSimple' : 'warning'} size={12} aria-hidden="true" />
+                        {av.canFulfill ? 'CEDI Disponible' : 'Requiere traslado'}
                       </span>
                     </div>
                   </div>

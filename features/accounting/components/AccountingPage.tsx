@@ -186,6 +186,17 @@ export function AccountingPage() {
     })
   }, [handleOpenAccountingPdf, filters.cutoffDate, filters.locationId])
 
+  // Estado de Resultados en PDF con el periodo y la sede de la pestaña.
+  const handleOpenIncomeStatementPdf = useCallback(() => {
+    handleOpenAccountingPdf('income_statement', {
+      startDate: filters.resultsDateFrom,
+      endDate: filters.resultsDateTo,
+      locationId: filters.locationId,
+      maxLevel: 'AUXILIARY',
+      hideZeroBalances: true,
+    })
+  }, [handleOpenAccountingPdf, filters.resultsDateFrom, filters.resultsDateTo, filters.locationId])
+
   const handleOpenExportModal = useCallback((preferredType?: AccountingExportType) => {
     if (preferredType) {
       setExportInitialType(preferredType)
@@ -483,7 +494,10 @@ export function AccountingPage() {
             <AccountingIncomeStatementTab
               incomeStatement={incomeStatement}
               locationId={filters.locationId}
-              onLocationChange={(locId) => updateFilters({ locationId: locId })}
+              dateFrom={filters.resultsDateFrom}
+              dateTo={filters.resultsDateTo}
+              onFiltersChange={(changes) => updateFilters(changes)}
+              onOpenPdf={handleOpenIncomeStatementPdf}
             />
           )}
 

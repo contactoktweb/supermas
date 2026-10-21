@@ -3,19 +3,31 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { SuperCatalogProduct } from '../../types'
+import { PriceChangeNotice } from '@/features/products/components/PriceChangeNotice'
+import { PRICE_CHANGE_REASON_MIN_LENGTH } from '@/features/products/services/product.service'
+import { roundMoney } from '@/features/products/utils/price-change-plan'
 
 interface SuperProductPriceModalProps {
   isOpen: boolean
   product: SuperCatalogProduct | null
   taxConfigs: any[]
+  /** true: el usuario no aprueba precios; el cambio queda pendiente y exige motivo (069). */
+  requiresPriceApproval: boolean
   onClose: () => void
-  onSavePrice: (productId: string, price: number, showPrice: boolean, taxConfigId: string) => Promise<any>
+  onSavePrice: (
+    productId: string,
+    price: number,
+    showPrice: boolean,
+    taxConfigId: string,
+    priceChangeReason?: string
+  ) => Promise<unknown>
 }
 
 export function SuperProductPriceModal({
   isOpen,
   product,
   taxConfigs,
+  requiresPriceApproval,
   onClose,
   onSavePrice,
 }: SuperProductPriceModalProps) {
@@ -23,12 +35,16 @@ export function SuperProductPriceModal({
   const [showPrice, setShowPrice] = useState(true)
   const [taxConfigId, setTaxConfigId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [priceChangeReason, setPriceChangeReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | undefined>()
 
   useEffect(() => {
     if (product) {
       setPrice(product.price)
       setShowPrice(product.showPrice)
       setTaxConfigId(product.taxConfigId)
+      setPriceChangeReason('')
+      setReasonError(undefined)
     }
   }, [product])
 
@@ -38,14 +54,23 @@ export function SuperProductPriceModal({
   const taxPercent = selectedTax ? selectedTax.ratePercent : 0
   const subtotalWithoutTax = Math.round(price / (1 + taxPercent / 100))
   const taxAmount = price - subtotalWithoutTax
+  const priceChanged = roundMoney(price) !== roundMoney(product.price)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     if (price <= 0) return
+    if (priceChanged && requiresPriceApproval && priceChangeReason.trim().length < PRICE_CHANGE_REASON_MIN_LENGTH) {
+      setReasonError(
+        `Indica el motivo del cambio de precio (mínimo ${PRICE_CHANGE_REASON_MIN_LENGTH} caracteres). El administrador lo verá al aprobar.`
+      )
+      return
+    }
     try {
       setSaving(true)
-      await onSavePrice(product.id, price, showPrice, taxConfigId)
+      await onSavePrice(product.id, price, showPrice, taxConfigId, priceChangeReason.trim() || undefined)
       onClose()
+    } catch {
+      // El hook muestra el error en un toast; el modal permanece abierto para corregir.
     } finally {
       setSaving(false)
     }
@@ -102,7 +127,9 @@ export function SuperProductPriceModal({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label="Cerrar edición de precio"
             style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
           >
             <AppIcon name="close" size={18} />
@@ -186,6 +213,26 @@ export function SuperProductPriceModal({
             </div>
           </div>
 
+          {priceChanged && price > 0 && (
+            <PriceChangeNotice
+              changes={[
+                {
+                  priceListCode: 'NORMAL',
+                  priceListName: 'Precio de venta web',
+                  proposedPrice: roundMoney(price),
+                  currentPrice: product.price,
+                },
+              ]}
+              requiresApproval={requiresPriceApproval}
+              reason={priceChangeReason}
+              onReasonChange={(value) => {
+                setPriceChangeReason(value)
+                if (reasonError) setReasonError(undefined)
+              }}
+              error={reasonError}
+            />
+          )}
+
           {/* Toggle Mostrar Precio */}
           <div
             style={{
@@ -245,7 +292,11 @@ export function SuperProductPriceModal({
                 cursor: saving ? 'wait' : 'pointer',
               }}
             >
-              {saving ? 'Guardando...' : 'Guardar Precio'}
+              {saving
+                ? 'Guardando...'
+                : priceChanged && requiresPriceApproval
+                  ? 'Enviar a aprobación'
+                  : 'Guardar Precio'}
             </button>
           </div>
         </form>

@@ -295,3 +295,37 @@ export const ACCOUNT_LEVEL_LABEL: Record<AccountLevel, string> = {
   SUBACCOUNT: 'Subcuenta',
   AUXILIARY: 'Auxiliar',
 }
+
+/**
+ * Débitos y créditos de todas las cuentas cuyo código empieza por `prefix` (p. ej. '41' suma el
+ * grupo completo con sus cuentas, subcuentas y auxiliares). `totals` trae importes propios por cuenta.
+ */
+export function sumTotalsByCodePrefix(
+  accounts: Pick<AccountingAccount, 'id' | 'code'>[],
+  totals: AccountMovementTotalsMap,
+  prefix: string
+): { debit: number; credit: number } {
+  let debit = 0
+  let credit = 0
+  for (const account of accounts) {
+    if (!String(account.code || '').startsWith(prefix)) continue
+    const own = totals.get(account.id)
+    if (!own) continue
+    debit += Number(own.debit) || 0
+    credit += Number(own.credit) || 0
+  }
+  return { debit, credit }
+}
+
+/** Ids de los nodos con hijos cuyo nivel es menor que `levelLimit` (el árbol se despliega hasta ese nivel). */
+export function collectExpandableNodeIds(
+  nodes: FinancialStatementNode[],
+  levelLimit: number,
+  into = new Set<string>()
+): Set<string> {
+  for (const node of nodes) {
+    if (node.children.length > 0 && node.levelNumber < levelLimit) into.add(node.id)
+    collectExpandableNodeIds(node.children, levelLimit, into)
+  }
+  return into
+}

@@ -178,6 +178,7 @@ export function SuperCatalogPage() {
         }}
         onOpenPreview={handleOpenPreview}
         canUpdate={permissions.canUpdate}
+        requiresPriceApproval={!permissions.canApprovePrices}
       />
 
       {/* Modal de Vista Previa Cliente Ecommerce B2C */}
@@ -204,9 +205,10 @@ export function SuperCatalogPage() {
         isOpen={isPriceOpen}
         product={priceProduct}
         taxConfigs={taxConfigs}
+        requiresPriceApproval={!permissions.canApprovePrices}
         onClose={() => setIsPriceOpen(false)}
-        onSavePrice={async (id, price, showPrice, taxConfigId) => {
-          const updated = await updatePrice(id, price, showPrice, taxConfigId)
+        onSavePrice={async (id, price, showPrice, taxConfigId, priceChangeReason) => {
+          const updated = await updatePrice(id, price, showPrice, taxConfigId, priceChangeReason)
           setPriceProduct(updated)
         }}
       />

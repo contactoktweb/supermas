@@ -24,6 +24,7 @@ import {
   SuperBulkActionType,
   WarehouseStockSummaryItem,
 } from '../types'
+import type { PriceTier } from '@/features/products/types'
 
 function getDbClient() {
   if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -434,7 +435,44 @@ export class SuperCatalogRepository {
   }
 
   /**
+   * Lista de precios NORMAL del producto (public.product_prices), o null si solo existe
+   * la columna plana public_sale_price. Se usa para conservar sus metadatos al proponer
+   * un nuevo precio web.
+   */
+  async findNormalPriceTier(productId: string, preferredCompanyId?: string): Promise<PriceTier | null> {
+    const client = getDbClient()
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+
+    const { data, error } = await client
+      .from('product_prices')
+      .select('id, price_list_code, price_list_name, price, min_quantity, is_default, is_active, start_date, end_date')
+      .eq('product_id', productId)
+      .eq('company_id', companyId)
+      .eq('price_list_code', 'NORMAL')
+      .maybeSingle()
+
+    if (error) {
+      throw new Error(`Error al consultar la lista de precios del producto: ${error.message}`)
+    }
+    if (!data) return null
+
+    return {
+      id: data.id,
+      code: data.price_list_code,
+      name: data.price_list_name,
+      price: Number(data.price ?? 0),
+      minQuantity: Number(data.min_quantity ?? 1),
+      isDefault: Boolean(data.is_default),
+      isActive: data.is_active ?? true,
+      startDate: data.start_date ?? null,
+      endDate: data.end_date ?? null,
+    }
+  }
+
+  /**
    * Actualiza la configuración web del producto en PostgreSQL.
+   * Nunca escribe precios: desde la migración 069 pasan por fn_submit_price_changes
+   * (ver SuperCatalogService.submitWebPriceChange).
    */
   async updateConfig(
     productId: string,
@@ -451,17 +489,6 @@ export class SuperCatalogRepository {
 
     if (config.webSuperMas !== undefined) {
       updatePayload.is_published_supermas = Boolean(config.webSuperMas)
-    }
-
-    if (config.price !== undefined) {
-      updatePayload.public_sale_price = Number(config.price)
-
-      // Actualizar también precio NORMAL en public.product_prices
-      await client
-        .from('product_prices')
-        .update({ price: Number(config.price), updated_at: nowIso })
-        .eq('product_id', productId)
-        .eq('price_list_code', 'NORMAL')
     }
 
     if (config.imageUrl !== undefined) {

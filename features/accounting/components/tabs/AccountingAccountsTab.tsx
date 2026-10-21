@@ -197,7 +197,9 @@ export function AccountingAccountsTab({
                                 : 'text-gray-800 font-medium pl-1'
                             }`}
                           >
-                            {isAuxiliary && '↳ '}
+                            {isAuxiliary && (
+                              <AppIcon name="chevronRight" size={12} className="inline-block mr-0.5 align-middle" aria-hidden="true" />
+                            )}
                             {acc.name}
                           </span>
                           {acc.description && (
@@ -229,8 +231,8 @@ export function AccountingAccountsTab({
                               <option value="DEBIT">Débito</option>
                               <option value="CREDIT">Crédito</option>
                             </select>
-                            <span className="pointer-events-none absolute right-1.5 text-slate-400 text-[9px]">
-                              ▼
+                            <span className="pointer-events-none absolute right-1.5 text-slate-400" aria-hidden="true">
+                              <AppIcon name="chevronDown" size={10} />
                             </span>
                           </div>
                         ) : (

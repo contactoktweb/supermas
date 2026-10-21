@@ -189,6 +189,9 @@ export interface AccountingFilters {
   accountTo?: string
   /** Fecha de corte (YYYY-MM-DD) del Balance General. */
   cutoffDate?: string
+  /** Periodo (YYYY-MM-DD, ambos incluidos) del Estado de Resultados. */
+  resultsDateFrom?: string
+  resultsDateTo?: string
   page: number
   pageSize: number
 }
@@ -269,13 +272,6 @@ export interface AccountingDashboard {
   pendingDraftEntriesCount: number
   monthlyFinancials: MonthlyFinancialPoint[]
   warehouseBreakdown: WarehouseFinancialSummary[]
-}
-
-export interface BalanceSheetItem {
-  code: string
-  name: string
-  balance: number
-  percentage: number
 }
 
 /**
@@ -367,24 +363,64 @@ export interface TrialBalanceTotals {
   period: AccountMovementTotalsMap
 }
 
+export interface IncomeStatementParams {
+  /** Inicio del periodo YYYY-MM-DD (incluido). */
+  dateFrom: string
+  /** Fin del periodo YYYY-MM-DD (incluido). */
+  dateTo: string
+  locationId?: string | 'ALL'
+}
+
+/**
+ * Estado de Resultados Integral del periodo [dateFrom, dateTo] desglosado por niveles del PUC.
+ * Importes = movimientos del periodo (fn_accounting_account_balances_range): los ingresos (4) en
+ * créditos − débitos; gastos (5) y costos (6, 7) en débitos − créditos.
+ */
 export interface IncomeStatementReport {
+  /** Texto del periodo, p. ej. "Del 01/10/2026 al 31/10/2026". */
   period: string
+  dateFrom: string
+  dateTo: string
   locationId?: string
   locationName?: string
-  operatingRevenues: BalanceSheetItem[]
+  /** Árboles por clase (null si la clase no tiene cuentas en el catálogo). */
+  revenues: FinancialStatementNode | null
+  expenses: FinancialStatementNode | null
+  costOfSales: FinancialStatementNode | null
+  productionCosts: FinancialStatementNode | null
+  /** Clase 4 completa. */
   totalRevenues: number
-  costOfSales: BalanceSheetItem[]
+  /** Grupo 41: ingresos operacionales. */
+  operatingRevenues: number
+  /** Resto de la clase 4 (42 no operacionales y otros grupos). */
+  nonOperatingIncome: number
+  /** Clases 6 + 7. */
   totalCosts: number
+  /** Ingresos operacionales − costos. */
   grossProfit: number
   grossMarginPercent: number
-  administrativeExpenses: BalanceSheetItem[]
-  sellingExpenses: BalanceSheetItem[]
+  /** Grupo 51. */
+  administrativeExpenses: number
+  /** Grupo 52. */
+  sellingExpenses: number
+  /** 51 + 52. */
   totalOperatingExpenses: number
   operatingProfit: number
-  nonOperatingIncome: number
+  /** Grupo 53. */
   nonOperatingExpenses: number
+  profitBeforeTax: number
+  /** Grupo 54: impuesto de renta y complementarios. */
+  incomeTax: number
+  /** Otros grupos de la clase 5 distintos de 51 a 54. */
+  otherExpenses: number
+  /** Clase 5 completa. */
+  totalExpenses: number
+  /** Ingresos (4) − Gastos (5) − Costos (6 y 7). */
   netProfit: number
   netMarginPercent: number
+  /** true si alguna cuenta de las clases 4 a 7 tuvo movimiento en el periodo. */
+  hasActivity: boolean
+  generatedAt: string
 }
 
 export interface GeneralLedgerReport {
@@ -576,6 +612,7 @@ export type AccountingExportType =
   | 'accounts'
   | 'journal'
   | 'balance'
+  | 'income_statement'
   | 'trial_balance'
 
 export type AccountingExportFormat = 'CSV' | 'EXCEL' | 'JSON' | 'PDF'

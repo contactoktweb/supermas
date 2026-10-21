@@ -17,6 +17,7 @@ import {
   AccountingDashboard,
   BalanceSheetReport,
   IncomeStatementReport,
+  IncomeStatementParams,
   GeneralLedgerReport,
   AuxiliaryLedgerReport,
   AccountsReceivableItem,
@@ -434,12 +435,11 @@ export class AccountingService {
   }
 
   async getIncomeStatement(
-    period?: string,
-    locationId?: string,
+    params: Partial<IncomeStatementParams> = {},
     userRole: string = 'SUPERADMIN'
   ): Promise<IncomeStatementReport> {
     this.assertPermission('accounting.reports', userRole)
-    return accountingReportService.getIncomeStatement(period, locationId)
+    return accountingReportService.getIncomeStatement(params)
   }
 
   async getGeneralLedger(

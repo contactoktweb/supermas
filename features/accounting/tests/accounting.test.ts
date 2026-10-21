@@ -236,10 +236,16 @@ async function runAccountingTestSuite() {
     'El Balance General calcula totalAssets y totalLiabilities cuadradas'
   )
 
-  const incomeStatement = await accountingService.getIncomeStatement(undefined, undefined, adminUser.role)
+  const incomeStatement = await accountingService.getIncomeStatement({}, adminUser.role)
   assert(
-    Boolean(incomeStatement.period && Array.isArray(incomeStatement.operatingRevenues)),
-    'El Estado de Resultados calcula operatingRevenues, costos y utilidad'
+    Boolean(
+      incomeStatement.period &&
+        Math.abs(
+          incomeStatement.netProfit -
+            (incomeStatement.totalRevenues - incomeStatement.totalExpenses - incomeStatement.totalCosts)
+        ) < 0.005
+    ),
+    'El Estado de Resultados del mes en curso cuadra: utilidad neta = ingresos − gastos − costos'
   )
 
   console.log('\n========================================================')

@@ -16,6 +16,7 @@ import {
   AccountingExportType,
   AccountingExportFilterOptions,
   BalanceSheetReport,
+  IncomeStatementReport,
   FinancialStatementNode,
 } from '../../types'
 import { accountingExportService } from '../../services/accounting-export.service'
@@ -34,6 +35,7 @@ import {
   todayBogotaIsoDate,
 } from '../../utils/report-format'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
+import { incomeStatementLines, incomeStatementSections } from '../../utils/income-statement'
 
 export interface TrialBalancePdfModalProps {
   isOpen: boolean
@@ -143,6 +145,12 @@ const REPORT_CONFIG: Record<AccountingExportType, { title: string; subtitle: str
     icon: 'wallet',
     badge: 'Estado financiero',
   },
+  income_statement: {
+    title: 'ESTADO DE RESULTADOS INTEGRAL',
+    subtitle: 'Ingresos, costos y gastos del periodo por niveles del PUC con utilidad neta',
+    icon: 'pieChart',
+    badge: 'Estado financiero',
+  },
 }
 
 export function TrialBalancePdfModal({
@@ -208,6 +216,8 @@ export function TrialBalancePdfModal({
   const [tbState, setTbState] = useState<RemoteState>('idle')
   const [balanceReport, setBalanceReport] = useState<BalanceSheetReport | null>(null)
   const [balanceState, setBalanceState] = useState<RemoteState>('idle')
+  const [incomeReport, setIncomeReport] = useState<IncomeStatementReport | null>(null)
+  const [incomeState, setIncomeState] = useState<RemoteState>('idle')
   const [remoteError, setRemoteError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -309,6 +319,30 @@ export function TrialBalancePdfModal({
       isActive = false
     }
   }, [isOpen, activeReportType, endDate, locationId, startAccountCode, endAccountCode])
+
+  // Estado de Resultados del periodo [desde, hasta] desde la base
+  useEffect(() => {
+    if (!isOpen || activeReportType !== 'income_statement') return
+    let isActive = true
+    setIncomeState('loading')
+    setRemoteError(null)
+    accountingService
+      .getIncomeStatement({ dateFrom: startDate, dateTo: endDate, locationId })
+      .then((report) => {
+        if (!isActive) return
+        setIncomeReport(report)
+        setIncomeState('ready')
+      })
+      .catch((err: unknown) => {
+        if (!isActive) return
+        setIncomeReport(null)
+        setIncomeState('error')
+        setRemoteError(err instanceof Error ? err.message : 'No se pudo generar el Estado de Resultados.')
+      })
+    return () => {
+      isActive = false
+    }
+  }, [isOpen, activeReportType, startDate, endDate, locationId])
 
   // Cuentas de nivel 1 para el selector de clase
   const mainClasses = useMemo(
@@ -546,8 +580,18 @@ export function TrialBalancePdfModal({
     }
   }, [balanceReport, hideZeroBalances, maxLevel])
 
+  const incomeSections = useMemo(() => {
+    if (!incomeReport) return []
+    const maxLevelNumber = LEVEL_NUMBER_BY_FILTER[maxLevel] || 5
+    return incomeStatementSections(incomeReport).map((section) => {
+      const nodes = section.node ? (hideZeroBalances ? pruneZeroNodes([section.node]) : [section.node]) : []
+      return { ...section, rows: flattenAccountTree(nodes, maxLevelNumber) }
+    })
+  }, [incomeReport, hideZeroBalances, maxLevel])
+
   const reportConfig = REPORT_CONFIG[activeReportType] || REPORT_CONFIG.trial_balance
   const isBalanceReport = activeReportType === 'balance'
+  const isIncomeReport = activeReportType === 'income_statement'
   const formattedPeriod = isBalanceReport
     ? `Corte al ${formatIsoDateEs(endDate)}`
     : `${startDate ? formatIsoDateEs(startDate) : 'Inicio'} a ${endDate ? formatIsoDateEs(endDate) : 'Hoy'}`
@@ -557,10 +601,12 @@ export function TrialBalancePdfModal({
   const companyRegime = taxRegimeLabel(company?.taxRegime)
   const isRemoteLoading =
     (activeReportType === 'trial_balance' && tbState === 'loading') ||
-    (activeReportType === 'balance' && balanceState === 'loading')
+    (activeReportType === 'balance' && balanceState === 'loading') ||
+    (isIncomeReport && incomeState === 'loading')
   const remoteFailed =
     (activeReportType === 'trial_balance' && tbState === 'error') ||
-    (activeReportType === 'balance' && balanceState === 'error')
+    (activeReportType === 'balance' && balanceState === 'error') ||
+    (isIncomeReport && incomeState === 'error')
 
   // Impresión en ventana aislada con los estilos de la aplicación, numeración de páginas y pie.
   const handlePrint = () => {
@@ -643,6 +689,15 @@ export function TrialBalancePdfModal({
       case 'balance':
         if (balanceReport) {
           accountingExportService.exportBalanceSheet(balanceReport, format, {
+            hideZeroBalances,
+            maxLevel,
+            companyHeader: company,
+          })
+        }
+        break
+      case 'income_statement':
+        if (incomeReport) {
+          accountingExportService.exportIncomeStatement(incomeReport, format, {
             hideZeroBalances,
             maxLevel,
             companyHeader: company,
@@ -737,6 +792,7 @@ export function TrialBalancePdfModal({
             >
               <option value="trial_balance">Balance de Comprobación</option>
               <option value="balance">Balance General</option>
+              <option value="income_statement">Estado de Resultados</option>
               <option value="movements">Libro Auxiliar</option>
               <option value="journal">Libro Diario General</option>
               <option value="entries">Comprobantes de Diario</option>
@@ -827,21 +883,23 @@ export function TrialBalancePdfModal({
                 ))}
               </select>
             </label>
-            <label className="flex flex-col gap-0.5">
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clase PUC</span>
-              <select
-                value={mainAccountCode}
-                onChange={(e) => setMainAccountCode(e.target.value)}
-                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-              >
-                <option value="ALL">Todas las clases</option>
-                {mainClasses.map((cls) => (
-                  <option key={cls.code} value={cls.code}>
-                    Clase {cls.code} - {cls.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!isIncomeReport && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clase PUC</span>
+                <select
+                  value={mainAccountCode}
+                  onChange={(e) => setMainAccountCode(e.target.value)}
+                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                >
+                  <option value="ALL">Todas las clases</option>
+                  {mainClasses.map((cls) => (
+                    <option key={cls.code} value={cls.code}>
+                      Clase {cls.code} - {cls.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hasta el nivel</span>
               <select
@@ -858,15 +916,17 @@ export function TrialBalancePdfModal({
             </label>
           </div>
 
-          <AccountRangeFilter
-            accounts={accounts}
-            value={accountRange}
-            onChange={(range) => {
-              setStartAccountCode(range.from)
-              setEndAccountCode(range.to)
-            }}
-            disabled={catalog.state === 'loading' && accounts.length === 0}
-          />
+          {!isIncomeReport && (
+            <AccountRangeFilter
+              accounts={accounts}
+              value={accountRange}
+              onChange={(range) => {
+                setStartAccountCode(range.from)
+                setEndAccountCode(range.to)
+              }}
+              disabled={catalog.state === 'loading' && accounts.length === 0}
+            />
+          )}
 
           <div className="flex flex-wrap items-center gap-4">
             {activeReportType === 'trial_balance' && (
@@ -950,8 +1010,8 @@ export function TrialBalancePdfModal({
                 <div className="flex">
                   <span className="font-bold w-28 shrink-0">Rango:</span>
                   <span>
-                    {accountRangeLabel}
-                    {mainAccountCode !== 'ALL' ? ` (Clase ${mainAccountCode})` : ''}
+                    {isIncomeReport ? 'Clases 4, 5, 6 y 7' : accountRangeLabel}
+                    {!isIncomeReport && mainAccountCode !== 'ALL' ? ` (Clase ${mainAccountCode})` : ''}
                   </span>
                 </div>
                 <div className="flex">
@@ -1421,6 +1481,73 @@ export function TrialBalancePdfModal({
                       : `DESCUADRE: ${formatCop(balanceReport.difference)}`}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* FORMATO 8: ESTADO DE RESULTADOS DESGLOSADO */}
+            {isIncomeReport && !isRemoteLoading && incomeReport && (
+              <div className="my-2 space-y-3 font-mono text-[10.5px] overflow-x-auto">
+                {incomeSections.map((section) => (
+                  <section key={section.key} className="min-w-[520px]">
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                          <th className="py-1 px-1 text-left" style={{ width: '18%' }}>{section.title}</th>
+                          <th className="py-1 px-1 text-left" style={{ width: '57%' }}>Cuenta</th>
+                          <th className="py-1 px-1 text-right" style={{ width: '25%' }}>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.rows.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="py-2 px-1 text-slate-500">Sin movimientos en esta clase durante el periodo.</td>
+                          </tr>
+                        ) : (
+                          balanceRowsTable(section.rows)
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-bold text-black" style={{ borderTop: '1px solid #000' }}>
+                          <td className="py-1 px-1" />
+                          <td className="py-1 px-1 uppercase">{section.totalLabel}</td>
+                          <td className="py-1 px-1 text-right whitespace-nowrap">{formatCop(section.total)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </section>
+                ))}
+
+                <table className="w-full border-collapse min-w-[520px] print-avoid-break" style={{ tableLayout: 'fixed' }}>
+                  <caption className="text-left font-bold uppercase text-black py-1">Resumen del resultado</caption>
+                  <tbody>
+                    {incomeStatementLines(incomeReport).map((line) => (
+                      <tr
+                        key={line.key}
+                        className={`text-black ${line.kind === 'line' ? '' : 'font-bold'}`}
+                        style={
+                          line.kind === 'total'
+                            ? { borderTop: '2px solid #000', borderBottom: '3px double #000' }
+                            : line.kind === 'subtotal'
+                            ? { borderTop: '1px solid #000' }
+                            : undefined
+                        }
+                      >
+                        <td className="py-0.5 px-1" style={{ width: '75%', paddingLeft: line.kind === 'line' ? PRINT_INDENT_PX * 2 : undefined }}>
+                          {line.kind === 'line' ? line.label : line.label.toUpperCase()}
+                        </td>
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap" style={{ width: '25%' }}>
+                          {formatCop(line.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="text-slate-700 text-[10px]">
+                      <td className="pt-1 px-1">
+                        Margen bruto {incomeReport.grossMarginPercent} % | Margen neto {incomeReport.netMarginPercent} %
+                      </td>
+                      <td className="px-1" />
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             )}
 

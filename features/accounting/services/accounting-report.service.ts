@@ -23,12 +23,26 @@ import {
   WarehouseFinancialSummary,
   ExogenaPrepItem,
   BalanceSheetParams,
+  IncomeStatementParams,
   FinancialStatementNode,
   TrialBalanceTotals,
 } from '../types'
-import { buildAccountTree, isZeroAmount, nodeHasActivity, roundCurrency } from '../utils/account-tree'
+import {
+  buildAccountTree,
+  isZeroAmount,
+  nodeHasActivity,
+  roundCurrency,
+  sumTotalsByCodePrefix,
+} from '../utils/account-tree'
 import { formatPucRangeLabel, isPucCodeInRange, normalizePucRange } from '../utils/puc-code-range'
-import { formatIsoDateEs, formatNowBogota, todayBogotaIsoDate } from '../utils/report-format'
+import {
+  currentBogotaMonthRange,
+  formatDateRangeEs,
+  formatIsoDateEs,
+  formatNowBogota,
+  isIsoDate,
+  todayBogotaIsoDate,
+} from '../utils/report-format'
 
 /** Suma días a una fecha 'YYYY-MM-DD' (aritmética en UTC: es una fecha contable, sin hora). */
 function shiftIsoDate(isoDate: string, days: number): string {
@@ -285,68 +299,92 @@ export class AccountingReportService {
   }
 
   /**
-   * Estado de Resultados Integral (P&L)
-   * Ingresos - Costos - Gastos = Utilidad
+   * Estado de Resultados Integral del periodo [dateFrom, dateTo] (por defecto el mes en curso en
+   * America/Bogota), desglosado Clase → Grupo → Cuenta → Subcuenta → Auxiliar.
+   *
+   * - Importes: fn_accounting_account_balances_range(desde, hasta, sede) → movimientos del periodo
+   *   (asientos POSTED y REVERSED: un asiento y su reversión se compensan).
+   * - Estructura (PUC comercial, Decreto 2650 de 1993):
+   *   Ingresos operacionales (41) − Costos (6 y 7) = Utilidad bruta
+   *   − Gastos operacionales de administración (51) y de ventas (52) = Utilidad operacional
+   *   + Ingresos no operacionales (resto de la clase 4) − Gastos no operacionales (53)
+   *   = Utilidad antes de impuestos − Impuesto de renta (54) − otros gastos de la clase 5
+   *   = Utilidad neta = Ingresos (4) − Gastos (5) − Costos (6 y 7).
    */
-  async getIncomeStatement(period?: string, locationId?: string): Promise<IncomeStatementReport> {
-    const accounts = await accountingRepository.getAllAccounts()
+  async getIncomeStatement(params: Partial<IncomeStatementParams> = {}): Promise<IncomeStatementReport> {
+    const defaults = currentBogotaMonthRange()
+    let dateFrom = isIsoDate(params.dateFrom) ? params.dateFrom : defaults.dateFrom
+    let dateTo = isIsoDate(params.dateTo) ? params.dateTo : defaults.dateTo
+    if (dateFrom > dateTo) [dateFrom, dateTo] = [dateTo, dateFrom]
+    const locationId = params.locationId && params.locationId !== 'ALL' ? params.locationId : undefined
 
-    const revList = accounts.filter((a) => a.accountClass === 4 && a.code.startsWith('41'))
-    const costList = accounts.filter((a) => a.accountClass === 6 && a.code.startsWith('61'))
-    const adminExpList = accounts.filter((a) => a.accountClass === 5 && a.code.startsWith('51'))
-    const sellingExpList = accounts.filter((a) => a.accountClass === 5 && a.code.startsWith('52'))
+    const [accounts, totals, locationName] = await Promise.all([
+      accountingRepository.getAllAccounts(),
+      accountingRepository.getAccountBalanceTotals({ dateFrom, dateTo, locationId, accountFrom: '4', accountTo: '7' }),
+      this.resolveLocationName(locationId),
+    ])
 
-    const sum = (list: typeof accounts) => list.reduce((acc, a) => acc + (Number(a.balance) || 0), 0)
-
-    const totalRevenues = sum(revList)
-    const totalCosts = sum(costList)
-    const grossProfit = totalRevenues - totalCosts
-    const grossMarginPercent = totalRevenues > 0 ? Number(((grossProfit / totalRevenues) * 100).toFixed(1)) : 0
-
-    const totalAdmin = sum(adminExpList)
-    const totalSelling = sum(sellingExpList)
-    const totalOperatingExpenses = totalAdmin + totalSelling
-    const operatingProfit = grossProfit - totalOperatingExpenses
-
-    const nonOpRevAcc = accounts.find((a) => a.code === '4210')
-    const nonOperatingIncome = nonOpRevAcc ? (Number(nonOpRevAcc.balance) || 0) : 0
-    const nonOperatingExpenses = 0
-
-    const netProfit = operatingProfit + nonOperatingIncome - nonOperatingExpenses
-    const netMarginPercent = totalRevenues > 0 ? Number(((netProfit / totalRevenues) * 100).toFixed(1)) : 0
-
-    const mapItems = (list: typeof accounts, base: number) =>
-      list.map((a) => ({
-        code: a.code,
-        name: a.name,
-        balance: a.balance,
-        percentage: base > 0 ? Number(((a.balance / base) * 100).toFixed(1)) : 0,
-      }))
-
-    let locationName: string | undefined
-    if (locationId && locationId !== 'ALL') {
-      const { data: loc } = await supabaseClient.from('locations').select('name').eq('id', locationId).maybeSingle()
-      locationName = loc?.name
+    const tree = buildAccountTree(accounts, totals, { classes: [4, 5, 6, 7] })
+    const rootOf = (accountClass: number) => tree.find((node) => node.accountClass === accountClass) || null
+    const creditBalance = (prefix: string) => {
+      const sum = sumTotalsByCodePrefix(accounts, totals, prefix)
+      return roundCurrency(sum.credit - sum.debit)
     }
+    const debitBalance = (prefix: string) => {
+      const sum = sumTotalsByCodePrefix(accounts, totals, prefix)
+      return roundCurrency(sum.debit - sum.credit)
+    }
+    const percentOf = (value: number, base: number) =>
+      isZeroAmount(base) ? 0 : Math.round((value / base) * 1000) / 10
+
+    const totalRevenues = creditBalance('4')
+    const operatingRevenues = creditBalance('41')
+    const nonOperatingIncome = roundCurrency(totalRevenues - operatingRevenues)
+
+    const totalCosts = roundCurrency(debitBalance('6') + debitBalance('7'))
+    const grossProfit = roundCurrency(operatingRevenues - totalCosts)
+
+    const totalExpenses = debitBalance('5')
+    const administrativeExpenses = debitBalance('51')
+    const sellingExpenses = debitBalance('52')
+    const totalOperatingExpenses = roundCurrency(administrativeExpenses + sellingExpenses)
+    const operatingProfit = roundCurrency(grossProfit - totalOperatingExpenses)
+
+    const nonOperatingExpenses = debitBalance('53')
+    const profitBeforeTax = roundCurrency(operatingProfit + nonOperatingIncome - nonOperatingExpenses)
+    const incomeTax = debitBalance('54')
+    const otherExpenses = roundCurrency(totalExpenses - totalOperatingExpenses - nonOperatingExpenses - incomeTax)
+    const netProfit = roundCurrency(profitBeforeTax - incomeTax - otherExpenses)
 
     return {
-      period: period || 'Septiembre 2026',
+      period: formatDateRangeEs(dateFrom, dateTo),
+      dateFrom,
+      dateTo,
       locationId,
       locationName,
-      operatingRevenues: mapItems(revList, totalRevenues),
+      revenues: rootOf(4),
+      expenses: rootOf(5),
+      costOfSales: rootOf(6),
+      productionCosts: rootOf(7),
       totalRevenues,
-      costOfSales: mapItems(costList, totalCosts),
+      operatingRevenues,
+      nonOperatingIncome,
       totalCosts,
       grossProfit,
-      grossMarginPercent,
-      administrativeExpenses: mapItems(adminExpList, totalOperatingExpenses),
-      sellingExpenses: mapItems(sellingExpList, totalOperatingExpenses),
+      grossMarginPercent: percentOf(grossProfit, operatingRevenues),
+      administrativeExpenses,
+      sellingExpenses,
       totalOperatingExpenses,
       operatingProfit,
-      nonOperatingIncome,
       nonOperatingExpenses,
+      profitBeforeTax,
+      incomeTax,
+      otherExpenses,
+      totalExpenses,
       netProfit,
-      netMarginPercent,
+      netMarginPercent: percentOf(netProfit, totalRevenues),
+      hasActivity: tree.some(nodeHasActivity),
+      generatedAt: formatNowBogota(),
     }
   }
 
@@ -384,7 +422,7 @@ export class AccountingReportService {
       accountId: account.id,
       accountCode: account.code,
       accountName: account.name,
-      period: period || '2026-09',
+      period: period || todayBogotaIsoDate().slice(0, 7),
       initialBalance,
       movements,
       totalDebit,

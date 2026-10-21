@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { BalanceSheetReport, FinancialStatementNode } from '../../types'
 import { useAccountingLocations } from '../../hooks/useAccountingLocations'
-import { ACCOUNT_LEVEL_LABEL, pruneZeroNodes } from '../../utils/account-tree'
+import { ACCOUNT_LEVEL_LABEL, collectExpandableNodeIds, pruneZeroNodes } from '../../utils/account-tree'
 import { formatCop, formatIsoDateEs, todayBogotaIsoDate } from '../../utils/report-format'
 import { FinancialStatementTree } from '../reports/FinancialStatementTree'
 
@@ -26,15 +26,6 @@ interface AccountingBalanceSheetTabProps {
   onFiltersChange: (filters: { locationId?: string; cutoffDate?: string }) => void
   onOpenBalancePdf?: () => void
   onOpenTrialBalancePdf?: () => void
-}
-
-/** Ids de los nodos con hijos cuyo nivel es menor que `levelLimit` (se despliegan hasta ese nivel). */
-function collectExpandableIds(nodes: FinancialStatementNode[], levelLimit: number, into = new Set<string>()): Set<string> {
-  for (const node of nodes) {
-    if (node.children.length > 0 && node.levelNumber < levelLimit) into.add(node.id)
-    collectExpandableIds(node.children, levelLimit, into)
-  }
-  return into
 }
 
 interface StatementSectionProps {
@@ -96,7 +87,7 @@ export function AccountingBalanceSheetTab({
 
   const allNodes = useMemo(() => [...sections.assets, ...sections.liabilities, ...sections.equity], [sections])
   const expandedIds = useMemo(
-    () => expandedOverride ?? collectExpandableIds(allNodes, DEFAULT_EXPAND_LEVEL + 1),
+    () => expandedOverride ?? collectExpandableNodeIds(allNodes, DEFAULT_EXPAND_LEVEL + 1),
     [expandedOverride, allNodes]
   )
 
@@ -192,7 +183,7 @@ export function AccountingBalanceSheetTab({
               onChange={(e) => {
                 const level = Number(e.target.value)
                 setExpandLevel(level)
-                setExpandedOverride(collectExpandableIds(allNodes, level))
+                setExpandedOverride(collectExpandableNodeIds(allNodes, level))
               }}
             >
               {expandLevel === '' && <option value="">Personalizado</option>}
@@ -211,7 +202,7 @@ export function AccountingBalanceSheetTab({
                 type="button"
                 className="outline-button compact text-[11px] px-2 py-1 flex items-center gap-1 active:scale-95 transition-transform"
                 onClick={() => {
-                  setExpandedOverride(collectExpandableIds(allNodes, 6))
+                  setExpandedOverride(collectExpandableNodeIds(allNodes, 6))
                   setExpandLevel(5)
                 }}
               >

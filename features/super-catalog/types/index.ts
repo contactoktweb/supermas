@@ -5,6 +5,8 @@
  * adición al carrito, generación de Pedidos Web y articulación con facturación y stock.
  */
 
+import type { PriceChangeSubmissionResult } from '@/features/products/types'
+
 export type StockAvailabilityLevel = 'AVAILABLE' | 'LOW_STOCK' | 'OUT_OF_STOCK'
 
 export interface WarehouseStockSummaryItem {
@@ -105,6 +107,17 @@ export interface ProductWebConfigUpdate {
   taxConfigId?: string
   images?: string[]
   imageUrl?: string
+  /** Motivo del cambio de precio (obligatorio si el usuario no aprueba precios). */
+  priceChangeReason?: string
+}
+
+/**
+ * Resultado de guardar cambios en el catálogo. El precio nunca se escribe directo:
+ * `priceChange` indica si se aplicó (aprobador) o quedó pendiente de aprobación (069).
+ */
+export interface SuperCatalogUpdateResult {
+  product: SuperCatalogProduct
+  priceChange: PriceChangeSubmissionResult | null
 }
 
 export type SuperBulkActionType =

@@ -31,7 +31,7 @@ import {
   ThirdPartyFormData,
   VoucherTypeUpdateData,
 } from '../schemas/accounting.schema'
-import { todayBogotaIsoDate } from '../utils/report-format'
+import { currentBogotaMonthRange, todayBogotaIsoDate } from '../utils/report-format'
 
 export type AccountingTab =
   | 'dashboard'
@@ -100,8 +100,6 @@ const ALL_RESOURCES = Object.keys({
   voucherTypes: 1,
 } satisfies Record<AccountingResource, 1>) as AccountingResource[]
 
-const REPORT_PERIOD = '2026-09'
-
 interface ResourceStatus {
   key: string
   state: 'loading' | 'ready' | 'error' | 'stale'
@@ -131,6 +129,7 @@ function resourceKey(resource: AccountingResource, filters: AccountingFilters, l
     case 'balanceSheet':
       return JSON.stringify([filters.locationId, filters.cutoffDate])
     case 'incomeStatement':
+      return JSON.stringify([filters.locationId, filters.resultsDateFrom, filters.resultsDateTo])
     case 'costs':
       return String(filters.locationId ?? '')
     case 'ledger':
@@ -141,6 +140,34 @@ function resourceKey(resource: AccountingResource, filters: AccountingFilters, l
       ])
     default:
       return ''
+  }
+}
+
+/** Filtros iniciales: los periodos arrancan en el mes en curso (America/Bogota). */
+function buildInitialFilters(): AccountingFilters {
+  const today = todayBogotaIsoDate()
+  const currentMonth = currentBogotaMonthRange()
+  return {
+    query: '',
+    accountClass: 'ALL',
+    nature: 'ALL',
+    status: 'ALL',
+    sourceType: 'ALL',
+    entryStatus: 'ALL',
+    periodMode: 'MONTH',
+    year: Number(today.slice(0, 4)),
+    month: today.slice(5, 7),
+    locationId: 'ALL',
+    accountId: 'ALL',
+    thirdPartyId: 'ALL',
+    costCenterId: 'ALL',
+    accountFrom: '',
+    accountTo: '',
+    cutoffDate: today,
+    resultsDateFrom: currentMonth.dateFrom,
+    resultsDateTo: currentMonth.dateTo,
+    page: 1,
+    pageSize: 25,
   }
 }
 
@@ -172,26 +199,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
   const [voucherTypes, setVoucherTypes] = useState<AccountingVoucherType[]>([])
 
   // Filtros globales
-  const [filters, setFilters] = useState<AccountingFilters>({
-    query: '',
-    accountClass: 'ALL',
-    nature: 'ALL',
-    status: 'ALL',
-    sourceType: 'ALL',
-    entryStatus: 'ALL',
-    periodMode: 'MONTH',
-    year: 2026,
-    month: '09',
-    locationId: 'ALL',
-    accountId: 'ALL',
-    thirdPartyId: 'ALL',
-    costCenterId: 'ALL',
-    accountFrom: '',
-    accountTo: '',
-    cutoffDate: todayBogotaIsoDate(),
-    page: 1,
-    pageSize: 25,
-  })
+  const [filters, setFilters] = useState<AccountingFilters>(buildInitialFilters)
 
   // Estado de carga por recurso: en ref para decidir de forma síncrona (StrictMode, efectos repetidos)
   // y espejado en estado para renderizar.
@@ -264,7 +272,14 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
           return () => setBalanceSheet(res)
         }
         case 'incomeStatement': {
-          const res = await accountingService.getIncomeStatement(REPORT_PERIOD, currentFilters.locationId, userRole)
+          const res = await accountingService.getIncomeStatement(
+            {
+              dateFrom: currentFilters.resultsDateFrom,
+              dateTo: currentFilters.resultsDateTo,
+              locationId: currentFilters.locationId,
+            },
+            userRole
+          )
           return () => setIncomeStatement(res)
         }
         case 'ledger': {
@@ -279,7 +294,12 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
             if (!preferredAcc) return () => undefined
             accountId = preferredAcc.id
           }
-          const res = await accountingService.getGeneralLedger(accountId, REPORT_PERIOD, currentFilters.locationId, userRole)
+          const res = await accountingService.getGeneralLedger(
+            accountId,
+            todayBogotaIsoDate().slice(0, 7),
+            currentFilters.locationId,
+            userRole
+          )
           return () => setSelectedLedger(res)
         }
         case 'receivables': {
@@ -402,18 +422,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
   }
 
   const resetFilters = () => {
-    setFilters({
-      query: '',
-      accountClass: 'ALL',
-      nature: 'ALL',
-      status: 'ALL',
-      sourceType: 'ALL',
-      entryStatus: 'ALL',
-      locationId: 'ALL',
-      accountId: 'ALL',
-      page: 1,
-      pageSize: 25,
-    })
+    setFilters(buildInitialFilters())
   }
 
   // Cambia la cuenta del Libro Mayor; la consulta la lanza la carga perezosa de la pestaña.

@@ -412,7 +412,7 @@ export function AccountingThirdPartiesTab({
                             className={`text-xs font-semibold pl-6 pr-6 py-1 rounded-lg border appearance-none cursor-pointer transition-all shadow-2xs ${getTypeBadgeStyle(
                               tp.thirdPartyType
                             )} ${updatingId === tp.id ? 'opacity-50 cursor-wait' : ''}`}
-                            title="Cambiar clasificación (Cliente ↔ Proveedor ↔ Empleado ↔ Acreedor)"
+                            title="Cambiar clasificación (Cliente, Proveedor, Empleado o Acreedor)"
                           >
                             <option value="CLIENTE">Cliente</option>
                             <option value="PROVEEDOR">Proveedor</option>

@@ -20,6 +20,39 @@ export function todayBogotaIsoDate(): string {
   }).format(new Date())
 }
 
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const ISO_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/
+
+export function isIsoDate(value?: string | null): value is string {
+  return ISO_DATE_PATTERN.test(String(value || ''))
+}
+
+/** Primer y último día (YYYY-MM-DD) de un mes 'YYYY-MM'. */
+export function monthDateRange(isoMonth: string): { dateFrom: string; dateTo: string } {
+  const month = ISO_MONTH_PATTERN.test(isoMonth) ? isoMonth : todayBogotaIsoDate().slice(0, 7)
+  const [year, monthNumber] = month.split('-').map(Number)
+  // Día 0 del mes siguiente = último día del mes (aritmética en UTC: fecha contable sin hora).
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate()
+  return { dateFrom: `${month}-01`, dateTo: `${month}-${String(lastDay).padStart(2, '0')}` }
+}
+
+/** Mes en curso en America/Bogota como rango de fechas (periodo por defecto de los reportes). */
+export function currentBogotaMonthRange(): { dateFrom: string; dateTo: string } {
+  return monthDateRange(todayBogotaIsoDate().slice(0, 7))
+}
+
+/** true si [dateFrom, dateTo] cubre exactamente un mes calendario. */
+export function isFullMonthRange(dateFrom: string, dateTo: string): boolean {
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo)) return false
+  const range = monthDateRange(dateFrom.slice(0, 7))
+  return range.dateFrom === dateFrom && range.dateTo === dateTo
+}
+
+/** "Del 01/10/2026 al 31/10/2026". */
+export function formatDateRangeEs(dateFrom: string, dateTo: string): string {
+  return `Del ${formatIsoDateEs(dateFrom)} al ${formatIsoDateEs(dateTo)}`
+}
+
 /** 'YYYY-MM-DD' → 'DD/MM/YYYY' (sin conversión de zona: es una fecha contable). */
 export function formatIsoDateEs(isoDate?: string | null): string {
   const value = String(isoDate || '').slice(0, 10)

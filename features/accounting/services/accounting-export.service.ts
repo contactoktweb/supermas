@@ -10,6 +10,7 @@
  * 5. Libro Diario - Líneas contables en orden cronológico
  * 6. Balance General - Estado de situación financiera desglosado por niveles del PUC
  * 7. Balance de Comprobación - Sumas y saldos por nivel, con terceros
+ * 8. Estado de Resultados - Ingresos, costos y gastos del periodo con cascada de utilidades
  *
  * El rango de cuentas usa el orden del PUC (utils/puc-code-range): la cuenta final incluye sus
  * subcuentas y auxiliares. Cada archivo lleva en el encabezado empresa, filtros y "Cuentas de X a Y".
@@ -30,6 +31,7 @@ import {
   AccountingCompanyHeader,
   AccountMovementTotalsMap,
   BalanceSheetReport,
+  IncomeStatementReport,
   FinancialStatementNode,
   TrialBalanceReportData,
   TrialBalanceRow,
@@ -55,6 +57,7 @@ import {
   normalizePucRange,
 } from '../utils/puc-code-range'
 import { formatCompanyNit, formatIsoDateEs, formatNowBogota, todayBogotaIsoDate } from '../utils/report-format'
+import { incomeStatementLines, incomeStatementSections } from '../utils/income-statement'
 
 interface ColumnDef {
   key: string
@@ -881,6 +884,77 @@ export class AccountingExportService {
       rows,
       meta,
       json: () => ({ modulo: 'Contabilidad - Balance General', balance: report }),
+    })
+
+    return { count: rows.length, filename: filenameBase }
+  }
+
+  /**
+   * 6b. Exportar Estado de Resultados (árboles de las clases 4, 6, 7 y 5 y cascada de utilidades).
+   */
+  exportIncomeStatement(
+    report: IncomeStatementReport,
+    format: AccountingExportFormat = 'CSV',
+    options?: { hideZeroBalances?: boolean; maxLevel?: TrialBalanceLevelFilter; companyHeader?: AccountingCompanyHeader | null }
+  ): { count: number; filename: string } {
+    const maxLevelNumber = TRIAL_BALANCE_LEVEL_NUMBER[options?.maxLevel || 'ALL'] || 5
+    const prepare = (node: FinancialStatementNode | null) =>
+      node ? (options?.hideZeroBalances ? pruneZeroNodes([node]) : [node]) : []
+    const emptyColumns = { codigo: '', nivel: '', naturaleza: '' }
+
+    const rows: Array<Record<string, any>> = []
+    for (const section of incomeStatementSections(report)) {
+      rows.push(
+        ...flattenAccountTree(prepare(section.node), maxLevelNumber).map(({ node, depth }) => ({
+          codigo: node.code,
+          cuenta: `${'    '.repeat(depth)}${node.name}`,
+          nivel: ACCOUNT_LEVEL_LABEL[node.level],
+          naturaleza: node.nature === 'DEBIT' ? 'Débito' : 'Crédito',
+          saldo: node.balance,
+        })),
+        { ...emptyColumns, cuenta: section.totalLabel.toUpperCase(), saldo: section.total }
+      )
+    }
+    rows.push(
+      { ...emptyColumns, cuenta: '', saldo: null },
+      ...incomeStatementLines(report).map((line) => ({
+        ...emptyColumns,
+        cuenta: line.kind === 'line' ? line.label : line.label.toUpperCase(),
+        saldo: line.amount,
+      }))
+    )
+
+    const columns: ColumnDef[] = [
+      { key: 'codigo', header: 'Código PUC' },
+      { key: 'cuenta', header: 'Cuenta' },
+      { key: 'nivel', header: 'Nivel' },
+      { key: 'naturaleza', header: 'Naturaleza' },
+      { key: 'saldo', header: 'Valor (COP)', type: 'number' },
+    ]
+
+    const meta = this.headerMetadata(
+      {
+        companyHeader: options?.companyHeader,
+        locationId: report.locationId,
+        locationName: report.locationName,
+        startDate: report.dateFrom,
+        endDate: report.dateTo,
+      },
+      false
+    )
+    if (!report.locationId) meta.push('SEDE: Consolidado de todas las sedes')
+    meta.push(`MARGEN BRUTO: ${report.grossMarginPercent} % | MARGEN NETO: ${report.netMarginPercent} %`)
+
+    const filenameBase = `estado_resultados_${report.dateFrom}_${report.dateTo}`
+    this.writeFile({
+      format,
+      title: 'ESTADO DE RESULTADOS INTEGRAL',
+      sheetName: 'Estado de Resultados',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Estado de Resultados', estadoResultados: report }),
     })
 
     return { count: rows.length, filename: filenameBase }

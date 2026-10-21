@@ -97,6 +97,18 @@ export const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    id: 'recursos-humanos',
+    title: 'RECURSOS HUMANOS',
+    items: [
+      { id: 'rrhh-panel', label: 'Panel de RRHH', icon: 'hr', path: '/recursos-humanos/panel', permission: 'hr.read' },
+      { id: 'rrhh-empleados', label: 'Empleados', icon: 'users', path: '/recursos-humanos/empleados', permission: 'hr.read' },
+      { id: 'rrhh-estructura', label: 'Áreas y cargos', icon: 'structure', path: '/recursos-humanos/estructura', permission: 'hr.read' },
+      { id: 'rrhh-novedades', label: 'Novedades', icon: 'calendarMark', path: '/recursos-humanos/novedades', permission: 'hr.read' },
+      { id: 'rrhh-vacaciones', label: 'Vacaciones', icon: 'vacation', path: '/recursos-humanos/vacaciones', permission: 'hr.read' },
+      { id: 'rrhh-reportes', label: 'Reportes de personal', icon: 'reports', path: '/recursos-humanos/reportes', permission: 'hr.read' },
+    ],
+  },
+  {
     id: 'gestion',
     title: 'GESTIÓN Y CONTROL',
     items: [

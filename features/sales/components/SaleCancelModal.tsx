@@ -105,7 +105,7 @@ export function SaleCancelModal({
               Anular Venta {sale.saleNumber}
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-              Esta acción revertirá automáticamente el stock en Kardex.
+              Revierte en una sola operación el stock, los pagos y el asiento contable.
             </p>
           </div>
         </div>
@@ -161,8 +161,10 @@ export function SaleCancelModal({
               marginBottom: 20,
             }}
           >
-            <strong>Nota de seguridad:</strong> Se generarán movimientos de reversión tipo{' '}
-            <code>SALE_RETURN</code> en Kardex por las {sale.totalUnits} unidades de los {sale.itemsCount} productos.
+            <strong>Qué se revierte:</strong> reingreso a Kardex de {sale.totalUnits} unidades de {sale.itemsCount}{' '}
+            productos, devolución del efectivo desde su caja abierta, reverso en la cuenta bancaria, saldo de cartera
+            si fue a crédito y reversión del asiento. Si la venta tiene factura electrónica no se anula: registre una
+            nota crédito.
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>

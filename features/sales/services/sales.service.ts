@@ -20,8 +20,7 @@ import {
   SalesUserContext,
   CreateSaleResult,
 } from '../types'
-import { supabaseClient } from '@/lib/supabase/client'
-import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 
 const DEFAULT_USER: SalesUserContext = {
   userId: '',
@@ -182,7 +181,8 @@ export class SalesService {
   }
 
   /**
-   * Anula una venta existente y revierte los movimientos de inventario en Kardex
+   * Anula una venta en una sola transacción del servidor (fn_cancel_sale): revierte stock, caja,
+   * banco, cartera y asiento, y deja la auditoría. Reintentar sobre una venta ya anulada no repite nada.
    */
   async cancelSale(
     dto: CancelSaleDTO,
@@ -191,59 +191,12 @@ export class SalesService {
     this.checkPermission(user, 'sales.cancel')
     const validated = cancelSaleSchema.parse(dto)
 
-    const sale = await this.repo.findById(validated.saleId)
-    if (!sale) {
-      throw new Error(`La venta con ID "${validated.saleId}" no existe.`)
-    }
+    const result = await this.repo.cancelSale(validated.saleId, validated.reason.trim())
 
-    if (sale.status === 'CANCELLED') {
-      throw new Error(`La venta ${sale.saleNumber} ya se encuentra anulada.`)
-    }
-
-    // 1. Revertir inventario en Kardex
-    await this.repo.reverseInventoryMovements(sale, validated.reason, {
-      userId: user.userId,
-      userName: user.userName,
-    })
-
-    // 2. Revertir saldo deudor del cliente si la venta fue a crédito
-    if (sale.paymentMethod === 'CREDITO' && sale.customerId) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle()
-      if (custRow) {
-        const newBal = Math.max(0, Number(custRow.current_balance || 0) - sale.totalAmount)
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId)
-      }
-    }
-
-    // 3. Actualizar estado de la venta
-    const updated = await this.repo.update(sale.id, {
-      status: 'CANCELLED',
-      cancellationReason: validated.reason,
-      cancelledAt: new Date().toISOString(),
-      cancelledBy: user.userName,
-    })
-
+    const updated = await this.repo.findById(result.sale_id)
     if (!updated) {
-      throw new Error(`Error al anular la venta "${sale.saleNumber}".`)
+      throw new Error(`La venta ${result.sale_number} quedó anulada, pero no se pudo cargar. Actualice el listado.`)
     }
-
-    // 4. Registrar en auditoría
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'ANULACIÓN_VENTA',
-      details: `Venta ${sale.saleNumber} anulada. Motivo: ${validated.reason}. Stock de ${sale.totalUnits} unidades revertido en Kardex.`,
-      entityId: sale.id,
-      oldValues: { status: sale.status },
-      newValues: { status: 'CANCELLED', reason: validated.reason, cancelledBy: user.userName },
-    })
-
     return updated
   }
 
@@ -320,7 +273,8 @@ export class SalesService {
   }
 
   /**
-   * Procesa devoluciones parciales o totales de mercancía
+   * Procesa devoluciones parciales o totales de mercancía en buen estado con la RPC atómica de
+   * Devoluciones (kardex y documento de devolución en una transacción).
    */
   async processReturn(
     dto: SaleReturnDTO,
@@ -329,108 +283,21 @@ export class SalesService {
     this.checkPermission(user, 'sales.return')
     const validated = saleReturnSchema.parse(dto)
 
-    const sale = await this.repo.findById(validated.saleId)
-    if (!sale) {
-      throw new Error(`La venta con ID "${validated.saleId}" no existe.`)
-    }
-
-    for (const returnItem of validated.items) {
-      const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
-      if (!saleLine) {
-        throw new Error(`El producto no pertenece a la venta original ${sale.saleNumber}.`)
-      }
-      if (returnItem.quantity > saleLine.quantity) {
-        throw new Error(`La cantidad a devolver (${returnItem.quantity}) no puede superar la cantidad vendida (${saleLine.quantity}).`)
-      }
-
-      // Revertir inventario registrando movimiento CUSTOMER_RETURN en public.inventory_movements
-      // El trigger process_inventory_movement() de PostgreSQL actualiza automáticamente public.stock_levels
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', returnItem.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const previousStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const resultingStock = previousStock + returnItem.quantity
-      const unitCost = stockRow ? Number(stockRow.average_cost || 0) : Number(saleLine.unitCost || 0)
-
-      const companyId = await resolveUserCompanyId(supabaseClient)
-
-      const { error: movErr } = await supabaseClient
-        .from('inventory_movements')
-        .insert({
-          company_id: companyId,
-          product_id: returnItem.productId,
-          location_id: sale.locationId,
-          movement_type: 'CUSTOMER_RETURN',
-          quantity_in: returnItem.quantity,
-          quantity_out: 0,
-          previous_stock: previousStock,
-          new_stock: resultingStock,
-          unit_cost: unitCost,
-          total_cost: returnItem.quantity * unitCost,
-          document_type: 'SALE_RETURN',
-          document_reference: sale.saleNumber,
-          reason: `Devolución de venta ${sale.saleNumber}: ${returnItem.reason || validated.reason}`,
-          user_id: user.userId || null,
-        })
-
-      if (movErr) {
-        console.error('Error insertando movimiento de devolución:', movErr)
-        throw new Error(`Error al registrar devolución en Kardex: ${movErr.message}`)
-      }
-    }
-
-    // 2. Si fue venta a crédito, deducir el importe de los ítems devueltos del saldo del cliente
-    let totalReturnedMoney = 0
-    for (const returnItem of validated.items) {
-      const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
-      if (saleLine) {
-        const itemUnitPrice = saleLine.quantity > 0 ? (saleLine.total / saleLine.quantity) : saleLine.unitPrice
-        totalReturnedMoney += Math.round(itemUnitPrice * returnItem.quantity)
-      }
-    }
-
-    if (sale.paymentMethod === 'CREDITO' && sale.customerId && totalReturnedMoney > 0) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle()
-      if (custRow) {
-        const newBal = Math.max(0, Number(custRow.current_balance || 0) - totalReturnedMoney)
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId)
-      }
-    }
-
-    // 3. Determinar si es devolución total o parcial
-    const totalOriginalQty = sale.items.reduce((acc, it) => acc + it.quantity, 0)
-    const totalReturnedQty = validated.items.reduce((acc, it) => acc + it.quantity, 0)
-    const isFullReturn = totalReturnedQty >= totalOriginalQty
-
-    const newStatus = isFullReturn ? 'RETURNED' : sale.status
-
-    const updated = await this.repo.update(sale.id, {
-      status: newStatus,
-      notes: sale.notes
-        ? `${sale.notes} | Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`
-        : `Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`,
+    await this.repo.processCustomerReturn({
+      saleId: validated.saleId,
+      reason: validated.reason,
+      items: validated.items.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        reason: it.reason,
+      })),
     })
 
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'DEVOLUCIÓN_VENTA',
-      details: `Devolución de productos procesada para la venta ${sale.saleNumber}. Motivo: ${validated.reason}.`,
-      entityId: sale.id,
-      newValues: { status: 'RETURNED', returnDetails: validated },
-    })
-
-    return updated || sale
+    const updated = await this.repo.findById(validated.saleId)
+    if (!updated) {
+      throw new Error('La devolución quedó registrada, pero la venta no se pudo cargar. Actualice el listado.')
+    }
+    return updated
   }
 }
 
@@ -440,7 +307,7 @@ export const salesService = new SalesService()
  * Pagos de la venta para el servidor. amount = null → el servidor asigna el saldo exacto del total que
  * calcula (sin diferencias de centavos).
  */
-function buildSalePayments(v: {
+export function buildSalePayments(v: {
   paymentMethod: string
   bankAccountId?: string
   mixedCashAmount?: number

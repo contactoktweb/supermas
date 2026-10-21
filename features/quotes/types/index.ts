@@ -116,3 +116,24 @@ export interface QuoteStats {
   convertedAmount: number
   conversionRatePercent: number
 }
+
+/**
+ * Origen del precio de la venta convertida (decide el servidor):
+ * - QUOTE_AGREED_PRICE: cotización vigente convertida por quien puede aprobar precios.
+ * - CURRENT_PRICE_QUOTE_NOT_VALID: la cotización no está enviada/aceptada o ya venció.
+ * - CURRENT_PRICE_NO_PRICE_APPROVAL: quien convierte no tiene el permiso de aprobar precios.
+ */
+export type QuotePriceSource =
+  | 'QUOTE_AGREED_PRICE'
+  | 'CURRENT_PRICE_QUOTE_NOT_VALID'
+  | 'CURRENT_PRICE_NO_PRICE_APPROVAL'
+
+export interface QuoteConversionResult {
+  saleId: string
+  saleNumber: string
+  totalAmount: number
+  idempotentReplay: boolean
+  priceSource: QuotePriceSource | null
+  accountingEntryNumber: string | null
+  quote: Quote
+}

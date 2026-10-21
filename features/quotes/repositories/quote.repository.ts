@@ -2,21 +2,24 @@
  * SUPER MÁS ERP/POS - Repositorio de Cotizaciones y Presupuestos (QuoteRepository)
  *
  * Conexión 100% transaccional sobre PostgreSQL (Supabase).
- * Tablas: public.quotes, public.quote_items, public.products, public.sales, public.stock_levels.
+ * Tablas: public.quotes, public.quote_items y public.products. La conversión en venta la hace el servidor.
  * Aislamiento multi-tenant estricto mediante company_id. Cero mocks, cero db.ts.
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import type { SalePaymentInput } from '@/features/sales/repositories/sales.repository'
 import {
   Quote,
+  QuoteConversionResult,
   QuoteItem,
   QuoteStatus,
   CreateQuoteInput,
   UpdateQuoteInput,
   QuoteFilterParams,
   QuoteStats,
+  QuotePriceSource,
 } from '../types'
 
 function getDbClient() {
@@ -24,6 +27,17 @@ function getDbClient() {
     return supabaseAdmin
   }
   return supabaseClient
+}
+
+/** Respuesta de fn_convert_quote_to_sale (079). */
+interface QuoteConversionRpcResult {
+  success: boolean
+  idempotent_replay: boolean
+  sale_id: string
+  sale_number: string
+  total_amount: number
+  accounting_entry_number: string | null
+  price_source?: QuotePriceSource | null
 }
 
 export class QuoteRepository {
@@ -414,214 +428,40 @@ export class QuoteRepository {
   }
 
   /**
-   * Conversión atómica de Cotización a Venta Oficial (CONVERTED_TO_SALE)
-   * Crea registro oficial en public.sales, líneas en public.sale_items,
-   * descuenta stock en public.stock_levels y registra Kardex en public.inventory_movements.
+   * Convierte la cotización en venta en una sola transacción del servidor (fn_convert_quote_to_sale, 079):
+   * precio (acordado solo si la cotización está vigente y quien convierte puede aprobar precios), IVA,
+   * costo, stock/kardex, pagos, caja/banco/cartera, asiento y marca de cotización convertida.
+   * Reintentar con la misma clave, o sobre una cotización ya convertida, devuelve la misma venta.
    */
   async convertToSale(
     quoteId: string,
-    options: {
-      locationId?: string
-      sellerUserId?: string
-      paymentMethod?: string
-      notes?: string
-    } = {},
+    input: { payments: SalePaymentInput[]; idempotencyKey: string },
     preferredCompanyId?: string
-  ): Promise<{ saleId: string; saleNumber: string; quote: Quote }> {
-    const client = getDbClient()
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
+  ): Promise<QuoteConversionResult> {
+    const { data, error } = await supabaseClient.rpc('fn_convert_quote_to_sale', {
+      p_quote_id: quoteId,
+      p_payments: input.payments,
+      p_idempotency_key: input.idempotencyKey,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as QuoteConversionRpcResult | null
+    if (!res?.success || !res.sale_id) {
+      throw new Error('El servidor no confirmó la conversión. Intente de nuevo: no se duplicará la venta.')
+    }
 
-    const quote = await this.findById(quoteId, companyId)
+    const quote = await this.findById(quoteId, preferredCompanyId)
     if (!quote) {
-      throw new Error(`No se encontró la cotización con ID ${quoteId}.`)
+      throw new Error(`La venta ${res.sale_number} quedó registrada, pero la cotización no se pudo cargar. Actualice el listado.`)
     }
-
-    if (quote.status === 'CONVERTED') {
-      throw new Error(`La cotización ${quote.quoteNumber} ya fue convertida a venta previamente (Venta ID: ${quote.saleId}).`)
-    }
-
-    if (quote.status === 'REJECTED') {
-      throw new Error(`No se puede convertir a venta una cotización rechazada (${quote.quoteNumber}).`)
-    }
-
-    const targetLocationId = options.locationId || quote.locationId
-    const targetSellerId = options.sellerUserId || quote.sellerUserId
-    const nowIso = new Date().toISOString()
-
-    // 1. Resolver o garantizar cliente
-    let finalCustomerId = quote.customerId
-    if (!finalCustomerId) {
-      // Buscar cliente genérico de la empresa o cliente por documento
-      if (quote.customerDocument) {
-        const { data: existingCust } = await client
-          .from('customers')
-          .select('id')
-          .eq('company_id', companyId)
-          .eq('document_number', quote.customerDocument)
-          .maybeSingle()
-        if (existingCust) finalCustomerId = existingCust.id
-      }
-
-      if (!finalCustomerId) {
-        const { data: genericCust } = await client
-          .from('customers')
-          .select('id')
-          .eq('company_id', companyId)
-          .eq('document_number', '222222222222')
-          .maybeSingle()
-
-        if (genericCust) {
-          finalCustomerId = genericCust.id
-        } else {
-          const names = quote.customerName.trim().split(' ')
-          const firstName = names[0] || 'Cliente'
-          const lastName = names.slice(1).join(' ') || 'Cotización'
-          const docNum = quote.customerDocument || `COT-${Date.now().toString().slice(-8)}`
-
-          const { data: newCust } = await client
-            .from('customers')
-            .insert({
-              company_id: companyId,
-              first_name: firstName,
-              last_name: lastName,
-              document_type: 'CC',
-              document_number: docNum,
-              email: quote.customerEmail || null,
-              phone: quote.customerPhone || null,
-              customer_type: 'INDIVIDUAL',
-              customer_category: 'STANDARD',
-              is_active: true,
-            })
-            .select('id')
-            .single()
-
-          if (newCust) finalCustomerId = newCust.id
-        }
-      }
-    }
-
-    if (!finalCustomerId) {
-      throw new Error('No se pudo asociar un cliente válido para la conversión de venta.')
-    }
-
-    // 2. Generar número de venta oficial
-    const saleNumber = `VTA-${Date.now().toString().slice(-6)}`
-    const totalCost = quote.items.reduce((acc, it) => acc + (it.unitCost * it.quantity), 0)
-
-    const normalizePaymentMethod = (pm?: string) => {
-      if (!pm) return 'CASH'
-      const upper = pm.toUpperCase()
-      if (upper === 'TRANSFERENCIA' || upper === 'TRANSFER' || upper === 'BANK_TRANSFER') return 'BANK_TRANSFER'
-      if (upper === 'EFECTIVO' || upper === 'CASH') return 'CASH'
-      if (upper === 'TARJETA_CREDITO' || upper === 'CREDIT_CARD') return 'CREDIT_CARD'
-      if (upper === 'TARJETA_DEBITO' || upper === 'DEBIT_CARD') return 'DEBIT_CARD'
-      if (upper === 'CREDITO' || upper === 'CREDIT') return 'CREDIT'
-      if (upper === 'MIXTO' || upper === 'MIXED') return 'MIXED'
-      return ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'BANK_TRANSFER', 'CREDIT', 'MIXED'].includes(upper) ? upper : 'CASH'
-    }
-
-    // 3. Insertar venta en public.sales
-    const { data: createdSale, error: saleErr } = await client
-      .from('sales')
-      .insert({
-        company_id: companyId,
-        location_id: targetLocationId,
-        seller_user_id: targetSellerId,
-        customer_id: finalCustomerId,
-        sale_number: saleNumber,
-        payment_method: normalizePaymentMethod(options.paymentMethod),
-        status: 'ISSUED',
-        subtotal_amount: quote.subtotalAmount,
-        discount_amount: quote.discountAmount,
-        tax_amount: quote.taxAmount,
-        total_amount: quote.totalAmount,
-        total_cost_amount: totalCost,
-        paid_amount: quote.totalAmount,
-        payment_status: 'PAID',
-        notes: options.notes || `Venta originada por conversión de cotización ${quote.quoteNumber}.`,
-        created_at: nowIso,
-        updated_at: nowIso,
-      })
-      .select('id, sale_number')
-      .single()
-
-    if (saleErr || !createdSale) {
-      throw new Error(`Error creando venta desde cotización: ${saleErr?.message}`)
-    }
-
-    // 4. Insertar líneas en public.sale_items y descontar stock
-    for (const item of quote.items) {
-      await client.from('sale_items').insert({
-        company_id: companyId,
-        sale_id: createdSale.id,
-        product_id: item.productId,
-        quantity: item.quantity,
-        unit_cost: item.unitCost,
-        unit_price: item.unitPrice,
-        discount_percent: item.discountPercent,
-        tax_rate_percent: item.taxRatePercent,
-        tax_amount: item.taxAmount,
-        subtotal: item.subtotal,
-        total: item.total,
-        created_at: nowIso,
-      })
-
-      // Descontar inventario en stock_levels
-      const { data: currentStockRow } = await client
-        .from('stock_levels')
-        .select('quantity')
-        .eq('company_id', companyId)
-        .eq('product_id', item.productId)
-        .eq('location_id', targetLocationId)
-        .maybeSingle()
-
-      const previousStock = Number(currentStockRow?.quantity) || 0
-      const newStock = previousStock - item.quantity
-
-      await client
-        .from('stock_levels')
-        .upsert(
-          {
-            company_id: companyId,
-            product_id: item.productId,
-            location_id: targetLocationId,
-            quantity: newStock,
-            updated_at: nowIso,
-          },
-          { onConflict: 'company_id,product_id,location_id' }
-        )
-
-      // Registrar movimiento de Kardex
-      await client.from('inventory_movements').insert({
-        company_id: companyId,
-        product_id: item.productId,
-        location_id: targetLocationId,
-        movement_type: 'SALE_OUT',
-        quantity_in: 0,
-        quantity_out: item.quantity,
-        unit_cost: item.unitCost,
-        total_cost: item.unitCost * item.quantity,
-        previous_stock: previousStock,
-        new_stock: newStock,
-        document_type: 'SALE',
-        document_reference: saleNumber,
-        reason: `Salida de inventario por venta ${saleNumber} (Cotización ${quote.quoteNumber}).`,
-        user_id: targetSellerId,
-        created_at: nowIso,
-      })
-    }
-
-    // 5. Actualizar estado de cotización a CONVERTED
-    const updatedQuote = await this.updateStatus(quoteId, 'CONVERTED', undefined, companyId)
-    await client
-      .from('quotes')
-      .update({ sale_id: createdSale.id, updated_at: nowIso })
-      .eq('id', quoteId)
 
     return {
-      saleId: createdSale.id,
-      saleNumber: createdSale.sale_number,
-      quote: updatedQuote,
+      saleId: res.sale_id,
+      saleNumber: res.sale_number,
+      totalAmount: Number(res.total_amount) || 0,
+      idempotentReplay: Boolean(res.idempotent_replay),
+      priceSource: res.price_source ?? null,
+      accountingEntryNumber: res.accounting_entry_number ?? null,
+      quote,
     }
   }
 

@@ -9,7 +9,9 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import type { SalePaymentInput } from '@/features/sales/repositories/sales.repository'
 import {
+  WebOrderConversionResult,
   WebOrder,
   WebOrderFilters,
   WebOrderPaginatedResult,
@@ -482,154 +484,52 @@ export class WebOrderRepository {
   }
 
   /**
-   * Crea una venta a partir de un pedido web en PostgreSQL.
+   * Convierte el pedido web en venta en una sola transacción del servidor (fn_convert_web_order_to_sale, 079):
+   * precio vigente del ERP, IVA y costo del servidor, stock/kardex, pagos, caja/banco/cartera, asiento y
+   * vínculo del pedido con la venta. Reintentar (misma clave o pedido ya convertido) devuelve la misma venta.
    */
-  async createSaleFromWebOrder(
-    order: WebOrder,
-    user: { id: string; name: string },
-    preferredCompanyId?: string
-  ): Promise<{ saleId: string; saleNumber: string }> {
-    const client = getDbClient()
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
-
-    if (order.saleId) {
-      const { data: existingSale } = await client
-        .from('sales')
-        .select('id, sale_number')
-        .eq('id', order.saleId)
-        .maybeSingle()
-
-      if (existingSale) {
-        return { saleId: existingSale.id, saleNumber: existingSale.sale_number }
-      }
+  async convertToSale(
+    orderId: string,
+    input: { payments: SalePaymentInput[]; idempotencyKey: string }
+  ): Promise<WebOrderConversionResult> {
+    const { data, error } = await supabaseClient.rpc('fn_convert_web_order_to_sale', {
+      p_web_order_id: orderId,
+      p_payments: input.payments,
+      p_idempotency_key: input.idempotencyKey,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as {
+      success?: boolean
+      idempotent_replay?: boolean
+      sale_id?: string
+      sale_number?: string
+      total_amount?: number
+      shipping_fee?: number
+    } | null
+    if (!res?.success || !res.sale_id || !res.sale_number) {
+      throw new Error('El servidor no confirmó la venta del pedido. Intente de nuevo: no se duplicará.')
     }
-
-    let finalCustomerId = order.customerId
-    if (!finalCustomerId) {
-      if (order.customerEmail) {
-        const { data: existingByEmail } = await client
-          .from('customers')
-          .select('id')
-          .eq('company_id', companyId)
-          .eq('email', order.customerEmail)
-          .maybeSingle()
-        if (existingByEmail) finalCustomerId = existingByEmail.id
-      }
-
-      if (!finalCustomerId) {
-        const { data: defaultCustomer } = await client
-          .from('customers')
-          .select('id')
-          .eq('company_id', companyId)
-          .eq('document_number', '222222222222')
-          .maybeSingle()
-
-        if (defaultCustomer) {
-          finalCustomerId = defaultCustomer.id
-        } else {
-          const names = (order.customerName || 'Cliente Web').trim().split(' ')
-          const firstName = names[0] || 'Cliente'
-          const lastName = names.slice(1).join(' ') || 'Web'
-          const docNum = order.customerPhone
-            ? `WEB-${order.customerPhone.replace(/\D/g, '')}`
-            : `WEB-${Date.now().toString().slice(-8)}`
-
-          const { data: createdCust } = await client
-            .from('customers')
-            .insert({
-              company_id: companyId,
-              first_name: firstName,
-              last_name: lastName,
-              document_type: 'CC',
-              document_number: docNum,
-              email: order.customerEmail || null,
-              phone: order.customerPhone || null,
-              address: order.shippingAddress || null,
-              city: order.city || null,
-              customer_type: 'INDIVIDUAL',
-              customer_category: 'STANDARD',
-              is_active: true,
-            })
-            .select('id')
-            .single()
-
-          if (createdCust) {
-            finalCustomerId = createdCust.id
-          }
-        }
-      }
+    return {
+      saleId: res.sale_id,
+      saleNumber: res.sale_number,
+      totalAmount: Number(res.total_amount) || 0,
+      shippingFee: Number(res.shipping_fee) || 0,
+      idempotentReplay: Boolean(res.idempotent_replay),
     }
-
-    const saleNumber = `VTA-WEB-${Date.now().toString().slice(-6)}`
-    const nowIso = new Date().toISOString()
-
-    const { data: createdSale, error: saleErr } = await client
-      .from('sales')
-      .insert({
-        company_id: companyId,
-        location_id: order.assignedLocationId,
-        seller_user_id: user.id,
-        customer_id: finalCustomerId,
-        sale_number: saleNumber,
-        payment_method: 'CASH',
-        status: 'ISSUED',
-        subtotal_amount: order.subtotal,
-        discount_amount: order.discountTotal || 0,
-        tax_amount: order.taxTotal || 0,
-        total_amount: order.totalAmount,
-        total_cost_amount: Math.round(order.subtotal * 0.7),
-        paid_amount: order.totalAmount,
-        payment_status: 'PAID',
-        notes: `Venta originada desde Pedido Web ${order.orderNumber} (${order.channel}).`,
-        created_at: nowIso,
-        updated_at: nowIso,
-      })
-      .select('id, sale_number')
-      .single()
-
-    if (saleErr || !createdSale) {
-      throw new Error(`Error creando venta desde pedido web: ${saleErr?.message}`)
-    }
-
-    if (order.items && order.items.length > 0) {
-      const saleItemsPayload = order.items.map((it) => ({
-        company_id: companyId,
-        sale_id: createdSale.id,
-        product_id: it.productId,
-        quantity: it.quantity,
-        unit_cost: Math.round(it.unitPrice * 0.7),
-        unit_price: it.unitPrice,
-        discount_percent: 0,
-        tax_rate_percent: 0,
-        tax_amount: 0,
-        subtotal: it.subtotal,
-        total: it.subtotal,
-        created_at: nowIso,
-      }))
-
-      await client.from('sale_items').insert(saleItemsPayload)
-    }
-
-    // Actualizar pedido web con el sale_id
-    await client
-      .from('web_orders')
-      .update({ sale_id: createdSale.id, updated_at: nowIso })
-      .eq('id', order.id)
-
-    return { saleId: createdSale.id, saleNumber: createdSale.sale_number }
   }
 
   /**
-   * Crea la factura correspondiente al pedido web.
+   * Cuentas bancarias que pueden recibir el pago (solo banco, tipo y últimos 4 dígitos).
    */
-  async createInvoiceFromWebOrder(
-    order: WebOrder,
-    saleId: string,
-    user: { id: string; name: string }
-  ): Promise<{ invoiceId: string; invoiceNumber: string }> {
-    const invoiceNumber = `FAC-WEB-${Date.now().toString().slice(-6)}`
-    const invoiceId = crypto.randomUUID()
-    return { invoiceId, invoiceNumber }
+  async listPaymentBankAccounts(): Promise<Array<{ id: string; label: string }>> {
+    const { data, error } = await supabaseClient.rpc('fn_list_payment_bank_accounts')
+    if (error) throw new Error(`No se pudieron cargar las cuentas bancarias: ${error.message}`)
+    return ((data as Array<{ id: string; bank_name: string; account_type: string; last4: string; has_ledger: boolean }>) || [])
+      .filter((a) => a.has_ledger)
+      .map((a) => ({
+        id: a.id,
+        label: `${a.bank_name} · ${a.account_type === 'CORRIENTE' ? 'Corriente' : 'Ahorros'} *${a.last4}`,
+      }))
   }
 }
 

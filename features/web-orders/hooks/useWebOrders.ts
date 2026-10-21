@@ -15,6 +15,7 @@ import {
   WebOrderStats,
   WebOrderChecklist,
   InventoryCheckResult,
+  WebOrderSalePayment,
 } from '../types'
 
 export function useWebOrders() {
@@ -155,14 +156,17 @@ export function useWebOrders() {
 
   const dispatchOrder = async (
     orderId: string,
-    dispatchData: { courier: string; trackingNumber: string; deliveryNotes?: string }
+    dispatchData: { courier: string; trackingNumber: string; deliveryNotes?: string },
+    payment: WebOrderSalePayment
   ) => {
     try {
       setActionLoading(true)
-      const updated = await webOrderService.dispatchOrder(orderId, dispatchData)
+      const { order: updated, sale } = await webOrderService.dispatchOrder(orderId, dispatchData, payment)
       showToast(
         'success',
-        `Pedido ${updated.orderNumber} despachado (${updated.courier} - ${updated.trackingNumber}). Venta generada.`
+        `Pedido ${updated.orderNumber} despachado. Venta ${sale.saleNumber} registrada${
+          sale.idempotentReplay ? ' (ya existía)' : ''
+        }.`
       )
       await Promise.all([fetchOrders(), fetchStats()])
       return updated
@@ -192,10 +196,10 @@ export function useWebOrders() {
   const generateInvoice = async (orderId: string) => {
     try {
       setActionLoading(true)
-      const updated = await webOrderService.generateInvoice(orderId)
+      const { order: updated, invoice } = await webOrderService.generateInvoice(orderId)
       showToast(
-        'success',
-        `Factura Electrónica ${updated.invoiceNumber} emitida y validada exitosamente.`
+        invoice.dianErrors.length > 0 ? 'error' : 'success',
+        `Factura electrónica ${invoice.documentNumber}: ${invoice.message || `estado DIAN ${invoice.dianStatus}`}.`
       )
       await Promise.all([fetchOrders(), fetchStats()])
       return updated

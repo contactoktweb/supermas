@@ -81,6 +81,19 @@ export interface CreateSaleRpcResult {
   voucher_type_code: string | null
 }
 
+/** Respuesta de fn_cancel_sale (079). */
+export interface CancelSaleRpcResult {
+  success: boolean
+  already_cancelled: boolean
+  sale_id: string
+  sale_number: string
+  reversed_units?: number
+  cash_refunded?: number
+  bank_reversed?: number
+  credit_reversed?: number
+  accounting_reversals?: Array<{ original_entry_number: string; reversal_entry_number: string }>
+}
+
 export class SalesRepository {
   /**
    * Resuelve el company_id del usuario autenticado actual de forma estricta
@@ -611,80 +624,50 @@ export class SalesRepository {
   }
 
   /**
-   * Actualiza una venta existente
+   * Anula la venta en una sola transacción del servidor (fn_cancel_sale, 079): stock (kardex), caja,
+   * banco, cartera y asiento contable. El servidor bloquea la anulación si la venta tiene factura
+   * electrónica (se usa nota crédito), devoluciones, remisiones o abonos.
    */
-  async update(id: string, partial: Partial<Sale>): Promise<Sale | null> {
-    const updates: any = { updated_at: new Date().toISOString() }
-    if (partial.status) {
-      if (partial.status === 'CANCELLED') {
-        updates.status = 'CANCELLED'
-      } else if (partial.status === 'RETURNED') {
-        updates.status = 'RETURNED'
-      } else if (partial.status === 'PENDING') {
-        updates.status = 'PENDING'
-      } else {
-        updates.status = 'ISSUED'
-      }
+  async cancelSale(saleId: string, reason: string): Promise<CancelSaleRpcResult> {
+    const { data, error } = await supabaseClient.rpc('fn_cancel_sale', {
+      p_sale_id: saleId,
+      p_reason: reason,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as CancelSaleRpcResult | null
+    if (!res?.success) {
+      throw new Error('El servidor no confirmó la anulación de la venta. Actualice el listado y verifique su estado.')
     }
-    if (partial.notes !== undefined) {
-      updates.notes = partial.notes
-    }
-
-    const { data, error } = await supabaseClient
-      .from('sales')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error || !data) return null
-    return this.findById(id)
+    return res
   }
 
   /**
-   * Reversión de inventario por anulación de venta
+   * Devolución de mercancía en buen estado por la RPC atómica de Devoluciones (fn_process_customer_return, 068):
+   * reingreso a kardex y documento de devolución. Las devoluciones con mercancía en mal estado se
+   * registran desde el módulo Devoluciones.
    */
-  async reverseInventoryMovements(
-    sale: Sale,
-    reason: string,
-    user: { userId: string; userName: string }
-  ): Promise<void> {
-    const companyId = await this.resolveCompanyId()
-
-    for (const item of sale.items) {
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', item.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const newStock = prevStock + item.quantity
-      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
-
-      const { error: revErr } = await supabaseClient.from('inventory_movements').insert({
-        company_id: companyId,
-        product_id: item.productId,
-        location_id: sale.locationId,
-        movement_type: 'POSITIVE_ADJUSTMENT',
-        quantity_in: item.quantity,
-        quantity_out: 0,
-        previous_stock: prevStock,
-        new_stock: newStock,
-        unit_cost: cost,
-        total_cost: item.quantity * cost,
-        document_type: 'SALE_RETURN',
-        document_reference: `REV-${sale.saleNumber}`,
-        reason: `Reversión por anulación de venta ${sale.saleNumber}. Motivo: ${reason}`,
-        user_id: user.userId || null,
-      })
-
-      if (revErr) {
-        console.error('Error insertando reversión de inventario (POSITIVE_ADJUSTMENT):', revErr)
-        throw new Error(`Error registrando reversión en Kardex: ${revErr.message}`)
-      }
+  async processCustomerReturn(input: {
+    saleId: string
+    reason: string
+    items: Array<{ productId: string; quantity: number; reason?: string }>
+  }): Promise<{ returnId: string; code: string }> {
+    const { data, error } = await supabaseClient.rpc('fn_process_customer_return', {
+      p_sale_id: input.saleId,
+      p_items: input.items.map((it) => ({
+        product_id: it.productId,
+        quantity: it.quantity,
+        reason: it.reason || null,
+        condition: 'BUENO',
+      })),
+      p_reason: input.reason,
+      p_notes: null,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as { success?: boolean; return_id?: string; code?: string } | null
+    if (!res?.success || !res.return_id) {
+      throw new Error('El servidor no confirmó la devolución. Actualice el listado y verifique en Devoluciones.')
     }
+    return { returnId: res.return_id, code: res.code || '' }
   }
 
   /**

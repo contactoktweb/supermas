@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { treasuryRepository } from '../repositories/treasury.repository'
 import { treasuryService } from '../services/treasury.service'
 import { useAuth } from '@/features/auth/hooks/useAuth'
 import {
@@ -133,6 +134,14 @@ export function useTreasury() {
     return result
   }
 
+  const getBankLedgerOptions = () => treasuryRepository.getBankLedgerOptions()
+
+  const setBankAccountLedger = async (bankAccountId: string, accountingAccountId: string) => {
+    const result = await treasuryRepository.setBankAccountLedger(bankAccountId, accountingAccountId)
+    await loadData()
+    return result
+  }
+
   const reconcileMovement = async (movementId: string, reconciled: boolean = true) => {
     const user = {
       id: authUser?.id || 'usr-system',
@@ -161,6 +170,8 @@ export function useTreasury() {
     executeCustomerCollection,
     createBankAccount,
     reconcileMovement,
+    getBankLedgerOptions,
+    setBankAccountLedger,
   }
 }
 

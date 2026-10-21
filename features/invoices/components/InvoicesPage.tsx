@@ -64,7 +64,8 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
     isCreditNoteModalOpen,
     openCreditNoteModal,
     closeCreditNoteModal,
-    handleCreateCreditNote,
+    handleCreateNote,
+    canIssueNotes,
     // Cancel Modal
     invoiceForCancel,
     isCancelModalOpen,
@@ -78,6 +79,7 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
     closeXmlModal,
     // DIAN Actions
     handleSendToDIAN,
+    handleCheckDianStatus,
   } = useInvoices()
 
   const handleResetFilters = () => {
@@ -222,6 +224,7 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
         onViewDetail={openDetailDrawer}
         onSendToDIAN={handleSendToDIAN}
         onOpenCreditNote={openCreditNoteModal}
+        canIssueNotes={canIssueNotes}
         onOpenCancel={openCancelModal}
         onOpenXml={openXmlModal}
         onRetryFetch={() => {
@@ -236,6 +239,8 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
         invoice={selectedInvoice}
         onClose={closeDetailDrawer}
         onSendToDIAN={handleSendToDIAN}
+        onCheckDianStatus={handleCheckDianStatus}
+        canIssueNotes={canIssueNotes}
         onOpenCreditNote={(inv) => {
           closeDetailDrawer()
           openCreditNoteModal(inv)
@@ -263,7 +268,7 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
         isOpen={isCreditNoteModalOpen}
         invoice={invoiceForCreditNote}
         onClose={closeCreditNoteModal}
-        onCreateCreditNote={handleCreateCreditNote}
+        onCreateNote={handleCreateNote}
       />
 
       {/* 8. Cancellation Modal */}

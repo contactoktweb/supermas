@@ -65,22 +65,7 @@ async function runInvoicesTestSuite() {
   assert(calculated.total === 264200, 'Total computed as subtotal + taxes (264,200)')
   assert(calculated.taxesBreakdown.length === 2, 'Taxes breakdown correctly separated by tax rate')
 
-  const cufe = invoiceCalculationService.generateCUFE(
-    'FAC-2026-9999',
-    264200,
-    new Date().toISOString(),
-    '900123456-1'
-  )
-  assert(typeof cufe === 'string' && cufe.length === 64, 'CUFE is a valid 64-character hash')
-
-  const xml = invoiceCalculationService.generateDIANXml(
-    'FAC-2026-9999',
-    'Cliente Prueba S.A.S.',
-    '900123456-1',
-    264200,
-    cufe
-  )
-  assert(xml.includes('<Invoice') && xml.includes(cufe), 'XML includes UBL 2.1 root and CUFE node')
+  // El CUFE y el XML ya no se calculan en el navegador: ver dian-xml-firma.test.ts
 
   // 2. Test Listing and Stats
   console.log('\n--- 2. Testing Repository & Service Listing ---')
@@ -129,35 +114,17 @@ async function runInvoicesTestSuite() {
     }
     assert(duplicatePrevented, 'Duplicate invoice generation for same sale was blocked')
 
-    // 4. Test Credit Note Creation
-    console.log('\n--- 4. Testing Credit Note & Kardex Movement ---')
-    const initialKardexCount = (db.inventoryMovements as any[]).length
-    const creditNote = await invoiceService.createCreditNote(
-      {
-        invoiceId: generated.id,
-        reason: 'DEVOLUCION_TOTAL',
-        notes: 'Mercancía en mal estado reportada por el cliente',
-        adjustInventory: true,
-        sendToDianImmediately: true,
-        items: generated.items.map((it) => ({
-          productId: it.productId,
-          quantity: it.quantity,
-          unitPrice: it.unitPrice,
-          taxRatePercent: it.taxRatePercent,
-        })),
-      },
-      adminUser
-    )
-
-    assert(creditNote.type === 'NOTA_CREDITO', 'Credit Note created with NOTA_CREDITO type')
-    assert(creditNote.originalInvoiceId === generated.id, 'Credit Note references original invoice')
-    assert(creditNote.dianStatus === 'ACEPTADA', 'Credit note electronically accepted by DIAN')
-
-    const finalKardexCount = (db.inventoryMovements as any[]).length
-    assert(
-      finalKardexCount > initialKardexCount,
-      'Inventory Kardex movement (RETURN_IN) automatically generated for credit note'
-    )
+    // 4. Notas crédito/débito: ya no se crean desde el navegador (antes se simulaba la aceptación DIAN).
+    //    Las emite el servidor (/api/dian/notes → fn_create_electronic_note); se prueban en
+    //    dian-xml-firma.test.ts (XML/CUDE) y en las pruebas SQL de la migración 060.
+    console.log('\n--- 4. Credit notes are server-side only ---')
+    let browserNoteBlocked = false
+    try {
+      await invoiceRepository.createCreditNote()
+    } catch {
+      browserNoteBlocked = true
+    }
+    assert(browserNoteBlocked, 'Browser-side credit note creation is blocked (server issues notes)')
 
     // 5. Test Cancellation
     console.log('\n--- 5. Testing Invoice Cancellation ---')

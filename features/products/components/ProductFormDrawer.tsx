@@ -294,6 +294,13 @@ export function ProductFormDrawer({
 
   // Tax Profile change handler
   const handleTaxProfileChange = (selectedCode: string) => {
+    // Tratamientos DIAN fijos (el XML de la factura electrónica distingue exento de excluido)
+    const fixed: Record<string, number> = { IVA_19: 19, IVA_5: 5, EXENTO: 0, EXCLUIDO: 0 }
+    if (selectedCode in fixed) {
+      setTaxProfile(selectedCode as any)
+      setVatRatePercent(fixed[selectedCode])
+      return
+    }
     const found = taxRates.find((t) => t.code === selectedCode)
     if (found) {
       setTaxProfile(found.code as any)
@@ -1350,14 +1357,18 @@ export function ProductFormDrawer({
               <div className="form-field">
                 <label>Perfil Tributario DIAN</label>
                 <CustomSelect
-                  options={
-                    taxRates.length > 0
-                      ? taxRates.map((t) => ({
-                          value: t.code,
-                          label: `${t.name} (${t.ratePercent}%)`,
-                        }))
-                      : [{ value: 'IVA_19', label: 'IVA General 19%' }]
-                  }
+                  options={[
+                    { value: 'IVA_19', label: 'Gravado — IVA general 19%' },
+                    { value: 'IVA_5', label: 'Gravado — IVA 5%' },
+                    { value: 'EXENTO', label: 'Exento de IVA (0%, Art. 477 E.T.)' },
+                    { value: 'EXCLUIDO', label: 'Excluido de IVA (no causa, Art. 424 E.T.)' },
+                    ...(taxProfile === 'IVA_0'
+                      ? [{ value: 'IVA_0', label: '0% sin clasificar — elija exento o excluido para facturar' }]
+                      : []),
+                    ...taxRates
+                      .filter((t) => (t.type === 'IVA' || !t.type) && !['IVA_19', 'IVA_5', 'EXENTO', 'EXCLUIDO', 'IVA_0'].includes(t.code))
+                      .map((t) => ({ value: t.code, label: `${t.name} (${t.ratePercent}%)` })),
+                  ]}
                   value={taxProfile}
                   onChange={handleTaxProfileChange}
                 />

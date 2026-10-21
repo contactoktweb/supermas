@@ -4,13 +4,17 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { DIANStatusBadge, InvoiceTypeBadge, InvoiceStatusBadge } from './DIANStatusBadge'
 import { Invoice } from '../types'
+import { DianFiscalPanel, resolutionLegend } from './DianFiscalPanel'
 
 interface InvoiceDetailDrawerProps {
   isOpen: boolean
   invoice: Invoice | null
   onClose: () => void
   onSendToDIAN: (invoiceId: string) => Promise<any>
+  onCheckDianStatus?: (invoiceId: string) => Promise<any>
   onOpenCreditNote: (invoice: Invoice) => void
+  /** Permiso invoices.cancel (notas crédito/débito) */
+  canIssueNotes?: boolean
   onOpenCancel: (invoice: Invoice) => void
   onOpenXml: (invoice: Invoice) => void
 }
@@ -20,12 +24,12 @@ export function InvoiceDetailDrawer({
   invoice,
   onClose,
   onSendToDIAN,
+  onCheckDianStatus,
   onOpenCreditNote,
+  canIssueNotes = false,
   onOpenCancel,
   onOpenXml,
 }: InvoiceDetailDrawerProps) {
-  const [copiedCufe, setCopiedCufe] = useState(false)
-  const [sendingDIAN, setSendingDIAN] = useState(false)
 
   if (!isOpen || !invoice) return null
 
@@ -37,26 +41,8 @@ export function InvoiceDetailDrawer({
     }).format(val)
   }
 
-  const handleCopyCufe = () => {
-    if (!invoice.dianCufe) return
-    navigator.clipboard.writeText(invoice.dianCufe)
-    setCopiedCufe(true)
-    setTimeout(() => setCopiedCufe(false), 2000)
-  }
-
-  const handleSendDIAN = async () => {
-    try {
-      setSendingDIAN(true)
-      await onSendToDIAN(invoice.id)
-    } catch (err: any) {
-      alert(err.message || 'Error al transmitir a la DIAN')
-    } finally {
-      setSendingDIAN(false)
-    }
-  }
-
   const handlePrint = () => {
-    window.print()
+    window.open(`/facturacion/representacion/${invoice.id}`, '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -84,7 +70,7 @@ export function InvoiceDetailDrawer({
             </div>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
               <h2 style={{ fontSize: 20, color: 'var(--navy)', margin: 0, fontWeight: 800, fontFamily: 'monospace' }}>
-                {invoice.dianPrefix ? `${invoice.dianPrefix}-${invoice.dianNumber}` : invoice.invoiceNumber}
+                {invoice.invoiceNumber}
               </h2>
               {invoice.internalNumber && (
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#475569', background: '#f1f5f9', padding: '2px 8px', borderRadius: 6, fontFamily: 'monospace' }}>
@@ -92,10 +78,8 @@ export function InvoiceDetailDrawer({
                 </span>
               )}
             </div>
-            {(invoice.dianResolution || invoice.resolutionNumber) && (
-              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                Autorización DIAN Res. {invoice.dianResolution || invoice.resolutionNumber} {invoice.dianRange ? `(Rango: ${invoice.dianRange})` : ''}
-              </div>
+            {resolutionLegend(invoice) && (
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>{resolutionLegend(invoice)}</div>
             )}
           </div>
 
@@ -189,7 +173,7 @@ export function InvoiceDetailDrawer({
               <div>
                 <span style={{ fontSize: 11, color: 'var(--muted)' }}>Dirección & Ciudad:</span>
                 <p style={{ margin: '2px 0 0', fontSize: 12, color: '#334155' }}>
-                  {invoice.customerAddress || 'Bogotá'}, {invoice.customerCity || 'D.C.'}
+                  {invoice.customerAddress || 'No registrada'}{invoice.customerCity ? `, ${invoice.customerCity}` : ''}
                 </p>
               </div>
 
@@ -231,99 +215,39 @@ export function InvoiceDetailDrawer({
                   </p>
                 </div>
               )}
+
+              {invoice.noteConceptLabel && (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Concepto DIAN de la nota:</span>
+                  <p style={{ margin: '2px 0 0', fontSize: 12, color: '#334155' }}>
+                    {invoice.noteConceptCode}. {invoice.noteConceptLabel}
+                    {invoice.noteReason ? ` — ${invoice.noteReason}` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Section 2: DIAN Electronic Details */}
-          {invoice.type === 'ELECTRONICA' && (
+          {/* Section 2: Datos fiscales DIAN reales */}
+          <DianFiscalPanel invoice={invoice} onSend={onSendToDIAN} onCheckStatus={onCheckDianStatus} onOpenXml={onOpenXml} />
+
+          {/* Notas crédito / débito emitidas sobre esta factura */}
+          {invoice.type === 'ELECTRONICA' && (invoice.relatedNotes || []).length > 0 && (
             <div className="drawer-section" style={{ padding: 0 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10 }}>
-                Datos Fiscales DIAN & Firma Digital
-              </h3>
-
-              <div
-                style={{
-                  background: '#f8fafc',
-                  padding: '14px 16px',
-                  borderRadius: 8,
-                  border: '1px solid #e2e8f0',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 10,
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--navy)' }}>
-                      Código Único de Factura Electrónica (CUFE):
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)', marginBottom: 10 }}>Notas sobre esta factura</h3>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                {(invoice.relatedNotes || []).map((n) => (
+                  <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: '1px solid #f1f5f9', fontSize: 12 }}>
+                    <span>
+                      <b>{n.number}</b> · {n.type === 'NOTA_CREDITO' ? 'Nota crédito' : 'Nota débito'}
+                      {n.conceptLabel ? ` · ${n.conceptLabel}` : ''} · {n.transmissionState}
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleCopyCufe}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: copiedCufe ? '#10b981' : 'var(--navy)',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      <AppIcon name={copiedCufe ? 'check' : 'edit'} size={12} />
-                      {copiedCufe ? 'Copiado' : 'Copiar CUFE'}
-                    </button>
+                    <b style={{ color: n.type === 'NOTA_CREDITO' ? 'var(--red)' : 'var(--navy)' }}>
+                      {n.type === 'NOTA_CREDITO' ? '-' : '+'}
+                      {formatCOP(n.total)}
+                    </b>
                   </div>
-                  <div
-                    style={{
-                      fontFamily: 'monospace',
-                      fontSize: 10,
-                      background: '#ffffff',
-                      padding: '8px 10px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      wordBreak: 'break-all',
-                      color: '#334155',
-                    }}
-                  >
-                    {invoice.dianCufe || 'Pendiente de generación de firma digital'}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="outline-button"
-                    onClick={() => onOpenXml(invoice)}
-                    style={{ height: 32, fontSize: 11, padding: '0 10px' }}
-                  >
-                    <AppIcon name="terminal" size={13} /> Ver XML UBL 2.1
-                  </button>
-
-                  <button
-                    type="button"
-                    className="outline-button"
-                    onClick={handlePrint}
-                    style={{ height: 32, fontSize: 11, padding: '0 10px' }}
-                  >
-                    <AppIcon name="print" size={13} /> Representación Gráfica PDF
-                  </button>
-
-                  {invoice.dianStatus !== 'ACEPTADA' && invoice.status !== 'CANCELLED' && (
-                    <button
-                      type="button"
-                      className="primary-button compact"
-                      onClick={handleSendDIAN}
-                      disabled={sendingDIAN}
-                      style={{ height: 32, fontSize: 11, padding: '0 12px' }}
-                    >
-                      <AppIcon name="refresh" size={13} className={sendingDIAN ? 'spin' : ''} />
-                      {sendingDIAN ? 'Transmitiendo...' : 'Transmitir a la DIAN'}
-                    </button>
-                  )}
-                </div>
+                ))}
               </div>
             </div>
           )}
@@ -561,19 +485,21 @@ export function InvoiceDetailDrawer({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {invoice.status !== 'CANCELLED' && invoice.type !== 'NOTA_CREDITO' && (
+            {invoice.type === 'ELECTRONICA' && canIssueNotes && (
               <button
                 type="button"
                 className="outline-button"
                 onClick={() => onOpenCreditNote(invoice)}
+                disabled={invoice.transmissionState !== 'ACCEPTED'}
+                title={invoice.transmissionState !== 'ACCEPTED' ? 'Disponible cuando la DIAN acepte la factura' : undefined}
                 style={{ fontSize: 12 }}
               >
                 <AppIcon name="receipt" size={14} color="var(--navy)" />
-                Emitir Nota Crédito
+                Nota crédito / débito
               </button>
             )}
 
-            {invoice.status !== 'CANCELLED' && (
+            {invoice.status !== 'CANCELLED' && !['ELECTRONICA', 'NOTA_CREDITO', 'NOTA_DEBITO'].includes(invoice.type) && (
               <button
                 type="button"
                 className="outline-button"

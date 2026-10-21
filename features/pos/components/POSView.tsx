@@ -59,6 +59,13 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
     setPaymentMethod,
     amountPaid,
     setAmountPaid,
+    bankAccounts,
+    bankAccountId,
+    setBankAccountId,
+    mixedCashAmount,
+    setMixedCashAmount,
+    mixedRestMethod,
+    setMixedRestMethod,
     paymentLoading,
     paymentError,
     handleProcessSale,
@@ -288,6 +295,13 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
         onConfirmPayment={handleProcessSale}
         loading={paymentLoading}
         error={paymentError}
+        bankAccounts={bankAccounts}
+        bankAccountId={bankAccountId}
+        setBankAccountId={setBankAccountId}
+        mixedCashAmount={mixedCashAmount}
+        setMixedCashAmount={setMixedCashAmount}
+        mixedRestMethod={mixedRestMethod}
+        setMixedRestMethod={setMixedRestMethod}
       />
 
       {/* Thermal Ticket Receipt Modal */}

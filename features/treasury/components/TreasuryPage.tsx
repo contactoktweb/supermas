@@ -32,7 +32,42 @@ export function TreasuryPage() {
     executePayment,
     createBankAccount,
     reconcileMovement,
+    getBankLedgerOptions,
+    setBankAccountLedger,
   } = useTreasury()
+
+  // Subcuentas PUC de bancos (1110xx corrientes / 1120xx ahorros)
+  const [ledgerOptions, setLedgerOptions] = useState<Array<{ id: string; code: string; name: string }>>([])
+  const [ledgerDraft, setLedgerDraft] = useState<Record<string, string>>({})
+  const [savingLedgerId, setSavingLedgerId] = useState<string | null>(null)
+  const [newLedgerId, setNewLedgerId] = useState('')
+
+  useEffect(() => {
+    getBankLedgerOptions().then(setLedgerOptions).catch(() => setLedgerOptions([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bankAccounts.length])
+
+  const ledgerPrefixFor = (type: string) => (type === 'AHORROS' || type === 'AHORRO' ? '1120' : type === 'CORRIENTE' ? '1110' : '')
+  const ledgerOptionsFor = (type: string) => {
+    const prefix = ledgerPrefixFor(type)
+    return prefix ? ledgerOptions.filter((o) => o.code.startsWith(prefix)) : []
+  }
+
+  const handleSaveLedger = async (bankAccountId: string) => {
+    const ledgerId = ledgerDraft[bankAccountId]
+    if (!ledgerId) return
+    try {
+      setSavingLedgerId(bankAccountId)
+      setActionError(null)
+      const res = await setBankAccountLedger(bankAccountId, ledgerId)
+      setSuccessToast(`Subcuenta PUC ${res?.code || ''} asignada. Las ventas pagadas a esta cuenta se contabilizan allí.`)
+      setTimeout(() => setSuccessToast(null), 6000)
+    } catch (err: any) {
+      setActionError(err.message || 'No se pudo asignar la subcuenta PUC.')
+    } finally {
+      setSavingLedgerId(null)
+    }
+  }
 
   const [executingPaymentId, setExecutingPaymentId] = useState<string | null>(null)
   const [selectedBankId, setSelectedBankId] = useState<string>('')
@@ -88,13 +123,17 @@ export function TreasuryPage() {
     try {
       setIsSubmittingBank(true)
       setActionError(null)
-      await createBankAccount({
+      const created = await createBankAccount({
         bankName: newBankName,
         accountNumber: newAccountNumber,
         accountType: newAccountType,
         initialBalance: parseFloat(newInitialBalance) || 0,
         description: newBankDesc || undefined,
       })
+      if (newLedgerId && created?.bank_account_id) {
+        await setBankAccountLedger(created.bank_account_id, newLedgerId)
+      }
+      setNewLedgerId('')
       setIsCreateBankOpen(false)
       setNewBankName('')
       setNewAccountNumber('')
@@ -301,9 +340,44 @@ export function TreasuryPage() {
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-gray-400 font-mono bg-gray-50 p-2 rounded flex items-center justify-between">
-                      <span>Cuenta PUC Asociada:</span>
-                      <strong className="text-blue-900 font-bold">{account.accountingAccountCode}</strong>
+                    <div className="text-[11px] bg-gray-50 p-2 rounded space-y-2">
+                      <div className="flex items-center justify-between font-mono">
+                        <span className="text-gray-500">Subcuenta PUC:</span>
+                        {account.accountingAccountCode ? (
+                          <strong className="text-blue-900 font-bold" title={account.accountingAccountName}>
+                            {account.accountingAccountCode} {account.accountingAccountName ? `· ${account.accountingAccountName}` : ''}
+                          </strong>
+                        ) : (
+                          <strong className="text-red-700">Sin asignar: las ventas a esta cuenta no se pueden registrar</strong>
+                        )}
+                      </div>
+                      {ledgerPrefixFor(account.accountType) && (
+                        <div className="flex items-center gap-2">
+                          <select
+                            className="filter-select text-[11px] flex-1"
+                            value={ledgerDraft[account.id] ?? account.accountingAccountId ?? ''}
+                            onChange={(e) => setLedgerDraft({ ...ledgerDraft, [account.id]: e.target.value })}
+                          >
+                            <option value="">Elegir subcuenta {ledgerPrefixFor(account.accountType)}xx…</option>
+                            {ledgerOptionsFor(account.accountType).map((o) => (
+                              <option key={o.id} value={o.id}>{o.code} · {o.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="outline-button text-[11px] px-2 py-1"
+                            disabled={!ledgerDraft[account.id] || ledgerDraft[account.id] === account.accountingAccountId || savingLedgerId === account.id}
+                            onClick={() => handleSaveLedger(account.id)}
+                          >
+                            {savingLedgerId === account.id ? 'Guardando…' : 'Asignar'}
+                          </button>
+                        </div>
+                      )}
+                      {ledgerPrefixFor(account.accountType) && ledgerOptionsFor(account.accountType).length === 0 && (
+                        <p className="text-[10px] text-amber-700">
+                          No hay subcuentas {ledgerPrefixFor(account.accountType)}xx. Créelas en Contabilidad → Plan de cuentas (ej. {ledgerPrefixFor(account.accountType)}0501).
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -684,7 +758,10 @@ export function TreasuryPage() {
                   <select
                     className="filter-select w-full"
                     value={newAccountType}
-                    onChange={(e) => setNewAccountType(e.target.value)}
+                    onChange={(e) => {
+                      setNewAccountType(e.target.value)
+                      setNewLedgerId('')
+                    }}
                   >
                     <option value="CORRIENTE">Corriente</option>
                     <option value="AHORROS">Ahorros</option>
@@ -704,6 +781,19 @@ export function TreasuryPage() {
                   />
                 </div>
               </div>
+
+              {ledgerPrefixFor(newAccountType) && (
+                <div>
+                  <label className="block text-gray-700 font-semibold mb-1">Subcuenta PUC ({ledgerPrefixFor(newAccountType)}xx)</label>
+                  <select className="filter-select w-full" value={newLedgerId} onChange={(e) => setNewLedgerId(e.target.value)}>
+                    <option value="">Asignar después</option>
+                    {ledgerOptionsFor(newAccountType).map((o) => (
+                      <option key={o.id} value={o.id}>{o.code} · {o.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-500 mt-1">Cada cuenta bancaria debe tener su propia subcuenta para diferenciar en contabilidad cuál recibió el dinero.</p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-gray-700 font-semibold mb-1">Descripción / Uso</label>

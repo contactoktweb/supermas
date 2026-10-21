@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireServerUser, requireAnyPermission, AuthError } from '@/lib/auth/server-auth'
 import { CreateUserSchema } from '@/features/users/schemas/user.schema'
 import { User, UserRole, UserStatus } from '@/features/users/types'
 
@@ -51,6 +52,17 @@ function mapDbUserToDomain(row: any): User {
 
 export async function POST(request: NextRequest) {
   try {
+    // 0. Quién llama: sesión verificada contra Supabase Auth + permiso de crear usuarios.
+    //    (El middleware solo comprueba que exista una cookie; aquí se valida de verdad.)
+    let caller
+    try {
+      caller = await requireServerUser(request)
+      await requireAnyPermission(caller, ['users.create'])
+    } catch (e) {
+      if (e instanceof AuthError) return NextResponse.json({ success: false, error: e.message }, { status: e.status })
+      throw e
+    }
+
     const body = await request.json()
 
     // Validar datos de entrada
@@ -63,16 +75,15 @@ export async function POST(request: NextRequest) {
     const data = parsed.data
     const email = data.email.toLowerCase().trim()
 
-    // 1. Obtener la empresa activa (o la asignada al admin)
-    let companyId: string | undefined = (body as any).companyId
-    if (!companyId) {
-      const { data: comp } = await supabaseAdmin
-        .from('companies')
-        .select('id')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-      companyId = comp?.id
+    // 1. La empresa es SIEMPRE la del usuario que crea (no se acepta companyId del navegador)
+    const companyId: string | undefined = caller.companyId
+
+    // 1.1 Solo un ADMIN/SUPERADMIN puede crear cuentas con rol administrativo (evita escalar privilegios)
+    if (['ADMIN', 'SUPERADMIN'].includes(String(data.role)) && !caller.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: 'Solo un administrador puede crear usuarios con rol administrativo.' },
+        { status: 403 }
+      )
     }
 
     if (!companyId) {
@@ -145,6 +156,14 @@ export async function POST(request: NextRequest) {
     const foundAuth = authList?.users?.find((u) => u.email?.toLowerCase() === email)
 
     if (foundAuth) {
+      // Cuenta huérfana en Auth (sin fila en public.users): solo un administrador puede repararla,
+      // porque esta ruta le asigna una nueva contraseña.
+      if (!caller.isAdmin) {
+        return NextResponse.json(
+          { success: false, error: 'El correo ya existe en el sistema de autenticación. Solo un administrador puede vincularlo.' },
+          { status: 403 }
+        )
+      }
       authUserId = foundAuth.id
       // Actualizar metadatos y contraseña
       await supabaseAdmin.auth.admin.updateUserById(authUserId, {

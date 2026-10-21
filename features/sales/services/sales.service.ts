@@ -117,6 +117,8 @@ export class SalesService {
 
     // 1. Validación de esquema con Zod
     const validated = createSaleSchema.parse(dto)
+    // Validar el destino del dinero ANTES de grabar la venta (contabilidad por cuenta bancaria exacta)
+    const paymentsPreview = buildSalePayments(validated, Number.MAX_SAFE_INTEGER)
 
     // 2. Obtener cliente y validar existencia
     const { data: rawCustomer } = await supabaseClient
@@ -311,6 +313,17 @@ export class SalesService {
       userId: user.userId,
       userName: user.userName,
     })
+
+    // 9b. Pagos con cuenta destino + asiento contable (función SQL: valida que la suma cuadre con el total)
+    try {
+      await this.repo.registerPaymentsAndAccounting(createdSale.id, buildSalePayments(validated, totals.totalAmount))
+    } catch (e: any) {
+      throw new Error(
+        `La venta ${createdSale.saleNumber} quedó registrada, pero no se pudo registrar el pago/asiento contable: ${e?.message || e}. ` +
+          'Corrija la configuración (cuenta bancaria / PUC) y regístrelo desde Contabilidad.'
+      )
+    }
+    void paymentsPreview
 
     // 10. Si solicitó factura electrónica o POS inmediata
     if (
@@ -606,3 +619,35 @@ export class SalesService {
 }
 
 export const salesService = new SalesService()
+
+/**
+ * Pagos de la venta para la función SQL fn_register_sale_payments.
+ * amount = null → el servidor asigna el saldo exacto del total que calculó (sin diferencias de centavos).
+ */
+function buildSalePayments(
+  v: { paymentMethod: string; bankAccountId?: string; mixedCashAmount?: number; mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA' },
+  totalAmount: number
+): Array<{ method: string; amount: number | null; bank_account_id?: string }> {
+  const bankMethod = (m: 'TARJETA' | 'TRANSFERENCIA') => (m === 'TARJETA' ? 'CREDIT_CARD' : 'BANK_TRANSFER')
+  switch (v.paymentMethod) {
+    case 'EFECTIVO':
+      return [{ method: 'CASH', amount: null }]
+    case 'CREDITO':
+      return [{ method: 'CREDIT', amount: null }]
+    case 'TARJETA':
+    case 'TRANSFERENCIA':
+      if (!v.bankAccountId) throw new Error('Seleccione la cuenta bancaria que recibe el pago (necesaria para la contabilidad).')
+      return [{ method: bankMethod(v.paymentMethod as 'TARJETA' | 'TRANSFERENCIA'), amount: null, bank_account_id: v.bankAccountId }]
+    case 'MIXTO': {
+      const cash = Math.round(Number(v.mixedCashAmount || 0))
+      if (cash <= 0 || cash >= totalAmount) throw new Error('En pago mixto, el efectivo debe ser mayor a cero y menor que el total.')
+      if (!v.bankAccountId) throw new Error('Seleccione la cuenta bancaria que recibe la parte no pagada en efectivo.')
+      return [
+        { method: 'CASH', amount: cash },
+        { method: bankMethod(v.mixedRestMethod || 'TRANSFERENCIA'), amount: null, bank_account_id: v.bankAccountId },
+      ]
+    }
+    default:
+      throw new Error('Medio de pago no soportado.')
+  }
+}

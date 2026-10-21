@@ -51,6 +51,9 @@ export const createSaleSchema = z.object({
     .default('FACTURA_POS'),
   notes: z.string().optional(),
   discountReason: z.string().optional(),
+  bankAccountId: z.string().uuid().optional(),
+  mixedCashAmount: z.number().nonnegative().optional(),
+  mixedRestMethod: z.enum(['TARJETA', 'TRANSFERENCIA']).optional(),
 })
 
 export const cancelSaleSchema = z.object({

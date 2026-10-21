@@ -1,111 +1,70 @@
 /**
- * SUPER MÁS ERP/POS — CONFIGURACIÓN CENTRALIZADA DIAN (SOFTWARE PROPIO)
- * Especificación Técnica Formal: Anexo Técnico 1.9 / Resolución 000165 de 2023
+ * SUPER MÁS ERP/POS — CONFIGURACIÓN DIAN DEL SERVIDOR (SOFTWARE PROPIO)
+ * Anexo Técnico Factura Electrónica de Venta v1.9 — Resolución DIAN 000165 de 2023
  *
- * REGLAS DE SEGURIDAD:
- * 1. Módulo estrictamente SERVER-SIDE. Prohibida su ejecución o inclusión en bundles cliente.
- * 2. NUNCA expone el valor del PIN, la contraseña del certificado ni el certificado en logs ni respuestas.
- * 3. Bloqueo estricto contra activación de PRODUCCIÓN durante la fase de HABILITACIÓN.
- * 4. Única fuente de verdad de configuración para todos los servicios fiscales del ERP.
+ * Dónde vive cada dato (sin duplicar):
+ *  - SECRETOS (solo variables de entorno del servidor, nunca BD ni navegador):
+ *      DIAN_SOFTWARE_PIN, DIAN_TEST_TECHNICAL_KEY, DIAN_PRODUCTION_TECHNICAL_KEY,
+ *      DIAN_CERTIFICATE_BASE64, DIAN_CERTIFICATE_PASSWORD
+ *  - AMBIENTE: DIAN_ENVIRONMENT (HABILITACION | PRODUCCION). Producción bloqueada en esta fase.
+ *  - DATOS FISCALES (base de datos, editables por ADMIN):
+ *      emisor → public.companies; resolución/prefijo/rango/vigencia → public.dian_resolutions;
+ *      Software ID y TestSetId → public.dian_software_config.
+ *  - ENDPOINTS OFICIALES: constantes de este archivo (sobrescribibles por variable de entorno).
+ *
+ * Reglas de seguridad:
+ *  1. Módulo exclusivo de servidor: lanza error si se ejecuta en el navegador.
+ *  2. Nunca expone PIN, clave técnica, certificado ni contraseña en resúmenes, logs ni errores.
+ *  3. No existen valores fiscales "por defecto": si falta un dato, la emisión se detiene.
  */
 
 import { z } from 'zod'
 
 // ------------------------------------------------------------------------------
-// 1. CONSTANTES Y ENDPOINTS OFICIALES DIAN (ANEXO TÉCNICO 1.9)
+// 1. ENDPOINTS OFICIALES DIAN
 // ------------------------------------------------------------------------------
 
-/**
- * Endpoint oficial del WebService SOAP VPFE en Ambiente de Habilitación.
- * Fuente: Caja de herramientas DIAN vigente / Resolución 000165 de 2023.
- */
 export const DIAN_HABILITACION_WS_ENDPOINT = 'https://vpfe-hab.dian.gov.co/WcfDianCustomerServices.svc'
-
-/**
- * Endpoint oficial del WebService SOAP VPFE en Ambiente de Producción.
- * (Mantenido como referencia; bloqueado durante esta fase).
- */
 export const DIAN_PRODUCCION_WS_ENDPOINT = 'https://vpfe.dian.gov.co/WcfDianCustomerServices.svc'
-
-/**
- * URL base para consulta de códigos QR en catálogo DIAN (Habilitación).
- */
 export const DIAN_HABILITACION_QR_BASE_URL = 'https://catalogo-vpfe-hab.dian.gov.co/document/searchqr?documentkey='
-
-/**
- * URL base para consulta de códigos QR en catálogo DIAN (Producción).
- */
 export const DIAN_PRODUCCION_QR_BASE_URL = 'https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey='
 
-/**
- * Política de firma XAdES-BES oficial de la DIAN según Anexo Técnico 1.9.
- */
-export const DIAN_SIGNATURE_POLICY_ID = '1.3.6.1.4.1.25848.1.1'
+/** Política de firma DIAN v2 (XAdES-BES) */
+export const DIAN_SIGNATURE_POLICY_URL = 'https://facturaelectronica.dian.gov.co/politicadefirma/v2/politicadefirmav2.pdf'
+/** SHA-256 (Base64) del documento de política de firma v2 publicado por la DIAN */
+export const DIAN_SIGNATURE_POLICY_HASH = 'dMoMvtcG5aIzgYo0tIsSQeVJBDnUnfSOfBpxXrmor0Y='
+
+/** NIT de la DIAN como AuthorizationProvider (sts:AuthorizationProviderID) */
+export const DIAN_AUTHORIZATION_PROVIDER_NIT = '800197268'
+export const DIAN_AUTHORIZATION_PROVIDER_DV = '4'
 
 // ------------------------------------------------------------------------------
-// 2. ESQUEMA DE VALIDACIÓN ZOD PARA VARIABLES DE ENTORNO SERVER-SIDE
+// 2. ESQUEMA DE VARIABLES DE ENTORNO
 // ------------------------------------------------------------------------------
 
 export const dianEnvSchema = z.object({
-  DIAN_ENVIRONMENT: z.enum(['HABILITACION', 'PRODUCCION']).default('HABILITACION'),
-
-  // Identificación del emisor
-  DIAN_NIT: z.string().min(6, 'DIAN_NIT debe tener al menos 6 dígitos').max(15),
-  DIAN_DV: z.string().regex(/^[0-9]{1}$/, 'DIAN_DV debe ser un solo dígito (0-9)'),
-  DIAN_COMPANY_NAME: z.string().default('DISTRIBUIDORA SUPER MAS S.A.S.'),
-  DIAN_COMPANY_EMAIL: z.string().email().optional(),
-
-  // Certificado digital server-side
+  DIAN_ENVIRONMENT: z.enum(['HABILITACION', 'PRODUCCION']),
+  DIAN_SOFTWARE_PIN: z.string().optional(),
+  DIAN_TEST_TECHNICAL_KEY: z.string().optional(),
+  DIAN_PRODUCTION_TECHNICAL_KEY: z.string().optional(),
   DIAN_CERTIFICATE_BASE64: z.string().optional(),
   DIAN_CERTIFICATE_PASSWORD: z.string().optional(),
-
-  // Software Propio Habilitación
-  DIAN_SOFTWARE_ID: z.string().optional(),
-  DIAN_SOFTWARE_PIN: z.string().optional(),
-  DIAN_TEST_SET_ID: z.string().optional(),
-
-  // URLs de Software y Recepción registradas en DIAN
-  DIAN_SOFTWARE_URL: z.string().url().optional().or(z.literal('')),
-  DIAN_RECEPTION_URL: z.string().url().optional().or(z.literal('')),
-
-  // Endpoints configurables (con fallbacks a URLs oficiales)
-  DIAN_HABILITACION_WS_URL: z.string().url().default(DIAN_HABILITACION_WS_ENDPOINT),
-  DIAN_HABILITACION_QR_URL: z.string().url().default(DIAN_HABILITACION_QR_BASE_URL),
-
-  // Numeración de pruebas en Habilitación
-  DIAN_TEST_PREFIX: z.string().default('SETP'),
-  DIAN_TEST_RESOLUTION_NUMBER: z.string().default('18760000001'),
-  DIAN_TEST_RANGE_FROM: z.string().regex(/^[0-9]+$/).default('990000000'),
-  DIAN_TEST_RANGE_TO: z.string().regex(/^[0-9]+$/).default('995000000'),
-  DIAN_TEST_TECHNICAL_KEY: z.string().optional(),
+  DIAN_HABILITACION_WS_URL: z.string().url().optional(),
+  DIAN_HABILITACION_QR_URL: z.string().url().optional(),
+  DIAN_HTTP_TIMEOUT_MS: z.string().regex(/^[0-9]+$/).optional(),
 })
 
 // ------------------------------------------------------------------------------
-// 3. TIPOS TIPADOS DE LA CONFIGURACIÓN CENTRALIZADA
+// 3. TIPOS
 // ------------------------------------------------------------------------------
 
 export type DianEnvironment = 'HABILITACION' | 'PRODUCCION'
 
-export interface DianIssuerConfig {
-  readonly nit: string
-  readonly dv: string
-  readonly companyName: string
-  readonly companyEmail: string
-}
-
-export interface DianCertificateConfig {
-  readonly base64?: string
-  readonly password?: string
-  readonly isConfigured: boolean
-}
-
-export interface DianSoftwareConfig {
-  readonly softwareId: string
-  readonly pin: string
-  readonly testSetId: string
-  readonly softwareUrl: string
-  readonly receptionUrl: string
-  readonly isConfigured: boolean
+export interface DianSecretsConfig {
+  readonly pin?: string
+  readonly technicalKey?: string
+  readonly certificateBase64?: string
+  readonly certificatePassword?: string
 }
 
 export interface DianEndpointsConfig {
@@ -114,350 +73,193 @@ export interface DianEndpointsConfig {
   readonly qrBaseUrl: string
 }
 
-export interface DianNumberingConfig {
-  readonly prefix: string
-  readonly resolutionNumber: string
-  readonly rangeFrom: number
-  readonly rangeTo: number
-  readonly technicalKey?: string
-}
-
 export interface DianConfig {
   readonly environment: DianEnvironment
+  /** '2' = pruebas/habilitación, '1' = producción (ProfileExecutionID y TipoAmb del CUFE) */
+  readonly environmentCode: '1' | '2'
   readonly isProductionBlocked: boolean
-  readonly issuer: DianIssuerConfig
-  readonly certificate: DianCertificateConfig
-  readonly software: DianSoftwareConfig
+  readonly secrets: DianSecretsConfig
   readonly endpoints: DianEndpointsConfig
-  readonly numbering: DianNumberingConfig
+  readonly httpTimeoutMs: number
 }
 
-/**
- * Reporte de diagnóstico seguro (sin secretos)
- */
 export interface DianConfigValidationReport {
   readonly isValid: boolean
+  readonly canBuildXml: boolean
+  readonly canSign: boolean
   readonly environment: DianEnvironment
   readonly checks: {
     readonly environmentConfigured: boolean
-    readonly softwareIdConfigured: boolean
     readonly pinConfigured: boolean
-    readonly testSetIdConfigured: boolean
-    readonly softwareUrlConfigured: boolean
-    readonly receptionUrlConfigured: boolean
-    readonly nitConfigured: boolean
-    readonly dvConfigured: boolean
+    readonly technicalKeyConfigured: boolean
     readonly certificateConfigured: boolean
     readonly certificatePasswordConfigured: boolean
-    readonly technicalKeyConfigured: boolean
   }
   readonly errors: string[]
   readonly warnings: string[]
 }
 
-/**
- * Resumen seguro para inspección administrativa o UI
- */
 export interface DianSafeSummary {
   readonly environment: DianEnvironment
   readonly isProductionBlocked: boolean
-  readonly issuer: {
-    readonly nit: string
-    readonly dv: string
-    readonly companyName: string
-    readonly isConfigured: boolean
-  }
-  readonly software: {
-    readonly softwareIdMasked: string
+  readonly endpoints: { readonly wsUrl: string; readonly qrBaseUrl: string }
+  readonly secrets: {
     readonly isPinConfigured: boolean
-    readonly isTestSetIdConfigured: boolean
-    readonly softwareUrl: string
-    readonly receptionUrl: string
-  }
-  readonly certificate: {
-    readonly isConfigured: boolean
-    readonly isPasswordConfigured: boolean
-  }
-  readonly endpoints: {
-    readonly wsUrl: string
-    readonly qrBaseUrl: string
-  }
-  readonly numbering: {
-    readonly prefix: string
-    readonly resolutionNumber: string
-    readonly range: string
     readonly isTechnicalKeyConfigured: boolean
+    readonly isCertificateConfigured: boolean
+    readonly isCertificatePasswordConfigured: boolean
   }
   readonly validation: DianConfigValidationReport
 }
 
 // ------------------------------------------------------------------------------
-// 4. FUNCIONES DE PROTECCIÓN Y ENMASCARAMIENTO SEGURO
+// 4. UTILIDADES DE SEGURIDAD
 // ------------------------------------------------------------------------------
 
-/**
- * Enmascara un identificador sensible mostrando únicamente los últimos 4 caracteres.
- * NUNCA se utiliza para el PIN ni la contraseña (estos jamás se imprimen).
- */
+/** Enmascara un identificador NO secreto (ej. Software ID) mostrando los últimos 4 caracteres. */
 export function maskIdentifier(value?: string): string {
   if (!value || value.trim().length === 0) return 'NO CONFIGURADO'
   const trimmed = value.trim()
   if (trimmed.length <= 4) return '••••'
-  const visible = trimmed.slice(-4)
-  return `••••••••-••••-••••-••••-••••${visible}`
+  return `••••••••-••••${trimmed.slice(-4)}`
 }
 
-/**
- * Valida que la ejecución ocurra exclusivamente en entorno Node.js / Server-Side.
- */
 function assertServerSideContext(): void {
   if (typeof window !== 'undefined') {
-    throw new Error(
-      'VIOLACIÓN DE SEGURIDAD CRÍTICA: dian.config no puede importarse ni ejecutarse en el navegador.'
-    )
+    throw new Error('VIOLACIÓN DE SEGURIDAD: la configuración DIAN solo puede usarse en el servidor.')
   }
 }
 
+const clean = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined)
+
 // ------------------------------------------------------------------------------
-// 5. CARGA Y RESOLUCIÓN DE CONFIGURACIÓN CENTRALIZADA
+// 5. CARGA DE CONFIGURACIÓN
 // ------------------------------------------------------------------------------
 
 /**
- * Carga y valida la configuración DIAN centralizada a partir de variables de entorno.
- *
- * @param envOverrides Opcional para pruebas unitarias controladas sin alterar process.env global.
+ * Carga la configuración DIAN desde variables de entorno.
+ * @param envOverrides Variables para pruebas, sin tocar process.env.
  */
 export function loadDianConfig(envOverrides?: Record<string, string | undefined>): DianConfig {
   assertServerSideContext()
+  const source = envOverrides || process.env
 
-  const sourceEnv = envOverrides || process.env
-
-  // Parse inicial mediante Zod
   const parsed = dianEnvSchema.parse({
-    DIAN_ENVIRONMENT: sourceEnv.DIAN_ENVIRONMENT || 'HABILITACION',
-    DIAN_NIT: sourceEnv.DIAN_NIT || '901458789',
-    DIAN_DV: sourceEnv.DIAN_DV || '2',
-    DIAN_COMPANY_NAME: sourceEnv.DIAN_COMPANY_NAME || 'DISTRIBUIDORA SUPER MAS S.A.S.',
-    DIAN_COMPANY_EMAIL: sourceEnv.DIAN_COMPANY_EMAIL || 'facturacion@supermas.com.co',
-    DIAN_CERTIFICATE_BASE64: sourceEnv.DIAN_CERTIFICATE_BASE64 || '',
-    DIAN_CERTIFICATE_PASSWORD: sourceEnv.DIAN_CERTIFICATE_PASSWORD || '',
-    DIAN_SOFTWARE_ID: sourceEnv.DIAN_SOFTWARE_ID || '',
-    DIAN_SOFTWARE_PIN: sourceEnv.DIAN_SOFTWARE_PIN || '',
-    DIAN_TEST_SET_ID: sourceEnv.DIAN_TEST_SET_ID || '',
-    DIAN_SOFTWARE_URL: sourceEnv.DIAN_SOFTWARE_URL || 'https://erp.supermas.com.co',
-    DIAN_RECEPTION_URL: sourceEnv.DIAN_RECEPTION_URL || 'https://erp.supermas.com.co/api/dian/reception',
-    DIAN_HABILITACION_WS_URL: sourceEnv.DIAN_HABILITACION_WS_URL || DIAN_HABILITACION_WS_ENDPOINT,
-    DIAN_HABILITACION_QR_URL: sourceEnv.DIAN_HABILITACION_QR_URL || DIAN_HABILITACION_QR_BASE_URL,
-    DIAN_TEST_PREFIX: sourceEnv.DIAN_TEST_PREFIX || 'SETP',
-    DIAN_TEST_RESOLUTION_NUMBER: sourceEnv.DIAN_TEST_RESOLUTION_NUMBER || '18760000001',
-    DIAN_TEST_RANGE_FROM: sourceEnv.DIAN_TEST_RANGE_FROM || '990000000',
-    DIAN_TEST_RANGE_TO: sourceEnv.DIAN_TEST_RANGE_TO || '995000000',
-    DIAN_TEST_TECHNICAL_KEY: sourceEnv.DIAN_TEST_TECHNICAL_KEY || '',
+    DIAN_ENVIRONMENT: source.DIAN_ENVIRONMENT || 'HABILITACION',
+    DIAN_SOFTWARE_PIN: clean(source.DIAN_SOFTWARE_PIN),
+    DIAN_TEST_TECHNICAL_KEY: clean(source.DIAN_TEST_TECHNICAL_KEY),
+    DIAN_PRODUCTION_TECHNICAL_KEY: clean(source.DIAN_PRODUCTION_TECHNICAL_KEY),
+    DIAN_CERTIFICATE_BASE64: clean(source.DIAN_CERTIFICATE_BASE64),
+    DIAN_CERTIFICATE_PASSWORD: source.DIAN_CERTIFICATE_PASSWORD || undefined,
+    DIAN_HABILITACION_WS_URL: clean(source.DIAN_HABILITACION_WS_URL),
+    DIAN_HABILITACION_QR_URL: clean(source.DIAN_HABILITACION_QR_URL),
+    DIAN_HTTP_TIMEOUT_MS: clean(source.DIAN_HTTP_TIMEOUT_MS),
   })
 
-  // ============================================================================
-  // REGLA CRÍTICA 8: BLOQUEO ESTRICTO DE PRODUCCIÓN DURANTE LA FASE ACTUAL
-  // ============================================================================
+  // Bloqueo de producción durante la fase de habilitación (requiere autorización explícita para retirarlo).
   if (parsed.DIAN_ENVIRONMENT === 'PRODUCCION') {
     throw new Error(
-      'BLOQUEO FISCAL DE SEGURIDAD: El ambiente de PRODUCCIÓN está expresamente deshabilitado durante la Fase de Habilitación de Super Más ERP. Toda operación debe apuntar estrictamente a HABILITACION.'
+      'BLOQUEO FISCAL DE SEGURIDAD: el ambiente de PRODUCCIÓN está deshabilitado durante la fase de Habilitación. ' +
+        'DIAN_ENVIRONMENT debe ser HABILITACION.'
     )
   }
 
-  const rangeFromNum = parseInt(parsed.DIAN_TEST_RANGE_FROM, 10)
-  const rangeToNum = parseInt(parsed.DIAN_TEST_RANGE_TO, 10)
-
-  const config: DianConfig = {
-    environment: 'HABILITACION',
-    isProductionBlocked: true,
-
-    issuer: {
-      nit: parsed.DIAN_NIT.trim(),
-      dv: parsed.DIAN_DV.trim(),
-      companyName: parsed.DIAN_COMPANY_NAME.trim(),
-      companyEmail: (parsed.DIAN_COMPANY_EMAIL || '').trim(),
-    },
-
-    certificate: {
-      base64: parsed.DIAN_CERTIFICATE_BASE64?.trim() || undefined,
-      password: parsed.DIAN_CERTIFICATE_PASSWORD || undefined,
-      isConfigured: Boolean(parsed.DIAN_CERTIFICATE_BASE64?.trim()),
-    },
-
-    software: {
-      softwareId: parsed.DIAN_SOFTWARE_ID?.trim() || '',
-      pin: parsed.DIAN_SOFTWARE_PIN?.trim() || '',
-      testSetId: parsed.DIAN_TEST_SET_ID?.trim() || '',
-      softwareUrl: parsed.DIAN_SOFTWARE_URL?.trim() || '',
-      receptionUrl: parsed.DIAN_RECEPTION_URL?.trim() || '',
-      isConfigured: Boolean(
-        parsed.DIAN_SOFTWARE_ID?.trim() &&
-        parsed.DIAN_SOFTWARE_PIN?.trim() &&
-        parsed.DIAN_TEST_SET_ID?.trim()
-      ),
-    },
-
-    endpoints: {
-      wsUrl: parsed.DIAN_HABILITACION_WS_URL.trim(),
-      wsdlUrl: `${parsed.DIAN_HABILITACION_WS_URL.trim()}?wsdl`,
-      qrBaseUrl: parsed.DIAN_HABILITACION_QR_URL.trim(),
-    },
-
-    numbering: {
-      prefix: parsed.DIAN_TEST_PREFIX.trim(),
-      resolutionNumber: parsed.DIAN_TEST_RESOLUTION_NUMBER.trim(),
-      rangeFrom: rangeFromNum,
-      rangeTo: rangeToNum,
-      technicalKey: parsed.DIAN_TEST_TECHNICAL_KEY?.trim() || undefined,
-    },
+  const wsUrl = parsed.DIAN_HABILITACION_WS_URL || DIAN_HABILITACION_WS_ENDPOINT
+  if (!/^https:\/\/vpfe-hab\.dian\.gov\.co\//.test(wsUrl)) {
+    throw new Error('BLOQUEO FISCAL DE SEGURIDAD: en habilitación el WebService debe ser https://vpfe-hab.dian.gov.co/.')
   }
 
-  return config
+  return {
+    environment: 'HABILITACION',
+    environmentCode: '2',
+    isProductionBlocked: true,
+    secrets: {
+      pin: parsed.DIAN_SOFTWARE_PIN,
+      technicalKey: parsed.DIAN_TEST_TECHNICAL_KEY,
+      certificateBase64: parsed.DIAN_CERTIFICATE_BASE64,
+      certificatePassword: parsed.DIAN_CERTIFICATE_PASSWORD,
+    },
+    endpoints: {
+      wsUrl,
+      wsdlUrl: `${wsUrl}?wsdl`,
+      qrBaseUrl: parsed.DIAN_HABILITACION_QR_URL || DIAN_HABILITACION_QR_BASE_URL,
+    },
+    httpTimeoutMs: parsed.DIAN_HTTP_TIMEOUT_MS ? parseInt(parsed.DIAN_HTTP_TIMEOUT_MS, 10) : 60000,
+  }
 }
 
 // ------------------------------------------------------------------------------
-// 6. VALIDACIÓN FORMAL DE LA CONFIGURACIÓN (INSPECCIÓN SEGURA)
+// 6. VALIDACIÓN (sin revelar secretos)
 // ------------------------------------------------------------------------------
 
-/**
- * Valida la completitud de la configuración DIAN para la fase de Habilitación.
- * Emite diagnósticos sin revelar jamás secretos o claves privadas.
- */
 export function validateDianConfiguration(config: DianConfig): DianConfigValidationReport {
   const errors: string[] = []
   const warnings: string[] = []
 
   const environmentConfigured = config.environment === 'HABILITACION'
-  const nitConfigured = Boolean(config.issuer.nit && config.issuer.nit.length >= 6)
-  const dvConfigured = Boolean(config.issuer.dv && /^[0-9]$/.test(config.issuer.dv))
+  const pinConfigured = Boolean(config.secrets.pin)
+  const technicalKeyConfigured = Boolean(config.secrets.technicalKey)
+  const certificateConfigured = Boolean(config.secrets.certificateBase64)
+  const certificatePasswordConfigured = Boolean(config.secrets.certificatePassword)
 
-  const softwareIdConfigured = Boolean(config.software.softwareId && config.software.softwareId.length > 0)
-  const pinConfigured = Boolean(config.software.pin && config.software.pin.length > 0)
-  const testSetIdConfigured = Boolean(config.software.testSetId && config.software.testSetId.length > 0)
-  const softwareUrlConfigured = Boolean(config.software.softwareUrl && config.software.softwareUrl.length > 0)
-  const receptionUrlConfigured = Boolean(config.software.receptionUrl && config.software.receptionUrl.length > 0)
-
-  const certificateConfigured = Boolean(config.certificate.base64 && config.certificate.base64.length > 0)
-  const certificatePasswordConfigured = Boolean(config.certificate.password && config.certificate.password.length > 0)
-  const technicalKeyConfigured = Boolean(config.numbering.technicalKey && config.numbering.technicalKey.length > 0)
-
-  // Validaciones obligatorias de emisor
-  if (!nitConfigured) errors.push('DIAN_NIT no está configurado o tiene formato inválido.')
-  if (!dvConfigured) errors.push('DIAN_DV no está configurado o no es un dígito válido (0-9).')
-
-  // Validaciones de software propio
-  if (!softwareIdConfigured) errors.push('DIAN_SOFTWARE_ID no está configurado.')
-  if (!pinConfigured) errors.push('DIAN_SOFTWARE_PIN no está configurado.')
-  if (!testSetIdConfigured) errors.push('DIAN_TEST_SET_ID no está configurado.')
-
-  // Advertencias de URLs
-  if (!softwareUrlConfigured) warnings.push('DIAN_SOFTWARE_URL pendiente de configurar.')
-  if (!receptionUrlConfigured) warnings.push('DIAN_RECEPTION_URL pendiente de configurar.')
-
-  // Advertencias de certificado y clave técnica (pendientes de carga por usuario en fase 3)
-  if (!certificateConfigured) {
-    warnings.push('DIAN_CERTIFICATE_BASE64 pendiente de suministrar (requerido para firma en Fase 3).')
-  }
-  if (!certificatePasswordConfigured) {
-    warnings.push('DIAN_CERTIFICATE_PASSWORD pendiente de suministrar (requerido para descifrado en Fase 3).')
-  }
+  if (!pinConfigured) errors.push('DIAN_SOFTWARE_PIN no está configurado (requerido para el SoftwareSecurityCode).')
   if (!technicalKeyConfigured) {
-    warnings.push('DIAN_TEST_TECHNICAL_KEY pendiente de suministrar (requerido para cálculo de CUFE de pruebas).')
+    errors.push('DIAN_TEST_TECHNICAL_KEY no está configurada (requerida para calcular el CUFE).')
+  } else if (!/^[0-9a-fA-F]{20,}$/.test(config.secrets.technicalKey!)) {
+    warnings.push('La clave técnica no parece hexadecimal; verifique que la copió completa del portal DIAN.')
+  }
+  if (!certificateConfigured) warnings.push('Certificado digital pendiente: sin él no se puede firmar ni transmitir.')
+  if (certificateConfigured && !certificatePasswordConfigured) {
+    errors.push('DIAN_CERTIFICATE_PASSWORD no está configurada y el certificado la requiere.')
   }
 
-  // Validación de rangos numéricos
-  if (config.numbering.rangeTo <= config.numbering.rangeFrom) {
-    errors.push('El rango de numeración final de pruebas debe ser mayor al rango inicial.')
-  }
-
-  const isValid = errors.length === 0
+  const canBuildXml = pinConfigured && technicalKeyConfigured
+  const canSign = canBuildXml && certificateConfigured && certificatePasswordConfigured
 
   return {
-    isValid,
+    isValid: errors.length === 0,
+    canBuildXml,
+    canSign,
     environment: config.environment,
     checks: {
       environmentConfigured,
-      softwareIdConfigured,
       pinConfigured,
-      testSetIdConfigured,
-      softwareUrlConfigured,
-      receptionUrlConfigured,
-      nitConfigured,
-      dvConfigured,
+      technicalKeyConfigured,
       certificateConfigured,
       certificatePasswordConfigured,
-      technicalKeyConfigured,
     },
     errors,
     warnings,
   }
 }
 
-// ------------------------------------------------------------------------------
-// 7. RESUMEN SEGURO PARA MONITOREO Y UI
-// ------------------------------------------------------------------------------
-
-/**
- * Retorna un resumen higienizado de la configuración DIAN listo para diagnóstico seguro.
- */
 export function getDianSafeSummary(config?: DianConfig): DianSafeSummary {
-  const activeConfig = config || loadDianConfig()
-  const validation = validateDianConfiguration(activeConfig)
-
+  const active = config || loadDianConfig()
   return {
-    environment: activeConfig.environment,
-    isProductionBlocked: activeConfig.isProductionBlocked,
-    issuer: {
-      nit: activeConfig.issuer.nit,
-      dv: activeConfig.issuer.dv,
-      companyName: activeConfig.issuer.companyName,
-      isConfigured: Boolean(activeConfig.issuer.nit && activeConfig.issuer.dv),
+    environment: active.environment,
+    isProductionBlocked: active.isProductionBlocked,
+    endpoints: { wsUrl: active.endpoints.wsUrl, qrBaseUrl: active.endpoints.qrBaseUrl },
+    secrets: {
+      isPinConfigured: Boolean(active.secrets.pin),
+      isTechnicalKeyConfigured: Boolean(active.secrets.technicalKey),
+      isCertificateConfigured: Boolean(active.secrets.certificateBase64),
+      isCertificatePasswordConfigured: Boolean(active.secrets.certificatePassword),
     },
-    software: {
-      softwareIdMasked: maskIdentifier(activeConfig.software.softwareId),
-      isPinConfigured: Boolean(activeConfig.software.pin),
-      isTestSetIdConfigured: Boolean(activeConfig.software.testSetId),
-      softwareUrl: activeConfig.software.softwareUrl,
-      receptionUrl: activeConfig.software.receptionUrl,
-    },
-    certificate: {
-      isConfigured: activeConfig.certificate.isConfigured,
-      isPasswordConfigured: Boolean(activeConfig.certificate.password),
-    },
-    endpoints: {
-      wsUrl: activeConfig.endpoints.wsUrl,
-      qrBaseUrl: activeConfig.endpoints.qrBaseUrl,
-    },
-    numbering: {
-      prefix: activeConfig.numbering.prefix,
-      resolutionNumber: activeConfig.numbering.resolutionNumber,
-      range: `${activeConfig.numbering.rangeFrom} - ${activeConfig.numbering.rangeTo}`,
-      isTechnicalKeyConfigured: Boolean(activeConfig.numbering.technicalKey),
-    },
-    validation,
+    validation: validateDianConfiguration(active),
   }
 }
 
 // ------------------------------------------------------------------------------
-// 8. INSTANCIA SINGLETON / ACCESO GLOBAL CONTROLADO
+// 7. SINGLETON DEL SERVIDOR
 // ------------------------------------------------------------------------------
 
-let _cachedDianConfig: DianConfig | null = null
+let _cached: DianConfig | null = null
 
-/**
- * Obtiene la configuración DIAN activa (Singleton server-side).
- * Recarga si el entorno cambia o si es la primera invocación.
- */
 export function getDianConfig(): DianConfig {
-  if (!_cachedDianConfig) {
-    _cachedDianConfig = loadDianConfig()
-  }
-  return _cachedDianConfig
+  if (!_cached) _cached = loadDianConfig()
+  return _cached
 }
 
-/**
- * Reinicia la caché de configuración (útil para pruebas unitarias).
- */
 export function resetDianConfigCache(): void {
-  _cachedDianConfig = null
+  _cached = null
 }

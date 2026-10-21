@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
+import { requireServerUser, AuthError } from '@/lib/auth/server-auth'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -10,7 +11,22 @@ function isValidUUID(id?: string | null): boolean {
 
 export async function POST(request: NextRequest) {
   try {
+    // Identidad verificada: el navegador no puede registrar acciones a nombre de otro usuario o empresa.
+    let caller
+    try {
+      caller = await requireServerUser(request)
+    } catch (e) {
+      if (e instanceof AuthError) return NextResponse.json({ success: false, error: e.message }, { status: e.status })
+      throw e
+    }
+
     const body = await request.json()
+    body.company_id = caller.companyId
+    body.companyId = caller.companyId
+    body.user_id = caller.userId
+    body.userId = caller.userId
+    body.user_name = caller.fullName
+    body.userName = caller.fullName
 
     // 1. Resolver company_id si no viene especificado
     let companyId = body.company_id || body.companyId

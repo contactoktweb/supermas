@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppIcon } from '@/components/ui/Icon'
@@ -29,10 +29,21 @@ function Brand({ compact = false }: { compact?: boolean }) {
   )
 }
 
+// Cada página monta su propio AppShell, así que el Sidebar se vuelve a montar en cada navegación.
+// La posición del menú se restaura ANTES de pintar (useLayoutEffect) para que no se vea el salto al inicio.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
+let cachedSidebarScrollTop = 0
+let cachedExpandedSections: Record<string, boolean> | null = null
+
+const SIDEBAR_SCROLL_KEY = 'supermas_sidebar_scroll_top'
+const SIDEBAR_EXPANDED_KEY = 'supermas_sidebar_expanded_sections'
+
 export function Sidebar({ open = false, onClose, currentPath, onLogout }: SidebarProps) {
   const pathname = usePathname()
   const effectivePath = currentPath || pathname || '/'
   const { user, hasPermission, signOut } = useAuth()
+  const navRef = React.useRef<HTMLElement>(null)
 
   // Determinar qué sección contiene la ruta activa para auto-expandirla
   const activeSectionId = useMemo(() => {
@@ -46,8 +57,27 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
     return null
   }, [effectivePath])
 
-  // Estado de secciones expandidas / colapsadas (por defecto todas abiertas o al menos la activa abierta)
+  // Estado de secciones expandidas / colapsadas persistido
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
+    if (cachedExpandedSections) {
+      if (activeSectionId) cachedExpandedSections[activeSectionId] = true
+      return { ...cachedExpandedSections }
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem(SIDEBAR_EXPANDED_KEY)
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (activeSectionId) parsed[activeSectionId] = true
+          cachedExpandedSections = parsed
+          return parsed
+        }
+      } catch {
+        // Fallback a defaults si falla sessionStorage
+      }
+    }
+
     const initial: Record<string, boolean> = {
       inventario: true,
       compras: true,
@@ -61,26 +91,64 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
     if (activeSectionId) {
       initial[activeSectionId] = true
     }
+    cachedExpandedSections = initial
     return initial
   })
 
   // Sincronizar auto-expansión al cambiar de ruta
   useEffect(() => {
     if (activeSectionId) {
-      setExpandedSections((prev) => ({
-        ...prev,
-        [activeSectionId]: true,
-      }))
+      setExpandedSections((prev) => {
+        if (prev[activeSectionId]) return prev
+        const updated = { ...prev, [activeSectionId]: true }
+        cachedExpandedSections = updated
+        try {
+          sessionStorage.setItem(SIDEBAR_EXPANDED_KEY, JSON.stringify(updated))
+        } catch {}
+        return updated
+      })
     }
   }, [activeSectionId])
+
+  // Restaurar y mantener posición de scroll del Sidebar (antes del primer pintado)
+  useIsomorphicLayoutEffect(() => {
+    if (navRef.current) {
+      let targetScroll = cachedSidebarScrollTop
+      if (targetScroll === 0 && typeof window !== 'undefined') {
+        const storedScroll = sessionStorage.getItem(SIDEBAR_SCROLL_KEY)
+        if (storedScroll) {
+          targetScroll = parseInt(storedScroll, 10) || 0
+          cachedSidebarScrollTop = targetScroll
+        }
+      }
+      if (targetScroll > 0) {
+        navRef.current.scrollTop = targetScroll
+      }
+    }
+  }, [effectivePath])
+
+  const handleNavScroll = (e: React.UIEvent<HTMLElement>) => {
+    const top = e.currentTarget.scrollTop
+    cachedSidebarScrollTop = top
+    try {
+      sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(top))
+    } catch {}
+  }
 
   const toggleSection = (sectionId: string, e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setExpandedSections((prev) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }))
+    setExpandedSections((prev) => {
+      const updated = {
+        ...prev,
+        [sectionId]: !prev[sectionId],
+      }
+      cachedExpandedSections = updated
+      try {
+        sessionStorage.setItem(SIDEBAR_EXPANDED_KEY, JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
   }
 
   // Filtrado fiduciario de permisos por rol/permisos de usuario
@@ -97,6 +165,13 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
   const isDashboardActive = effectivePath === '/'
 
   const handleLinkClick = () => {
+    if (navRef.current) {
+      const currentScroll = navRef.current.scrollTop
+      cachedSidebarScrollTop = currentScroll
+      try {
+        sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(currentScroll))
+      } catch {}
+    }
     if (onClose) onClose()
   }
 
@@ -116,12 +191,13 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
           </button>
         </div>
 
-        <nav>
+        <nav ref={navRef} onScroll={handleNavScroll}>
           <p className="nav-caption">Menú principal</p>
 
           {/* Módulo independiente: Dashboard */}
           <Link
             href={DASHBOARD_ITEM.path}
+            scroll={false}
             className={`nav-item ${isDashboardActive ? 'active' : ''}`}
             onClick={handleLinkClick}
           >
@@ -170,6 +246,7 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
                         <Link
                           key={item.id}
                           href={item.path}
+                          scroll={false}
                           className={`nav-item sub-item ${isActive ? 'active' : ''}`}
                           onClick={handleLinkClick}
                         >

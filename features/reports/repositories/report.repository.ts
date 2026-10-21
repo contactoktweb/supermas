@@ -680,6 +680,7 @@ export class ReportRepository {
         prefix,
         number,
         full_number,
+        document_type,
         cufe,
         subtotal_amount,
         tax_amount,
@@ -724,6 +725,8 @@ export class ReportRepository {
         : 'Cliente'
 
       const invNum = row.full_number || `${row.prefix || ''}-${row.number || ''}`
+      // Las notas crédito restan en los reportes de facturación; las notas débito suman.
+      const sign = row.document_type === 'CREDIT_NOTE' ? -1 : 1
 
       return {
         id: row.id,
@@ -739,9 +742,10 @@ export class ReportRepository {
         date: row.created_at,
         createdAt: row.created_at,
         status: row.dian_status || 'EMITIDA',
-        subtotal: Number(row.subtotal_amount) || 0,
-        taxAmount: Number(row.tax_amount) || 0,
-        total: Number(row.total_amount) || 0,
+        documentType: row.document_type || 'INVOICE',
+        subtotal: sign * (Number(row.subtotal_amount) || 0),
+        taxAmount: sign * (Number(row.tax_amount) || 0),
+        total: sign * (Number(row.total_amount) || 0),
       }
     })
   }

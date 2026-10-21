@@ -116,6 +116,12 @@ export interface CreateSaleDTO {
   documentTypeToGenerate?: 'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'
   notes?: string
   discountReason?: string
+  /** Cuenta bancaria que recibe el dinero (transferencia, tarjeta o parte bancaria del mixto) */
+  bankAccountId?: string
+  /** Pago mixto: parte en efectivo */
+  mixedCashAmount?: number
+  /** Pago mixto: medio del valor restante */
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
 }
 
 export interface CancelSaleDTO {

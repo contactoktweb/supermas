@@ -10,6 +10,7 @@ import {
   POSTicketReceipt,
   POSDailySaleSummary,
   POSUserContext,
+  POSBankAccountOption,
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 
@@ -54,6 +55,18 @@ export function usePOS() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<POSPaymentMethod>('EFECTIVO')
   const [amountPaid, setAmountPaid] = useState<number>(0)
+  // Cuenta bancaria que recibe el dinero (tarjeta / transferencia / parte bancaria del mixto)
+  const [bankAccounts, setBankAccounts] = useState<POSBankAccountOption[]>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
+  const [mixedCashAmount, setMixedCashAmount] = useState<number>(0)
+  const [mixedRestMethod, setMixedRestMethod] = useState<'TARJETA' | 'TRANSFERENCIA'>('TRANSFERENCIA')
+
+  useEffect(() => {
+    posService
+      .listPaymentBankAccounts()
+      .then((list) => setBankAccounts(list))
+      .catch(() => setBankAccounts([]))
+  }, [])
   const [paymentLoading, setPaymentLoading] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
@@ -416,6 +429,9 @@ export function usePOS() {
           locationId: userContext.locationId,
           paymentMethod,
           amountPaid,
+          bankAccountId: bankAccountId || undefined,
+          mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
+          mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
           items: cart.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -430,6 +446,7 @@ export function usePOS() {
       setIsPaymentModalOpen(false)
       setIsReceiptModalOpen(true)
       clearCart()
+      setMixedCashAmount(0)
       await fetchProducts() // Refresh stocks
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al procesar la venta POS'
@@ -506,6 +523,13 @@ export function usePOS() {
     setPaymentMethod,
     amountPaid,
     setAmountPaid,
+    bankAccounts,
+    bankAccountId,
+    setBankAccountId,
+    mixedCashAmount,
+    setMixedCashAmount,
+    mixedRestMethod,
+    setMixedRestMethod,
     paymentLoading,
     paymentError,
     handleProcessSale,

@@ -54,6 +54,25 @@ export function NewSaleDrawer({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO')
   const [documentType, setDocumentType] = useState<'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'>('FACTURA_POS')
   const [notes, setNotes] = useState<string>('')
+  // Cuenta bancaria destino (contabilidad PUC por cuenta exacta)
+  const [bankOptions, setBankOptions] = useState<Array<{ id: string; label: string }>>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
+  const [mixedCashAmount, setMixedCashAmount] = useState<number>(0)
+  const [mixedRestMethod, setMixedRestMethod] = useState<'TARJETA' | 'TRANSFERENCIA'>('TRANSFERENCIA')
+
+  useEffect(() => {
+    if (!isOpen) return
+    supabaseClient.rpc('fn_list_payment_bank_accounts').then(({ data }) => {
+      setBankOptions(
+        ((data as any[]) || [])
+          .filter((a) => a.has_ledger)
+          .map((a) => ({
+            id: a.id,
+            label: `${a.bank_name} · ${a.account_type === 'CORRIENTE' ? 'Corriente' : 'Ahorros'} *${a.last4}`,
+          }))
+      )
+    })
+  }, [isOpen])
 
   // Search States
   const [customerSearch, setCustomerSearch] = useState('')
@@ -385,6 +404,9 @@ export function NewSaleDrawer({
         customerId: selectedCustomerId,
         locationId: selectedLocationId,
         paymentMethod,
+        bankAccountId: bankAccountId || undefined,
+        mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
+        mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
         documentTypeToGenerate: documentType,
         notes: notes.trim() || undefined,
         items: cart.map((i) => ({
@@ -963,6 +985,44 @@ export function NewSaleDrawer({
                   ))}
                 </div>
               </div>
+
+              {/* Cuenta bancaria que recibe el dinero */}
+              {(paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'TARJETA' || paymentMethod === 'MIXTO') && (
+                <div style={{ padding: 14, borderRadius: 12, background: '#f8fafc', border: '1.5px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {paymentMethod === 'MIXTO' && (
+                    <>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>Parte en efectivo</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={mixedCashAmount === 0 ? '' : mixedCashAmount}
+                        onChange={(e) => setMixedCashAmount(Number(e.target.value) || 0)}
+                        style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 14, fontWeight: 700 }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, flexWrap: 'wrap' }}>
+                        <span>Resto ({formatCOP(Math.max(0, totals.totalAmount - mixedCashAmount))}) con:</span>
+                        {(['TRANSFERENCIA', 'TARJETA'] as const).map((m) => (
+                          <button key={m} type="button" onClick={() => setMixedRestMethod(m)} className={mixedRestMethod === m ? 'primary-button compact' : 'outline-button compact'} style={{ height: 28, fontSize: 11 }}>
+                            {m === 'TRANSFERENCIA' ? 'Transferencia' : 'Tarjeta'}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>Cuenta bancaria que recibe el dinero *</label>
+                  {bankOptions.length === 0 ? (
+                    <span style={{ fontSize: 12, color: '#991b1b' }}>No hay cuentas bancarias con subcuenta PUC. Configúrelas en Tesorería.</span>
+                  ) : (
+                    <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 13 }}>
+                      <option value="">Seleccione la cuenta…</option>
+                      {bankOptions.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {/* Financial Breakdown Box */}
               <div

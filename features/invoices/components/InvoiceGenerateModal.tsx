@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
-import { GenerateInvoicePayload, InvoiceType, InvoicePaymentMethod } from '../types'
+import { GenerateInvoicePayload, InvoiceType } from '../types'
 
 interface InvoiceGenerateModalProps {
   isOpen: boolean
@@ -31,11 +31,7 @@ export function InvoiceGenerateModal({
 
   // Estado: Facturar desde Venta Registrada
   const [selectedSaleId, setSelectedSaleId] = useState<string>('')
-  const [invoiceType, setInvoiceType] = useState<InvoiceType>('ELECTRONICA')
-  const [paymentMethod, setPaymentMethod] = useState<InvoicePaymentMethod>('EFECTIVO')
-  const [paymentTerms, setPaymentTerms] = useState<string>('Contado')
-  const [sendToDianImmediately, setSendToDianImmediately] = useState<boolean>(true)
-  const [notes, setNotes] = useState<string>('')
+  const invoiceType: InvoiceType = 'ELECTRONICA'
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -105,11 +101,7 @@ export function InvoiceGenerateModal({
       setError(null)
       await onGenerateInvoice({
         saleId: selectedSaleId,
-        type: invoiceType,
-        paymentMethod,
-        paymentTerms,
-        sendToDianImmediately: invoiceType === 'ELECTRONICA' ? sendToDianImmediately : false,
-        notes,
+        type: 'ELECTRONICA',
       })
     } catch (err: any) {
       console.error('Error al emitir factura:', err)
@@ -429,87 +421,15 @@ export function InvoiceGenerateModal({
                 </div>
               )}
 
-              {/* Tipo de Comprobante & Método de Pago */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-900 font-bold mb-1 uppercase tracking-wider text-[10.5px]">
-                    Tipo de Comprobante *
-                  </label>
-                  <CustomSelect
-                    value={invoiceType}
-                    onChange={(val) => setInvoiceType(val as InvoiceType)}
-                    options={[
-                      { value: 'ELECTRONICA', label: 'Factura Electrónica de Venta (DIAN)' },
-                      { value: 'POS', label: 'Factura POS (Punto de Venta / Tirilla)' },
-                    ]}
-                    placeholder="Seleccionar tipo de comprobante"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-900 font-bold mb-1 uppercase tracking-wider text-[10.5px]">
-                    Método de Pago DIAN *
-                  </label>
-                  <CustomSelect
-                    value={paymentMethod}
-                    onChange={(val) => setPaymentMethod(val as InvoicePaymentMethod)}
-                    options={[
-                      { value: 'EFECTIVO', label: 'Efectivo (10)' },
-                      { value: 'TRANSFERENCIA', label: 'Transferencia Bancaria (47)' },
-                      { value: 'TARJETA', label: 'Tarjeta Débito / Crédito (48)' },
-                      { value: 'CREDITO', label: 'Crédito Comercial (30)' },
-                      { value: 'MIXTO', label: 'Pago Mixto' },
-                    ]}
-                    placeholder="Seleccionar método de pago"
-                  />
-                </div>
-              </div>
-
-              {/* Condiciones & Transmisión Inmediata */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                <div>
-                  <label className="block text-slate-900 font-bold mb-1 uppercase tracking-wider text-[10.5px]">
-                    Condiciones de Pago:
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentTerms}
-                    onChange={(e) => setPaymentTerms(e.target.value)}
-                    placeholder="Ej. Contado, Crédito 15 días"
-                    className="w-full h-8 px-2.5 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-
-                {invoiceType === 'ELECTRONICA' ? (
-                  <div className="pt-2">
-                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-900 select-none">
-                      <input
-                        type="checkbox"
-                        checked={sendToDianImmediately}
-                        onChange={(e) => setSendToDianImmediately(e.target.checked)}
-                        className="rounded border-slate-300 text-blue-900 focus:ring-blue-900 w-4 h-4"
-                      />
-                      <span>Transmitir a la DIAN inmediatamente</span>
-                    </label>
-                    <span className="text-[10px] text-slate-500 block ml-6">
-                      Genera CUFE y código QR oficial en tiempo real
-                    </span>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Observaciones */}
-              <div>
-                <label className="block text-slate-900 font-bold mb-1 uppercase tracking-wider text-[10.5px]">
-                  Notas u Observaciones:
-                </label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Añade observaciones visibles en la factura..."
-                  rows={2}
-                  className="w-full p-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
-                />
+              {/* Datos fiscales que asigna el servidor */}
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-slate-800 space-y-1">
+                <p className="font-bold text-blue-900">Factura Electrónica de Venta (DIAN) — ambiente de HABILITACIÓN</p>
+                <p>
+                  El servidor asigna el prefijo y el consecutivo desde la resolución DIAN vigente, toma el medio de pago
+                  registrado en la venta, genera el XML UBL 2.1, el CUFE y el código QR, y lo transmite a la DIAN cuando el
+                  certificado digital esté cargado.
+                </p>
+                <p className="text-slate-600">Si un dato fiscal falta, la factura queda numerada y el detalle indica exactamente qué completar.</p>
               </div>
             </form>
           )}
@@ -518,7 +438,7 @@ export function InvoiceGenerateModal({
         {/* Pie del Modal */}
         <div className="px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <span className="text-[11px] text-slate-500 hidden sm:inline">
-            Resolución DIAN No. 18764000001 autorizada (Rango FE-1000 a FE-50000).
+            Prefijo, consecutivo y resolución se asignan desde la resolución DIAN vigente.
           </span>
 
           <div className="flex items-center gap-2.5 ml-auto">

@@ -4,3 +4,5 @@
  */
 
 export * from './dian.config'
+export * from './dian-crypto.service'
+export * from './dian-validator.service'

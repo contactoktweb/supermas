@@ -184,13 +184,18 @@ function mapDbToDomain(row: any): Product {
       images: Array.isArray(row.secondary_images) ? row.secondary_images : [],
       description,
       status: row.is_active ? 'ACTIVE' : 'INACTIVE',
-      taxProfile: isTaxExempt
-        ? 'EXENTO'
-        : taxRatePercent === 5
-        ? 'IVA_5'
-        : taxRatePercent === 0
-        ? 'IVA_0'
-        : 'IVA_19',
+      // Tratamiento DIAN: EXENTO y EXCLUIDO se reportan distinto en la factura electrónica.
+      // 'IVA_0' = producto al 0 % sin clasificar (no se puede facturar electrónicamente hasta clasificarlo).
+      taxProfile:
+        row.iva_treatment === 'EXCLUIDO'
+          ? 'EXCLUIDO'
+          : row.iva_treatment === 'EXENTO'
+          ? 'EXENTO'
+          : isTaxExempt || taxRatePercent === 0
+          ? 'IVA_0'
+          : taxRatePercent === 5
+          ? 'IVA_5'
+          : 'IVA_19',
       vatRatePercent: taxRatePercent,
       isExempt: isTaxExempt,
 
@@ -209,6 +214,17 @@ function mapDbToDomain(row: any): Product {
       webAvailability,
       warehouseStock,
     }
+}
+
+/**
+ * Tratamiento de IVA para la DIAN a partir del perfil tributario del formulario.
+ * GRAVADO: tarifa > 0. EXENTO (Art. 477 E.T.) y EXCLUIDO (Art. 424 E.T.): tarifa 0, se reportan distinto.
+ * null: producto al 0 % sin clasificar (la factura electrónica lo bloquea hasta clasificarlo).
+ */
+export function productIvaTreatment(taxProfile: string | undefined, ratePercent: number): 'GRAVADO' | 'EXENTO' | 'EXCLUIDO' | null {
+  if (taxProfile === 'EXENTO') return 'EXENTO'
+  if (taxProfile === 'EXCLUIDO') return 'EXCLUIDO'
+  return ratePercent > 0 ? 'GRAVADO' : null
 }
 
 export class ProductRepository {
@@ -422,10 +438,9 @@ export class ProductRepository {
     const taxRatePercent =
       (data as any).taxRatePercent ?? (data as any).vatRatePercent ?? 19
 
+    const ivaTreatment = productIvaTreatment((data as any).taxProfile, Number(taxRatePercent))
     const isTaxExempt =
-      (data as any).isTaxExempt ??
-      ((data as any).taxProfile === 'EXENTO' || (data as any).taxProfile === 'EXCLUIDO') ??
-      false
+      ivaTreatment === 'EXENTO' || ivaTreatment === 'EXCLUIDO' || Boolean((data as any).isTaxExempt)
 
     const rawSlug = (data as any).slug ? (data as any).slug.trim() : this.slugify(data.name)
 
@@ -446,8 +461,9 @@ export class ProductRepository {
       public_sale_price: normalPrice,
       wholesale_price: wholesalePrice,
       min_wholesale_quantity: (data as any).minWholesaleQuantity ?? 12,
-      tax_rate_percent: taxRatePercent,
+      tax_rate_percent: ivaTreatment === 'EXENTO' || ivaTreatment === 'EXCLUIDO' ? 0 : taxRatePercent,
       is_tax_exempt: isTaxExempt,
+      iva_treatment: ivaTreatment,
       primary_image_url:
         (data as any).primaryImageUrl?.trim() || (data as any).imageUrl?.trim() || null,
       secondary_images: (data as any).secondaryImages || (data as any).images || [],
@@ -622,10 +638,14 @@ export class ProductRepository {
     if (u.taxRatePercent !== undefined) updatePayload.tax_rate_percent = u.taxRatePercent
     else if (u.vatRatePercent !== undefined) updatePayload.tax_rate_percent = u.vatRatePercent
 
-    if (u.isTaxExempt !== undefined) updatePayload.is_tax_exempt = u.isTaxExempt
-    else if (u.taxProfile !== undefined) {
-      updatePayload.is_tax_exempt =
-        u.taxProfile === 'EXENTO' || u.taxProfile === 'EXCLUIDO'
+    if (u.taxProfile !== undefined || u.taxRatePercent !== undefined || u.vatRatePercent !== undefined) {
+      const rate = Number(u.taxRatePercent ?? u.vatRatePercent ?? updatePayload.tax_rate_percent ?? 0)
+      const treatment = productIvaTreatment(u.taxProfile, rate)
+      updatePayload.iva_treatment = treatment
+      updatePayload.is_tax_exempt = treatment === 'EXENTO' || treatment === 'EXCLUIDO'
+      if (treatment === 'EXENTO' || treatment === 'EXCLUIDO') updatePayload.tax_rate_percent = 0
+    } else if (u.isTaxExempt !== undefined) {
+      updatePayload.is_tax_exempt = u.isTaxExempt
     }
 
     if (u.primaryImageUrl !== undefined)

@@ -64,6 +64,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
           const profile = await authService.fetchUserProfile(session.user.id)
+          // Mantener la cookie de sesión al día (las rutas /api validan este token en el servidor)
+          if (session.access_token) {
+            authService.syncAuthCookies(session.access_token, profile?.roleCode || null, session.expires_in || 3600)
+          }
           if (isMounted) {
             setUser(profile)
             setIsLoading(false)

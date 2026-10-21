@@ -54,8 +54,8 @@ export class TreasuryRepository {
       currency: row.currency || 'COP',
       currentBalance: Number(row.current_balance || 0),
       accountingAccountId: row.accounting_account_id || '',
-      accountingAccountCode: row.accounting_accounts?.code || '111005',
-      accountingAccountName: row.accounting_accounts?.name || 'Bancos Nacionales',
+      accountingAccountCode: row.accounting_accounts?.code || '',
+      accountingAccountName: row.accounting_accounts?.name || '',
       status: row.is_active ? 'ACTIVE' : 'INACTIVE',
       description: row.description || undefined,
       createdAt: row.created_at,
@@ -289,6 +289,28 @@ export class TreasuryRepository {
     }
 
     return res
+  }
+
+  /** Subcuentas PUC elegibles para cuentas bancarias: 1110xx (corrientes) y 1120xx (ahorros), 6+ dígitos, activas. */
+  async getBankLedgerOptions(): Promise<Array<{ id: string; code: string; name: string }>> {
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('id, code, name')
+      .or('code.like.1110%,code.like.1120%')
+      .eq('is_active', true)
+      .order('code', { ascending: true })
+    if (error || !data) return []
+    return data.filter((a: any) => String(a.code).length >= 6)
+  }
+
+  /** Asigna la subcuenta PUC exacta a una cuenta bancaria (valida tipo y que no se repita). */
+  async setBankAccountLedger(bankAccountId: string, accountingAccountId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_set_bank_account_ledger', {
+      p_bank_account_id: bankAccountId,
+      p_accounting_account_id: accountingAccountId,
+    })
+    if (error) throw new Error(error.message)
+    return data
   }
 
   async createScheduledPayment(

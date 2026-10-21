@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test:dian": "tsx features/invoices/tests/dian-config.test.ts && tsx features/invoices/tests/dian-cufe-qr.test.ts && tsx features/invoices/tests/dian-xml-firma.test.ts",
+    "dian:certificado": "tsx scripts/dian-verificar-certificado.ts",
+    "audit:dian": "tsx scripts/dian-audit-db.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
@@ -16,6 +19,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.16.0",
     "next": "16.3.3",
+    "node-forge": "^1.3.1",
     "react": "^19",
     "react-dom": "^19",
     "shadcn": "^4.11.0",

@@ -7,6 +7,22 @@
 
 export type POSPaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'MIXTO' | 'OTRO'
 
+/** Cuenta bancaria destino visible al cajero: solo banco, tipo y últimos 4 dígitos (sin saldos ni números completos). */
+export interface POSBankAccountOption {
+  id: string
+  bankName: string
+  accountType: string
+  last4: string
+  hasLedger: boolean
+}
+
+/** Pago enviado al servidor. amount = null → el servidor asigna el saldo exacto del total calculado. */
+export interface POSPaymentLine {
+  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD'
+  amount: number | null
+  bank_account_id?: string | null
+}
+
 export interface POSProduct {
   id: string
   name: string
@@ -77,6 +93,9 @@ export interface POSSalePayload {
   paymentMethod: POSPaymentMethod
   amountPaid: number
   notes?: string
+  bankAccountId?: string
+  mixedCashAmount?: number
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
   items: Array<{
     productId: string
     quantity: number

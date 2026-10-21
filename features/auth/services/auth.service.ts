@@ -14,7 +14,8 @@ export class AuthService {
    * Sincroniza cookies de sesión en el navegador para que Next.js Middleware
    * y las funciones de servidor puedan validar la autenticación sin demoras.
    */
-  private syncAuthCookies(accessToken: string | null, roleCode: string | null, expiresInSeconds: number = 604800): void {
+  /** Público: se usa también al refrescar el token para que el servidor no reciba una cookie vencida. */
+  syncAuthCookies(accessToken: string | null, roleCode: string | null, expiresInSeconds: number = 604800): void {
     if (typeof document === 'undefined') return
 
     const secure = typeof window !== 'undefined' && window.location.protocol === 'https:' ? '; Secure' : ''

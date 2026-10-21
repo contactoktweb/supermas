@@ -116,63 +116,9 @@ export class InvoiceCalculationService {
     }
   }
 
-  /**
-   * Genera el CUFE (Código Único de Factura Electrónica) simulado estándar DIAN
-   */
-  generateCUFE(invoiceNumber: string, total: number, dateIso: string, nit: string): string {
-    const raw = `${invoiceNumber}${dateIso}${total}01${nit}9014587892${Date.now()}`
-    let hash1 = 0
-    let hash2 = 0
-    for (let i = 0; i < raw.length; i++) {
-      hash1 = (hash1 << 5) - hash1 + raw.charCodeAt(i)
-      hash1 |= 0
-      hash2 = (hash2 << 7) - hash2 + raw.charCodeAt(i)
-      hash2 |= 0
-    }
-    const hex1 = Math.abs(hash1).toString(16).padStart(8, '0')
-    const hex2 = Math.abs(hash2).toString(16).padStart(8, '0')
-    const rand = Math.random().toString(16).substring(2, 10) + Math.random().toString(16).substring(2, 10)
-    const filler = `${hex1}${hex2}${rand}supermasdiancolombia${dateIso}`.replace(/[^a-f0-9]/gi, 'a').toLowerCase()
-    return filler.padEnd(64, '0').slice(0, 64)
-  }
+  // CUFE y XML: se calculan SOLO en el servidor desde el documento fiscal real
+  // (features/invoices/services/dian/dian-crypto.service.ts y dian-ubl-builder.service.ts).
 
-  /**
-   * Genera representación XML UBL 2.1 estándar DIAN
-   */
-  generateDIANXml(invoiceNumber: string, customerName: string, customerDoc: string, total: number, cufe: string): string {
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"
-  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
-  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">
-  <cbc:UBLVersionID>UBL 2.1</cbc:UBLVersionID>
-  <cbc:CustomizationID>DIAN 2.1: Factura Electrónica de Venta</cbc:CustomizationID>
-  <cbc:ProfileID>DIAN 2.1</cbc:ProfileID>
-  <cbc:ID>${invoiceNumber}</cbc:ID>
-  <cbc:UUID schemeName="CUFE-SHA384">${cufe}</cbc:UUID>
-  <cbc:IssueDate>${new Date().toISOString().slice(0, 10)}</cbc:IssueDate>
-  <cbc:IssueTime>${new Date().toISOString().slice(11, 19)}-05:00</cbc:IssueTime>
-  <cbc:InvoiceTypeCode>01</cbc:InvoiceTypeCode>
-  <cac:AccountingSupplierParty>
-    <cac:Party>
-      <cac:PartyName><cbc:Name>DISTRIBUIDORA SUPER MÁS S.A.S.</cbc:Name></cac:PartyName>
-      <cac:PartyTaxScheme>
-        <cbc:CompanyID schemeAgencyID="195" schemeID="2" schemeName="31">901458789</cbc:CompanyID>
-      </cac:PartyTaxScheme>
-    </cac:Party>
-  </cac:AccountingSupplierParty>
-  <cac:AccountingCustomerParty>
-    <cac:Party>
-      <cac:PartyName><cbc:Name>${customerName}</cbc:Name></cac:PartyName>
-      <cac:PartyTaxScheme>
-        <cbc:CompanyID>${customerDoc}</cbc:CompanyID>
-      </cac:PartyTaxScheme>
-    </cac:Party>
-  </cac:AccountingCustomerParty>
-  <cac:LegalMonetaryTotal>
-    <cbc:PayableAmount currencyID="COP">${total}</cbc:PayableAmount>
-  </cac:LegalMonetaryTotal>
-</Invoice>`
-  }
 }
 
 export const invoiceCalculationService = new InvoiceCalculationService()

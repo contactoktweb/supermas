@@ -122,12 +122,40 @@ export interface Invoice {
   dianQrCode?: string
   dianXmlUrl?: string
   dianPdfUrl?: string
+
+  // Snapshot de la resolución DIAN con la que se numeró el documento
+  resolutionValidFrom?: string
+  resolutionValidTo?: string
+  resolutionRangeFrom?: number
+  resolutionRangeTo?: number
+
+  // Transmisión DIAN real (servidor)
+  environment?: 'HABILITACION' | 'PRODUCCION'
+  transmissionState?: string
+  lastError?: string
+  dianValidationErrors?: string[]
+  dianTrackId?: string
+  dianResponseMessage?: string
+  dianResponseDate?: string
+  hasXml?: boolean
+  hasSignedXml?: boolean
+  issueDate?: string
+  issueTime?: string
   
   // Relations
   saleId?: string
   saleNumber?: string
   originalInvoiceId?: string // For Credit / Debit notes
   originalInvoiceNumber?: string
+  originalInvoiceCufe?: string
+  originalInvoiceDate?: string
+  /** Notas: concepto de corrección DIAN (código y texto) y motivo escrito por el usuario */
+  noteConceptCode?: string
+  noteConceptLabel?: string
+  noteReason?: string
+  returnId?: string
+  /** Facturas: notas crédito/débito emitidas sobre ella */
+  relatedNotes?: Array<{ id: string; number: string; type: 'NOTA_CREDITO' | 'NOTA_DEBITO'; total: number; transmissionState: string; conceptLabel?: string }>
   
   customerId: string
   customerName: string

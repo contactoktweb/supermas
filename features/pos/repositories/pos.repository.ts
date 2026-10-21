@@ -6,6 +6,8 @@ import {
   POSDailySaleSummary,
   POSTicketReceipt,
   POSPaymentMethod,
+  POSPaymentLine,
+  POSBankAccountOption,
 } from '../types'
 
 function mapPaymentMethodToDb(pm: POSPaymentMethod): 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'CREDIT' | 'MIXED' {
@@ -324,7 +326,7 @@ export class POSRepository {
    * 4. Si el pago es EFECTIVO y hay turno abierto, registra en public.cash_movements
    * 5. Registra auditoría en public.audit_logs
    */
-  async executePOSSale(receipt: POSTicketReceipt, saleData: any): Promise<void> {
+  async executePOSSale(receipt: POSTicketReceipt, saleData: any, payments: POSPaymentLine[]): Promise<void> {
     const companyId = await this.resolveCompanyId()
     const sellerUserId = await this.resolveUserId(saleData.sellerId)
 
@@ -332,15 +334,14 @@ export class POSRepository {
     const activeSession = await this.getActiveSession(undefined, receipt.locationId)
     const sessionId = activeSession?.id || null
 
-    // 2. Ejecución atómica exclusiva en PostgreSQL mediante fn_execute_pos_sale
-    const { data: rpcResult, error: rpcErr } = await supabaseClient.rpc("fn_execute_pos_sale", {
+    // 2. Venta + pagos (con cuenta bancaria destino) + asiento contable en UNA transacción PostgreSQL
+    const { data: rpcResult, error: rpcErr } = await supabaseClient.rpc('fn_execute_pos_sale_with_payments', {
       p_company_id: companyId,
       p_location_id: receipt.locationId,
       p_customer_id: saleData.customerId || null,
       p_seller_user_id: sellerUserId,
       p_cash_session_id: sessionId,
       p_sale_number: receipt.saleNumber,
-      p_payment_method: mapPaymentMethodToDb(receipt.paymentMethod),
       p_notes: saleData.notes || `Venta rápida POS ${receipt.saleNumber}`,
       p_items: (saleData.items || []).map((it: any) => ({
         product_id: it.productId,
@@ -349,16 +350,32 @@ export class POSRepository {
         discount_percent: it.discountPercent || 0,
         tax_rate_percent: it.taxRatePercent || 0,
       })),
+      p_payments: payments,
     })
 
     if (rpcErr) {
-      console.error('Error al procesar venta POS en fn_execute_pos_sale:', rpcErr)
+      console.error('Error al procesar venta POS en fn_execute_pos_sale_with_payments:', rpcErr)
       throw new Error(`Error al procesar venta POS: ${rpcErr.message}`)
     }
 
     if (!rpcResult?.success) {
       throw new Error('Error al procesar venta POS: la transacción no retornó confirmación de éxito.')
     }
+  }
+
+  /**
+   * Cuentas bancarias destino para el cobro (función SQL: solo banco, tipo y últimos 4 dígitos).
+   */
+  async listPaymentBankAccounts(): Promise<POSBankAccountOption[]> {
+    const { data, error } = await supabaseClient.rpc('fn_list_payment_bank_accounts')
+    if (error || !data) return []
+    return (data as any[]).map((r) => ({
+      id: r.id,
+      bankName: r.bank_name,
+      accountType: r.account_type,
+      last4: r.last4,
+      hasLedger: Boolean(r.has_ledger),
+    }))
   }
 
   /**

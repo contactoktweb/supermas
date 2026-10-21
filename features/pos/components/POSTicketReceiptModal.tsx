@@ -1,6 +1,7 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { supabaseClient } from '@/lib/supabase/client'
 import { POSTicketReceipt } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
 import { Heart } from 'lucide-react'
@@ -24,6 +25,18 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
   onClose,
   receipt,
 }) => {
+  // Datos reales del emisor (tabla companies), no valores fijos en el código
+  const [company, setCompany] = useState<any>(null)
+  useEffect(() => {
+    if (!isOpen) return
+    supabaseClient
+      .from('companies')
+      .select('business_name, tax_id, verification_digit, address, city, phone, tax_regime')
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setCompany(data || null))
+  }, [isOpen])
+
   if (!isOpen || !receipt) return null
 
   const handlePrint = () => {
@@ -114,19 +127,27 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
             {/* Store Header */}
             <div style={{ textAlign: 'center', borderBottom: '1px dashed #94a3b8', paddingBottom: 8 }}>
               <strong style={{ fontSize: 13, fontWeight: 900, color: 'var(--navy)', display: 'block', fontFamily: 'sans-serif' }}>
-                DISTRIBUIDORA SUPER MÁS S.A.S.
+                {company?.business_name || '—'}
               </strong>
-              <div style={{ fontWeight: 700, color: '#475569' }}>NIT: 901.458.789-2</div>
+              <div style={{ fontWeight: 700, color: '#475569' }}>
+                NIT: {company?.tax_id ? `${company.tax_id}-${company.verification_digit}` : '—'}
+              </div>
               <div style={{ color: '#64748b' }}>{receipt.locationName}</div>
-              <div style={{ color: '#64748b' }}>Calle 45 # 12-34 · Tel: (601) 321 0000</div>
-              <div style={{ fontSize: 9, color: '#64748b', textTransform: 'uppercase', marginTop: 2 }}>Responsable de IVA - Régimen Común</div>
-              <div style={{ fontSize: 9, color: '#94a3b8' }}>Res. DIAN POS 18764000001 (2026-01-01)</div>
+              {(company?.address || company?.phone) && (
+                <div style={{ color: '#64748b' }}>
+                  {[company?.address, company?.city].filter(Boolean).join(', ')}
+                  {company?.phone ? ` · Tel: ${company.phone}` : ''}
+                </div>
+              )}
+              <div style={{ fontSize: 9, color: '#b91c1c', textTransform: 'uppercase', marginTop: 2 }}>
+                Comprobante interno de venta — no es factura electrónica
+              </div>
             </div>
 
             {/* Metadata */}
             <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: 'var(--navy)' }}>
-                <span>FACTURA POS:</span>
+                <span>COMPROBANTE:</span>
                 <span>{receipt.invoiceNumber}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>

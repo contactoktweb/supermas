@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { dianApiClient } from '@/features/invoices/services/dian-api.client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Sale,
@@ -457,6 +458,7 @@ export class SalesRepository {
       .from('electronic_invoices')
       .select('*')
       .eq('sale_id', sale.id)
+      .eq('document_type', 'INVOICE') // las notas crédito/débito comparten sale_id con la factura
       .maybeSingle()
 
     const invoice = eInvoice
@@ -810,6 +812,16 @@ export class SalesRepository {
     }
   }
 
+  /** Registra los pagos (con cuenta bancaria destino) y causa el asiento contable de la venta. */
+  async registerPaymentsAndAccounting(saleId: string, payments: Array<{ method: string; amount: number | null; bank_account_id?: string }>): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_register_sale_payments', {
+      p_sale_id: saleId,
+      p_payments: payments,
+    })
+    if (error) throw new Error(error.message)
+    return data
+  }
+
   /**
    * Genera factura POS / Electrónica DIAN separada
    */
@@ -821,42 +833,9 @@ export class SalesRepository {
     const companyId = await this.resolveCompanyId()
 
     if (type === 'FACTURA_ELECTRONICA') {
-      const prefix = 'FE'
-      const { data: lastInv } = await supabaseClient
-        .from('electronic_invoices')
-        .select('number')
-        .eq('prefix', prefix)
-        .order('number', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      const nextNumber = lastInv ? Number(lastInv.number) + 1 : 1
-      const cufe = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-
-      const { data: created, error } = await supabaseClient
-        .from('electronic_invoices')
-        .insert({
-          company_id: companyId,
-          location_id: sale.locationId,
-          sale_id: sale.id,
-          customer_id: sale.customerId,
-          prefix,
-          number: nextNumber,
-          document_type: 'INVOICE',
-          cufe,
-          subtotal_amount: sale.subtotal,
-          tax_amount: sale.taxTotal,
-          total_amount: sale.totalAmount,
-          dian_status: 'PENDING',
-        })
-        .select()
-        .single()
-
-      if (error || !created) {
-        throw new Error(`Error al generar factura electrónica DIAN: ${error?.message}`)
-      }
-
-      return { invoiceId: created.id, invoiceNumber: `${prefix}-${nextNumber}` }
+      // La factura electrónica la numera, construye y transmite el servidor (resolución DIAN vigente).
+      const res = await dianApiClient.emitFromSale(sale.id)
+      return { invoiceId: res.invoiceId, invoiceNumber: res.documentNumber }
     } else {
       const invoiceNumber = `POS-${sale.saleNumber.slice(-4)}`
       return { invoiceId: sale.id, invoiceNumber }

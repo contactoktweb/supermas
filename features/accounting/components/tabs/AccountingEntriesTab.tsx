@@ -63,6 +63,22 @@ export function AccountingEntriesTab({
     }
   }
 
+  // El filtro por mes fija el rango completo del mes (YYYY-MM-01 a su último día).
+  const selectedMonth =
+    filters.dateFrom && filters.dateTo && filters.dateFrom.slice(0, 7) === filters.dateTo.slice(0, 7)
+      ? filters.dateFrom.slice(0, 7)
+      : ''
+
+  const handleMonthChange = (value: string) => {
+    if (!value) {
+      onFilterChange({ dateFrom: undefined, dateTo: undefined, page: 1 })
+      return
+    }
+    const [year, month] = value.split('-').map(Number)
+    const lastDay = String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')
+    onFilterChange({ dateFrom: `${value}-01`, dateTo: `${value}-${lastDay}`, page: 1 })
+  }
+
   const formatDate = (isoStr: string) => {
     try {
       const d = new Date(isoStr)
@@ -91,7 +107,30 @@ export function AccountingEntriesTab({
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="filter-select-wrap flex items-center gap-1.5 text-xs" title="Filtrar asientos por mes">
+            <AppIcon name="calendar" size={14} />
+            <span className="sr-only">Mes de los asientos</span>
+            <input
+              type="month"
+              className="filter-select text-xs"
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              aria-label="Mes de los asientos"
+            />
+          </label>
+          {selectedMonth && (
+            <button
+              type="button"
+              className="outline-button text-xs py-1.5"
+              onClick={() => handleMonthChange('')}
+              aria-label="Quitar filtro de mes"
+            >
+              <AppIcon name="closeSimple" size={12} />
+              <span>Todos los meses</span>
+            </button>
+          )}
+
           <select
             className="filter-select text-xs"
             value={filters.sourceType || 'ALL'}

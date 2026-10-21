@@ -16,6 +16,7 @@ interface CashRegistersPanelProps {
   onOpenSession: (register: CashRegister) => void
   onRecordMovement: (session: CashSession) => void
   onCloseSession: (session: CashSession) => void
+  canOperateSession: (session: CashSession) => boolean
 }
 
 export function CashRegistersPanel({
@@ -26,6 +27,7 @@ export function CashRegistersPanel({
   onOpenSession,
   onRecordMovement,
   onCloseSession,
+  canOperateSession,
 }: CashRegistersPanelProps) {
   if (loading) {
     return (
@@ -75,6 +77,7 @@ export function CashRegistersPanel({
             onOpenSession={onOpenSession}
             onRecordMovement={onRecordMovement}
             onCloseSession={onCloseSession}
+            canOperateSession={canOperateSession}
           />
         </li>
       ))}

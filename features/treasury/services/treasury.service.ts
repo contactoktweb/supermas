@@ -202,7 +202,6 @@ export class TreasuryService {
       accountNumber: string
       accountType?: string
       currency?: string
-      initialBalance?: number
       locationId?: string
       description?: string
     },
@@ -221,7 +220,7 @@ export class TreasuryService {
         userRole: user.role,
         level: 'INFO',
         result: 'SUCCESS',
-        details: `Cuenta bancaria creada ${data.bankName} (${data.accountNumber}) con saldo inicial $${(data.initialBalance || 0).toLocaleString()} COP`,
+        details: `Cuenta bancaria creada ${data.bankName} (${data.accountNumber}) con saldo inicial 0 COP`,
       })
     }
     return res

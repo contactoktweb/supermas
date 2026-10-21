@@ -18,6 +18,8 @@ interface CashRegisterCardProps {
   onOpenSession: (register: CashRegister) => void
   onRecordMovement: (session: CashSession) => void
   onCloseSession: (session: CashSession) => void
+  /** Solo el cajero dueño del turno o un administrador registra movimientos y cierra. */
+  canOperateSession: (session: CashSession) => boolean
 }
 
 export function CashRegisterCard({
@@ -27,6 +29,7 @@ export function CashRegisterCard({
   onOpenSession,
   onRecordMovement,
   onCloseSession,
+  canOperateSession,
 }: CashRegisterCardProps) {
   const status = STATUS_BADGE[register.currentStatus] ?? STATUS_BADGE.CLOSED
   const isOpen = register.currentStatus === 'OPEN'
@@ -89,7 +92,12 @@ export function CashRegisterCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/60 rounded-b-xl">
-        {isOpen && activeSession ? (
+        {isOpen && activeSession && !canOperateSession(activeSession) ? (
+          <p className="flex items-center gap-1.5 text-xs text-gray-500">
+            <AppIcon name="lock" size={13} />
+            <span>Solo el cajero a cargo o un administrador opera este turno.</span>
+          </p>
+        ) : isOpen && activeSession ? (
           <>
             <button
               type="button"

@@ -5,6 +5,8 @@ import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import { warehouseRepository } from '@/features/warehouses/repositories/warehouse.repository'
 import { cashSessionService } from '../services/cash-session.service'
+import { useAuth } from '@/features/auth'
+import { isAdminRole } from '@/features/users/services/role-assignment'
 import type { CashRegister, CashSession, CashSessionSummary } from '../types'
 import { CashFeedbackBanner } from './cash/CashFeedbackBanner'
 import { CashKpiGrid } from './cash/CashKpiGrid'
@@ -36,6 +38,15 @@ const TAB_PANEL_ID: Record<CashTab, string> = {
 }
 
 export function CashSessionsPage() {
+  const { user } = useAuth()
+  const currentUserId = user?.id
+  const isAdminUser = isAdminRole(user?.roleCode)
+  // Mismo criterio que las RPC de caja (077): dueño del turno o administrador.
+  const canOperateSession = useCallback(
+    (session: CashSession) => isAdminUser || session.userId === currentUserId,
+    [isAdminUser, currentUserId]
+  )
+
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -279,6 +290,7 @@ export function CashSessionsPage() {
             onOpenSession={setRegisterToOpen}
             onRecordMovement={setSessionForMovement}
             onCloseSession={openCloseModal}
+            canOperateSession={canOperateSession}
           />
         ) : (
           <CashSessionsHistoryTable loading={loading} sessions={sessions} />

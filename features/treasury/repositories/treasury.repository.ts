@@ -292,16 +292,16 @@ export class TreasuryRepository {
     accountNumber: string
     accountType?: string
     currency?: string
-    initialBalance?: number
     locationId?: string
     description?: string
   }): Promise<any> {
+    // El saldo nace en 0 (077): se carga después con un recaudo o comprobante que cause su asiento.
     const { data: res, error } = await supabaseClient.rpc('fn_create_bank_account', {
       p_bank_name: data.bankName,
       p_account_number: data.accountNumber,
       p_account_type: data.accountType || 'CORRIENTE',
       p_currency: data.currency || 'COP',
-      p_initial_balance: data.initialBalance || 0.00,
+      p_initial_balance: 0,
       p_location_id: data.locationId || null,
       p_description: data.description || null,
     })

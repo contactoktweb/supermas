@@ -169,6 +169,7 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
         onSave={onSaveUserWithToast}
         initialData={editingUser}
         locations={locations}
+        canAssignRoles={permissions.canAssignRoles}
       />
 
       {/* Drawer para Detalle y Permisos */}

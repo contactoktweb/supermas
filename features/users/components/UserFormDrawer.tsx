@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { User, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
 import { SYSTEM_ROLES, DEFINITIVE_ROLES } from '../services/role-permissions'
+import { PROTECTED_ROLE } from '../services/role-assignment'
 import { userService } from '../services/user.service'
 import { evaluatePasswordStrength, newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
 import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
@@ -15,6 +16,8 @@ interface UserFormDrawerProps {
   onSave: (data: CreateUserInput | UpdateUserInput) => Promise<void>
   initialData: User | null
   locations: Array<{ id: string; code: string; name: string; type: string }>
+  /** Solo ADMIN/SUPERADMIN asignan o cambian roles (matriz de role-assignment). */
+  canAssignRoles: boolean
 }
 
 export function UserFormDrawer({
@@ -23,6 +26,7 @@ export function UserFormDrawer({
   onSave,
   initialData,
   locations,
+  canAssignRoles,
 }: UserFormDrawerProps) {
   const isEditing = Boolean(initialData)
 
@@ -188,6 +192,8 @@ export function UserFormDrawer({
   }
 
   const roleDef = SYSTEM_ROLES[role]
+  // SUPERADMIN no se asigna desde la aplicación: solo se muestra si ya es el rol del usuario editado.
+  const isRoleOptionVisible = (code: UserRole) => code !== PROTECTED_ROLE || initialData?.role === PROTECTED_ROLE
   const warehouseLocations = locations.filter((l) => l.type === 'WAREHOUSE')
   const availableWarehouses = warehouseLocations.length > 0 ? warehouseLocations : locations
 
@@ -458,10 +464,14 @@ export function UserFormDrawer({
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                 Rol del Colaborador (7 Roles Oficiales) *
               </label>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Inmutable por UI</span>
+              {!canAssignRoles && (
+                <span style={{ fontSize: 11, color: '#64748b' }}>Solo un administrador puede cambiarlo</span>
+              )}
             </div>
             <select
               value={role}
+              disabled={!canAssignRoles}
+              aria-label="Rol del colaborador"
               onChange={(e) => {
                 const newRole = e.target.value as UserRole
                 setRole(newRole)
@@ -477,10 +487,12 @@ export function UserFormDrawer({
                 fontSize: 14,
                 background: 'var(--surface, #ffffff)',
                 fontWeight: 600,
+                opacity: canAssignRoles ? 1 : 0.7,
+                cursor: canAssignRoles ? 'pointer' : 'not-allowed',
               }}
             >
               <optgroup label="7 Roles Definitivos del ERP">
-                {DEFINITIVE_ROLES.map((roleCode) => {
+                {DEFINITIVE_ROLES.filter(isRoleOptionVisible).map((roleCode) => {
                   const r = SYSTEM_ROLES[roleCode]
                   return (
                     <option key={roleCode} value={roleCode}>
@@ -493,7 +505,7 @@ export function UserFormDrawer({
               {Object.keys(SYSTEM_ROLES).some((k) => !DEFINITIVE_ROLES.includes(k as UserRole)) && (
                 <optgroup label="Roles Legacy (Compatibilidad)">
                   {Object.keys(SYSTEM_ROLES)
-                    .filter((k) => !DEFINITIVE_ROLES.includes(k as UserRole))
+                    .filter((k) => !DEFINITIVE_ROLES.includes(k as UserRole) && isRoleOptionVisible(k as UserRole))
                     .map((legacyCode) => {
                       const r = SYSTEM_ROLES[legacyCode as UserRole]
                       return (

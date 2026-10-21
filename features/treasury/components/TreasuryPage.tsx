@@ -89,7 +89,6 @@ export function TreasuryPage() {
   const [newBankName, setNewBankName] = useState('')
   const [newAccountNumber, setNewAccountNumber] = useState('')
   const [newAccountType, setNewAccountType] = useState('CORRIENTE')
-  const [newInitialBalance, setNewInitialBalance] = useState('')
   const [newBankDesc, setNewBankDesc] = useState('')
   const [isSubmittingBank, setIsSubmittingBank] = useState(false)
 
@@ -161,7 +160,6 @@ export function TreasuryPage() {
         bankName: newBankName,
         accountNumber: newAccountNumber,
         accountType: newAccountType,
-        initialBalance: parseFloat(newInitialBalance) || 0,
         description: newBankDesc || undefined,
       })
       if (newLedgerId && created?.bank_account_id) {
@@ -172,7 +170,6 @@ export function TreasuryPage() {
       setNewBankName('')
       setNewAccountNumber('')
       setNewAccountType('CORRIENTE')
-      setNewInitialBalance('')
       setNewBankDesc('')
       setSuccessToast(`Cuenta bancaria ${newBankName} (${newAccountNumber}) creada exitosamente.`)
       setTimeout(() => setSuccessToast(null), 6000)
@@ -822,7 +819,7 @@ export function TreasuryPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div>
                 <div>
                   <label className="block text-gray-700 font-semibold mb-1">Tipo de Cuenta</label>
                   <select
@@ -837,18 +834,6 @@ export function TreasuryPage() {
                     <option value="AHORROS">Ahorros</option>
                     <option value="FIDUCIARIA">Fiduciaria</option>
                   </select>
-                </div>
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-1">Saldo Inicial (COP)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="filter-select w-full font-mono"
-                    placeholder="0"
-                    value={newInitialBalance}
-                    onChange={(e) => setNewInitialBalance(e.target.value)}
-                  />
                 </div>
               </div>
 

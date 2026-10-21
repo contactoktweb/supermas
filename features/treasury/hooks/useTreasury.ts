@@ -110,7 +110,6 @@ export function useTreasury() {
     accountNumber: string
     accountType?: string
     currency?: string
-    initialBalance?: number
     locationId?: string
     description?: string
   }) => {

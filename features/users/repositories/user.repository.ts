@@ -355,9 +355,28 @@ export class UserRepository {
   }
 
   /**
-   * Actualiza un usuario existente en PostgreSQL.
+   * Actualiza un usuario existente. Desde el navegador siempre pasa por PATCH /api/users, que
+   * autoriza el cambio (matriz de roles, estado, sedes y caja de la empresa) y sincroniza el
+   * bloqueo de acceso en Supabase Auth. El acceso directo queda solo para scripts de servidor.
    */
   async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    if (typeof window !== 'undefined') {
+      const { firstName, lastName, email, phone, role, status, locationIds, assignedCashRegisterId } = updates
+      const response = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          updates: { firstName, lastName, email, phone, role, status, locationIds, assignedCashRegisterId },
+        }),
+      })
+      const result = await response.json().catch(() => null)
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || 'Error al actualizar el usuario en el servidor.')
+      }
+      return result.data as User
+    }
+
     const current = await this.getUserById(id)
     if (!current) {
       throw new Error(`No se encontró el usuario con ID ${id}`)

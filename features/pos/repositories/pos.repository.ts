@@ -4,10 +4,10 @@ import {
   POSProduct,
   POSCustomer,
   POSDailySaleSummary,
-  POSTicketReceipt,
   POSPaymentMethod,
-  POSPaymentLine,
   POSBankAccountOption,
+  POSExecuteSaleInput,
+  POSExecuteSaleResult,
 } from '../types'
 
 function mapPaymentMethodToDb(pm: POSPaymentMethod): 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'CREDIT' | 'MIXED' {
@@ -286,9 +286,10 @@ export class POSRepository {
   }
 
   /**
-   * Obtiene la sesión activa de caja (cash_sessions) para la ubicación o caja
+   * Obtiene la sesión activa de caja (cash_sessions) para la ubicación o caja.
+   * Con userId solo considera las sesiones de ese cajero (el servidor rechaza sesiones ajenas).
    */
-  async getActiveSession(registerId?: string, locationId?: string): Promise<any | null> {
+  async getActiveSession(registerId?: string, locationId?: string, userId?: string): Promise<any | null> {
     let query = supabaseClient
       .from('cash_sessions')
       .select(`
@@ -305,6 +306,9 @@ export class POSRepository {
     if (registerId) {
       query = query.eq('cash_register_id', registerId)
     }
+    if (userId) {
+      query = query.eq('user_id', userId)
+    }
 
     const { data, error } = await query
 
@@ -319,38 +323,35 @@ export class POSRepository {
   }
 
   /**
-   * Registra la transacción completa de venta POS en PostgreSQL:
-   * 1. Inserta en public.sales
-   * 2. Inserta líneas en public.sale_items
-   * 3. Registra SALE_OUT en public.inventory_movements -> PostgreSQL Trigger procesa stock_levels
-   * 4. Si el pago es EFECTIVO y hay turno abierto, registra en public.cash_movements
-   * 5. Registra auditoría en public.audit_logs
+   * Registra la transacción completa de venta POS en PostgreSQL (fn_execute_pos_sale_with_payments):
+   * venta con número asignado por el servidor, líneas, kardex SALE_OUT, caja si hay efectivo,
+   * pagos con su cuenta bancaria destino, asiento contable y auditoría, todo en una transacción.
+   * La clave de idempotencia hace que un reintento devuelva la misma venta en vez de crear otra.
    */
-  async executePOSSale(receipt: POSTicketReceipt, saleData: any, payments: POSPaymentLine[]): Promise<void> {
+  async executePOSSale(input: POSExecuteSaleInput): Promise<POSExecuteSaleResult> {
     const companyId = await this.resolveCompanyId()
-    const sellerUserId = await this.resolveUserId(saleData.sellerId)
+    const sellerUserId = await this.resolveUserId(input.sellerId)
 
-    // 1. Verificar sesión activa de caja
-    const activeSession = await this.getActiveSession(undefined, receipt.locationId)
+    // Sesión de caja abierta del propio cajero en esta sede (null si no tiene: transferencia sin caja)
+    const activeSession = await this.getActiveSession(undefined, input.locationId, sellerUserId)
     const sessionId = activeSession?.id || null
 
-    // 2. Venta + pagos (con cuenta bancaria destino) + asiento contable en UNA transacción PostgreSQL
     const { data: rpcResult, error: rpcErr } = await supabaseClient.rpc('fn_execute_pos_sale_with_payments', {
       p_company_id: companyId,
-      p_location_id: receipt.locationId,
-      p_customer_id: saleData.customerId || null,
+      p_location_id: input.locationId,
+      p_customer_id: input.customerId || null,
       p_seller_user_id: sellerUserId,
       p_cash_session_id: sessionId,
-      p_sale_number: receipt.saleNumber,
-      p_notes: saleData.notes || `Venta rápida POS ${receipt.saleNumber}`,
-      p_items: (saleData.items || []).map((it: any) => ({
+      p_idempotency_key: input.idempotencyKey,
+      p_notes: input.notes || null,
+      p_items: input.items.map((it) => ({
         product_id: it.productId,
         quantity: it.quantity,
         unit_price: it.unitPrice,
         discount_percent: it.discountPercent || 0,
         tax_rate_percent: it.taxRatePercent || 0,
       })),
-      p_payments: payments,
+      p_payments: input.payments,
     })
 
     if (rpcErr) {
@@ -358,8 +359,14 @@ export class POSRepository {
       throw new Error(`Error al procesar venta POS: ${rpcErr.message}`)
     }
 
-    if (!rpcResult?.success) {
+    if (!rpcResult?.success || !rpcResult.sale_id || !rpcResult.sale_number) {
       throw new Error('Error al procesar venta POS: la transacción no retornó confirmación de éxito.')
+    }
+
+    return {
+      saleId: String(rpcResult.sale_id),
+      saleNumber: String(rpcResult.sale_number),
+      idempotentReplay: Boolean(rpcResult.idempotent_replay),
     }
   }
 

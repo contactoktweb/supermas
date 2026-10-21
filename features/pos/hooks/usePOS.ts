@@ -68,6 +68,9 @@ export function usePOS() {
       .catch(() => setBankAccounts([]))
   }, [])
   const [paymentLoading, setPaymentLoading] = useState(false)
+  // Clave de idempotencia del cobro en curso y bloqueo inmediato contra doble envío
+  const checkoutKeyRef = useRef<string | null>(null)
+  const checkoutInFlightRef = useRef(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
   // Receipt Modal State
@@ -377,6 +380,7 @@ export function usePOS() {
 
   const clearCart = useCallback(() => {
     setCart([])
+    checkoutKeyRef.current = null
   }, [])
 
   // 5. Scan Barcode directly
@@ -410,6 +414,8 @@ export function usePOS() {
 
   // 7. Process Payment / Complete Sale
   const handleProcessSale = async () => {
+    // Doble clic: el estado de carga llega en el siguiente render, la referencia bloquea de inmediato.
+    if (checkoutInFlightRef.current) return
     if (!currentCustomer) {
       setPaymentError('Debe haber un cliente seleccionado.')
       return
@@ -419,7 +425,14 @@ export function usePOS() {
       return
     }
 
+    // Una clave por intento de cobro: se reutiliza en los reintentos (error de red, timeout) hasta que
+    // la venta se confirme, para que el servidor devuelva la misma venta en vez de crear otra.
+    if (!checkoutKeyRef.current) {
+      checkoutKeyRef.current = crypto.randomUUID()
+    }
+
     try {
+      checkoutInFlightRef.current = true
       setPaymentLoading(true)
       setPaymentError(null)
 
@@ -432,6 +445,7 @@ export function usePOS() {
           bankAccountId: bankAccountId || undefined,
           mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
           mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
+          idempotencyKey: checkoutKeyRef.current,
           items: cart.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -442,6 +456,7 @@ export function usePOS() {
         userContext
       )
 
+      checkoutKeyRef.current = null
       setTicketReceipt(receipt)
       setIsPaymentModalOpen(false)
       setIsReceiptModalOpen(true)
@@ -452,6 +467,7 @@ export function usePOS() {
       const msg = err instanceof Error ? err.message : 'Error al procesar la venta POS'
       setPaymentError(msg)
     } finally {
+      checkoutInFlightRef.current = false
       setPaymentLoading(false)
     }
   }

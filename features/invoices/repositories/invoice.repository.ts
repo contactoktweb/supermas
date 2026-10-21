@@ -1,6 +1,7 @@
 import { CREDIT_NOTE_CONCEPTS, DEBIT_NOTE_CONCEPTS } from '../services/dian/dian-concepts'
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { returnRepository } from '@/features/returns/repositories/return.repository'
 import {
   Invoice,
   InvoiceItem,
@@ -235,24 +236,22 @@ export class InvoiceRepository {
 
   /** Devoluciones de clientes registradas sobre una venta (para ligarlas a una nota crédito). */
   async listReturnsForSale(saleId: string): Promise<Array<{ id: string; code: string; date: string; total: number; linked: boolean; status: string }>> {
-    const { data } = await supabaseClient
-      .from('returns')
-      .select('id, code, created_at, total_amount, status')
-      .eq('return_type', 'CUSTOMER_RETURN')
-      .eq('source_document_type', 'SALE')
-      .eq('source_document_id', saleId)
-      .order('created_at', { ascending: false })
-    const ids = (data || []).map((r: any) => r.id)
+    // Reutiliza el repositorio de Devoluciones (aislamiento por empresa y manejo de errores).
+    const saleReturns = (await returnRepository.findBySourceDocument(saleId)).filter(
+      (r) => r.returnType === 'CUSTOMER_RETURN' && r.sourceDocumentType === 'SALE'
+    )
+    const ids = saleReturns.map((r) => r.id)
     let linked = new Set<string>()
     if (ids.length) {
-      const { data: notes } = await supabaseClient.from('electronic_invoices').select('return_id').in('return_id', ids)
+      const { data: notes, error } = await supabaseClient.from('electronic_invoices').select('return_id').in('return_id', ids)
+      if (error) throw new Error(`No se pudieron consultar las notas crédito de las devoluciones: ${error.message}`)
       linked = new Set((notes || []).map((n: any) => n.return_id))
     }
-    return (data || []).map((r: any) => ({
+    return saleReturns.map((r) => ({
       id: r.id,
       code: r.code,
-      date: r.created_at,
-      total: Number(r.total_amount || 0),
+      date: r.createdAt,
+      total: Number(r.totalAmount || 0),
       linked: linked.has(r.id),
       status: r.status || '',
     }))

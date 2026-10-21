@@ -16,12 +16,17 @@
 -- 6. fn_create_electronic_note(): crea la nota con consecutivo atómico, valida contra la
 --    factura original (aceptada por la DIAN, cantidades y valores no superan lo facturado),
 --    y la contabiliza en la misma transacción.
--- 7. Cuentas por propósito nuevas: SALES_RETURNS (4175) y FINANCIAL_INCOME (421005).
+-- 7. Cuentas por propósito nuevas: SALES_RETURNS (4175) y FINANCIAL_INCOME (421005), y la siembra
+--    para empresas nuevas (fn_seed_default_accounts_for_company, versión única).
+-- El consecutivo contable (fn_next_accounting_consecutive, con NCR/NDB) vive solo en 059.
 --
 -- Requiere: 001–059 aplicadas. Se puede re-ejecutar.
 -- ==============================================================================
 
 BEGIN;
+
+-- Si una tabla está bloqueada por otra sesión, se falla rápido en vez de esperar (y bloquear a otros).
+SET LOCAL lock_timeout = '5s';
 
 -- ------------------------------------------------------------------------------
 -- 1. TRATAMIENTO DE IVA POR PRODUCTO
@@ -47,21 +52,36 @@ ALTER TABLE public.sale_items DROP CONSTRAINT IF EXISTS chk_sale_items_iva_treat
 ALTER TABLE public.sale_items ADD CONSTRAINT chk_sale_items_iva_treatment
   CHECK (iva_treatment IS NULL OR iva_treatment IN ('GRAVADO', 'EXENTO', 'EXCLUIDO'));
 
+-- El tratamiento lo decide el servidor a partir de la tarifa de la línea y del producto: el valor que
+-- envíe el navegador se ignora. Solo el servidor (service_role / sesión de administración) puede fijarlo
+-- explícitamente. En UPDATE desde el navegador se conserva el valor anterior; las funciones SECURITY
+-- DEFINER (p. ej. la numeración de la factura) sí pueden completarlo.
+-- Sin SECURITY DEFINER a propósito: CURRENT_USER debe ser quien escribe (authenticated o el dueño de la
+-- función SECURITY DEFINER que llama), no el dueño de este trigger.
 CREATE OR REPLACE FUNCTION public.fn_sale_item_set_iva_treatment()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_catalog
+SECURITY INVOKER
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
-  IF NEW.iva_treatment IS NULL THEN
-    IF COALESCE(NEW.tax_rate_percent, 0) > 0 THEN
-      NEW.iva_treatment := 'GRAVADO';
-    ELSE
-      SELECT CASE WHEN p.iva_treatment IN ('EXENTO', 'EXCLUIDO') THEN p.iva_treatment ELSE NULL END
-      INTO NEW.iva_treatment
-      FROM public.products p WHERE p.id = NEW.product_id;
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.iva_treatment IS DISTINCT FROM OLD.iva_treatment AND CURRENT_USER IN ('authenticated', 'anon') THEN
+      NEW.iva_treatment := OLD.iva_treatment;
     END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.iva_treatment IS NOT NULL AND public.fn_is_trusted_server_context() THEN
+    RETURN NEW;
+  END IF;
+
+  IF COALESCE(NEW.tax_rate_percent, 0) > 0 THEN
+    NEW.iva_treatment := 'GRAVADO';
+  ELSE
+    SELECT CASE WHEN p.iva_treatment IN ('EXENTO', 'EXCLUIDO') THEN p.iva_treatment ELSE NULL END
+    INTO NEW.iva_treatment
+    FROM public.products p WHERE p.id = NEW.product_id;
   END IF;
   RETURN NEW;
 END;
@@ -69,7 +89,7 @@ $$;
 
 DROP TRIGGER IF EXISTS trg_sale_item_set_iva_treatment ON public.sale_items;
 CREATE TRIGGER trg_sale_item_set_iva_treatment
-  BEFORE INSERT ON public.sale_items
+  BEFORE INSERT OR UPDATE OF iva_treatment ON public.sale_items
   FOR EACH ROW EXECUTE FUNCTION public.fn_sale_item_set_iva_treatment();
 
 -- Ventas ya registradas: las líneas con IVA quedan como gravadas; las de 0 % toman la clasificación
@@ -90,7 +110,7 @@ CREATE OR REPLACE FUNCTION public.fn_create_electronic_invoice_from_sale(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_caller UUID := auth.uid();
@@ -105,6 +125,8 @@ DECLARE
   v_total NUMERIC(15,2);
   v_lines INT;
   v_missing TEXT;
+  v_res_for_location INT;
+  v_res_general INT;
   v_now_bogota TIMESTAMP := (NOW() AT TIME ZONE 'America/Bogota');
   v_invoice_id UUID := gen_random_uuid();
 BEGIN
@@ -138,17 +160,27 @@ BEGIN
     RAISE EXCEPTION 'Acceso denegado: usuario no autenticado.' USING ERRCODE = '28000';
   END IF;
 
+  -- El ambiente lo define la configuración activa de la empresa, no quien llama.
+  IF p_environment IS DISTINCT FROM public.fn_dian_active_environment(v_company) THEN
+    RAISE EXCEPTION 'El ambiente solicitado (%) no es el ambiente DIAN activo de la empresa (%).',
+      p_environment, public.fn_dian_active_environment(v_company) USING ERRCODE = '55000';
+  END IF;
+
   -- El Software ID se toma de la configuración de la empresa, no del parámetro.
   SELECT software_id INTO p_software_id
   FROM public.dian_software_config
-  WHERE company_id = v_company AND environment = p_environment AND is_active = true
-  LIMIT 1;
+  WHERE company_id = v_company AND environment = p_environment AND is_active = true;
 
   -- Idempotencia: misma clave → misma factura (doble clic, reintento, timeout).
-  SELECT id, prefix, number INTO v_existing
+  -- La clave usada para otra venta (o para una nota) es un error, nunca se devuelve otro documento.
+  SELECT id, prefix, number, sale_id, document_type INTO v_existing
   FROM public.electronic_invoices
   WHERE company_id = v_company AND idempotency_key = p_idempotency_key;
   IF FOUND THEN
+    IF v_existing.document_type <> 'INVOICE' OR v_existing.sale_id IS DISTINCT FROM p_sale_id THEN
+      RAISE EXCEPTION 'La clave de idempotencia ya se usó para otro documento electrónico (%). Genere una nueva.',
+        v_existing.prefix || v_existing.number::TEXT USING ERRCODE = '23505';
+    END IF;
     RETURN jsonb_build_object('success', true, 'idempotent_replay', true,
       'invoice_id', v_existing.id, 'prefix', v_existing.prefix, 'number', v_existing.number);
   END IF;
@@ -198,7 +230,27 @@ BEGIN
     AND si.iva_treatment IS DISTINCT FROM (CASE WHEN COALESCE(si.tax_rate_percent, 0) > 0 THEN 'GRAVADO'
                                                ELSE COALESCE(NULLIF(si.iva_treatment, 'GRAVADO'), p.iva_treatment) END);
 
-  -- Resolución vigente (bloqueo de fila: serializa la asignación de consecutivos).
+  -- Resolución vigente. Una de la sede prevalece sobre una general; si hay más de una candidata del
+  -- mismo nivel no se elige en silencio (el consecutivo saldría de una resolución equivocada).
+  SELECT COUNT(*) FILTER (WHERE r.location_id = v_sale.location_id),
+         COUNT(*) FILTER (WHERE r.location_id IS NULL)
+  INTO v_res_for_location, v_res_general
+  FROM public.dian_resolutions r
+  WHERE r.company_id = v_company
+    AND r.environment = p_environment
+    AND r.document_type = 'ELECTRONICA'
+    AND r.is_active = true
+    AND v_now_bogota::DATE BETWEEN r.valid_from AND r.valid_to
+    AND (r.location_id IS NULL OR r.location_id = v_sale.location_id);
+
+  IF v_res_for_location > 1 OR (v_res_for_location = 0 AND v_res_general > 1) THEN
+    RAISE EXCEPTION 'Hay % resoluciones de facturación activas y vigentes para el ambiente % (%). Deje activa solo una.',
+      GREATEST(v_res_for_location, v_res_general), p_environment,
+      CASE WHEN v_res_for_location > 1 THEN 'de la sede de la venta' ELSE 'generales' END
+      USING ERRCODE = '55000';
+  END IF;
+
+  -- Bloqueo de fila: serializa la asignación de consecutivos.
   SELECT * INTO v_res
   FROM public.dian_resolutions r
   WHERE r.company_id = v_company
@@ -330,9 +382,18 @@ CREATE INDEX IF NOT EXISTS idx_edl_sale_item ON public.electronic_document_lines
 
 ALTER TABLE public.electronic_document_lines ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Tenant select electronic_document_lines" ON public.electronic_document_lines;
+-- Mismo filtro que electronic_invoices (022): empresa, sede del documento y permiso de lectura.
 CREATE POLICY "Tenant select electronic_document_lines" ON public.electronic_document_lines
   FOR SELECT TO authenticated
-  USING (company_id = get_auth_company_id() AND (is_admin() OR has_permission('invoices.read')));
+  USING (
+    company_id = get_auth_company_id()
+    AND (has_permission('invoices.read') OR has_permission('sales.read') OR is_admin())
+    AND EXISTS (
+      SELECT 1 FROM public.electronic_invoices d
+      WHERE d.id = electronic_document_lines.document_id
+        AND (is_admin() OR has_location_access(d.location_id))
+    )
+  );
 -- Sin políticas de escritura: solo las crea fn_create_electronic_note (SECURITY DEFINER).
 
 -- ------------------------------------------------------------------------------
@@ -396,11 +457,12 @@ CROSS JOIN (VALUES ('SALES_RETURNS', '4175'), ('FINANCIAL_INCOME', '421005')) AS
 JOIN public.accounting_accounts a ON a.code = x.code AND a.is_active = true
 ON CONFLICT (company_id, purpose) DO NOTHING;
 
+-- Versión única de la siembra para empresas nuevas (la migración 059 ya no la define).
 CREATE OR REPLACE FUNCTION public.fn_seed_default_accounts_for_company()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
   INSERT INTO public.accounting_default_accounts (company_id, purpose, accounting_account_id)
@@ -418,62 +480,27 @@ BEGIN
 END;
 $$;
 
--- Consecutivos contables legibles para notas (NCR-2026-000001 / NDB-2026-000001)
-CREATE OR REPLACE FUNCTION public.fn_next_accounting_consecutive(
-    p_company_id UUID,
-    p_doc_type VARCHAR DEFAULT 'AST'
-)
-RETURNS VARCHAR
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, pg_catalog
-AS $$
-DECLARE
-    v_year VARCHAR(4);
-    v_prefix VARCHAR(60);
-    v_next_val BIGINT;
-    v_clean_type VARCHAR(10);
-BEGIN
-    v_year := TO_CHAR(CURRENT_DATE, 'YYYY');
-    v_clean_type := CASE
-        WHEN UPPER(p_doc_type) = 'SUPPLIER_PAYMENT' THEN 'PAG'
-        WHEN UPPER(p_doc_type) = 'CUSTOMER_PAYMENT' THEN 'REC'
-        WHEN UPPER(p_doc_type) = 'SALE' THEN 'VTA'
-        WHEN UPPER(p_doc_type) = 'PURCHASE' THEN 'COM'
-        WHEN UPPER(p_doc_type) = 'REVERSAL' THEN 'REV'
-        WHEN UPPER(p_doc_type) = 'CREDIT_NOTE' THEN 'NCR'
-        WHEN UPPER(p_doc_type) = 'DEBIT_NOTE' THEN 'NDB'
-        WHEN LENGTH(p_doc_type) > 6 THEN SUBSTRING(UPPER(p_doc_type) FROM 1 FOR 6)
-        ELSE UPPER(p_doc_type)
-    END;
-    v_prefix := v_clean_type || '-' || v_year || '-';
+-- Empresas creadas después reciben sus cuentas por defecto y sus consecutivos de notas.
+DROP TRIGGER IF EXISTS trg_seed_default_accounts_for_company ON public.companies;
+CREATE TRIGGER trg_seed_default_accounts_for_company
+  AFTER INSERT ON public.companies
+  FOR EACH ROW EXECUTE FUNCTION public.fn_seed_default_accounts_for_company();
 
-    PERFORM pg_advisory_xact_lock(hashtext('acc-consecutive:' || p_company_id::TEXT || ':' || v_prefix));
-
-    SELECT COALESCE(MAX(
-        CASE
-            WHEN entry_number ~ ('^' || v_prefix || '[0-9]+$')
-            THEN SUBSTRING(entry_number FROM LENGTH(v_prefix) + 1)::BIGINT
-            ELSE 0
-        END
-    ), 0) + 1
-    INTO v_next_val
-    FROM public.accounting_entries
-    WHERE company_id = p_company_id AND entry_number LIKE (v_prefix || '%');
-
-    RETURN v_prefix || LPAD(v_next_val::TEXT, 6, '0');
-END;
-$$;
+-- Consecutivos contables de notas (NCR-2026-000001 / NDB-2026-000001): fn_next_accounting_consecutive
+-- ya los genera desde la migración 059 (versión única), no se redefine aquí.
 
 -- ------------------------------------------------------------------------------
 -- 6. CREACIÓN ATÓMICA DE NOTA CRÉDITO / DÉBITO
 -- ------------------------------------------------------------------------------
--- p_lines (nota crédito, conceptos 1,3,4,5,6):
+-- p_lines (nota crédito, conceptos 3,4,5,6):
 --   [{ "sale_item_id": uuid, "quantity": n }]       → crédito por cantidad (proporcional a la línea facturada)
 --   [{ "sale_item_id": uuid, "net_amount": v }]     → crédito por valor (rebaja/descuento/ajuste, antes de IVA)
--- Concepto 2 (anulación): se ignoran p_lines; la nota acredita la factura completa.
--- p_return_id (opcional, nota crédito): devolución ya registrada en el módulo Devoluciones
+-- Concepto 1 (devolución): exige p_return_id; se ignoran p_lines.
+-- Concepto 2 (anulación): se ignoran p_lines; la nota acredita la factura completa (omite líneas de valor 0)
+--   y no marca cantidades devueltas (no hubo devolución de mercancía).
+-- p_return_id (nota crédito, concepto 1): devolución ya registrada en el módulo Devoluciones
 --   (ella movió el inventario). Las cantidades salen de la devolución.
+-- p_environment: debe ser el ambiente DIAN activo de la empresa (fn_dian_active_environment, 058).
 -- p_lines (nota débito):
 --   [{ "description": txt, "quantity": n, "unit_price": v, "iva": "IVA_19"|"IVA_5"|"EXENTO"|"EXCLUIDO", "product_id": uuid? }]
 CREATE OR REPLACE FUNCTION public.fn_create_electronic_note(
@@ -489,7 +516,7 @@ CREATE OR REPLACE FUNCTION public.fn_create_electronic_note(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_caller UUID := auth.uid();
@@ -579,11 +606,22 @@ BEGIN
     RAISE EXCEPTION 'Acceso denegado: usuario no autenticado.' USING ERRCODE = '28000';
   END IF;
 
-  -- Idempotencia
-  SELECT id, prefix, number INTO v_existing
+  -- El ambiente lo define la configuración DIAN activa de la empresa, no quien llama.
+  IF p_environment IS DISTINCT FROM public.fn_dian_active_environment(v_orig.company_id) THEN
+    RAISE EXCEPTION 'El ambiente solicitado (%) no es el ambiente DIAN activo de la empresa (%).',
+      p_environment, public.fn_dian_active_environment(v_orig.company_id) USING ERRCODE = '55000';
+  END IF;
+
+  -- Idempotencia: misma clave → misma nota, solo si es del mismo tipo y sobre la misma factura.
+  SELECT id, prefix, number, document_type, original_invoice_id INTO v_existing
   FROM public.electronic_invoices
   WHERE company_id = v_orig.company_id AND idempotency_key = p_idempotency_key;
   IF FOUND THEN
+    IF v_existing.document_type IS DISTINCT FROM p_document_type
+       OR v_existing.original_invoice_id IS DISTINCT FROM p_original_invoice_id THEN
+      RAISE EXCEPTION 'La clave de idempotencia ya se usó para otro documento electrónico (%). Genere una nueva.',
+        v_existing.prefix || v_existing.number::TEXT USING ERRCODE = '23505';
+    END IF;
     RETURN jsonb_build_object('success', true, 'idempotent_replay', true,
       'note_id', v_existing.id, 'prefix', v_existing.prefix, 'number', v_existing.number);
   END IF;
@@ -605,7 +643,7 @@ BEGIN
   CREATE TEMP TABLE IF NOT EXISTS tmp_note_lines (
     ln INT, sale_item_id UUID, product_id UUID, sku VARCHAR(80), description TEXT,
     quantity NUMERIC(12,2), unit_price NUMERIC(15,2), discount NUMERIC(5,2), net NUMERIC(15,2),
-    treat VARCHAR(10), rate NUMERIC(5,2), tax NUMERIC(15,2), by_qty BOOLEAN
+    treat VARCHAR(10), rate NUMERIC(5,2), tax NUMERIC(15,2), by_qty BOOLEAN, returned BOOLEAN
   ) ON COMMIT DROP;
   DELETE FROM tmp_note_lines;
 
@@ -614,9 +652,13 @@ BEGIN
       IF EXISTS (SELECT 1 FROM public.electronic_invoices WHERE original_invoice_id = v_orig.id AND document_type = 'CREDIT_NOTE') THEN
         RAISE EXCEPTION 'La factura ya tiene notas crédito; no se puede anular completa. Emita una nota por el saldo.' USING ERRCODE = '55000';
       END IF;
+      -- Las líneas de valor 0 (obsequios, precio 0) no tienen nada que acreditar: se omiten.
       p_lines := (SELECT jsonb_agg(jsonb_build_object('sale_item_id', si.id, 'quantity', si.quantity) ORDER BY si.created_at, si.id)
-                  FROM public.sale_items si WHERE si.sale_id = v_orig.sale_id);
+                  FROM public.sale_items si WHERE si.sale_id = v_orig.sale_id AND si.subtotal > 0);
       p_return_id := NULL;
+    ELSIF p_concept_code = '1' AND p_return_id IS NULL THEN
+      RAISE EXCEPTION 'La nota por devolución (concepto 1) requiere la devolución registrada y completada en el módulo Devoluciones.'
+        USING ERRCODE = '23502';
     ELSIF p_return_id IS NOT NULL THEN
       SELECT * INTO v_ret FROM public.returns WHERE id = p_return_id FOR UPDATE;
       IF NOT FOUND OR v_ret.company_id <> v_orig.company_id OR v_ret.return_type <> 'CUSTOMER_RETURN'
@@ -730,9 +772,10 @@ BEGIN
         RAISE EXCEPTION 'El producto % (IVA 0 %%) no está clasificado como exento o excluido.', v_item.p_sku USING ERRCODE = '23502';
       END IF;
       IF v_by_qty AND v_prev_qty + v_qty = v_item.quantity THEN
-        v_tax := v_item.tax_amount - COALESCE((SELECT SUM(l.tax_amount) FROM public.electronic_document_lines l
+        -- Saldo de IVA de la línea; nunca negativo (redondeos de notas anteriores por valor).
+        v_tax := GREATEST(0, v_item.tax_amount - COALESCE((SELECT SUM(l.tax_amount) FROM public.electronic_document_lines l
                    JOIN public.electronic_invoices n ON n.id = l.document_id
-                   WHERE l.source_sale_item_id = v_item.id AND n.document_type = 'CREDIT_NOTE'), 0);
+                   WHERE l.source_sale_item_id = v_item.id AND n.document_type = 'CREDIT_NOTE'), 0));
       ELSE
         v_tax := ROUND(v_net * v_rate / 100, 2);
       END IF;
@@ -744,7 +787,9 @@ BEGIN
         v_qty,
         CASE WHEN v_by_qty THEN v_item.unit_price ELSE v_net END,
         CASE WHEN v_by_qty THEN COALESCE(v_item.discount_percent, 0) ELSE 0 END,
-        v_net, v_treat, v_rate, v_tax, v_by_qty);
+        v_net, v_treat, v_rate, v_tax, v_by_qty,
+        -- Solo una devolución registrada (mercancía que volvió al inventario) cuenta como cantidad devuelta.
+        v_by_qty AND p_return_id IS NOT NULL);
     END LOOP;
 
   ELSE -- DEBIT_NOTE
@@ -783,7 +828,7 @@ BEGIN
       v_tax := ROUND(v_net * v_rate / 100, 2);
       v_ln := v_ln + 1;
       INSERT INTO tmp_note_lines VALUES (v_ln, NULL, v_prod, COALESCE(v_sku, 'ND-' || v_ln), v_desc,
-        v_qty, ROUND((v_line->>'unit_price')::NUMERIC, 2), 0, v_net, v_treat, v_rate, v_tax, false);
+        v_qty, ROUND((v_line->>'unit_price')::NUMERIC, 2), 0, v_net, v_treat, v_rate, v_tax, false, false);
     END LOOP;
   END IF;
 
@@ -796,15 +841,23 @@ BEGIN
   -- ----------------------------------------------------------------------------
   -- Consecutivo de la nota
   -- ----------------------------------------------------------------------------
-  INSERT INTO public.dian_note_sequences (company_id, environment, document_type, prefix)
-  VALUES (v_orig.company_id, p_environment, p_document_type,
-          CASE WHEN p_environment = 'HABILITACION' THEN (CASE WHEN p_document_type = 'CREDIT_NOTE' THEN 'NCT' ELSE 'NDT' END)
-               ELSE (CASE WHEN p_document_type = 'CREDIT_NOTE' THEN 'NC' ELSE 'ND' END) END)
-  ON CONFLICT (company_id, environment, document_type) DO NOTHING;
+  -- Habilitación: prefijos de prueba NCT/NDT se crean si faltan. Producción: el prefijo lo define la
+  -- empresa al pasar a producción; si no está configurado no se emite la nota (no se inventa).
+  IF p_environment = 'HABILITACION' THEN
+    INSERT INTO public.dian_note_sequences (company_id, environment, document_type, prefix)
+    VALUES (v_orig.company_id, p_environment, p_document_type,
+            CASE WHEN p_document_type = 'CREDIT_NOTE' THEN 'NCT' ELSE 'NDT' END)
+    ON CONFLICT (company_id, environment, document_type) DO NOTHING;
+  END IF;
 
   SELECT * INTO v_seq FROM public.dian_note_sequences
   WHERE company_id = v_orig.company_id AND environment = p_environment AND document_type = p_document_type
   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'No hay consecutivo de % configurado para el ambiente % (dian_note_sequences). Configúrelo antes de emitir notas.',
+      CASE WHEN p_document_type = 'CREDIT_NOTE' THEN 'notas crédito' ELSE 'notas débito' END, p_environment
+      USING ERRCODE = 'P0002';
+  END IF;
 
   SELECT MAX(number) INTO v_max_used FROM public.electronic_invoices WHERE prefix = v_seq.prefix;
   v_next := GREATEST(v_seq.last_number + 1, COALESCE(v_max_used + 1, 1));
@@ -830,7 +883,7 @@ BEGIN
     document_id, company_id, line_number, source_sale_item_id, product_id, sku, description,
     quantity, unit_price, discount_percent, net_amount, iva_treatment, tax_rate_percent, tax_amount, total_amount, quantity_returned)
   SELECT v_note_id, v_orig.company_id, ln, sale_item_id, product_id, sku, description,
-         quantity, unit_price, discount, net, treat, rate, tax, net + tax, by_qty
+         quantity, unit_price, discount, net, treat, rate, tax, net + tax, returned
   FROM tmp_note_lines ORDER BY ln;
 
   -- ----------------------------------------------------------------------------

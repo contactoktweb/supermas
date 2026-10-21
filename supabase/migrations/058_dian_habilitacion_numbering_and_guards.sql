@@ -10,7 +10,9 @@
 -- 3. electronic_invoices: snapshot de la resolución usada, fecha/hora de emisión,
 --    SoftwareSecurityCode, TrackId, nombres de archivo y estado de transmisión detallado.
 -- 4. fn_create_electronic_invoice_from_sale(): crea la factura y asigna el consecutivo
---    DIAN de forma atómica (bloqueo de fila sobre la resolución), idempotente.
+--    DIAN de forma atómica (bloqueo de fila sobre la resolución), idempotente. El ambiente lo
+--    define la configuración DIAN activa de la empresa (fn_dian_active_environment), no el cliente.
+--    Documentos anteriores a esta migración quedan en transmission_state = 'LEGACY' (no se transmiten).
 -- 5. Trigger de blindaje: desde el navegador (rol authenticated) nadie puede marcar
 --    una factura como ACEPTADA, ni escribir CUFE, XML, respuesta DIAN o alterar
 --    numeración y totales. Solo el servidor (service_role) o funciones SECURITY DEFINER.
@@ -20,6 +22,9 @@
 -- ==============================================================================
 
 BEGIN;
+
+-- Si una tabla está bloqueada por otra sesión, se falla rápido en vez de esperar (y bloquear a otros).
+SET LOCAL lock_timeout = '5s';
 
 -- ------------------------------------------------------------------------------
 -- 1. DATOS FISCALES DIAN DEL EMISOR Y ADQUIRIENTE
@@ -57,8 +62,20 @@ ALTER TABLE public.dian_resolutions
     last_assigned_number IS NULL OR (last_assigned_number >= initial_range AND last_assigned_number <= final_range)
   );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_dian_resolutions_company_env_prefix_number
-  ON public.dian_resolutions (company_id, environment, dian_prefix, resolution_number);
+-- Una resolución no se registra dos veces. Si hay datos antiguos duplicados no se crea el índice
+-- (la creación fallaría y revertiría toda la migración) y se avisa para revisarlos con la auditoría.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.dian_resolutions
+    GROUP BY company_id, environment, dian_prefix, resolution_number HAVING COUNT(*) > 1
+  ) THEN
+    RAISE NOTICE 'Hay resoluciones DIAN duplicadas (empresa, ambiente, prefijo, número). No se creó uq_dian_resolutions_company_env_prefix_number; revise con la auditoría.';
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS uq_dian_resolutions_company_env_prefix_number
+      ON public.dian_resolutions (company_id, environment, dian_prefix, resolution_number);
+  END IF;
+END $$;
 
 -- ------------------------------------------------------------------------------
 -- 3. FACTURAS: SNAPSHOT DE RESOLUCIÓN Y TRAZABILIDAD DE TRANSMISIÓN
@@ -93,9 +110,20 @@ ALTER TABLE public.electronic_invoices
       'ACCEPTED',             -- DIAN respondió aceptado
       'REJECTED',             -- DIAN respondió rechazado
       'COMMUNICATION_ERROR',  -- Falla de red/timeout: reintentable sin consumir nuevo consecutivo
-      'BLOCKED_CONFIG'        -- Falta configuración (certificado, PIN, clave técnica)
+      'BLOCKED_CONFIG',       -- Falta configuración (certificado, PIN, clave técnica)
+      'LEGACY'                -- Documento anterior a la habilitación (sin resolución): el servidor no lo transmite
     )
   );
+
+-- Documentos creados antes de esta migración (flujos simulados, sin resolución ni fecha/hora de emisión
+-- DIAN): quedan fuera de la transmisión. Al agregarse la columna quedaron en PENDING y el orquestador
+-- los tomaría. Las facturas y notas nuevas siempre traen issue_time, así que re-ejecutar no las toca.
+UPDATE public.electronic_invoices
+SET transmission_state = 'LEGACY',
+    last_error = 'Documento anterior a habilitación'
+WHERE transmission_state = 'PENDING'
+  AND dian_resolution_id IS NULL
+  AND issue_time IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_electronic_invoices_resolution ON public.electronic_invoices (dian_resolution_id);
 
@@ -125,11 +153,47 @@ CREATE OR REPLACE FUNCTION public.fn_is_trusted_server_context()
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
   SELECT auth.uid() IS NULL
      AND (COALESCE(auth.role(), '') = 'service_role' OR session_user IN ('postgres', 'supabase_admin'));
 $$;
+
+-- ------------------------------------------------------------------------------
+-- 3c. AMBIENTE DIAN ACTIVO DE LA EMPRESA
+-- ------------------------------------------------------------------------------
+-- El ambiente no lo decide quien llama: sale de dian_software_config. Exactamente una configuración
+-- activa por empresa; así PRODUCCION queda bloqueado hasta que se active su configuración (y se
+-- desactive la de habilitación).
+CREATE OR REPLACE FUNCTION public.fn_dian_active_environment(p_company_id UUID)
+RETURNS VARCHAR
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  v_count INT;
+  v_env VARCHAR(20);
+BEGIN
+  SELECT COUNT(*), MIN(environment) INTO v_count, v_env
+  FROM public.dian_software_config
+  WHERE company_id = p_company_id AND is_active = true;
+
+  IF v_count = 0 THEN
+    RAISE EXCEPTION 'La empresa no tiene configuración DIAN activa (dian_software_config). Configure el software propio antes de facturar.'
+      USING ERRCODE = 'P0002';
+  END IF;
+  IF v_count > 1 THEN
+    RAISE EXCEPTION 'La empresa tiene más de una configuración DIAN activa (habilitación y producción). Deje activa solo la del ambiente en uso.'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN v_env;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.fn_dian_active_environment(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.fn_dian_active_environment(UUID) TO authenticated, service_role;
 
 -- ------------------------------------------------------------------------------
 -- 4. CREACIÓN ATÓMICA DE FACTURA ELECTRÓNICA + CONSECUTIVO DIAN
@@ -143,7 +207,7 @@ CREATE OR REPLACE FUNCTION public.fn_create_electronic_invoice_from_sale(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
 DECLARE
   v_caller UUID := auth.uid();
@@ -157,6 +221,8 @@ DECLARE
   v_tax NUMERIC(15,2);
   v_total NUMERIC(15,2);
   v_lines INT;
+  v_res_for_location INT;
+  v_res_general INT;
   v_now_bogota TIMESTAMP := (NOW() AT TIME ZONE 'America/Bogota');
   v_invoice_id UUID := gen_random_uuid();
 BEGIN
@@ -187,17 +253,27 @@ BEGIN
     RAISE EXCEPTION 'Acceso denegado: usuario no autenticado.' USING ERRCODE = '28000';
   END IF;
 
+  -- El ambiente lo define la configuración activa de la empresa, no quien llama.
+  IF p_environment IS DISTINCT FROM public.fn_dian_active_environment(v_company) THEN
+    RAISE EXCEPTION 'El ambiente solicitado (%) no es el ambiente DIAN activo de la empresa (%).',
+      p_environment, public.fn_dian_active_environment(v_company) USING ERRCODE = '55000';
+  END IF;
+
   -- El Software ID se toma de la configuración de la empresa, no del parámetro.
   SELECT software_id INTO p_software_id
   FROM public.dian_software_config
-  WHERE company_id = v_company AND environment = p_environment AND is_active = true
-  LIMIT 1;
+  WHERE company_id = v_company AND environment = p_environment AND is_active = true;
 
   -- Idempotencia: misma clave → misma factura (doble clic, reintento, timeout).
-  SELECT id, prefix, number INTO v_existing
+  -- La clave usada para otra venta (o para una nota) es un error, nunca se devuelve otro documento.
+  SELECT id, prefix, number, sale_id, document_type INTO v_existing
   FROM public.electronic_invoices
   WHERE company_id = v_company AND idempotency_key = p_idempotency_key;
   IF FOUND THEN
+    IF v_existing.document_type <> 'INVOICE' OR v_existing.sale_id IS DISTINCT FROM p_sale_id THEN
+      RAISE EXCEPTION 'La clave de idempotencia ya se usó para otro documento electrónico (%). Genere una nueva.',
+        v_existing.prefix || v_existing.number::TEXT USING ERRCODE = '23505';
+    END IF;
     RETURN jsonb_build_object('success', true, 'idempotent_replay', true,
       'invoice_id', v_existing.id, 'prefix', v_existing.prefix, 'number', v_existing.number);
   END IF;
@@ -229,7 +305,27 @@ BEGIN
       v_sale.sale_number, v_total, v_sale.total_amount USING ERRCODE = '22000';
   END IF;
 
-  -- Resolución vigente (bloqueo de fila: serializa la asignación de consecutivos).
+  -- Resolución vigente. Una de la sede prevalece sobre una general; si hay más de una candidata del
+  -- mismo nivel no se elige en silencio (el consecutivo saldría de una resolución equivocada).
+  SELECT COUNT(*) FILTER (WHERE r.location_id = v_sale.location_id),
+         COUNT(*) FILTER (WHERE r.location_id IS NULL)
+  INTO v_res_for_location, v_res_general
+  FROM public.dian_resolutions r
+  WHERE r.company_id = v_company
+    AND r.environment = p_environment
+    AND r.document_type = 'ELECTRONICA'
+    AND r.is_active = true
+    AND v_now_bogota::DATE BETWEEN r.valid_from AND r.valid_to
+    AND (r.location_id IS NULL OR r.location_id = v_sale.location_id);
+
+  IF v_res_for_location > 1 OR (v_res_for_location = 0 AND v_res_general > 1) THEN
+    RAISE EXCEPTION 'Hay % resoluciones de facturación activas y vigentes para el ambiente % (%). Deje activa solo una.',
+      GREATEST(v_res_for_location, v_res_general), p_environment,
+      CASE WHEN v_res_for_location > 1 THEN 'de la sede de la venta' ELSE 'generales' END
+      USING ERRCODE = '55000';
+  END IF;
+
+  -- Bloqueo de fila: serializa la asignación de consecutivos.
   SELECT * INTO v_res
   FROM public.dian_resolutions r
   WHERE r.company_id = v_company
@@ -324,7 +420,7 @@ GRANT EXECUTE ON FUNCTION public.fn_create_electronic_invoice_from_sale(UUID, VA
 CREATE OR REPLACE FUNCTION public.fn_guard_electronic_invoice_fiscal_fields()
 RETURNS TRIGGER
 LANGUAGE plpgsql
-SET search_path = public, pg_catalog
+SET search_path = pg_catalog, public
 AS $$
 BEGIN
   -- Servidor (service_role) y funciones SECURITY DEFINER (dueño postgres) pasan.
@@ -339,7 +435,10 @@ BEGIN
   END IF;
 
   -- En UPDATE solo se permite cambiar campos no fiscales (lista permitida).
-  IF (to_jsonb(NEW) - ARRAY['updated_at', 'pdf_url']) IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['updated_at', 'pdf_url']) THEN
+  -- full_number es columna generada: en un trigger BEFORE llega vacía en NEW, por eso no se compara
+  -- (se deriva de prefix y number, que sí se comparan).
+  IF (to_jsonb(NEW) - ARRAY['updated_at', 'pdf_url', 'full_number'])
+     IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['updated_at', 'pdf_url', 'full_number']) THEN
     RAISE EXCEPTION 'BLINDAJE FISCAL: los datos fiscales y el estado DIAN solo los modifica el servidor de facturación.'
       USING ERRCODE = '42501';
   END IF;

@@ -187,8 +187,13 @@ async function runPhase12TestSuite() {
     bankAccountId = bankRes.rows[0].id
 
     // Asegurar periodo contable OPEN para fecha actual en Empresa A
-    const currentMonthCode = new Date().toISOString().slice(0, 7)
+    const currentMonthCode = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+    }).format(new Date()).slice(0, 7)
     const [curYr, curMo] = currentMonthCode.split('-').map(Number)
+    const lastDayOfMonth = String(new Date(Date.UTC(curYr, curMo, 0)).getUTCDate()).padStart(2, '0')
     await pgClient.query(
       `INSERT INTO public.accounting_periods (id, company_id, period_code, year, month, month_name, start_date, end_date, status)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'Mes Actual', $5, $6, 'OPEN')
@@ -199,7 +204,7 @@ async function runPhase12TestSuite() {
         curYr,
         curMo,
         `${currentMonthCode}-01`,
-        `${currentMonthCode}-28`,
+        `${currentMonthCode}-${lastDayOfMonth}`,
       ]
     )
 

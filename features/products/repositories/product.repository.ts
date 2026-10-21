@@ -30,8 +30,13 @@ function mapDbToDomain(row: any): Product {
   const costPrice = Number(row.cost_price ?? 0)
   const publicSalePrice = Number(row.public_sale_price ?? 0)
   const wholesalePrice = Number(row.wholesale_price ?? 0)
-  const taxRatePercent = Number(row.tax_rate_percent ?? 19)
   const isTaxExempt = Boolean(row.is_tax_exempt)
+  // Un producto exento/excluido no causa IVA aunque la columna conserve el default (19):
+  // la tarifa efectiva es 0 para que el formulario y los cálculos no la reactiven.
+  const taxRatePercent =
+    isTaxExempt || row.iva_treatment === 'EXENTO' || row.iva_treatment === 'EXCLUIDO'
+      ? 0
+      : Number(row.tax_rate_percent ?? 19)
 
   // Margen de utilidad sobre precio antes de impuestos
   const basePrice = taxRatePercent > 0 ? publicSalePrice / (1 + taxRatePercent / 100) : publicSalePrice
@@ -224,7 +229,31 @@ function mapDbToDomain(row: any): Product {
 export function productIvaTreatment(taxProfile: string | undefined, ratePercent: number): 'GRAVADO' | 'EXENTO' | 'EXCLUIDO' | null {
   if (taxProfile === 'EXENTO') return 'EXENTO'
   if (taxProfile === 'EXCLUIDO') return 'EXCLUIDO'
+  // 'IVA_0' es explícitamente "0 % sin clasificar": nunca debe convertirse en GRAVADO
+  // aunque llegue una tarifa residual (p. ej. el default 19 de la columna).
+  if (taxProfile === 'IVA_0') return null
   return ratePercent > 0 ? 'GRAVADO' : null
+}
+
+/**
+ * Resuelve las columnas tributarias (iva_treatment, tax_rate_percent, is_tax_exempt) de forma coherente.
+ * - EXENTO / EXCLUIDO: tarifa 0 e is_tax_exempt = true.
+ * - GRAVADO: tarifa indicada e is_tax_exempt = false.
+ * - Sin clasificar (null): tarifa 0; is_tax_exempt se conserva (undefined = no modificar).
+ */
+export function resolveProductIvaColumns(
+  taxProfile: string | undefined,
+  ratePercent: number,
+  isTaxExempt?: boolean
+): { iva_treatment: 'GRAVADO' | 'EXENTO' | 'EXCLUIDO' | null; tax_rate_percent: number; is_tax_exempt?: boolean } {
+  const treatment = productIvaTreatment(taxProfile, ratePercent)
+  if (treatment === 'EXENTO' || treatment === 'EXCLUIDO') {
+    return { iva_treatment: treatment, tax_rate_percent: 0, is_tax_exempt: true }
+  }
+  if (treatment === 'GRAVADO') {
+    return { iva_treatment: treatment, tax_rate_percent: ratePercent, is_tax_exempt: false }
+  }
+  return { iva_treatment: null, tax_rate_percent: 0, is_tax_exempt: isTaxExempt }
 }
 
 export class ProductRepository {
@@ -438,9 +467,11 @@ export class ProductRepository {
     const taxRatePercent =
       (data as any).taxRatePercent ?? (data as any).vatRatePercent ?? 19
 
-    const ivaTreatment = productIvaTreatment((data as any).taxProfile, Number(taxRatePercent))
-    const isTaxExempt =
-      ivaTreatment === 'EXENTO' || ivaTreatment === 'EXCLUIDO' || Boolean((data as any).isTaxExempt)
+    const ivaColumns = resolveProductIvaColumns(
+      (data as any).taxProfile,
+      Number(taxRatePercent),
+      Boolean((data as any).isTaxExempt)
+    )
 
     const rawSlug = (data as any).slug ? (data as any).slug.trim() : this.slugify(data.name)
 
@@ -461,9 +492,9 @@ export class ProductRepository {
       public_sale_price: normalPrice,
       wholesale_price: wholesalePrice,
       min_wholesale_quantity: (data as any).minWholesaleQuantity ?? 12,
-      tax_rate_percent: ivaTreatment === 'EXENTO' || ivaTreatment === 'EXCLUIDO' ? 0 : taxRatePercent,
-      is_tax_exempt: isTaxExempt,
-      iva_treatment: ivaTreatment,
+      tax_rate_percent: ivaColumns.tax_rate_percent,
+      is_tax_exempt: Boolean(ivaColumns.is_tax_exempt),
+      iva_treatment: ivaColumns.iva_treatment,
       primary_image_url:
         (data as any).primaryImageUrl?.trim() || (data as any).imageUrl?.trim() || null,
       secondary_images: (data as any).secondaryImages || (data as any).images || [],
@@ -635,15 +666,12 @@ export class ProductRepository {
     if (u.minWholesaleQuantity !== undefined)
       updatePayload.min_wholesale_quantity = u.minWholesaleQuantity
 
-    if (u.taxRatePercent !== undefined) updatePayload.tax_rate_percent = u.taxRatePercent
-    else if (u.vatRatePercent !== undefined) updatePayload.tax_rate_percent = u.vatRatePercent
-
     if (u.taxProfile !== undefined || u.taxRatePercent !== undefined || u.vatRatePercent !== undefined) {
-      const rate = Number(u.taxRatePercent ?? u.vatRatePercent ?? updatePayload.tax_rate_percent ?? 0)
-      const treatment = productIvaTreatment(u.taxProfile, rate)
-      updatePayload.iva_treatment = treatment
-      updatePayload.is_tax_exempt = treatment === 'EXENTO' || treatment === 'EXCLUIDO'
-      if (treatment === 'EXENTO' || treatment === 'EXCLUIDO') updatePayload.tax_rate_percent = 0
+      const rate = Number(u.taxRatePercent ?? u.vatRatePercent ?? 0)
+      const ivaColumns = resolveProductIvaColumns(u.taxProfile, rate, u.isTaxExempt)
+      updatePayload.iva_treatment = ivaColumns.iva_treatment
+      updatePayload.tax_rate_percent = ivaColumns.tax_rate_percent
+      if (ivaColumns.is_tax_exempt !== undefined) updatePayload.is_tax_exempt = ivaColumns.is_tax_exempt
     } else if (u.isTaxExempt !== undefined) {
       updatePayload.is_tax_exempt = u.isTaxExempt
     }

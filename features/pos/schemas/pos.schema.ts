@@ -35,4 +35,6 @@ export const posSalePayloadSchema = z.object({
   mixedCashAmount: z.number().nonnegative().optional(),
   /** Pago mixto: medio del valor restante */
   mixedRestMethod: z.enum(['TARJETA', 'TRANSFERENCIA']).optional(),
+  /** Clave del intento de cobro (UUID): se repite en los reintentos para no duplicar la venta */
+  idempotencyKey: z.string().uuid('Clave de cobro inválida').optional(),
 })

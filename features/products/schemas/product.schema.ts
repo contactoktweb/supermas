@@ -124,6 +124,19 @@ export const baseProductFormSchema = z.object({
   auditReason: z.string().trim().optional(),
 })
 
+const UNCLASSIFIED_ZERO_RATE_MESSAGE =
+  'Con tarifa de IVA 0 % debe clasificar el producto como Exento (Art. 477 E.T.) o Excluido (Art. 424 E.T.). La factura electrónica no admite productos al 0 % sin clasificar.'
+
+/**
+ * Un producto al 0 % debe quedar clasificado como EXENTO o EXCLUIDO:
+ * la DIAN los reporta distinto y la facturación bloquea los productos al 0 % sin clasificar.
+ */
+function isZeroRateUnclassified(data: { taxProfile?: string; vatRatePercent?: number }): boolean {
+  if (data.taxProfile === 'EXENTO' || data.taxProfile === 'EXCLUIDO') return false
+  if (data.taxProfile === 'IVA_0') return true
+  return data.vatRatePercent !== undefined && Number(data.vatRatePercent) === 0
+}
+
 export const productFormSchema = baseProductFormSchema.refine(
   (data) => {
     const normalPrice = data.prices.find((p) => p.code === 'NORMAL')?.price || 0
@@ -133,9 +146,17 @@ export const productFormSchema = baseProductFormSchema.refine(
     message: 'El Precio Normal de venta debe ser mayor a $0',
     path: ['prices'],
   }
-)
+).refine((data) => !isZeroRateUnclassified(data), {
+  message: UNCLASSIFIED_ZERO_RATE_MESSAGE,
+  path: ['taxProfile'],
+})
 
-export const updateProductSchema = baseProductFormSchema.partial()
+export const updateProductSchema = baseProductFormSchema
+  .partial()
+  .refine((data) => !isZeroRateUnclassified(data), {
+    message: UNCLASSIFIED_ZERO_RATE_MESSAGE,
+    path: ['taxProfile'],
+  })
 
 export type ProductFormValues = z.infer<typeof productFormSchema>
 export type UpdateProductFormValues = z.infer<typeof updateProductSchema>

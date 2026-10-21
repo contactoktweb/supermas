@@ -46,6 +46,8 @@ export type TransmissionState =
   | 'REJECTED'
   | 'COMMUNICATION_ERROR'
   | 'BLOCKED_CONFIG'
+  /** Documento anterior a la habilitación (migración 058): sin resolución, nunca se transmite. */
+  | 'LEGACY'
 
 export interface DianProcessResult {
   invoiceId: string
@@ -189,8 +191,11 @@ export class DianOrchestratorService {
     if (inv.transmission_state === 'SENT' && inv.dian_track_id) {
       return this.checkStatus(actor, invoiceId)
     }
+    if (inv.transmission_state === 'LEGACY') {
+      return this.result(inv, 'LEGACY', 'Documento anterior a la habilitación DIAN: no tiene resolución de numeración y no se transmite.')
+    }
 
-    // Reserva atómica: solo un proceso a la vez genera/firma/transmite esta factura.
+    // Reserva atómica (LEGACY no está en la lista: el servidor nunca lo toma): solo un proceso a la vez genera/firma/transmite esta factura.
     const previousState: TransmissionState = inv.transmission_state
     const claimable = ['PENDING', 'NUMBERED', 'XML_BUILT', 'SIGNED', 'COMMUNICATION_ERROR', 'BLOCKED_CONFIG', 'REJECTED']
     const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString()

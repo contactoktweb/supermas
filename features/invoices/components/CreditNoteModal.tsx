@@ -73,6 +73,8 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
   const [debitRows, setDebitRows] = useState<DebitRow[]>([{ description: '', quantity: 1, unitPrice: 0, iva: 'IVA_19' }])
   const [returns, setReturns] = useState<Array<{ id: string; code: string; date: string; total: number; linked: boolean; status: string }>>([])
   const [returnId, setReturnId] = useState('')
+  const [returnsLoading, setReturnsLoading] = useState(false)
+  const [returnsError, setReturnsError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
@@ -93,10 +95,17 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
     setIdemKey(newKey())
     setLastPayload(null)
     setDebitRows([{ description: '', quantity: 1, unitPrice: 0, iva: 'IVA_19' }])
+    setReturns([])
+    setReturnsError(null)
     if (invoice.saleId) {
-      invoiceRepository.listReturnsForSale(invoice.saleId).then(setReturns).catch(() => setReturns([]))
+      setReturnsLoading(true)
+      invoiceRepository
+        .listReturnsForSale(invoice.saleId)
+        .then(setReturns)
+        .catch((err: any) => setReturnsError(err?.message || 'No se pudieron cargar las devoluciones de la venta.'))
+        .finally(() => setReturnsLoading(false))
     } else {
-      setReturns([])
+      setReturnsLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, invoice?.id])
@@ -135,7 +144,9 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
   }, [noteType, concept])
 
   const isAnnulment = noteType === 'CREDIT_NOTE' && concept === '2'
-  const usesReturn = noteType === 'CREDIT_NOTE' && concept === '1' && Boolean(returnId)
+  // Concepto 1 (devolución): la base de datos exige una devolución COMPLETED de la misma venta sin nota previa.
+  const usesReturn = noteType === 'CREDIT_NOTE' && concept === '1'
+  const eligibleReturns = returns.filter((r) => !r.linked && r.status === 'COMPLETED')
 
   const preview = useMemo(() => {
     if (noteType === 'DEBIT_NOTE') {
@@ -212,7 +223,11 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
       return null
     }
     if (isAnnulment) return hasPreviousNotes ? 'La factura ya tiene notas crédito: no se puede anular completa.' : null
-    if (usesReturn) return null
+    if (usesReturn) {
+      return returnId
+        ? null
+        : 'La nota crédito por devolución requiere elegir la devolución completada de esta venta. Regístrela primero en Devoluciones.'
+    }
     const selected = rows.filter((r) => r.selected)
     if (!selected.length) return 'Seleccione al menos un producto.'
     for (const r of selected) {
@@ -320,22 +335,35 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
             />
           </div>
 
-          {noteType === 'CREDIT_NOTE' && concept === '1' && (
+          {usesReturn && (
             <div>
-              <span style={label}>¿La mercancía volvió al inventario?</span>
-              <CustomSelect
-                value={returnId}
-                onChange={setReturnId}
-                options={[
-                  { value: '', label: 'No / elegir productos y cantidades aquí (no mueve inventario)' },
-                  ...returns
-                    .filter((r) => !r.linked && r.status === 'COMPLETED')
-                    .map((r) => ({ value: r.id, label: `Devolución ${r.code} · ${new Date(r.date).toLocaleDateString('es-CO')} · ${formatCOP(r.total)}` })),
-                ]}
-              />
+              <span style={label}>Devolución registrada *</span>
+              {returnsLoading ? (
+                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Cargando devoluciones de la venta…</p>
+              ) : returnsError ? (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 12 }}>
+                  {returnsError}
+                </div>
+              ) : !invoice.saleId || eligibleReturns.length === 0 ? (
+                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
+                  Esta venta no tiene devoluciones completadas pendientes de nota crédito. Registre primero la devolución en{' '}
+                  <b>Devoluciones</b> o elija otro concepto de corrección.
+                </div>
+              ) : (
+                <CustomSelect
+                  value={returnId}
+                  onChange={setReturnId}
+                  options={[
+                    { value: '', label: 'Seleccione la devolución…' },
+                    ...eligibleReturns.map((r) => ({
+                      value: r.id,
+                      label: `Devolución ${r.code} · ${new Date(r.date).toLocaleDateString('es-CO')} · ${formatCOP(r.total)}`,
+                    })),
+                  ]}
+                />
+              )}
               <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
-                Si el cliente devolvió productos, regístrelos primero en <b>Devoluciones</b> (eso mueve el inventario) y elíjala aquí: la nota toma
-                esas cantidades y reversa el costo de ventas.
+                La nota toma las cantidades de la devolución (que ya movió el inventario) y reversa el costo de ventas.
               </p>
             </div>
           )}
@@ -476,7 +504,12 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
               {done ? 'Cerrar' : 'Cancelar'}
             </button>
             {!done && (
-              <button type="submit" className="primary-button" disabled={submitting || !accepted || (noteType === 'CREDIT_NOTE' && !linesLoaded)} style={{ height: 36 }}>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={submitting || !accepted || (noteType === 'CREDIT_NOTE' && !linesLoaded) || (usesReturn && !returnId)}
+                style={{ height: 36 }}
+              >
                 {submitting ? 'Emitiendo…' : `Emitir ${noteType === 'CREDIT_NOTE' ? 'nota crédito' : 'nota débito'}`}
               </button>
             )}

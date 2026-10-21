@@ -7,6 +7,7 @@
  * Permiso: invoices.cancel (notas crédito/débito). Lo valida también la función SQL con el JWT del usuario.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireServerUser, requireAnyPermission } from '@/lib/auth/server-auth'
 import { DianOrchestratorService } from '@/features/invoices/services/dian/dian-orchestrator.service'
 import { assertInvoiceVisible, dianErrorResponse, isUuid } from '../_shared'
@@ -15,38 +16,58 @@ export const runtime = 'nodejs'
 
 const bad = (error: string) => NextResponse.json({ success: false, error }, { status: 400 })
 
+const uuidField = (message: string) => z.string().refine((v) => isUuid(v), { message })
+const positiveAmount = (field: string) => z.number({ message: `${field} inválido.` }).finite(`${field} inválido.`).positive(`${field} inválido.`)
+
+const noteLineSchema = z.object(
+  {
+    sale_item_id: uuidField('sale_item_id inválido.').optional(),
+    product_id: uuidField('product_id inválido.').nullable().optional(),
+    quantity: positiveAmount('quantity').optional(),
+    net_amount: positiveAmount('net_amount').optional(),
+    unit_price: positiveAmount('unit_price').optional(),
+    description: z.string({ message: 'Descripción inválida.' }).max(300, 'Descripción inválida.').optional(),
+  },
+  { message: 'Formato de línea inválido.' }
+).passthrough()
+
+const emitNoteSchema = z
+  .object({
+    originalInvoiceId: uuidField('originalInvoiceId inválido.'),
+    documentType: z.enum(['CREDIT_NOTE', 'DEBIT_NOTE'], { message: 'documentType debe ser CREDIT_NOTE o DEBIT_NOTE.' }),
+    conceptCode: z.preprocess((v) => String(v ?? ''), z.string().regex(/^[1-6]$/, 'Concepto de corrección inválido.')),
+    reason: z.preprocess(
+      (v) => (typeof v === 'string' ? v.trim() : ''),
+      z.string().min(5, 'El motivo debe tener entre 5 y 500 caracteres.').max(500, 'El motivo debe tener entre 5 y 500 caracteres.')
+    ),
+    idempotencyKey: z.preprocess(
+      (v) => (typeof v === 'string' ? v.trim() : ''),
+      z.string().min(8, 'idempotencyKey inválida.').max(120, 'idempotencyKey inválida.')
+    ),
+    returnId: uuidField('returnId inválido.').nullable().optional().transform((v) => v ?? null),
+    lines: z.preprocess((v) => (Array.isArray(v) ? v : []), z.array(noteLineSchema).max(500, 'Demasiadas líneas.')),
+  })
+  // Nota crédito por devolución (concepto 1): la base de datos exige la devolución COMPLETED vinculada (p_return_id).
+  .refine((b) => !(b.documentType === 'CREDIT_NOTE' && b.conceptCode === '1' && !b.returnId), {
+    message: 'La nota crédito por devolución (concepto 1) requiere seleccionar la devolución completada de la venta.',
+    path: ['returnId'],
+  })
+  .refine(
+    (b) => {
+      const itemIds = b.lines.map((l) => l.sale_item_id).filter(Boolean)
+      return new Set(itemIds).size === itemIds.length
+    },
+    { message: 'Una misma línea de la factura aparece repetida en la nota.', path: ['lines'] }
+  )
+
 export async function POST(req: NextRequest) {
   try {
     const user = await requireServerUser(req)
     await requireAnyPermission(user, ['invoices.cancel'])
 
-    const body = await req.json().catch(() => ({}))
-    const originalInvoiceId = body?.originalInvoiceId
-    const documentType = body?.documentType
-    const conceptCode = String(body?.conceptCode ?? '')
-    const reason = typeof body?.reason === 'string' ? body.reason.trim() : ''
-    const idempotencyKey = typeof body?.idempotencyKey === 'string' ? body.idempotencyKey.trim() : ''
-    const returnId = body?.returnId ?? null
-    const lines = Array.isArray(body?.lines) ? body.lines : []
-
-    if (!isUuid(originalInvoiceId)) return bad('originalInvoiceId inválido.')
-    if (documentType !== 'CREDIT_NOTE' && documentType !== 'DEBIT_NOTE') return bad('documentType debe ser CREDIT_NOTE o DEBIT_NOTE.')
-    if (!/^[1-6]$/.test(conceptCode)) return bad('Concepto de corrección inválido.')
-    if (reason.length < 5 || reason.length > 500) return bad('El motivo debe tener entre 5 y 500 caracteres.')
-    if (idempotencyKey.length < 8 || idempotencyKey.length > 120) return bad('idempotencyKey inválida.')
-    if (returnId !== null && !isUuid(returnId)) return bad('returnId inválido.')
-    if (lines.length > 500) return bad('Demasiadas líneas.')
-    const itemIds = lines.map((l: any) => l?.sale_item_id).filter(Boolean)
-    if (new Set(itemIds).size !== itemIds.length) return bad('Una misma línea de la factura aparece repetida en la nota.')
-    for (const l of lines) {
-      if (!l || typeof l !== 'object' || Array.isArray(l)) return bad('Formato de línea inválido.')
-      if (l.sale_item_id !== undefined && !isUuid(l.sale_item_id)) return bad('sale_item_id inválido.')
-      if (l.product_id !== undefined && l.product_id !== null && !isUuid(l.product_id)) return bad('product_id inválido.')
-      for (const k of ['quantity', 'net_amount', 'unit_price']) {
-        if (l[k] !== undefined && (typeof l[k] !== 'number' || !Number.isFinite(l[k]) || l[k] <= 0)) return bad(`${k} inválido.`)
-      }
-      if (l.description !== undefined && (typeof l.description !== 'string' || l.description.length > 300)) return bad('Descripción inválida.')
-    }
+    const parsed = emitNoteSchema.safeParse(await req.json().catch(() => ({})))
+    if (!parsed.success) return bad(parsed.error.issues[0]?.message ?? 'Solicitud inválida.')
+    const { originalInvoiceId, documentType, conceptCode, reason, idempotencyKey, returnId, lines } = parsed.data
 
     // La factura debe ser visible para el usuario (empresa y sede) antes de que el servidor actúe con service_role.
     await assertInvoiceVisible(user, originalInvoiceId)

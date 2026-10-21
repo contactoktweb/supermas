@@ -327,11 +327,25 @@ export class POSService {
     const changeAmount = Math.max(0, amountPaid - totalAmount)
     const payments = this.buildPayments(validated, totalAmount)
 
-    // 6. Generar números de comprobante
-    const saleRandom = Math.floor(1000 + Math.random() * 9000)
-    const saleNumber = `VTA-${new Date().getFullYear()}-${saleRandom}`
-    const invoiceNumber = `POS-${new Date().getFullYear()}-${saleRandom}`
-    const saleId = `sale-pos-${Date.now().toString().slice(-6)}`
+    // 6. Venta + pagos + asiento en una transacción. El número de venta lo asigna el servidor; la clave
+    //    de idempotencia (una por intento de cobro) evita duplicar la venta en reintentos o doble clic.
+    const idempotencyKey = validated.idempotencyKey ?? crypto.randomUUID()
+    const { saleId, saleNumber } = await this.repo.executePOSSale({
+      locationId: validated.locationId,
+      customerId: customer.id,
+      sellerId: user.userId,
+      notes: validated.notes,
+      idempotencyKey,
+      items: processedLines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+        taxRatePercent: l.taxRatePercent,
+      })),
+      payments,
+    })
+    const invoiceNumber = `POS-${saleNumber.slice(-4)}`
     const now = new Date()
 
     // 7. Estructura de comprobante térmico / ticket
@@ -365,44 +379,6 @@ export class POSService {
       amountPaid,
       changeAmount,
     }
-
-    // 8. Objeto Venta para la tabla general
-    const saleRecord = {
-      id: saleId,
-      saleNumber,
-      customerId: customer.id,
-      customerName: customer.displayName,
-      customerDoc: `${customer.documentType} ${customer.documentNumber}`,
-      customerType: 'NATURAL',
-      customerCategory: 'FINAL_CONSUMER',
-      priceList: customer.priceList,
-      locationId: validated.locationId,
-      locationName: user.locationName,
-      sellerId: user.userId,
-      sellerName: user.userName,
-      date: now.toISOString(),
-      items: processedLines,
-      itemsCount: processedLines.length,
-      totalUnits,
-      subtotal,
-      discountTotal,
-      taxTotal,
-      totalAmount,
-      totalCost: Math.round(totalAmount * 0.7),
-      totalProfit: Math.round(totalAmount * 0.3),
-      profitMarginPercent: 30,
-      paymentMethod: validated.paymentMethod,
-      paymentStatus: 'PAID',
-      status: 'INVOICED',
-      documentType: 'FACTURA_POS',
-      invoiceNumber,
-      notes: validated.notes || 'Venta directa en mostrador POS',
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    }
-
-    // 9. Ejecutar transacción atómica en mock-db
-    await this.repo.executePOSSale(ticketReceipt, saleRecord, payments)
 
     return ticketReceipt
   }

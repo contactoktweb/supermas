@@ -62,6 +62,11 @@ function mapDbStatusToDomain(status?: string): SaleStatus {
   }
 }
 
+/** Pago de una venta tal como lo recibe fn_register_sale_payments (amount null = saldo restante del total). */
+export type SalePaymentInput = { method: string; amount: number | null; bank_account_id?: string }
+
+const BANK_PAYMENT_METHODS = new Set(['BANK_TRANSFER', 'CREDIT_CARD', 'DEBIT_CARD'])
+
 export class SalesRepository {
   /**
    * Resuelve el company_id del usuario autenticado actual de forma estricta
@@ -553,9 +558,34 @@ export class SalesRepository {
   /**
    * Crea una nueva venta en public.sales
    */
-  async create(sale: Sale): Promise<Sale> {
+  async create(sale: Sale, payments: SalePaymentInput[] = []): Promise<Sale> {
     const { data: authUser } = await supabaseClient.auth.getUser()
     const companyId = await this.resolveCompanyId()
+
+    // Tesorería y contabilidad deben usar la MISMA cuenta bancaria (la elegida en el pago → sale_payments).
+    // Se valida antes de grabar la venta para no dejarla a medias.
+    const explicitTotal = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0)
+    const bankPayments: Array<{ bankAccountId: string; amount: number; method: string }> = []
+    for (const p of payments) {
+      if (!BANK_PAYMENT_METHODS.has(p.method)) continue
+      if (!p.bank_account_id) {
+        throw new Error('Seleccione la cuenta bancaria que recibe el pago: la venta no se registró.')
+      }
+      const { data: account, error: accountError } = await supabaseClient
+        .from('bank_accounts')
+        .select('id')
+        .eq('id', p.bank_account_id)
+        .eq('is_active', true)
+        .maybeSingle()
+      if (accountError || !account) {
+        throw new Error('La cuenta bancaria elegida no existe o está inactiva: la venta no se registró.')
+      }
+      bankPayments.push({
+        bankAccountId: p.bank_account_id,
+        amount: p.amount ?? Math.round((sale.totalAmount - explicitTotal) * 100) / 100,
+        method: p.method,
+      })
+    }
 
     const isCredit = sale.paymentMethod === 'CREDITO';
     const paidAmount = isCredit ? 0 : sale.totalAmount;
@@ -639,48 +669,50 @@ export class SalesRepository {
               authorized_by_user_id: authUser.user?.id || null,
             });
           }
-        } else if (sale.paymentMethod === 'TRANSFERENCIA' || sale.paymentMethod === 'TARJETA') {
+        }
+        // Cada pago bancario entra a la cuenta elegida en el pago (la misma que usa el asiento contable).
+        for (const [index, bankPayment] of bankPayments.entries()) {
+          if (!(bankPayment.amount > 0)) continue
           const { data: bankAccount } = await supabaseClient
             .from('bank_accounts')
             .select('id, current_balance')
-            .eq('is_active', true)
-            .limit(1)
+            .eq('id', bankPayment.bankAccountId)
             .maybeSingle();
-          if (bankAccount?.id) {
-            const newBal = Number(bankAccount.current_balance || 0) + sale.totalAmount;
-            await supabaseClient
-              .from('bank_accounts')
-              .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-              .eq('id', bankAccount.id);
+          if (!bankAccount?.id) continue
+          const newBal = Number(bankAccount.current_balance || 0) + bankPayment.amount;
+          await supabaseClient
+            .from('bank_accounts')
+            .update({ current_balance: newBal, updated_at: new Date().toISOString() })
+            .eq('id', bankAccount.id);
 
-            await supabaseClient.from('bank_movements').insert({
-              company_id: companyId,
-              location_id: sale.locationId,
-              bank_account_id: bankAccount.id,
-              movement_number: 'MOV-VTA-' + Date.now().toString().slice(-6),
-              movement_date: dueDate,
-              movement_type: 'DEBIT',
-              amount: sale.totalAmount,
-              balance_after: newBal,
-              concept: 'Ingreso venta contado ' + sale.saleNumber,
-              is_reconciled: true,
-              created_by_user_id: authUser.user?.id || null,
-            });
+          const suffix = Date.now().toString().slice(-6) + (bankPayments.length > 1 ? `-${index + 1}` : '')
+          await supabaseClient.from('bank_movements').insert({
+            company_id: companyId,
+            location_id: sale.locationId,
+            bank_account_id: bankAccount.id,
+            movement_number: 'MOV-VTA-' + suffix,
+            movement_date: dueDate,
+            movement_type: 'DEBIT',
+            amount: bankPayment.amount,
+            balance_after: newBal,
+            concept: 'Ingreso venta contado ' + sale.saleNumber,
+            is_reconciled: true,
+            created_by_user_id: authUser.user?.id || null,
+          });
 
-            await supabaseClient.from('treasury_receipts').insert({
-              company_id: companyId,
-              location_id: sale.locationId,
-              receipt_number: 'TES-REC-' + Date.now().toString().slice(-6),
-              customer_id: sale.customerId,
-              bank_account_id: bankAccount.id,
-              amount: sale.totalAmount,
-              receipt_date: dueDate,
-              payment_method: sale.paymentMethod === 'TARJETA' ? 'TARJETA' : 'TRANSFERENCIA',
-              status: 'COLLECTED',
-              notes: 'Recaudo venta contado ' + sale.saleNumber,
-              created_by_user_id: authUser.user?.id || null,
-            });
-          }
+          await supabaseClient.from('treasury_receipts').insert({
+            company_id: companyId,
+            location_id: sale.locationId,
+            receipt_number: 'TES-REC-' + suffix,
+            customer_id: sale.customerId,
+            bank_account_id: bankAccount.id,
+            amount: bankPayment.amount,
+            receipt_date: dueDate,
+            payment_method: bankPayment.method === 'BANK_TRANSFER' ? 'TRANSFERENCIA' : 'TARJETA',
+            status: 'COLLECTED',
+            notes: 'Recaudo venta contado ' + sale.saleNumber,
+            created_by_user_id: authUser.user?.id || null,
+          });
         }
       } catch (finErr) {
         console.warn('Advertencia registrando movimiento financiero de venta:', finErr);
@@ -813,7 +845,7 @@ export class SalesRepository {
   }
 
   /** Registra los pagos (con cuenta bancaria destino) y causa el asiento contable de la venta. */
-  async registerPaymentsAndAccounting(saleId: string, payments: Array<{ method: string; amount: number | null; bank_account_id?: string }>): Promise<any> {
+  async registerPaymentsAndAccounting(saleId: string, payments: SalePaymentInput[]): Promise<any> {
     const { data, error } = await supabaseClient.rpc('fn_register_sale_payments', {
       p_sale_id: saleId,
       p_payments: payments,

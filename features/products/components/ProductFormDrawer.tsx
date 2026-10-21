@@ -1372,11 +1372,14 @@ export function ProductFormDrawer({
                   value={taxProfile}
                   onChange={handleTaxProfileChange}
                 />
+                {errors.taxProfile && (
+                  <span className="field-error-text">{errors.taxProfile}</span>
+                )}
               </div>
 
               <div className="form-field">
                 <label>Tarifa de IVA aplicable (%)</label>
-                <div className="input-wrap">
+                <div className={`input-wrap ${errors.vatRatePercent ? 'is-invalid' : ''}`}>
                   <input
                     type="number"
                     value={vatRatePercent}
@@ -1384,10 +1387,15 @@ export function ProductFormDrawer({
                     min={0}
                     max={100}
                     step={0.5}
+                    // Exento y excluido no causan IVA: la tarifa queda fija en 0 %.
+                    disabled={taxProfile === 'EXENTO' || taxProfile === 'EXCLUIDO'}
                     required
                   />
                   <span className="input-suffix">%</span>
                 </div>
+                {errors.vatRatePercent && (
+                  <span className="field-error-text">{errors.vatRatePercent}</span>
+                )}
               </div>
 
               <div className="tax-summary-box">
@@ -1398,6 +1406,8 @@ export function ProductFormDrawer({
                       ? 'Bien Exento (Art. 477 ET)'
                       : taxProfile === 'EXCLUIDO'
                       ? 'Bien Excluido (No causa IVA)'
+                      : taxProfile === 'IVA_0' || Number(vatRatePercent) === 0
+                      ? '0 % sin clasificar — elija Exento o Excluido'
                       : `Gravado a tarifa general del ${vatRatePercent}%`}
                   </strong>
                 </div>

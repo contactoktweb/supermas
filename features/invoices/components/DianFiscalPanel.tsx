@@ -22,6 +22,7 @@ export const TRANSMISSION_LABELS: Record<string, { label: string; color: string;
   REJECTED: { label: 'Rechazada por la DIAN', color: '#b91c1c', bg: '#fef2f2', hint: 'La DIAN devolvió errores. Corrija y reintente con el mismo consecutivo.' },
   COMMUNICATION_ERROR: { label: 'Error de comunicación', color: '#b91c1c', bg: '#fef2f2', hint: 'No hubo respuesta de la DIAN. Se puede reintentar sin consumir otro consecutivo.' },
   BLOCKED_CONFIG: { label: 'Falta configuración', color: '#b45309', bg: '#fffbeb', hint: 'Falta un dato fiscal o un secreto del servidor. Vea el detalle.' },
+  LEGACY: { label: 'Documento anterior a habilitación', color: '#475569', bg: '#f1f5f9', hint: 'Se generó antes de la integración DIAN y no se transmite.' },
 }
 
 const fmtDate = (d?: string) => {
@@ -81,7 +82,7 @@ export function DianFiscalPanel({ invoice, onSend, onCheckStatus, onOpenXml }: P
     }
   }
 
-  const canSend = !['ACCEPTED', 'SENT', 'SENDING'].includes(state)
+  const canSend = !['ACCEPTED', 'SENT', 'SENDING', 'LEGACY'].includes(state)
   const box: React.CSSProperties = { background: '#f8fafc', padding: '14px 16px', borderRadius: 8, border: '1px solid #e2e8f0' }
 
   return (

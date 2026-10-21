@@ -6,7 +6,7 @@
  * - public.accounting_entries
  * - public.accounting_entry_lines
  * - public.accounting_periods
- * - RPCs atómicas: fn_create_accounting_entry, fn_reverse_accounting_entry,
+ * - RPCs atómicas: fn_create_manual_accounting_entry, fn_reverse_accounting_entry,
  *   fn_cause_sale_accounting, fn_cause_purchase_accounting,
  *   fn_cause_payment_accounting, fn_cause_receipt_accounting,
  *   fn_close_accounting_period, fn_reopen_accounting_period.
@@ -30,6 +30,24 @@ import {
   ManualEntryFormData,
   ThirdPartyFormData,
 } from '../schemas/accounting.schema'
+
+const BOGOTA_TIME_ZONE = 'America/Bogota'
+
+/**
+ * Código de periodo contable (YYYY-MM) a partir de una fecha, un timestamp o un código ya armado.
+ * Los timestamps (con hora) se interpretan en America/Bogota: una operación del 31 a las 20:00
+ * pertenece a ese mes aunque en UTC ya sea el día 1 del siguiente.
+ */
+export function toBogotaPeriodCode(dateOrPeriod: string): string {
+  if (/^\d{4}-\d{2}$/.test(dateOrPeriod)) return dateOrPeriod
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOrPeriod)) return dateOrPeriod.slice(0, 7)
+  const instant = new Date(dateOrPeriod)
+  if (Number.isNaN(instant.getTime())) return dateOrPeriod.slice(0, 7)
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: BOGOTA_TIME_ZONE, year: 'numeric', month: '2-digit' }).formatToParts(instant)
+  const year = parts.find((p) => p.type === 'year')?.value
+  const month = parts.find((p) => p.type === 'month')?.value
+  return `${year}-${month}`
+}
 
 export class AccountingRepository {
   /**
@@ -504,7 +522,7 @@ export class AccountingRepository {
     const dateOnly = data.date.includes('T') ? data.date.slice(0, 10) : data.date
     const dueDateOnly = data.dueDate ? (data.dueDate.includes('T') ? data.dueDate.slice(0, 10) : data.dueDate) : null
 
-    const { data: res, error } = await supabaseClient.rpc('fn_create_accounting_entry', {
+    const { data: res, error } = await supabaseClient.rpc('fn_create_manual_accounting_entry', {
       p_date: dateOnly,
       p_concept: data.description,
       p_document_type: 'MANUAL',
@@ -806,9 +824,7 @@ export class AccountingRepository {
   }
 
   async isPeriodOpen(dateOrPeriod: string): Promise<boolean> {
-    const periodCode = dateOrPeriod.includes('T') || dateOrPeriod.length === 10
-      ? dateOrPeriod.slice(0, 7)
-      : dateOrPeriod
+    const periodCode = toBogotaPeriodCode(dateOrPeriod)
     const period = await this.getPeriodByCode(periodCode)
     if (!period) return true
     return period.status === 'OPEN'

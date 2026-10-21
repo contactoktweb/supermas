@@ -114,6 +114,8 @@ export class ProductService {
       publicSalePrice: normalPrice,
       wholesalePrice: wholesalePrice,
       minWholesaleQuantity: 12,
+      // El perfil tributario viaja al repositorio para resolver iva_treatment (EXENTO/EXCLUIDO/GRAVADO).
+      taxProfile: validated.taxProfile,
       taxRatePercent: validated.vatRatePercent,
       isTaxExempt: validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO',
       primaryImageUrl: validated.imageUrl || '',
@@ -180,8 +182,12 @@ export class ProductService {
     if (validated.vatRatePercent !== undefined)
       updatePayload.taxRatePercent = validated.vatRatePercent
     if (validated.taxProfile !== undefined) {
-      updatePayload.isTaxExempt =
-        validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO'
+      updatePayload.taxProfile = validated.taxProfile
+      // 'IVA_0' (sin clasificar) conserva el is_tax_exempt actual; el repositorio fuerza tarifa 0.
+      if (validated.taxProfile !== 'IVA_0') {
+        updatePayload.isTaxExempt =
+          validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO'
+      }
     }
     if (validated.prices) {
       const normalPrice = validated.prices.find((p) => p.code === 'NORMAL')?.price

@@ -5,7 +5,7 @@
  * reglas de partida doble, reportes financieros y auditoría transversal del sistema.
  */
 
-import { accountingRepository } from '../repositories/accounting.repository'
+import { accountingRepository, toBogotaPeriodCode } from '../repositories/accounting.repository'
 import { accountingRulesService } from './accounting-rules.service'
 import { accountingReportService } from './accounting-report.service'
 import { auditService } from '@/features/audit/services/audit.service'
@@ -444,9 +444,7 @@ export class AccountingService {
   async assertPeriodOpen(dateOrPeriod: string): Promise<void> {
     const isOpen = await accountingRepository.isPeriodOpen(dateOrPeriod)
     if (!isOpen) {
-      const periodCode = dateOrPeriod.includes('T') || dateOrPeriod.length === 10
-        ? dateOrPeriod.slice(0, 7)
-        : dateOrPeriod
+      const periodCode = toBogotaPeriodCode(dateOrPeriod)
       throw new Error(
         `El periodo contable ${periodCode} se encuentra CERRADO. Operación bloqueada: no es posible crear, modificar ni anular comprobantes en meses clausurados. Se requiere reapertura autorizada por el Contador General.`
       )

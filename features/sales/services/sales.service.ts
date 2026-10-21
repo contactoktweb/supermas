@@ -305,8 +305,9 @@ export class SalesService {
       updatedAt: new Date().toISOString(),
     }
 
-    // 8. Guardar venta en base de datos
-    const createdSale = await this.repo.create(newSale)
+    // 8. Guardar venta en base de datos (la tesorería usa la cuenta bancaria elegida en cada pago)
+    const salePayments = buildSalePayments(validated, totals.totalAmount)
+    const createdSale = await this.repo.create(newSale, salePayments)
 
     // 9. Registrar movimientos de salida de inventario (SALE_OUT) para Kardex
     await this.repo.createInventoryMovements(createdSale, {
@@ -316,7 +317,7 @@ export class SalesService {
 
     // 9b. Pagos con cuenta destino + asiento contable (función SQL: valida que la suma cuadre con el total)
     try {
-      await this.repo.registerPaymentsAndAccounting(createdSale.id, buildSalePayments(validated, totals.totalAmount))
+      await this.repo.registerPaymentsAndAccounting(createdSale.id, salePayments)
     } catch (e: any) {
       throw new Error(
         `La venta ${createdSale.saleNumber} quedó registrada, pero no se pudo registrar el pago/asiento contable: ${e?.message || e}. ` +

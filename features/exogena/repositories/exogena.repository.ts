@@ -7,6 +7,7 @@
 
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getSessionUserId } from '@/lib/supabase/session-context'
 import exogenaNormativaData from '@/lib/supabase/mock-db/exogena_normativa.json'
 import {
   ExogenaYearNormativa,
@@ -636,7 +637,7 @@ class ExogenaRepository {
           action: entry.action,
           entity_name: 'EXOGENA_TAX',
           entity_id: String(entry.year),
-          user_id: entry.userId,
+          user_id: await getSessionUserId(supabaseClient),
           user_name: entry.userName,
           new_value: JSON.stringify({ year: entry.year, details: entry.details }),
           created_at: new Date().toISOString(),

@@ -9,6 +9,7 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { createClient } from '@supabase/supabase-js'
 import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getSessionUserId } from '@/lib/supabase/session-context'
 
 const supabaseAdmin =
   typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -619,8 +620,10 @@ export class SettingsRepository {
       const companyId = await resolveUserCompanyId().catch(() => null)
       if (!companyId) return
 
-      await getDbClient().from('audit_logs').insert({
+      const client = getDbClient()
+      await client.from('audit_logs').insert({
         company_id: companyId,
+        user_id: await getSessionUserId(client),
         module: 'SETTINGS',
         action: `SETTING_${entry.category}_UPDATED`,
         entity_name: entry.category,

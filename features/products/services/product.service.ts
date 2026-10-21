@@ -19,6 +19,7 @@ import { productRepository } from '../repositories/product.repository'
 import { productFormSchema, updateProductSchema } from '../schemas/product.schema'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
+import { PostingAccountOption } from '@/features/accounting/utils/posting-accounts'
 
 export class ProductService {
   /**
@@ -520,6 +521,13 @@ export class ProductService {
 
   async getTaxConfigs(): Promise<TaxRateConfig[]> {
     return productRepository.getTaxRates()
+  }
+
+  /**
+   * Cuentas auxiliares de inventario (grupo 14) para enlazar el producto a su línea contable.
+   */
+  async getInventoryPostingAccounts(): Promise<PostingAccountOption[]> {
+    return productRepository.getInventoryPostingAccounts()
   }
 
   /**

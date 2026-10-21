@@ -21,6 +21,12 @@ import {
   ProductPrice,
   PriceChangeRequest,
 } from '../types'
+import {
+  PostingAccountOption,
+  PucAccountRow,
+  isInventoryAccountCode,
+  selectPostingAccounts,
+} from '@/features/accounting/utils/posting-accounts'
 
 function mapDbToDomain(row: any): Product {
   const categoryRel = row.categories || row.category || null
@@ -928,6 +934,24 @@ export class ProductRepository {
       isActive: Boolean(t.is_active),
       isDefault: t.code === 'IVA_19',
     }))
+  }
+
+  /**
+   * Cuentas auxiliares activas de inventario (grupo 14 del PUC) que admite un producto.
+   * Se leen también las inactivas para saber qué cuentas tienen subcuentas.
+   */
+  async getInventoryPostingAccounts(): Promise<PostingAccountOption[]> {
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('id, code, name, parent_id, is_active')
+      .like('code', '14%')
+      .order('code', { ascending: true })
+
+    if (error) {
+      throw new Error(`No se pudieron consultar las cuentas de inventario del PUC: ${error.message}`)
+    }
+
+    return selectPostingAccounts((data || []) as PucAccountRow[], isInventoryAccountCode)
   }
 
   /**

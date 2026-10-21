@@ -30,6 +30,9 @@ import {
   AccountingMovement,
   AccountingFilters,
   InventoryAccountMapping,
+  InventoryLineAccounts,
+  InventoryLineAccountsConfig,
+  AccountingAccountRef,
   AccountingPeriod,
   ThirdParty,
   LegalNature,
@@ -38,9 +41,17 @@ import {
 } from '../types'
 import {
   AccountFormData,
+  InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
 } from '../schemas/accounting.schema'
+import {
+  PucAccountRow,
+  isAnyCostAccountCode,
+  isInventoryAccountCode,
+  isSalesIncomeAccountCode,
+  selectPostingAccounts,
+} from '../utils/posting-accounts'
 
 const BOGOTA_TIME_ZONE = 'America/Bogota'
 
@@ -120,6 +131,11 @@ export class AccountingRepository {
   private readonly entryStatusesCache = createCachedResource(
     () => this.loadRecentEntryStatuses(),
     ACCOUNTING_DATA_TTL_MS
+  )
+
+  private readonly inventoryLineAccountsCache = createCachedResource(
+    () => this.loadInventoryLineAccounts(),
+    ACCOUNTING_CATALOG_TTL_MS
   )
 
   private readonly activeLocationsCache = createCachedResource(async () => {
@@ -866,8 +882,93 @@ export class AccountingRepository {
     }))
   }
 
-  async updateCategoryMapping(mapping: InventoryAccountMapping): Promise<InventoryAccountMapping> {
-    return mapping
+  // --- CUENTAS POR LÍNEA DE INVENTARIO (accounting_inventory_account_map, migración 062) ---
+
+  /** Líneas de inventario (auxiliares 14) con su costo e ingreso, más las cuentas elegibles. */
+  async getInventoryLineAccounts(): Promise<InventoryLineAccountsConfig> {
+    return this.inventoryLineAccountsCache.get()
+  }
+
+  private async loadInventoryLineAccounts(): Promise<InventoryLineAccountsConfig> {
+    const [catalog, mapRes, defaultsRes] = await Promise.all([
+      this.catalogCache.get(),
+      supabaseClient
+        .from('accounting_inventory_account_map')
+        .select('id, inventory_account_id, cost_account_id, income_account_id, is_active'),
+      supabaseClient
+        .from('accounting_default_accounts')
+        .select('purpose, accounting_account_id')
+        .in('purpose', ['COST_OF_SALES', 'SALES_INCOME']),
+    ])
+    if (mapRes.error) {
+      throw new Error(`Error consultando las cuentas por línea de inventario: ${mapRes.error.message}`)
+    }
+    if (defaultsRes.error) {
+      throw new Error(`Error consultando las cuentas contables por defecto: ${defaultsRes.error.message}`)
+    }
+
+    const rows = catalog as PucAccountRow[]
+    const byId = new Map(rows.map((row) => [row.id, row]))
+    const toRef = (id: string | null | undefined): AccountingAccountRef | null => {
+      const row = id ? byId.get(id) : undefined
+      return row ? { id: row.id, code: row.code, name: row.name } : null
+    }
+    const mapByInventory = new Map((mapRes.data || []).map((m: any) => [m.inventory_account_id as string, m]))
+    const defaultFor = (purpose: string) =>
+      toRef((defaultsRes.data || []).find((d: any) => d.purpose === purpose)?.accounting_account_id)
+
+    const lines: InventoryLineAccounts[] = selectPostingAccounts(rows, isInventoryAccountCode).map((inv) => {
+      const map = mapByInventory.get(inv.id)
+      const isActive = Boolean(map?.is_active)
+      return {
+        mapId: map?.id ?? null,
+        inventoryAccount: inv,
+        costAccount: isActive ? toRef(map.cost_account_id) : null,
+        incomeAccount: isActive ? toRef(map.income_account_id) : null,
+        isActive,
+      }
+    })
+
+    return {
+      lines,
+      costAccounts: selectPostingAccounts(rows, isAnyCostAccountCode),
+      incomeAccounts: selectPostingAccounts(rows, isSalesIncomeAccountCode),
+      defaultCostAccount: defaultFor('COST_OF_SALES'),
+      defaultIncomeAccount: defaultFor('SALES_INCOME'),
+    }
+  }
+
+  /** Crea o actualiza (y reactiva) las cuentas de una línea de inventario de la empresa del usuario. */
+  async saveInventoryLineAccounts(data: InventoryLineAccountsFormData): Promise<void> {
+    const companyId = await resolveUserCompanyId(supabaseClient)
+    const { error } = await supabaseClient
+      .from('accounting_inventory_account_map')
+      .upsert(
+        {
+          company_id: companyId,
+          inventory_account_id: data.inventoryAccountId,
+          cost_account_id: data.costAccountId,
+          income_account_id: data.incomeAccountId,
+          is_active: true,
+        },
+        { onConflict: 'company_id,inventory_account_id' }
+      )
+    if (error) {
+      throw new Error(`No se pudieron guardar las cuentas de la línea de inventario: ${error.message}`)
+    }
+    this.invalidateCache()
+  }
+
+  /** La línea vuelve a las cuentas por defecto (la fila se conserva inactiva, sin borrar historia). */
+  async deactivateInventoryLineAccounts(mapId: string): Promise<void> {
+    const { error } = await supabaseClient
+      .from('accounting_inventory_account_map')
+      .update({ is_active: false })
+      .eq('id', mapId)
+    if (error) {
+      throw new Error(`No se pudo restablecer la línea de inventario: ${error.message}`)
+    }
+    this.invalidateCache()
   }
 
   // --- PERIODOS Y CIERRES CONTABLES ---

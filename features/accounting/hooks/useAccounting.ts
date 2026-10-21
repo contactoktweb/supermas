@@ -15,7 +15,8 @@ import {
   AccountsReceivableItem,
   AccountsPayableItem,
   CostAnalysisItem,
-  InventoryAccountMapping,
+  InventoryLineAccounts,
+  InventoryLineAccountsConfig,
   ExogenaPrepItem,
   AccountingFilters,
   ThirdParty,
@@ -25,6 +26,7 @@ import {
 } from '../types'
 import {
   AccountFormData,
+  InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
 } from '../schemas/accounting.schema'
@@ -57,7 +59,7 @@ export type AccountingResource =
   | 'receivables'
   | 'payables'
   | 'costs'
-  | 'categoryMappings'
+  | 'inventoryLineAccounts'
   | 'exogena'
 
 /** Datos que necesita cada pestaña: solo se piden al abrirla. */
@@ -73,7 +75,7 @@ const TAB_RESOURCES: Record<AccountingTab, AccountingResource[]> = {
   results: ['incomeStatement'],
   costs: ['costs'],
   receivables_payables: ['receivables', 'payables'],
-  config: ['categoryMappings', 'exogena', 'accounts'],
+  config: ['inventoryLineAccounts', 'exogena'],
 }
 
 const ALL_RESOURCES = Object.keys({
@@ -89,7 +91,7 @@ const ALL_RESOURCES = Object.keys({
   receivables: 1,
   payables: 1,
   costs: 1,
-  categoryMappings: 1,
+  inventoryLineAccounts: 1,
   exogena: 1,
 } satisfies Record<AccountingResource, 1>) as AccountingResource[]
 
@@ -159,7 +161,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
   const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivableItem[]>([])
   const [accountsPayable, setAccountsPayable] = useState<AccountsPayableItem[]>([])
   const [costAnalysis, setCostAnalysis] = useState<CostAnalysisItem[]>([])
-  const [categoryMappings, setCategoryMappings] = useState<InventoryAccountMapping[]>([])
+  const [inventoryLineAccounts, setInventoryLineAccounts] = useState<InventoryLineAccountsConfig | null>(null)
   const [exogenaPrep, setExogenaPrep] = useState<ExogenaPrepItem[]>([])
 
   // Filtros globales
@@ -279,9 +281,9 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
           const res = await accountingService.getCostAnalysis({ locationId: currentFilters.locationId }, userRole)
           return () => setCostAnalysis(res)
         }
-        case 'categoryMappings': {
-          const res = await accountingService.getCategoryMappings(userRole)
-          return () => setCategoryMappings(res)
+        case 'inventoryLineAccounts': {
+          const res = await accountingService.getInventoryLineAccounts(userRole)
+          return () => setInventoryLineAccounts(res)
         }
         case 'exogena': {
           const res = await accountingService.getExogenaPreparation(userRole)
@@ -479,14 +481,22 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     return result
   }
 
-  const updateCategoryMapping = async (mapping: InventoryAccountMapping) => {
-    const updated = await accountingService.updateCategoryMapping(mapping, {
+  const saveInventoryLineAccounts = async (data: InventoryLineAccountsFormData) => {
+    await accountingService.saveInventoryLineAccounts(data, {
       id: 'usr-admin',
       name: 'Admin Mauricio',
       role: userRole,
     })
     await reloadVisible()
-    return updated
+  }
+
+  const resetInventoryLineAccounts = async (line: InventoryLineAccounts) => {
+    await accountingService.resetInventoryLineAccounts(line, {
+      id: 'usr-admin',
+      name: 'Admin Mauricio',
+      role: userRole,
+    })
+    await reloadVisible()
   }
 
   const exportCSV = async (
@@ -536,7 +546,8 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     accountsReceivable,
     accountsPayable,
     costAnalysis,
-    categoryMappings,
+    inventoryLineAccounts,
+    inventoryLineAccountsState: statusMap.inventoryLineAccounts?.state ?? 'loading',
     exogenaPrep,
     filters,
     updateFilters,
@@ -551,7 +562,8 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     loadThirdParties,
     createManualEntry,
     reverseEntry,
-    updateCategoryMapping,
+    saveInventoryLineAccounts,
+    resetInventoryLineAccounts,
     exportCSV,
   }
 }

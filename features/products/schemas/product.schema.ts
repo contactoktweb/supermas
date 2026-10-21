@@ -88,10 +88,11 @@ export const baseProductFormSchema = z.object({
     .trim()
     .min(1, 'La marca es obligatoria')
     .uuid('Identificador de marca inválido'),
+  // Obligatoria al crear (ver productFormSchema). Al editar puede faltar en productos antiguos.
   accountingAccountId: z
     .string()
     .trim()
-    .min(1, 'Debes seleccionar la cuenta contable PUC a la cual estará enlazado el producto')
+    .uuid('Selecciona una cuenta auxiliar de inventario válida')
     .optional()
     .or(z.literal('')),
   accountingCategoryId: z.string().trim().optional(),
@@ -137,7 +138,7 @@ function isZeroRateUnclassified(data: { taxProfile?: string; vatRatePercent?: nu
   return data.vatRatePercent !== undefined && Number(data.vatRatePercent) === 0
 }
 
-export const productFormSchema = baseProductFormSchema.refine(
+const productBusinessRulesSchema = baseProductFormSchema.refine(
   (data) => {
     const normalPrice = data.prices.find((p) => p.code === 'NORMAL')?.price || 0
     return normalPrice > 0
@@ -150,6 +151,15 @@ export const productFormSchema = baseProductFormSchema.refine(
   message: UNCLASSIFIED_ZERO_RATE_MESSAGE,
   path: ['taxProfile'],
 })
+
+/** Alta de producto: la cuenta auxiliar de inventario es obligatoria (define su línea contable). */
+export const productFormSchema = productBusinessRulesSchema.refine((data) => Boolean(data.accountingAccountId), {
+  message: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
+  path: ['accountingAccountId'],
+})
+
+/** Edición completa desde el formulario: los productos antiguos pueden seguir sin cuenta. */
+export const productEditFormSchema = productBusinessRulesSchema
 
 export const updateProductSchema = baseProductFormSchema
   .partial()

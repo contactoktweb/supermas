@@ -15,7 +15,7 @@ import {
   TaxRateConfig,
   PriceTier,
 } from '../types'
-import { productFormSchema } from '../schemas/product.schema'
+import { productFormSchema, productEditFormSchema } from '../schemas/product.schema'
 import { productService } from '../services/product.service'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
@@ -66,6 +66,7 @@ export function ProductFormDrawer({
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
   const [accountingAccountId, setAccountingAccountId] = useState('')
   const [pucAccountOptions, setPucAccountOptions] = useState<SelectOption[]>([])
+  const [pucLoadError, setPucLoadError] = useState<string | null>(null)
   const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
   const [loadingCatalogs, setLoadingCatalogs] = useState(true)
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('UND')
@@ -115,20 +116,21 @@ export function ProductFormDrawer({
   useEffect(() => {
     let isMounted = true
     setLoadingCatalogs(true)
+    setPucLoadError(null)
 
     Promise.all([
       categoryService.listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' }),
       brandService.listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' }),
       productService.getTaxConfigs(),
       supabaseClient.from('locations').select('id, code, name').eq('status', 'ACTIVE').order('name', { ascending: true }),
-      supabaseClient
-        .from('accounting_accounts')
-        .select('id, code, name, level')
-        .like('code', '14%')
-        .eq('is_active', true)
-        .order('code', { ascending: true }),
+      // Solo auxiliares de inventario: la cuenta del producto define su línea contable (migración 062).
+      productService.getInventoryPostingAccounts().catch((err) => {
+        console.error('Error cargando cuentas de inventario del PUC:', err)
+        if (isMounted) setPucLoadError(extractErrorMessage(err, 'No se pudieron cargar las cuentas de inventario del PUC.'))
+        return []
+      }),
     ])
-      .then(([catsRes, brandsRes, taxesRes, locsRes, pucsRes]) => {
+      .then(([catsRes, brandsRes, taxesRes, locsRes, inventoryAccounts]) => {
         if (!isMounted) return
 
         const cats: SelectOption[] = ((catsRes as any).data || []).map((c: any) => ({
@@ -141,20 +143,13 @@ export function ProductFormDrawer({
           label: b.name,
         }))
 
-        // Solo cuentas coherentes de inventarios (Clase 1, Grupo 14 del PUC)
-        const pucOptions: SelectOption[] = ((pucsRes as any).data || [])
-          .filter((acc: any) => typeof acc.code === 'string' && acc.code.startsWith('14'))
-          .sort((a: any, b: any) => {
-            // Priorizar exactamente 1435 en primer lugar
-            if (a.code === '1435') return -1
-            if (b.code === '1435') return 1
-            return a.code.localeCompare(b.code)
-          })
-          .map((acc: any) => ({
-            value: acc.id,
-            label: `${acc.code} — ${acc.name}`,
-            badge: acc.code === '1435' ? 'Comercialización' : 'Inventario',
-          }))
+        // Ordenadas por código: quedan agrupadas por su cuenta PUC (1405, 1435, ...).
+        const pucOptions: SelectOption[] = inventoryAccounts.map((acc) => ({
+          value: acc.id,
+          label: `${acc.code} — ${acc.name}`,
+          description: acc.groupName ? `${acc.groupCode} — ${acc.groupName}` : undefined,
+          badge: acc.groupCode,
+        }))
 
         setCategoryOptions(cats)
         setBrandOptions(brands)
@@ -167,16 +162,6 @@ export function ProductFormDrawer({
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
           if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
-          if (pucOptions.length > 0) {
-            // Por defecto preseleccionar cuenta 1435
-            const defaultAcc =
-              pucOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435') ||
-              pucOptions.find((p) => p.label.startsWith('1435')) ||
-              pucOptions[0]
-            if (defaultAcc) {
-              setAccountingAccountId((prev) => prev || defaultAcc.value)
-            }
-          }
         }
       })
       .catch((err) => {
@@ -244,13 +229,8 @@ export function ProductFormDrawer({
         setStatus(initialProduct.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
         setMinStockThreshold(initialProduct.minStockThreshold)
         setCriticalStockThreshold(initialProduct.criticalStockThreshold)
-        setAccountingAccountId(
-          initialProduct.accountingAccountId ||
-          initialProduct.accountingCategoryId ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
-          ''
-        )
+        // La cuenta real es la del vínculo (FK); los productos antiguos pueden no tenerla.
+        setAccountingAccountId(initialProduct.accountingAccount?.id || '')
         setAuditReason('')
       } else {
         // Reset defaults for Create
@@ -279,16 +259,12 @@ export function ProductFormDrawer({
         setStatus('ACTIVE')
         setMinStockThreshold(15)
         setCriticalStockThreshold(5)
-        const defaultPuc =
-          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
-          pucAccountOptions[0]?.value ||
-          ''
-        setAccountingAccountId(defaultPuc)
+        // Sin preselección: quien crea el producto elige su línea de inventario.
+        setAccountingAccountId('')
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions, pucAccountOptions])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
 
   if (!isOpen || !mounted) return null
 
@@ -309,6 +285,29 @@ export function ProductFormDrawer({
       setTaxProfile('CUSTOM')
     }
   }
+
+  // Productos antiguos: con una cuenta de grupo (p. ej. '1435') se conserva hasta que elijan una
+  // auxiliar; sin cuenta se pueden guardar y la contabilidad usa la cuenta de inventario por defecto.
+  const legacyAccount =
+    mode === 'edit' &&
+    !loadingCatalogs &&
+    initialProduct?.accountingAccount &&
+    initialProduct.accountingAccount.id === accountingAccountId &&
+    !pucAccountOptions.some((opt) => opt.value === accountingAccountId)
+      ? initialProduct.accountingAccount
+      : null
+  const accountOptions: SelectOption[] = legacyAccount
+    ? [
+        {
+          value: legacyAccount.id,
+          label: `${legacyAccount.code} — ${legacyAccount.name}`,
+          description: 'Cuenta de grupo: selecciona una auxiliar',
+          badge: 'Revisar',
+        },
+        ...pucAccountOptions,
+      ]
+    : pucAccountOptions
+  const isLegacyWithoutAccount = mode === 'edit' && !loadingCatalogs && !accountingAccountId
 
   // Live calculation of estimated profit margin
   const liveMargin = productService.calculateProfitMargin(
@@ -377,10 +376,10 @@ export function ProductFormDrawer({
       })
       .filter((s) => s.quantity > 0)
 
-    if (!accountingAccountId) {
+    if (mode === 'create' && !accountingAccountId) {
       setErrors((prev) => ({
         ...prev,
-        accountingAccountId: 'Debes seleccionar la cuenta contable PUC a la cual estará enlazado el producto',
+        accountingAccountId: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
       }))
       setActiveTab('info')
       return
@@ -393,8 +392,9 @@ export function ProductFormDrawer({
       description: description.trim(),
       categoryId,
       brandId,
-      accountingAccountId,
-      accountingCategoryId: accountingAccountId,
+      // Vacío solo en productos antiguos sin cuenta: no se envía para no tocar su vínculo actual.
+      accountingAccountId: accountingAccountId || undefined,
+      accountingCategoryId: accountingAccountId || undefined,
       unitOfMeasure,
       imageUrl: imageUrl.trim(),
       status,
@@ -411,7 +411,8 @@ export function ProductFormDrawer({
 
     try {
       // Validate schema client side
-      productFormSchema.parse({
+      const formSchema = mode === 'create' ? productFormSchema : productEditFormSchema
+      formSchema.parse({
         ...payload,
         auditReason: auditReason.trim() || undefined,
       })
@@ -697,29 +698,43 @@ export function ProductFormDrawer({
                 <div className="form-field">
                   <label className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
                     <AppIcon name="accounting" size={14} className="text-blue-900" />
-                    <span>Cuenta Contable PUC <em>*</em></span>
+                    <span>Cuenta Contable PUC {mode === 'create' && <em>*</em>}</span>
                   </label>
                   <CustomSelect
-                    options={pucAccountOptions}
+                    options={accountOptions}
                     value={accountingAccountId}
                     onChange={(val) => {
                       setAccountingAccountId(val)
                       setErrors((prev) => ({ ...prev, accountingAccountId: '' }))
                     }}
                     disabled={pucAccountOptions.length === 0}
-                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona una cuenta contable PUC'}
+                    error={errors.accountingAccountId || undefined}
+                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona la cuenta auxiliar de inventario'}
                   />
                   {errors.accountingAccountId && (
                     <span className="field-error-text">{errors.accountingAccountId}</span>
                   )}
-                  {pucAccountOptions.length === 0 && !loadingCatalogs && (
+                  {pucLoadError && !loadingCatalogs && (
+                    <small className="field-error-text">{pucLoadError}</small>
+                  )}
+                  {!pucLoadError && pucAccountOptions.length === 0 && !loadingCatalogs && (
                     <small className="field-hint" style={{ color: 'var(--amber)' }}>
-                      * No hay cuentas contables PUC activas en el sistema.
+                      * No hay cuentas auxiliares de inventario (grupo 14) activas en el PUC.
                     </small>
                   )}
-                  {pucAccountOptions.length > 0 && (
+                  {legacyAccount && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * La cuenta actual ({legacyAccount.code}) es de grupo. Selecciona una cuenta auxiliar de inventario.
+                    </small>
+                  )}
+                  {isLegacyWithoutAccount && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * Producto sin cuenta contable: sus ventas usan la cuenta de inventario por defecto. Selecciona su cuenta auxiliar.
+                    </small>
+                  )}
+                  {pucAccountOptions.length > 0 && !legacyAccount && !isLegacyWithoutAccount && (
                     <small className="field-hint text-[10.5px] text-slate-500">
-                      Cuenta del PUC vinculada para movimientos de inventario y compras.
+                      Cuenta auxiliar de inventario: define el inventario, el costo y el ingreso de sus ventas.
                     </small>
                   )}
                 </div>

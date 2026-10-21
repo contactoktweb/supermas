@@ -22,7 +22,8 @@ import {
   AccountsReceivableItem,
   AccountsPayableItem,
   CostAnalysisItem,
-  InventoryAccountMapping,
+  InventoryLineAccounts,
+  InventoryLineAccountsConfig,
   ExogenaPrepItem,
   AccountingPermission,
   AccountingPeriod,
@@ -33,9 +34,12 @@ import {
 } from '../types'
 import {
   AccountFormData,
+  InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
+  inventoryLineAccountsSchema,
 } from '../schemas/accounting.schema'
+import { isCostAccountCodeFor } from '../utils/posting-accounts'
 
 const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
   SUPERADMIN: [
@@ -414,35 +418,81 @@ export class AccountingService {
     return accountingReportService.getExogenaPreparation()
   }
 
-  // --- CONFIGURACIÓN DE CUENTAS DE INVENTARIO ---
+  // --- CUENTAS POR LÍNEA DE INVENTARIO (migración 062) ---
 
-  async getCategoryMappings(userRole: string = 'SUPERADMIN'): Promise<InventoryAccountMapping[]> {
-    this.assertPermission('accounting.config', userRole)
-    return accountingRepository.getCategoryMappings()
+  async getInventoryLineAccounts(userRole: string = 'SUPERADMIN'): Promise<InventoryLineAccountsConfig> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getInventoryLineAccounts()
   }
 
-  async updateCategoryMapping(
-    mapping: InventoryAccountMapping,
+  /**
+   * Asigna el costo de ventas y el ingreso de una línea de inventario.
+   * La base (RLS + trigger) exige accounting.post/admin y cuentas auxiliares válidas; aquí se
+   * valida antes para dar un mensaje claro sin ir al servidor.
+   */
+  async saveInventoryLineAccounts(
+    input: InventoryLineAccountsFormData,
     user: { id: string; name: string; role: string }
-  ): Promise<InventoryAccountMapping> {
+  ): Promise<void> {
     this.assertPermission('accounting.config', user.role)
-    const updated = await accountingRepository.updateCategoryMapping(mapping)
+    const data = inventoryLineAccountsSchema.parse(input)
+
+    const config = await accountingRepository.getInventoryLineAccounts()
+    const line = config.lines.find((l) => l.inventoryAccount.id === data.inventoryAccountId)
+    const cost = config.costAccounts.find((a) => a.id === data.costAccountId)
+    const income = config.incomeAccounts.find((a) => a.id === data.incomeAccountId)
+    if (!line) {
+      throw new Error('La cuenta de inventario no es una auxiliar activa del grupo 14.')
+    }
+    if (!cost || !isCostAccountCodeFor(line.inventoryAccount.code, cost.code)) {
+      throw new Error(
+        `La cuenta de costo no corresponde a la línea ${line.inventoryAccount.code}: use una auxiliar del grupo 61 (71/72/73 solo para inventarios de producción).`
+      )
+    }
+    if (!income) {
+      throw new Error('La cuenta de ingreso debe ser una auxiliar del grupo 41 distinta de 4175 (devoluciones).')
+    }
+
+    await accountingRepository.saveInventoryLineAccounts(data)
 
     await auditService.log({
       action: 'INVENTORY_ACCOUNT_MAPPING_UPDATED' as any,
       module: 'ACCOUNTING' as any,
       entityType: 'INVENTORY_ACCOUNT_MAPPING',
-      entityId: mapping.categoryId,
-      entityReference: mapping.categoryName,
+      entityId: line.inventoryAccount.id,
+      entityReference: line.inventoryAccount.code,
       userId: user.id,
       userName: user.name,
       userRole: user.role,
       level: 'INFO',
       result: 'SUCCESS',
-      details: `Actualización de mapeo de cuentas para la categoría ${mapping.categoryName}: Inventario ${mapping.inventoryAccountCode}, Costo ${mapping.costAccountCode}, Ingreso ${mapping.revenueAccountCode}`,
+      details: `Línea de inventario ${line.inventoryAccount.code}: costo ${cost.code}, ingreso ${income.code}`,
     })
+  }
 
-    return updated
+  /** La línea deja su configuración propia y vuelve a las cuentas por defecto. */
+  async resetInventoryLineAccounts(
+    line: InventoryLineAccounts,
+    user: { id: string; name: string; role: string }
+  ): Promise<void> {
+    this.assertPermission('accounting.config', user.role)
+    if (!line.mapId || !line.isActive) return
+
+    await accountingRepository.deactivateInventoryLineAccounts(line.mapId)
+
+    await auditService.log({
+      action: 'INVENTORY_ACCOUNT_MAPPING_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'INVENTORY_ACCOUNT_MAPPING',
+      entityId: line.inventoryAccount.id,
+      entityReference: line.inventoryAccount.code,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Línea de inventario ${line.inventoryAccount.code}: vuelve a las cuentas por defecto`,
+    })
   }
 
   // --- VALIDACIÓN Y GESTIÓN DE PERIODOS CONTABLES ---

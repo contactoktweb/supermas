@@ -97,7 +97,8 @@ export function AccountingPage() {
     accountsReceivable,
     accountsPayable,
     costAnalysis,
-    categoryMappings,
+    inventoryLineAccounts,
+    inventoryLineAccountsState,
     exogenaPrep,
     filters,
     updateFilters,
@@ -109,7 +110,8 @@ export function AccountingPage() {
     updateThirdPartyType,
     createManualEntry,
     reverseEntry,
-    updateCategoryMapping,
+    saveInventoryLineAccounts,
+    resetInventoryLineAccounts,
     exportCSV,
   } = useAccounting('SUPERADMIN', { extraResources: panelResources })
 
@@ -461,10 +463,18 @@ export function AccountingPage() {
 
           {activeTab === 'config' && (
             <AccountingConfigTab
-              categoryMappings={categoryMappings}
+              inventoryLineAccounts={inventoryLineAccounts}
+              inventoryLineAccountsState={inventoryLineAccountsState}
               exogenaPrep={exogenaPrep}
-              accounts={accounts}
-              onUpdateMapping={updateCategoryMapping}
+              onSaveInventoryLine={async (data) => {
+                await saveInventoryLineAccounts(data)
+                addToast('success', 'Cuentas de la línea de inventario guardadas')
+              }}
+              onResetInventoryLine={async (line) => {
+                await resetInventoryLineAccounts(line)
+                addToast('info', `La línea ${line.inventoryAccount.code} usa ahora las cuentas por defecto`)
+              }}
+              onRetry={loadData}
               canManageConfig={permissions.canManageConfig}
             />
           )}

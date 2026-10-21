@@ -128,11 +128,11 @@ export const reverseEntrySchema = z.object({
 
 export type ReverseEntryFormData = z.infer<typeof reverseEntrySchema>
 
-export const inventoryAccountMappingSchema = z.object({
-  categoryId: z.string().min(1, 'Categoría requerida'),
-  inventoryAccountId: z.string().min(1, 'Cuenta de inventario (Clase 14) requerida'),
-  costAccountId: z.string().min(1, 'Cuenta de costo de ventas (Clase 6) requerida'),
-  revenueAccountId: z.string().min(1, 'Cuenta de ingreso (Clase 4) requerida'),
+// Cuentas por línea de inventario (migración 062). La base valida además que sean auxiliares activas.
+export const inventoryLineAccountsSchema = z.object({
+  inventoryAccountId: z.string().uuid('Cuenta de inventario (grupo 14) requerida'),
+  costAccountId: z.string().uuid('Selecciona la cuenta de costo de ventas'),
+  incomeAccountId: z.string().uuid('Selecciona la cuenta de ingreso'),
 })
 
-export type InventoryAccountMappingFormData = z.infer<typeof inventoryAccountMappingSchema>
+export type InventoryLineAccountsFormData = z.infer<typeof inventoryLineAccountsSchema>

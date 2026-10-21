@@ -6,6 +6,8 @@
  * sistema de costos y análisis por bodega.
  */
 
+import type { PostingAccountOption } from '../utils/posting-accounts'
+
 export type AccountClass = 1 | 2 | 3 | 4 | 5 | 6 | 7
 
 export type AccountType =
@@ -400,6 +402,35 @@ export interface InventoryAccountMapping {
   revenueAccountCode: string
   revenueAccountName: string
   description?: string
+}
+
+export interface AccountingAccountRef {
+  id: string
+  code: string
+  name: string
+}
+
+/**
+ * Cuentas de una línea de inventario (accounting_inventory_account_map, migración 062):
+ * la causación de ventas y devoluciones asienta inventario, costo e ingreso por esta línea.
+ */
+export interface InventoryLineAccounts {
+  /** Fila del mapa; null si la línea nunca se configuró. */
+  mapId: string | null
+  inventoryAccount: AccountingAccountRef & { groupCode: string; groupName: string }
+  /** null: la línea usa las cuentas por defecto (COST_OF_SALES / SALES_INCOME). */
+  costAccount: AccountingAccountRef | null
+  incomeAccount: AccountingAccountRef | null
+  isActive: boolean
+}
+
+export interface InventoryLineAccountsConfig {
+  lines: InventoryLineAccounts[]
+  /** Auxiliares activas elegibles (la base valida además el par inventario → costo). */
+  costAccounts: PostingAccountOption[]
+  incomeAccounts: PostingAccountOption[]
+  defaultCostAccount: AccountingAccountRef | null
+  defaultIncomeAccount: AccountingAccountRef | null
 }
 
 export type AccountingPermission =

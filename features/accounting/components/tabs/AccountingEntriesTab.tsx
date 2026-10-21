@@ -2,11 +2,14 @@
 
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingEntry, AccountingFilters } from '../../types'
+import { AccountingEntry, AccountingFilters, AccountingVoucherType } from '../../types'
+import { VoucherTypeBadge } from '../VoucherTypeBadge'
 
 interface AccountingEntriesTabProps {
   entries: AccountingEntry[]
   filters: AccountingFilters
+  /** Catálogo de tipos de comprobante de la empresa (migración 064). */
+  voucherTypes: AccountingVoucherType[]
   onFilterChange: (filters: Partial<AccountingFilters>) => void
   onSelectEntry: (entry: AccountingEntry) => void
   onOpenNewEntry: () => void
@@ -16,11 +19,16 @@ interface AccountingEntriesTabProps {
 export function AccountingEntriesTab({
   entries,
   filters,
+  voucherTypes,
   onFilterChange,
   onSelectEntry,
   onOpenNewEntry,
   canCreateEntry,
 }: AccountingEntriesTabProps) {
+  // El filtro lista los tipos activos; si el seleccionado se desactivó, se conserva para poder quitarlo.
+  const selectedVoucherType = filters.voucherTypeCode && filters.voucherTypeCode !== 'ALL' ? filters.voucherTypeCode : ''
+  const voucherTypeOptions = voucherTypes.filter((vt) => vt.isActive || vt.code === selectedVoucherType)
+
   const getSourceTypeBadge = (sourceType: string) => {
     switch (sourceType) {
       case 'SALE':
@@ -101,9 +109,10 @@ export function AccountingEntriesTab({
         <div className="search-box flex-1 max-w-md">
           <AppIcon name="search" size={16} />
           <input
-            placeholder="Buscar por comprobante (ej: AST-2026-000842), tercero o descripción..."
+            placeholder="Buscar por comprobante (ej: FC o FC-000012), tercero o descripción..."
             value={filters.query || ''}
             onChange={(e) => onFilterChange({ query: e.target.value })}
+            aria-label="Buscar asientos por comprobante, tercero o descripción"
           />
         </div>
 
@@ -130,6 +139,20 @@ export function AccountingEntriesTab({
               <span>Todos los meses</span>
             </button>
           )}
+
+          <select
+            className="filter-select text-xs"
+            value={selectedVoucherType || 'ALL'}
+            onChange={(e) => onFilterChange({ voucherTypeCode: e.target.value })}
+            aria-label="Filtrar por tipo de comprobante"
+          >
+            <option value="ALL">Todos los comprobantes</option>
+            {voucherTypeOptions.map((vt) => (
+              <option key={vt.id} value={vt.code}>
+                {vt.code} — {vt.name}
+              </option>
+            ))}
+          </select>
 
           <select
             className="filter-select text-xs"
@@ -176,7 +199,7 @@ export function AccountingEntriesTab({
           <table>
             <thead>
               <tr>
-                <th style={{ width: 140 }}>Comprobante</th>
+                <th style={{ width: 170 }}>Comprobante</th>
                 <th style={{ width: 140 }}>Fecha</th>
                 <th style={{ width: 110 }}>Origen</th>
                 <th style={{ width: 130 }}>Doc. Origen</th>
@@ -208,8 +231,11 @@ export function AccountingEntriesTab({
                     onClick={() => onSelectEntry(entry)}
                   >
                     <td>
-                      <span className="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded">
-                        {entry.entryNumber}
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <VoucherTypeBadge code={entry.voucherTypeCode} voucherTypes={voucherTypes} />
+                        <span className="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded">
+                          {entry.entryNumber}
+                        </span>
                       </span>
                     </td>
                     <td>

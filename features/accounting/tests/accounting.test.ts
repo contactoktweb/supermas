@@ -230,7 +230,7 @@ async function runAccountingTestSuite() {
     'El dashboard contable calcula totales numéricos válidos'
   )
 
-  const balanceSheet = await accountingService.getBalanceSheet(undefined, undefined, adminUser.role)
+  const balanceSheet = await accountingService.getBalanceSheet(undefined, adminUser.role)
   assert(
     Boolean(balanceSheet.period && balanceSheet.totalAssets > 0 && balanceSheet.totalLiabilities > 0),
     'El Balance General calcula totalAssets y totalLiabilities cuadradas'

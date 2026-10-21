@@ -22,7 +22,20 @@ import {
   CostAnalysisItem,
   WarehouseFinancialSummary,
   ExogenaPrepItem,
+  BalanceSheetParams,
+  FinancialStatementNode,
+  TrialBalanceTotals,
 } from '../types'
+import { buildAccountTree, isZeroAmount, nodeHasActivity, roundCurrency } from '../utils/account-tree'
+import { formatPucRangeLabel, isPucCodeInRange, normalizePucRange } from '../utils/puc-code-range'
+import { formatIsoDateEs, formatNowBogota, todayBogotaIsoDate } from '../utils/report-format'
+
+/** Suma días a una fecha 'YYYY-MM-DD' (aritmética en UTC: es una fecha contable, sin hora). */
+function shiftIsoDate(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number)
+  const shifted = new Date(Date.UTC(year, (month || 1) - 1, day || 1) + days * 86_400_000)
+  return shifted.toISOString().slice(0, 10)
+}
 
 export class AccountingReportService {
   /**
@@ -149,76 +162,126 @@ export class AccountingReportService {
     }
   }
 
+  /** Nombre de la sede para los encabezados (undefined = consolidado). */
+  private async resolveLocationName(locationId?: string | null): Promise<string | undefined> {
+    if (!locationId || locationId === 'ALL') return undefined
+    const locations = await accountingRepository.getActiveLocations().catch(() => [])
+    const fromCache = locations.find((l) => l.id === locationId)?.name
+    if (fromCache) return fromCache
+    const { data: loc } = await supabaseClient.from('locations').select('name').eq('id', locationId).maybeSingle()
+    return loc?.name || undefined
+  }
+
   /**
-   * Estado de Situación Financiera (Balance General)
-   * Cumple la ecuación contable: Activo = Pasivo + Patrimonio
+   * Estado de Situación Financiera (Balance General) desglosado Clase → Grupo → Cuenta →
+   * Subcuenta → Auxiliar, con saldos acumulados hasta la fecha de corte (incluida).
+   *
+   * - Saldos: fn_accounting_account_balances_range(NULL, corte, sede, desde, hasta) → débitos y
+   *   créditos por cuenta; cada nivel suma su subárbol según su naturaleza (ver account-tree).
+   * - ACTIVO = clase 1 (D − C), PASIVO = clase 2 (C − D), PATRIMONIO = clase 3 (C − D)
+   *   + resultado del ejercicio no cerrado = Ingresos 4 (C − D) − Gastos 5 − Costos 6 − Costos 7 (D − C).
+   *   Tras el cierre las clases 4 a 7 quedan en cero y el resultado ya está en la clase 3.
+   * - Ecuación: Activo = Pasivo + Patrimonio (cuadra si la diferencia redondeada a centavos es 0).
    */
-  async getBalanceSheet(period?: string, locationId?: string): Promise<BalanceSheetReport> {
-    const accounts = await accountingRepository.getAllAccounts()
+  async getBalanceSheet(params: Partial<BalanceSheetParams> = {}): Promise<BalanceSheetReport> {
+    const cutoffDate = /^\d{4}-\d{2}-\d{2}$/.test(params.cutoffDate || '') ? params.cutoffDate! : todayBogotaIsoDate()
+    const locationId = params.locationId && params.locationId !== 'ALL' ? params.locationId : undefined
+    const range = normalizePucRange({ from: params.accountFrom, to: params.accountTo })
+    const rangeActive = Boolean(range.from || range.to)
+    // El resultado del ejercicio pertenece al patrimonio (3605/3610): solo se muestra si el rango lo cubre.
+    const includesCurrentResult = !rangeActive || isPucCodeInRange('3605', range) || isPucCodeInRange('3610', range)
 
-    // Clasificación de Activos
-    const currentAssetsList = accounts.filter(
-      (a) => a.accountClass === 1 && (a.code.startsWith('11') || a.code.startsWith('13') || a.code.startsWith('14'))
-    )
-    const nonCurrentAssetsList = accounts.filter(
-      (a) => a.accountClass === 1 && (a.code.startsWith('15') || a.code.startsWith('17'))
-    )
+    const [accounts, totals, resultTotals, locationName] = await Promise.all([
+      accountingRepository.getAllAccounts(),
+      accountingRepository.getAccountBalanceTotals({
+        dateTo: cutoffDate,
+        locationId,
+        accountFrom: range.from,
+        accountTo: range.to,
+      }),
+      rangeActive && includesCurrentResult
+        ? accountingRepository.getAccountBalanceTotals({ dateTo: cutoffDate, locationId, accountFrom: '4', accountTo: '7' })
+        : Promise.resolve(null),
+      this.resolveLocationName(locationId),
+    ])
 
-    // Clasificación de Pasivos
-    const currentLiabilitiesList = accounts.filter(
-      (a) => a.accountClass === 2 && (a.code.startsWith('22') || a.code.startsWith('23') || a.code.startsWith('24') || a.code.startsWith('25'))
-    )
-    const nonCurrentLiabilitiesList = accounts.filter(
-      (a) => a.accountClass === 2 && a.code.startsWith('21')
-    )
+    const tree = buildAccountTree(accounts, totals, { classes: [1, 2, 3], range })
+    const resultTree = buildAccountTree(accounts, resultTotals || totals, { classes: [4, 5, 6, 7] })
+    const rootOf = (nodes: FinancialStatementNode[], accountClass: number) =>
+      nodes.find((node) => node.accountClass === accountClass) || null
 
-    // Patrimonio
-    const equityList = accounts.filter((a) => a.accountClass === 3)
+    const assets = rootOf(tree, 1)
+    const liabilities = rootOf(tree, 2)
+    const equity = rootOf(tree, 3)
 
-    const sumList = (list: typeof accounts) => list.reduce((acc, a) => acc + (Number(a.balance) || 0), 0)
+    // Cada raíz trae débitos y créditos de todo su subárbol.
+    const creditMinusDebit = (node: FinancialStatementNode | null) => (node ? node.credit - node.debit : 0)
+    const debitMinusCredit = (node: FinancialStatementNode | null) => (node ? node.debit - node.credit : 0)
+    const revenues = includesCurrentResult ? roundCurrency(creditMinusDebit(rootOf(resultTree, 4))) : 0
+    const expenses = includesCurrentResult ? roundCurrency(debitMinusCredit(rootOf(resultTree, 5))) : 0
+    const costOfSales = includesCurrentResult ? roundCurrency(debitMinusCredit(rootOf(resultTree, 6))) : 0
+    const productionCosts = includesCurrentResult ? roundCurrency(debitMinusCredit(rootOf(resultTree, 7))) : 0
+    const currentYearResult = roundCurrency(revenues - expenses - costOfSales - productionCosts)
 
-    const currentAssetsSum = sumList(currentAssetsList)
-    const nonCurrentAssetsSum = sumList(nonCurrentAssetsList)
-    const totalAssets = currentAssetsSum + nonCurrentAssetsSum
-
-    const currentLiabSum = sumList(currentLiabilitiesList)
-    const nonCurrentLiabSum = sumList(nonCurrentLiabilitiesList)
-    const totalLiabilities = currentLiabSum + nonCurrentLiabSum
-
-    const totalEquity = sumList(equityList)
-    const totalLiabilitiesAndEquity = totalLiabilities + totalEquity
-    const difference = Math.abs(totalAssets - totalLiabilitiesAndEquity)
-
-    const mapToItems = (list: typeof accounts, total: number) =>
-      list.map((a) => ({
-        code: a.code,
-        name: a.name,
-        balance: a.balance,
-        percentage: total > 0 ? Number(((a.balance / total) * 100).toFixed(1)) : 0,
-      }))
-
-    let locationName: string | undefined
-    if (locationId && locationId !== 'ALL') {
-      const { data: loc } = await supabaseClient.from('locations').select('name').eq('id', locationId).maybeSingle()
-      locationName = loc?.name
-    }
+    const totalAssets = assets?.balance ?? 0
+    const totalLiabilities = liabilities?.balance ?? 0
+    const totalEquityAccounts = equity?.balance ?? 0
+    const totalEquity = roundCurrency(totalEquityAccounts + currentYearResult)
+    const totalLiabilitiesAndEquity = roundCurrency(totalLiabilities + totalEquity)
+    const difference = roundCurrency(totalAssets - totalLiabilitiesAndEquity)
 
     return {
-      period: period || 'Septiembre 2026',
+      period: `Corte al ${formatIsoDateEs(cutoffDate)}`,
+      cutoffDate,
       locationId,
       locationName,
-      currentAssets: mapToItems(currentAssetsList, totalAssets),
-      nonCurrentAssets: mapToItems(nonCurrentAssetsList, totalAssets),
+      accountFrom: range.from || undefined,
+      accountTo: range.to || undefined,
+      accountRangeLabel: formatPucRangeLabel(range),
+      assets,
+      liabilities,
+      equity,
+      currentYearResult,
+      resultBreakdown: { revenues, expenses, costOfSales, productionCosts },
       totalAssets,
-      currentLiabilities: mapToItems(currentLiabilitiesList, totalLiabilities),
-      nonCurrentLiabilities: mapToItems(nonCurrentLiabilitiesList, totalLiabilities),
       totalLiabilities,
-      equityItems: mapToItems(equityList, totalEquity),
+      totalEquityAccounts,
       totalEquity,
       totalLiabilitiesAndEquity,
-      isBalanced: difference < 100, // Tolerancia por redondeos
+      isBalanced: isZeroAmount(difference),
       difference,
+      hasBalances: tree.some(nodeHasActivity) || !isZeroAmount(currentYearResult),
+      generatedAt: formatNowBogota(),
     }
+  }
+
+  /**
+   * Totales del Balance de Comprobación consultados en la base:
+   * saldo anterior = movimientos hasta el día previo a `startDate`; periodo = [startDate, endDate].
+   */
+  async getTrialBalanceTotals(params: {
+    startDate?: string
+    endDate?: string
+    locationId?: string
+    accountFrom?: string
+    accountTo?: string
+  }): Promise<TrialBalanceTotals> {
+    const locationId = params.locationId && params.locationId !== 'ALL' ? params.locationId : undefined
+    const range = { accountFrom: params.accountFrom, accountTo: params.accountTo }
+    const dayBeforeStart = params.startDate ? shiftIsoDate(params.startDate, -1) : null
+
+    const [opening, period] = await Promise.all([
+      dayBeforeStart
+        ? accountingRepository.getAccountBalanceTotals({ dateTo: dayBeforeStart, locationId, ...range })
+        : Promise.resolve(new Map() as TrialBalanceTotals['opening']),
+      accountingRepository.getAccountBalanceTotals({
+        dateFrom: params.startDate || null,
+        dateTo: params.endDate || null,
+        locationId,
+        ...range,
+      }),
+    ])
+    return { opening, period }
   }
 
   /**
@@ -335,10 +398,20 @@ export class AccountingReportService {
    * con cálculo de saldo inicial, movimientos débitos (+), movimientos créditos (-) y saldo final.
    */
   async getAuxiliaryLedgerReport(filters?: AccountingFilters): Promise<AuxiliaryLedgerReport> {
-    const [accounts, allMovements] = await Promise.all([
+    // Con rango de cuentas los movimientos se filtran en la base; sin rango se reutiliza la caché.
+    const accountRange = normalizePucRange({ from: filters?.accountFrom, to: filters?.accountTo })
+    const hasAccountRange = Boolean(accountRange.from || accountRange.to)
+    const [allAccounts, allMovements] = await Promise.all([
       accountingRepository.getAllAccounts(),
-      accountingRepository.getAllMovements(),
+      hasAccountRange
+        ? accountingRepository
+            .getMovements({ accountFrom: accountRange.from, accountTo: accountRange.to, page: 1, pageSize: 2000 })
+            .then((res) => res.data)
+        : accountingRepository.getAllMovements(),
     ])
+    const accounts = hasAccountRange
+      ? allAccounts.filter((acc) => isPucCodeInRange(acc.code, accountRange))
+      : allAccounts
 
     // 1. Determinar el periodo
     const periodMode = filters?.periodMode || 'MONTH'
@@ -373,7 +446,7 @@ export class AccountingReportService {
     // 2. Determinar si hay una cuenta específica seleccionada
     const accountFilter = filters?.accountId && filters.accountId !== 'ALL' ? filters.accountId : null
     const selectedAccount = accountFilter
-      ? accounts.find((a) => a.id === accountFilter || a.code === accountFilter) || null
+      ? allAccounts.find((a) => a.id === accountFilter || a.code === accountFilter) || null
       : null
 
     const q = filters?.query ? filters.query.toLowerCase().trim() : ''
@@ -506,7 +579,7 @@ export class AccountingReportService {
           movementsCount: accMovements.length,
         }
       })
-      .filter((s) => s.totalDebit > 0 || s.totalCredit > 0 || s.initialBalance > 0)
+      .filter((s) => s.totalDebit > 0 || s.totalCredit > 0 || !isZeroAmount(s.initialBalance))
 
     // Movimientos ordenados del más reciente al más antiguo para visualización
     const movementsDisplay = [...movementsWithBalance].reverse()
@@ -523,6 +596,7 @@ export class AccountingReportService {
       finalBalance,
       accountSummaries,
       movements: movementsDisplay,
+      accountRangeLabel: formatPucRangeLabel(accountRange),
     }
   }
 

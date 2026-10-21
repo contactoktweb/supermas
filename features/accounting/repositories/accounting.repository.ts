@@ -17,7 +17,7 @@
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
-import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   ACCOUNTING_CATALOG_TTL_MS,
   ACCOUNTING_DATA_TTL_MS,
@@ -32,18 +32,24 @@ import {
   InventoryAccountMapping,
   InventoryLineAccounts,
   InventoryLineAccountsConfig,
+  AccountingVoucherType,
   AccountingAccountRef,
   AccountingPeriod,
   ThirdParty,
   LegalNature,
   ThirdPartyType,
   AccountNature,
+  AccountingCompanyHeader,
+  AccountMovementTotalsMap,
 } from '../types'
+import { isPucCodeInRange, normalizePucRange, pucCodeSortKey, pucRangeUpperKey } from '../utils/puc-code-range'
 import {
   AccountFormData,
   InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
+  VoucherTypeUpdateData,
+  DEFAULT_MANUAL_VOUCHER_TYPE_CODE,
 } from '../schemas/accounting.schema'
 import {
   PucAccountRow,
@@ -54,6 +60,18 @@ import {
 } from '../utils/posting-accounts'
 
 const BOGOTA_TIME_ZONE = 'America/Bogota'
+
+/** Estados que forman parte de los libros: el original reversado y su reversión se compensan. */
+const BOOKED_ENTRY_STATUSES = ['POSTED', 'REVERSED']
+
+/** Parámetros de la consulta de saldos por cuenta (fn_accounting_account_balances_range, 065). */
+export interface AccountBalanceTotalsQuery {
+  dateFrom?: string | null
+  dateTo?: string | null
+  locationId?: string | null
+  accountFrom?: string | null
+  accountTo?: string | null
+}
 
 /**
  * Código de periodo contable (YYYY-MM) a partir de una fecha, un timestamp o un código ya armado.
@@ -138,6 +156,12 @@ export class AccountingRepository {
     ACCOUNTING_CATALOG_TTL_MS
   )
 
+  /** Catálogo de tipos de comprobante de la empresa (RLS), en el orden definido por sort_order. */
+  private readonly voucherTypesCache = createCachedResource(
+    () => this.loadVoucherTypes(),
+    ACCOUNTING_CATALOG_TTL_MS
+  )
+
   private readonly activeLocationsCache = createCachedResource(async () => {
     const { data } = await supabaseClient
       .from('locations')
@@ -180,7 +204,10 @@ export class AccountingRepository {
     return this.loadPostedTotalsFromLines()
   }
 
-  /** Cálculo legado en el cliente: suma todas las líneas de comprobantes POSTED. */
+  /**
+   * Cálculo legado en el cliente: suma las líneas de comprobantes POSTED y REVERSED
+   * (el original reversado y su comprobante de reversión se compensan; ver migración 065).
+   */
   private async loadPostedTotalsFromLines(): Promise<Map<string, { debits: number; credits: number }>> {
     const { data, error } = await supabaseClient
       .from('accounting_entry_lines')
@@ -190,7 +217,7 @@ export class AccountingRepository {
         credit_amount,
         accounting_entries!inner(status)
       `)
-      .eq('accounting_entries.status', 'POSTED')
+      .in('accounting_entries.status', BOOKED_ENTRY_STATUSES)
 
     const map = new Map<string, { debits: number; credits: number }>()
     if (!error && data) {
@@ -366,16 +393,30 @@ export class AccountingRepository {
     }
     if (data.requiresThirdParty !== undefined) updatePayload.requires_third_party = data.requiresThirdParty
     if (data.requiresCostCenter !== undefined) updatePayload.requires_cost_center = data.requiresCostCenter
+    if (data.nature !== undefined) {
+      if (data.nature !== 'DEBIT' && data.nature !== 'CREDIT') {
+        throw new Error('La naturaleza de la cuenta debe ser Débito o Crédito.')
+      }
+      updatePayload.nature = data.nature
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      throw new Error('No hay cambios para guardar en la cuenta contable.')
+    }
 
     const { data: updated, error } = await supabaseClient
       .from('accounting_accounts')
       .update(updatePayload)
       .eq('id', id)
       .select('*')
-      .single()
+      .maybeSingle()
 
-    if (error || !updated) {
-      throw new Error(`Error actualizando cuenta: ${error?.message || 'Error desconocido'}`)
+    if (error) {
+      throw new Error(`Error actualizando cuenta: ${error.message}`)
+    }
+    // Sin fila devuelta: la RLS (administrador o contador) no permitió el cambio o la cuenta no existe.
+    if (!updated) {
+      throw new Error('No tiene permiso para modificar el Plan de Cuentas o la cuenta ya no existe.')
     }
 
     this.invalidateCache()
@@ -398,6 +439,7 @@ export class AccountingRepository {
       concept,
       document_type,
       document_reference,
+      voucher_type_code,
       status,
       location_id,
       created_by_user_id,
@@ -425,8 +467,14 @@ export class AccountingRepository {
     `, { count: 'exact' })
 
     if (filters?.query) {
-      const q = filters.query.trim()
-      query = query.or(`entry_number.ilike.%${q}%,concept.ilike.%${q}%,document_reference.ilike.%${q}%`)
+      // Comas y paréntesis romperían el filtro .or() de PostgREST: se quitan del texto buscado.
+      const q = filters.query.trim().replace(/[,()]/g, ' ').trim()
+      if (q) {
+        // "FC" encuentra todos los comprobantes FC; "FC-000012" uno puntual.
+        query = query.or(
+          `entry_number.ilike.%${q}%,voucher_type_code.ilike.%${q}%,concept.ilike.%${q}%,document_reference.ilike.%${q}%`
+        )
+      }
     }
 
     if (filters?.entryStatus && filters.entryStatus !== ('ALL' as any)) {
@@ -435,6 +483,10 @@ export class AccountingRepository {
 
     if (filters?.sourceType && filters.sourceType !== ('ALL' as any)) {
       query = query.eq('document_type', filters.sourceType)
+    }
+
+    if (filters?.voucherTypeCode && filters.voucherTypeCode !== 'ALL') {
+      query = query.eq('voucher_type_code', filters.voucherTypeCode)
     }
 
     if (filters?.locationId && filters.locationId !== ('ALL' as any)) {
@@ -489,6 +541,7 @@ export class AccountingRepository {
         period: (row.date || '').slice(0, 7),
         sourceType: (row.document_type as any) || 'MANUAL',
         documentNumber: row.document_reference,
+        voucherTypeCode: row.voucher_type_code || undefined,
         description: row.concept,
         status: (row.status as any) || 'DRAFT',
         locationId: row.location_id,
@@ -551,6 +604,7 @@ export class AccountingRepository {
         concept,
         document_type,
         document_reference,
+        voucher_type_code,
         status,
         location_id,
         created_by_user_id,
@@ -602,6 +656,7 @@ export class AccountingRepository {
       period: ((data as any).date || '').slice(0, 7),
       sourceType: ((data as any).document_type as any) || 'MANUAL',
       documentNumber: (data as any).document_reference,
+      voucherTypeCode: (data as any).voucher_type_code || undefined,
       description: (data as any).concept,
       status: ((data as any).status as any) || 'DRAFT',
       locationId: (data as any).location_id,
@@ -649,6 +704,7 @@ export class AccountingRepository {
       p_location_id: data.locationId || null,
       p_auto_post: true,
       p_due_date: dueDateOnly,
+      p_voucher_type_code: data.voucherTypeCode || DEFAULT_MANUAL_VOUCHER_TYPE_CODE,
     })
 
     if (error || !res?.success) {
@@ -757,6 +813,24 @@ export class AccountingRepository {
    * Consulta movimientos individuales del libro auxiliar desde public.accounting_entry_lines
    */
   async getMovements(filters?: AccountingFilters): Promise<{ data: AccountingMovement[]; total: number }> {
+    const range = normalizePucRange({ from: filters?.accountFrom, to: filters?.accountTo })
+    if (!range.from && !range.to) return this.queryMovements(filters, null)
+
+    // Rango de cuentas en la base (columna code_sort_key, migración 065). Si la columna aún no
+    // existe, se consulta sin rango y se filtra en memoria con la misma regla de orden del PUC.
+    try {
+      return await this.queryMovements(filters, range)
+    } catch {
+      const all = await this.queryMovements(filters, null)
+      const data = all.data.filter((m) => isPucCodeInRange(m.accountCode, range))
+      return { data, total: data.length }
+    }
+  }
+
+  private async queryMovements(
+    filters: AccountingFilters | undefined,
+    range: { from: string; to: string } | null
+  ): Promise<{ data: AccountingMovement[]; total: number }> {
     let query = supabaseClient.from('accounting_entry_lines').select(`
       id,
       debit_amount,
@@ -806,7 +880,19 @@ export class AccountingRepository {
       query = query.lte('accounting_entries.date', filters.dateTo)
     }
 
+    if (range?.from) {
+      query = query.gte('accounting_accounts.code_sort_key', pucCodeSortKey(range.from))
+    }
+    if (range?.to) {
+      query = query.lte('accounting_accounts.code_sort_key', pucRangeUpperKey(range.to))
+    }
+
     const { data, count, error } = await query.order('created_at', { ascending: false })
+
+    if (range && error) {
+      // Lo resuelve getMovements con el filtro en memoria.
+      throw new Error(error.message)
+    }
 
     if (error || !data) {
       console.warn('Advertencia consultando movimientos contables:', error?.message)
@@ -969,6 +1055,61 @@ export class AccountingRepository {
       throw new Error(`No se pudo restablecer la línea de inventario: ${error.message}`)
     }
     this.invalidateCache()
+  }
+
+  // --- TIPOS DE COMPROBANTE (migración 064) ---
+
+  /** Tipos de comprobante de la empresa del usuario (se carga una vez y se memoiza). */
+  async getVoucherTypes(): Promise<AccountingVoucherType[]> {
+    const types = await this.voucherTypesCache.get()
+    return [...types]
+  }
+
+  private async loadVoucherTypes(): Promise<AccountingVoucherType[]> {
+    const { data, error } = await supabaseClient
+      .from('accounting_voucher_types')
+      .select('id, code, name, description, default_document_types, is_system, is_active, sort_order')
+      .order('sort_order', { ascending: true })
+      .order('code', { ascending: true })
+
+    if (error) throw new Error(`Error consultando los tipos de comprobante: ${error.message}`)
+    return ((data || []) as any[]).map((row) => this.mapVoucherType(row))
+  }
+
+  private mapVoucherType(row: any): AccountingVoucherType {
+    return {
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      description: row.description || undefined,
+      defaultDocumentTypes: Array.isArray(row.default_document_types) ? row.default_document_types : [],
+      isSystem: Boolean(row.is_system),
+      isActive: Boolean(row.is_active),
+      sortOrder: Number(row.sort_order) || 0,
+    }
+  }
+
+  /**
+   * Renombra o activa/desactiva un tipo no-system. La base (RLS + permisos por columna + trigger)
+   * exige administrador y rechaza cualquier cambio sobre los tipos del sistema.
+   */
+  async updateVoucherType(id: string, changes: VoucherTypeUpdateData): Promise<AccountingVoucherType> {
+    const payload: { name?: string; is_active?: boolean } = {}
+    if (changes.name !== undefined) payload.name = changes.name
+    if (changes.isActive !== undefined) payload.is_active = changes.isActive
+
+    const { data, error } = await supabaseClient
+      .from('accounting_voucher_types')
+      .update(payload)
+      .eq('id', id)
+      .select('id, code, name, description, default_document_types, is_system, is_active, sort_order')
+      .maybeSingle()
+
+    if (error) throw new Error(`No se pudo actualizar el tipo de comprobante: ${error.message}`)
+    if (!data) throw new Error('No tiene permiso para modificar este tipo de comprobante o ya no existe.')
+
+    this.voucherTypesCache.invalidate()
+    return this.mapVoucherType(data)
   }
 
   // --- PERIODOS Y CIERRES CONTABLES ---
@@ -1156,11 +1297,12 @@ export class AccountingRepository {
    * Crea un nuevo tercero contable especificando naturaleza jurídica
    */
   async createThirdParty(data: ThirdPartyFormData): Promise<ThirdParty> {
-    let companyId: string | undefined = await resolveUserCompanyId(supabaseClient).catch(() => undefined)
-
-    if (!companyId) {
-      const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()
-      companyId = comp?.id
+    // La empresa sale siempre del usuario autenticado; nunca se toma "la primera" de la base.
+    let companyId: string
+    try {
+      companyId = await resolveUserCompanyId(supabaseClient)
+    } catch (err: any) {
+      throw new Error(`No se pudo registrar el tercero: ${err?.message || 'su usuario no tiene una empresa asignada.'}`)
     }
 
     // Normalizar nombre completo para persona natural si no se suministró explícitamente
@@ -1352,6 +1494,83 @@ export class AccountingRepository {
    */
   async updateAccountNature(accountId: string, nature: AccountNature): Promise<AccountingAccount> {
     return this.updateAccount(accountId, { nature })
+  }
+
+  // --- REPORTES: SALDOS POR RANGO, EMPRESA Y USO DE CUENTAS (migración 065) ---
+
+  /** Número de líneas contables (de cualquier comprobante de la empresa) registradas en la cuenta. */
+  async countAccountEntryLines(accountId: string): Promise<number> {
+    const { count, error } = await supabaseClient
+      .from('accounting_entry_lines')
+      .select('id', { count: 'exact', head: true })
+      .eq('account_id', accountId)
+    if (error) {
+      throw new Error(`No se pudo verificar si la cuenta tiene movimientos: ${error.message}`)
+    }
+    return count || 0
+  }
+
+  /**
+   * Débitos y créditos por cuenta (comprobantes POSTED/REVERSED de la empresa del usuario) con
+   * filtros de fecha, sede y rango de cuentas aplicados en la base.
+   * Si la RPC de rango (065) aún no existe, usa la de 061 y aplica el rango sobre el catálogo.
+   */
+  async getAccountBalanceTotals(query: AccountBalanceTotalsQuery = {}): Promise<AccountMovementTotalsMap> {
+    const locationId = query.locationId && query.locationId !== 'ALL' ? query.locationId : null
+    const range = normalizePucRange({ from: query.accountFrom, to: query.accountTo })
+    const toMap = (rows: any[]): AccountMovementTotalsMap => {
+      const map: AccountMovementTotalsMap = new Map()
+      for (const row of rows) {
+        map.set(row.account_id, {
+          debit: Number(row.total_debit) || 0,
+          credit: Number(row.total_credit) || 0,
+        })
+      }
+      return map
+    }
+
+    const rangeRes = await supabaseClient.rpc('fn_accounting_account_balances_range', {
+      p_date_from: query.dateFrom || null,
+      p_date_to: query.dateTo || null,
+      p_location_id: locationId,
+      p_account_from: range.from || null,
+      p_account_to: range.to || null,
+    })
+    if (!rangeRes.error && Array.isArray(rangeRes.data)) return toMap(rangeRes.data)
+
+    const baseRes = await supabaseClient.rpc('fn_accounting_account_balances', {
+      p_date_from: query.dateFrom || null,
+      p_date_to: query.dateTo || null,
+      p_location_id: locationId,
+    })
+    if (baseRes.error || !Array.isArray(baseRes.data)) {
+      throw new Error(`No se pudieron consultar los saldos contables: ${(baseRes.error || rangeRes.error)?.message || 'respuesta vacía'}`)
+    }
+    const totals = toMap(baseRes.data)
+    if (range.from || range.to) {
+      const catalog = await this.getCatalogRows()
+      const codeById = new Map(catalog.map((row: any) => [row.id as string, String(row.code || '')]))
+      for (const accountId of Array.from(totals.keys())) {
+        if (!isPucCodeInRange(codeById.get(accountId) || '', range)) totals.delete(accountId)
+      }
+    }
+    return totals
+  }
+
+  /** Razón social, NIT y DV de la empresa del usuario (encabezados de reportes; nunca valores fijos). */
+  async getCompanyHeader(): Promise<AccountingCompanyHeader> {
+    const company: any = await getAuthenticatedCompany(supabaseClient)
+    if (!company) {
+      throw new Error('No se encontró la empresa del usuario para el encabezado del reporte.')
+    }
+    return {
+      legalName: company.business_name || company.trade_name || '',
+      tradeName: company.trade_name || company.business_name || '',
+      taxId: String(company.tax_id || ''),
+      verificationDigit: String(company.verification_digit ?? ''),
+      taxRegime: company.tax_regime || '',
+      legalRepresentative: company.legal_representative_name || '',
+    }
   }
 }
 

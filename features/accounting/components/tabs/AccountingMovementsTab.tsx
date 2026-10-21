@@ -13,6 +13,8 @@ import {
 } from '../../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { useAccountingLocations } from '../../hooks/useAccountingLocations'
+import { useAccountingCatalog } from '../../hooks/useAccountingReportContext'
+import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 
 interface AccountingMovementsTabProps {
   movements: AccountingMovement[]
@@ -70,6 +72,8 @@ export function AccountingMovementsTab({
   onExportAuxiliary,
 }: AccountingMovementsTabProps) {
   const locations = useAccountingLocations()
+  // Catálogo completo para el rango de cuentas (la prop `accounts` es la página visible del PUC).
+  const catalog = useAccountingCatalog()
   const [masterParties, setMasterParties] = useState<{ doc: string; name: string }[]>([])
 
   useEffect(() => {
@@ -138,6 +142,7 @@ export function AccountingMovementsTab({
     Boolean(filters.thirdPartyId && filters.thirdPartyId !== 'ALL') ||
     Boolean(filters.locationId && filters.locationId !== 'ALL') ||
     Boolean(filters.accountId && filters.accountId !== 'ALL') ||
+    Boolean(filters.accountFrom || filters.accountTo) ||
     currentPeriodMode !== 'MONTH' ||
     currentMonth !== '09' ||
     currentYear !== 2026
@@ -153,6 +158,8 @@ export function AccountingMovementsTab({
       locationId: 'ALL',
       costCenterId: 'ALL',
       accountId: 'ALL',
+      accountFrom: '',
+      accountTo: '',
       query: '',
     })
   }
@@ -355,6 +362,22 @@ export function AccountingMovementsTab({
               <AppIcon name="close" size={12} />
               <span>Limpiar filtros</span>
             </button>
+          )}
+        </div>
+
+        {/* Rango de cuentas PUC (se aplica en la consulta de movimientos) */}
+        <div className="pt-3 border-t border-gray-100">
+          <AccountRangeFilter
+            accounts={catalog.accounts.length > 0 ? catalog.accounts : accounts}
+            value={{ from: filters.accountFrom || '', to: filters.accountTo || '' }}
+            onChange={(range) => onFilterChange({ accountFrom: range.from, accountTo: range.to })}
+            disabled={catalog.state === 'loading' && accounts.length === 0}
+            className="max-w-2xl"
+          />
+          {catalog.state === 'error' && (
+            <p role="alert" className="mt-1 text-[11px] text-rose-700">
+              {catalog.error}
+            </p>
           )}
         </div>
 

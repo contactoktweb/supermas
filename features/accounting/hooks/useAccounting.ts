@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { accountingService } from '../services/accounting.service'
-import { accountingExportService } from '../services/accounting-export.service'
 import {
   AccountingAccount,
   AccountingEntry,
@@ -17,6 +16,7 @@ import {
   CostAnalysisItem,
   InventoryLineAccounts,
   InventoryLineAccountsConfig,
+  AccountingVoucherType,
   ExogenaPrepItem,
   AccountingFilters,
   ThirdParty,
@@ -29,7 +29,9 @@ import {
   InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
+  VoucherTypeUpdateData,
 } from '../schemas/accounting.schema'
+import { todayBogotaIsoDate } from '../utils/report-format'
 
 export type AccountingTab =
   | 'dashboard'
@@ -61,21 +63,23 @@ export type AccountingResource =
   | 'costs'
   | 'inventoryLineAccounts'
   | 'exogena'
+  | 'voucherTypes'
 
 /** Datos que necesita cada pestaña: solo se piden al abrirla. */
 const TAB_RESOURCES: Record<AccountingTab, AccountingResource[]> = {
   dashboard: ['dashboard'],
   accounts: ['accounts'],
-  entries: ['entries'],
+  entries: ['entries', 'voucherTypes'],
   third_parties: ['thirdParties'],
-  movements: ['accounts', 'entries', 'auxiliary'],
+  // voucherTypes: el detalle del asiento (que se abre desde el auxiliar) muestra el nombre del tipo.
+  movements: ['accounts', 'entries', 'auxiliary', 'voucherTypes'],
   journal: ['entries'],
   ledger: ['accounts', 'ledger'],
   balance: ['balanceSheet'],
   results: ['incomeStatement'],
   costs: ['costs'],
   receivables_payables: ['receivables', 'payables'],
-  config: ['inventoryLineAccounts', 'exogena'],
+  config: ['inventoryLineAccounts', 'exogena', 'voucherTypes'],
 }
 
 const ALL_RESOURCES = Object.keys({
@@ -93,6 +97,7 @@ const ALL_RESOURCES = Object.keys({
   costs: 1,
   inventoryLineAccounts: 1,
   exogena: 1,
+  voucherTypes: 1,
 } satisfies Record<AccountingResource, 1>) as AccountingResource[]
 
 const REPORT_PERIOD = '2026-09'
@@ -118,12 +123,13 @@ function resourceKey(resource: AccountingResource, filters: AccountingFilters, l
     case 'accounts':
       return JSON.stringify([filters.query, filters.accountClass, filters.nature, filters.status, filters.level, filters.page, filters.pageSize])
     case 'entries':
-      return JSON.stringify([filters.query, filters.entryStatus, filters.sourceType, filters.locationId, filters.dateFrom, filters.dateTo, filters.page, filters.pageSize])
+      return JSON.stringify([filters.query, filters.entryStatus, filters.sourceType, filters.voucherTypeCode, filters.locationId, filters.dateFrom, filters.dateTo, filters.page, filters.pageSize])
     case 'movements':
-      return JSON.stringify([filters.entryStatus, filters.sourceType, filters.locationId, filters.accountId, filters.dateFrom, filters.dateTo])
+      return JSON.stringify([filters.entryStatus, filters.sourceType, filters.locationId, filters.accountId, filters.dateFrom, filters.dateTo, filters.accountFrom, filters.accountTo])
     case 'auxiliary':
-      return JSON.stringify([filters.periodMode, filters.year, filters.month, filters.dateFrom, filters.dateTo, filters.accountId, filters.query, filters.thirdPartyId, filters.costCenterId])
+      return JSON.stringify([filters.periodMode, filters.year, filters.month, filters.dateFrom, filters.dateTo, filters.accountId, filters.query, filters.thirdPartyId, filters.costCenterId, filters.accountFrom, filters.accountTo])
     case 'balanceSheet':
+      return JSON.stringify([filters.locationId, filters.cutoffDate])
     case 'incomeStatement':
     case 'costs':
       return String(filters.locationId ?? '')
@@ -163,6 +169,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
   const [costAnalysis, setCostAnalysis] = useState<CostAnalysisItem[]>([])
   const [inventoryLineAccounts, setInventoryLineAccounts] = useState<InventoryLineAccountsConfig | null>(null)
   const [exogenaPrep, setExogenaPrep] = useState<ExogenaPrepItem[]>([])
+  const [voucherTypes, setVoucherTypes] = useState<AccountingVoucherType[]>([])
 
   // Filtros globales
   const [filters, setFilters] = useState<AccountingFilters>({
@@ -179,6 +186,9 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     accountId: 'ALL',
     thirdPartyId: 'ALL',
     costCenterId: 'ALL',
+    accountFrom: '',
+    accountTo: '',
+    cutoffDate: todayBogotaIsoDate(),
     page: 1,
     pageSize: 25,
   })
@@ -247,7 +257,10 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
           return () => setAuxiliaryReport(res)
         }
         case 'balanceSheet': {
-          const res = await accountingService.getBalanceSheet(REPORT_PERIOD, currentFilters.locationId, userRole)
+          const res = await accountingService.getBalanceSheet(
+            { cutoffDate: currentFilters.cutoffDate, locationId: currentFilters.locationId },
+            userRole
+          )
           return () => setBalanceSheet(res)
         }
         case 'incomeStatement': {
@@ -288,6 +301,10 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
         case 'exogena': {
           const res = await accountingService.getExogenaPreparation(userRole)
           return () => setExogenaPrep(res)
+        }
+        case 'voucherTypes': {
+          const res = await accountingService.getVoucherTypes(userRole)
+          return () => setVoucherTypes(res)
         }
       }
     },
@@ -425,12 +442,21 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     return updated
   }
 
-  const updateAccountNature = async (id: string, nature: AccountNature) => {
-    const updated = await accountingService.updateAccountNature(id, nature, {
-      id: 'usr-admin',
-      name: 'Admin Mauricio',
-      role: userRole,
-    })
+  const updateAccountNature = async (
+    id: string,
+    nature: AccountNature,
+    options: { confirmedWithMovements?: boolean } = {}
+  ) => {
+    const updated = await accountingService.updateAccountNature(
+      id,
+      nature,
+      {
+        id: 'usr-admin',
+        name: 'Admin Mauricio',
+        role: userRole,
+      },
+      options
+    )
     await reloadVisible()
     return updated
   }
@@ -499,31 +525,15 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     await reloadVisible()
   }
 
-  const exportCSV = async (
-    type: 'entries' | 'accounts' | 'journal' | 'ledger' | 'balance' | 'exogena' | 'auxiliary' | 'third_parties',
-    format: 'CSV' | 'EXCEL' | 'JSON' = 'CSV'
-  ) => {
-    if (type === 'third_parties') {
-      return accountingExportService.exportThirdParties(thirdParties, format)
-    }
-    if (type === 'auxiliary') {
-      return accountingExportService.exportAuxiliary(auxiliaryReport?.movements || movements, format)
-    }
-    if (type === 'entries') {
-      return accountingExportService.exportEntries(entries, format)
-    }
-    if (type === 'journal') {
-      return accountingExportService.exportJournal(entries, format)
-    }
-    if (type === 'accounts') {
-      return accountingExportService.exportAccounts(accounts, format)
-    }
-    if (type === 'balance') {
-      return accountingExportService.exportBalance(accounts, format)
-    }
-
-    // Fallback estándar
-    return accountingExportService.exportAccounts(accounts, format)
+  // Solo cambia el catálogo: se reemplaza la fila sin recargar el resto del módulo.
+  const updateVoucherType = async (voucherType: AccountingVoucherType, changes: VoucherTypeUpdateData) => {
+    const updated = await accountingService.updateVoucherType(voucherType, changes, {
+      id: 'usr-admin',
+      name: 'Admin Mauricio',
+      role: userRole,
+    })
+    setVoucherTypes((prev) => prev.map((vt) => (vt.id === updated.id ? updated : vt)))
+    return updated
   }
 
   return {
@@ -548,6 +558,9 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     costAnalysis,
     inventoryLineAccounts,
     inventoryLineAccountsState: statusMap.inventoryLineAccounts?.state ?? 'loading',
+    voucherTypes,
+    voucherTypesState: statusMap.voucherTypes?.state ?? 'loading',
+    updateVoucherType,
     exogenaPrep,
     filters,
     updateFilters,
@@ -564,6 +577,5 @@ export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccou
     reverseEntry,
     saveInventoryLineAccounts,
     resetInventoryLineAccounts,
-    exportCSV,
   }
 }

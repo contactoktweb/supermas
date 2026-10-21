@@ -24,6 +24,7 @@ import {
   CostAnalysisItem,
   InventoryLineAccounts,
   InventoryLineAccountsConfig,
+  AccountingVoucherType,
   ExogenaPrepItem,
   AccountingPermission,
   AccountingPeriod,
@@ -31,6 +32,9 @@ import {
   LegalNature,
   ThirdPartyType,
   AccountNature,
+  AccountingCompanyHeader,
+  BalanceSheetParams,
+  TrialBalanceTotals,
 } from '../types'
 import {
   AccountFormData,
@@ -38,8 +42,27 @@ import {
   ManualEntryFormData,
   ThirdPartyFormData,
   inventoryLineAccountsSchema,
+  VoucherTypeUpdateData,
+  voucherTypeUpdateSchema,
 } from '../schemas/accounting.schema'
 import { isCostAccountCodeFor } from '../utils/posting-accounts'
+
+/** Cambio de naturaleza en una cuenta con movimientos: la UI debe pedir confirmación y reintentar. */
+export class AccountNatureChangeConfirmationError extends Error {
+  readonly account: AccountingAccount
+  readonly requestedNature: AccountNature
+  readonly movementLines: number
+
+  constructor(account: AccountingAccount, requestedNature: AccountNature, movementLines: number) {
+    super(
+      `La cuenta ${account.code} ya tiene ${movementLines} líneas contables. Cambiar su naturaleza invierte el signo de su saldo en todos los libros y estados financieros.`
+    )
+    this.name = 'AccountNatureChangeConfirmationError'
+    this.account = account
+    this.requestedNature = requestedNature
+    this.movementLines = movementLines
+  }
+}
 
 const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
   SUPERADMIN: [
@@ -171,13 +194,31 @@ export class AccountingService {
     return updated
   }
 
+  /**
+   * Cambia la naturaleza (Débito/Crédito) de una cuenta PUC.
+   * La naturaleza decide el signo con que se presenta el saldo en todos los libros y estados: si la
+   * cuenta ya tiene líneas contables, el cambio exige confirmación explícita (`confirmedWithMovements`)
+   * y queda en auditoría con el número de líneas afectadas. No se modifican importes.
+   * La base (RLS de accounting_accounts) solo permite el cambio a administradores y contadores.
+   */
   async updateAccountNature(
     id: string,
     nature: AccountNature,
-    user: { id: string; name: string; role: string }
+    user: { id: string; name: string; role: string },
+    options: { confirmedWithMovements?: boolean } = {}
   ): Promise<AccountingAccount> {
     this.assertPermission('accounting.accounts', user.role)
     const previous = await accountingRepository.getAccountById(id)
+    if (!previous) {
+      throw new Error('La cuenta contable no existe o no tiene acceso a ella.')
+    }
+    if (previous.nature === nature) return previous
+
+    const movementLines = await accountingRepository.countAccountEntryLines(id)
+    if (movementLines > 0 && !options.confirmedWithMovements) {
+      throw new AccountNatureChangeConfirmationError(previous, nature, movementLines)
+    }
+
     const updated = await accountingRepository.updateAccountNature(id, nature)
 
     await auditService.log({
@@ -191,7 +232,9 @@ export class AccountingService {
       userRole: user.role,
       level: 'INFO',
       result: 'SUCCESS',
-      details: `Cambio de naturaleza contable a ${nature} para la cuenta ${updated.code} (${updated.name})`,
+      details:
+        `Cambio de naturaleza contable a ${nature} para la cuenta ${updated.code} (${updated.name})` +
+        (movementLines > 0 ? `. La cuenta tenía ${movementLines} líneas contables registradas (confirmado por el usuario).` : ''),
       changes: [
         { field: 'nature', label: 'Naturaleza', previousValue: previous?.nature || '—', newValue: updated.nature },
       ],
@@ -368,12 +411,26 @@ export class AccountingService {
   }
 
   async getBalanceSheet(
-    period?: string,
-    locationId?: string,
+    params?: Partial<BalanceSheetParams>,
     userRole: string = 'SUPERADMIN'
   ): Promise<BalanceSheetReport> {
     this.assertPermission('accounting.reports', userRole)
-    return accountingReportService.getBalanceSheet(period, locationId)
+    return accountingReportService.getBalanceSheet(params)
+  }
+
+  /** Saldo anterior y movimientos del periodo por cuenta (Balance de Comprobación). */
+  async getTrialBalanceTotals(
+    params: { startDate?: string; endDate?: string; locationId?: string; accountFrom?: string; accountTo?: string },
+    userRole: string = 'SUPERADMIN'
+  ): Promise<TrialBalanceTotals> {
+    this.assertPermission('accounting.reports', userRole)
+    return accountingReportService.getTrialBalanceTotals(params)
+  }
+
+  /** Razón social, NIT y DV de la empresa del usuario para encabezados de reportes. */
+  async getCompanyHeader(userRole: string = 'SUPERADMIN'): Promise<AccountingCompanyHeader> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getCompanyHeader()
   }
 
   async getIncomeStatement(
@@ -493,6 +550,60 @@ export class AccountingService {
       result: 'SUCCESS',
       details: `Línea de inventario ${line.inventoryAccount.code}: vuelve a las cuentas por defecto`,
     })
+  }
+
+  // --- TIPOS DE COMPROBANTE (migración 064) ---
+
+  async getVoucherTypes(userRole: string = 'SUPERADMIN'): Promise<AccountingVoucherType[]> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getVoucherTypes()
+  }
+
+  /**
+   * Renombra o activa/desactiva un tipo de comprobante. Los del sistema no se modifican
+   * (la base lo impide igualmente: solo administradores y solo tipos no-system).
+   */
+  async updateVoucherType(
+    voucherType: AccountingVoucherType,
+    input: VoucherTypeUpdateData,
+    user: { id: string; name: string; role: string }
+  ): Promise<AccountingVoucherType> {
+    this.assertPermission('accounting.config', user.role)
+    if (voucherType.isSystem) {
+      throw new Error(`El tipo ${voucherType.code} es del sistema: no se puede renombrar ni desactivar.`)
+    }
+    const changes = voucherTypeUpdateSchema.parse(input)
+    const updated = await accountingRepository.updateVoucherType(voucherType.id, changes)
+
+    const auditChanges = []
+    if (updated.name !== voucherType.name) {
+      auditChanges.push({ field: 'name', label: 'Nombre', previousValue: voucherType.name, newValue: updated.name })
+    }
+    if (updated.isActive !== voucherType.isActive) {
+      auditChanges.push({
+        field: 'isActive',
+        label: 'Estado',
+        previousValue: voucherType.isActive ? 'Activo' : 'Inactivo',
+        newValue: updated.isActive ? 'Activo' : 'Inactivo',
+      })
+    }
+
+    await auditService.log({
+      action: 'ACCOUNTING_VOUCHER_TYPE_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'ACCOUNTING_VOUCHER_TYPE',
+      entityId: updated.id,
+      entityReference: updated.code,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Tipo de comprobante ${updated.code}: ${updated.name} (${updated.isActive ? 'activo' : 'inactivo'})`,
+      changes: auditChanges,
+    })
+
+    return updated
   }
 
   // --- VALIDACIÓN Y GESTIÓN DE PERIODOS CONTABLES ---

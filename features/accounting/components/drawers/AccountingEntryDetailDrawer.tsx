@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingEntry } from '../../types'
+import { AccountingEntry, AccountingVoucherType } from '../../types'
+import { VoucherTypeBadge } from '../VoucherTypeBadge'
 
 interface AccountingEntryDetailDrawerProps {
   entry: AccountingEntry | null
@@ -11,6 +12,8 @@ interface AccountingEntryDetailDrawerProps {
   onClose: () => void
   onReverse: (entryId: string, reason: string) => Promise<void>
   canCancelEntry: boolean
+  /** Catálogo de tipos de comprobante, para mostrar el nombre del tipo del asiento. */
+  voucherTypes?: AccountingVoucherType[]
 }
 
 export function AccountingEntryDetailDrawer({
@@ -19,6 +22,7 @@ export function AccountingEntryDetailDrawer({
   onClose,
   onReverse,
   canCancelEntry,
+  voucherTypes = [],
 }: AccountingEntryDetailDrawerProps) {
   const [mounted, setMounted] = useState(false)
   const [isReversing, setIsReversing] = useState(false)
@@ -132,7 +136,20 @@ export function AccountingEntryDetailDrawer({
 
         <div className="drawer-body space-y-5 py-4 text-xs">
           {/* Ficha de Metadatos */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div>
+              <span className="text-gray-400 block text-[11px]">Tipo de Comprobante</span>
+              {entry.voucherTypeCode ? (
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <VoucherTypeBadge code={entry.voucherTypeCode} voucherTypes={voucherTypes} />
+                  <strong className="text-gray-800 font-medium">
+                    {voucherTypes.find((vt) => vt.code === entry.voucherTypeCode)?.name || ''}
+                  </strong>
+                </span>
+              ) : (
+                <strong className="text-gray-400 font-medium">Sin tipo asignado</strong>
+              )}
+            </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Fecha Contable</span>
               <strong className="text-gray-800 font-medium">{formatDate(entry.date)}</strong>

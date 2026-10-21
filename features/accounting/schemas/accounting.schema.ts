@@ -49,9 +49,16 @@ export const manualEntryLineSchema = z.object({
   costCenterName: z.string().optional(),
 })
 
+/** Tipos de comprobante que admite un asiento manual (la base valida lo mismo, migración 064). */
+export const MANUAL_VOUCHER_TYPE_CODES = ['CC', 'AJ', 'CM', 'TR'] as const
+export type ManualVoucherTypeCode = (typeof MANUAL_VOUCHER_TYPE_CODES)[number]
+export const DEFAULT_MANUAL_VOUCHER_TYPE_CODE: ManualVoucherTypeCode = 'CC'
+
 export const manualEntrySchema = z
   .object({
     date: z.string().min(1, 'La fecha es obligatoria'),
+    /** Sin valor se registra como CC (Comprobante de contabilidad). */
+    voucherTypeCode: z.enum(MANUAL_VOUCHER_TYPE_CODES).optional(),
     dueDate: z.string().optional(),
     description: z
       .string()
@@ -136,3 +143,20 @@ export const inventoryLineAccountsSchema = z.object({
 })
 
 export type InventoryLineAccountsFormData = z.infer<typeof inventoryLineAccountsSchema>
+
+// Tipos de comprobante (migración 064): un administrador solo renombra o activa/desactiva los no-system.
+export const voucherTypeUpdateSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(3, 'El nombre debe tener al menos 3 caracteres')
+      .max(80, 'El nombre no puede exceder 80 caracteres')
+      .optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine((data) => data.name !== undefined || data.isActive !== undefined, {
+    message: 'No hay cambios para guardar.',
+  })
+
+export type VoucherTypeUpdateData = z.infer<typeof voucherTypeUpdateSchema>

@@ -115,6 +115,8 @@ export interface AccountingEntry {
   sourceType: AccountingSourceType
   sourceId?: string
   documentNumber?: string
+  /** Tipo de comprobante (accounting_voucher_types, migración 064). Vacío en asientos anteriores. */
+  voucherTypeCode?: string
   description: string
   status: AccountingEntryStatus
   locationId?: string
@@ -170,6 +172,8 @@ export interface AccountingFilters {
   level?: AccountLevel | 'ALL' | 'IMPUTABLE'
   status?: AccountStatus | 'ALL'
   sourceType?: AccountingSourceType | 'ALL'
+  /** Código del tipo de comprobante (FC, CC, ...). */
+  voucherTypeCode?: string | 'ALL'
   entryStatus?: AccountingEntryStatus | 'ALL'
   periodMode?: PeriodMode
   year?: number
@@ -180,6 +184,11 @@ export interface AccountingFilters {
   accountId?: string | 'ALL'
   thirdPartyId?: string | 'ALL'
   costCenterId?: string | 'ALL'
+  /** Rango de cuentas PUC (incluyente; la final incluye sus subcuentas). Vacío = todas. */
+  accountFrom?: string
+  accountTo?: string
+  /** Fecha de corte (YYYY-MM-DD) del Balance General. */
+  cutoffDate?: string
   page: number
   pageSize: number
 }
@@ -214,6 +223,8 @@ export interface AuxiliaryLedgerReport {
   finalBalance: number
   accountSummaries: AuxiliaryLedgerAccountSummary[]
   movements: AuxiliaryLedgerMovementItem[]
+  /** "Cuentas de X a Y" / "Todas las cuentas". */
+  accountRangeLabel?: string
 }
 
 export interface MonthlyFinancialPoint {
@@ -267,21 +278,93 @@ export interface BalanceSheetItem {
   percentage: number
 }
 
+/**
+ * Nodo del árbol PUC con saldos (Clase → Grupo → Cuenta → Subcuenta → Auxiliar).
+ * Los importes de un nodo incluyen los de todo su subárbol; el saldo se expresa según la
+ * naturaleza del propio nodo (DEBIT = débitos − créditos; CREDIT = créditos − débitos).
+ */
+export interface FinancialStatementNode {
+  id: string
+  code: string
+  name: string
+  level: AccountLevel
+  /** 1 = Clase … 5 = Auxiliar. */
+  levelNumber: number
+  accountClass: number
+  nature: AccountNature
+  /** Saldo anterior (movimientos previos al periodo), según naturaleza. */
+  openingBalance: number
+  /** Débitos / créditos del periodo (en el Balance General: acumulados hasta la fecha de corte). */
+  debit: number
+  credit: number
+  /** Saldo final según naturaleza: saldo anterior + movimientos del periodo. */
+  balance: number
+  /** Nodo creado para agrupar cuentas cuyo padre no existe en el catálogo. */
+  isSynthetic: boolean
+  children: FinancialStatementNode[]
+}
+
+export interface BalanceSheetParams {
+  /** Fecha de corte YYYY-MM-DD (incluida). */
+  cutoffDate: string
+  locationId?: string | 'ALL'
+  accountFrom?: string
+  accountTo?: string
+}
+
+/** Estado de Situación Financiera desglosado por niveles del PUC. */
 export interface BalanceSheetReport {
+  /** Texto del corte, p. ej. "Corte al 21/10/2026". */
   period: string
+  cutoffDate: string
   locationId?: string
   locationName?: string
-  currentAssets: BalanceSheetItem[]
-  nonCurrentAssets: BalanceSheetItem[]
+  accountFrom?: string
+  accountTo?: string
+  accountRangeLabel: string
+  /** Clase 1, 2 y 3 con todo su desglose (null si no hay cuentas de la clase en el rango). */
+  assets: FinancialStatementNode | null
+  liabilities: FinancialStatementNode | null
+  equity: FinancialStatementNode | null
+  /** Resultado del ejercicio aún no cerrado: Ingresos (4) − Gastos (5) − Costos (6) − Costos de producción (7). */
+  currentYearResult: number
+  resultBreakdown: {
+    revenues: number
+    expenses: number
+    costOfSales: number
+    productionCosts: number
+  }
   totalAssets: number
-  currentLiabilities: BalanceSheetItem[]
-  nonCurrentLiabilities: BalanceSheetItem[]
   totalLiabilities: number
-  equityItems: BalanceSheetItem[]
+  /** Saldo de la clase 3 (sin el resultado del ejercicio). */
+  totalEquityAccounts: number
+  /** Patrimonio total = clase 3 + resultado del ejercicio. */
   totalEquity: number
   totalLiabilitiesAndEquity: number
   isBalanced: boolean
   difference: number
+  /** true si hay al menos un saldo distinto de cero en las clases 1 a 7. */
+  hasBalances: boolean
+  generatedAt: string
+}
+
+/** Datos institucionales para los encabezados de los reportes (tabla companies). */
+export interface AccountingCompanyHeader {
+  legalName: string
+  tradeName: string
+  taxId: string
+  verificationDigit: string
+  taxRegime: string
+  legalRepresentative: string
+}
+
+/** Débitos y créditos por cuenta (id de la cuenta → importes). */
+export type AccountMovementTotalsMap = Map<string, { debit: number; credit: number }>
+
+/** Totales del Balance de Comprobación consultados en la base (saldo anterior y periodo). */
+export interface TrialBalanceTotals {
+  opening: AccountMovementTotalsMap
+  period: AccountMovementTotalsMap
 }
 
 export interface IncomeStatementReport {
@@ -433,6 +516,23 @@ export interface InventoryLineAccountsConfig {
   defaultIncomeAccount: AccountingAccountRef | null
 }
 
+/**
+ * Tipo de comprobante contable (accounting_voucher_types, migración 064). Cada tipo lleva su propio
+ * consecutivo por empresa: FC-000001, CC-000001...
+ */
+export interface AccountingVoucherType {
+  id: string
+  code: string
+  name: string
+  description?: string
+  /** document_type que el servidor asigna a este tipo (MANUAL = elegible en el asiento manual). */
+  defaultDocumentTypes: string[]
+  /** Los tipos del sistema no se renombran ni se desactivan. */
+  isSystem: boolean
+  isActive: boolean
+  sortOrder: number
+}
+
 export type AccountingPermission =
   | 'accounting.read'
   | 'accounting.accounts'
@@ -501,6 +601,11 @@ export interface AccountingExportFilterOptions {
   maxLevel?: TrialBalanceLevelFilter
   includeThirdParties?: boolean
   hideZeroBalances?: boolean
+  /** Sede (locations.id) o 'ALL'; reemplaza el texto libre de sucursal. */
+  locationId?: string
+  locationName?: string
+  /** Empresa del usuario para el encabezado del archivo (razón social, NIT y DV). */
+  companyHeader?: AccountingCompanyHeader | null
 }
 
 export interface AccountingExportPdfParams {
@@ -522,6 +627,7 @@ export interface AccountingExportPdfParams {
   hideZeroBalances?: boolean
   startDate?: string
   endDate?: string
+  locationId?: string
 }
 
 export type TrialBalanceLevelFilter = 'CLASS' | 'GROUP' | 'ACCOUNT' | 'SUBACCOUNT' | 'AUXILIARY' | 'ALL'
@@ -561,6 +667,9 @@ export interface TrialBalanceReportData {
   administrativeArea?: string
   startAccountCode?: string
   endAccountCode?: string
+  /** "Cuentas de X a Y" / "Todas las cuentas". */
+  accountRangeLabel: string
+  locationName?: string
   voucherType?: string
   selectedThirdPartyName?: string
   mainAccountCode: string

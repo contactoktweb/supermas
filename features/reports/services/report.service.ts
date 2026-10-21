@@ -583,7 +583,7 @@ export class ReportService {
 
     const criteria = this.resolveCriteria(rawCriteria)
     const [balanceSheet, incomeStatement, allEntries, cxc, cxp] = await Promise.all([
-      accountingReportService.getBalanceSheet(undefined, criteria.locationId),
+      accountingReportService.getBalanceSheet({ locationId: criteria.locationId }),
       accountingReportService.getIncomeStatement(undefined, criteria.locationId),
       accountingRepository.getAllEntries(),
       accountingReportService.getAccountsReceivable(criteria.companyId),

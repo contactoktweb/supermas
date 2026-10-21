@@ -1,17 +1,26 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { ExogenaPrepItem, InventoryLineAccounts, InventoryLineAccountsConfig } from '../../types'
-import { InventoryLineAccountsFormData } from '../../schemas/accounting.schema'
+import {
+  AccountingVoucherType,
+  ExogenaPrepItem,
+  InventoryLineAccounts,
+  InventoryLineAccountsConfig,
+} from '../../types'
+import { InventoryLineAccountsFormData, VoucherTypeUpdateData } from '../../schemas/accounting.schema'
 import { supabaseClient } from '@/lib/supabase/client'
 import { InventoryLineAccountsSection } from './InventoryLineAccountsSection'
+import { VoucherTypesSection } from './VoucherTypesSection'
 
 interface AccountingConfigTabProps {
   inventoryLineAccounts: InventoryLineAccountsConfig | null
   inventoryLineAccountsState: 'loading' | 'ready' | 'error' | 'stale'
+  voucherTypes: AccountingVoucherType[]
+  voucherTypesState: 'loading' | 'ready' | 'error' | 'stale'
   exogenaPrep: ExogenaPrepItem[]
   onSaveInventoryLine: (data: InventoryLineAccountsFormData) => Promise<void>
   onResetInventoryLine: (line: InventoryLineAccounts) => Promise<void>
+  onUpdateVoucherType: (voucherType: AccountingVoucherType, changes: VoucherTypeUpdateData) => Promise<void>
   onRetry: () => void
   canManageConfig: boolean
 }
@@ -19,9 +28,12 @@ interface AccountingConfigTabProps {
 export function AccountingConfigTab({
   inventoryLineAccounts,
   inventoryLineAccountsState,
+  voucherTypes,
+  voucherTypesState,
   exogenaPrep,
   onSaveInventoryLine,
   onResetInventoryLine,
+  onUpdateVoucherType,
   onRetry,
   canManageConfig,
 }: AccountingConfigTabProps) {
@@ -57,6 +69,15 @@ export function AccountingConfigTab({
         canManage={canManageConfig}
         onSave={onSaveInventoryLine}
         onReset={onResetInventoryLine}
+        onRetry={onRetry}
+      />
+
+      {/* Tipos de comprobante (FC, CC, RV...) con consecutivo propio por tipo */}
+      <VoucherTypesSection
+        voucherTypes={voucherTypes}
+        state={voucherTypesState}
+        canManage={canManageConfig}
+        onUpdate={onUpdateVoucherType}
         onRetry={onRetry}
       />
 

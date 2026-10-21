@@ -406,6 +406,12 @@ export class CategoryRepository {
     if (msg.includes('no puede ser su propia categoría padre')) {
       return 'Una categoría no puede asignarse a sí misma como categoría padre.'
     }
+    if (msg.includes('Jerarquía cíclica')) {
+      return 'La categoría padre elegida es una subcategoría de esta categoría. Elija otra categoría padre.'
+    }
+    if (msg.includes('nombre de la categoría es obligatorio')) {
+      return 'El nombre de la categoría es obligatorio.'
+    }
     if (msg.includes('foreign key constraint') || msg.includes('violates foreign key')) {
       return 'No se puede realizar la operación porque la categoría tiene registros dependientes.'
     }

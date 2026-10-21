@@ -142,7 +142,7 @@ export function CategoryFormDrawer({
   }
 
   const selectParentOptions = [
-    { value: '', label: '📂 Categoría principal (Nivel raíz)' },
+    { value: '', label: 'Categoría principal (nivel raíz)' },
     ...parentOptions.map((opt) => ({
       value: opt.value,
       label: opt.label,

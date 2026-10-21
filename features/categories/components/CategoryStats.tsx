@@ -87,7 +87,7 @@ export function CategoryStats({ stats }: CategoryStatsProps) {
       <CategoryKpiCard
         title="Categorías Raíz"
         value={stats.rootCategories}
-        iconName="grid"
+        iconName="dashboard"
         tone="teal"
         badge="Jerarquía"
         note="Nivel principal"
@@ -99,7 +99,7 @@ export function CategoryStats({ stats }: CategoryStatsProps) {
       <CategoryKpiCard
         title="Subcategorías"
         value={stats.subcategories}
-        iconName="table"
+        iconName="kardex"
         tone="blue"
         badge="Anidadas"
         note="Niveles secundarios"

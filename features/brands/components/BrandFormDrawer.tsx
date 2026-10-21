@@ -109,147 +109,161 @@ export function BrandFormDrawer({
       setIsSubmitting(true)
       await onSubmit(result.data)
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrors({ form: extractErrorMessage(err, 'Error al guardar la marca') })
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const fieldErrorId = (field: string) => `brand-${field}-error`
+
   return createPortal(
-    <div
-      className="drawer-backdrop"
-      onClick={() => !isSubmitting && onClose()}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="drawer-card page-enter"
+    <div className="drawer-backdrop" onClick={() => !isSubmitting && onClose()}>
+      <aside
+        className="product-drawer product-form-drawer catalog-form-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '500px' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="brand-form-title"
       >
-        <div className="drawer-header">
-          <div>
-            <span className="badge badge-accent">
-              {mode === 'create' ? 'Nueva Marca' : 'Editar Marca'}
+        <header className="drawer-header catalog-form-header">
+          <div className="catalog-form-title">
+            <span className="stat-icon blue" aria-hidden="true">
+              <AppIcon name={mode === 'create' ? 'plus' : 'edit'} size={20} />
             </span>
-            <h2 className="drawer-title">
-              {mode === 'create' ? 'Registrar marca' : formData.name || 'Editar marca'}
-            </h2>
+            <div>
+              <span className="product-category-eyebrow">
+                {mode === 'create' ? 'Nueva marca' : 'Editar marca'}
+              </span>
+              <h2 id="brand-form-title">
+                {mode === 'create' ? 'Registrar marca' : formData.name || 'Editar marca'}
+              </h2>
+            </div>
           </div>
           <button
             type="button"
-            className="icon-button close-drawer-btn"
+            className="icon-button catalog-form-close"
             onClick={onClose}
             disabled={isSubmitting}
             aria-label="Cerrar formulario"
           >
-            <AppIcon name="close" size={18} />
+            <AppIcon name="close" size={20} />
           </button>
-        </div>
+        </header>
 
-        <form onSubmit={handleSubmit} className="drawer-form">
-          <div className="drawer-body">
-            {errors.form && (
-              <div className="form-error-banner" role="alert">
-                <AppIcon name="warning" size={16} />
-                <span>{extractErrorMessage(errors.form)}</span>
-              </div>
-            )}
+        {errors.form && (
+          <div className="form-error-banner page-enter" role="alert">
+            <AppIcon name="warning" size={16} />
+            <span>{extractErrorMessage(errors.form)}</span>
+          </div>
+        )}
 
-            <div className="input-field-block">
+        <form onSubmit={handleSubmit} className="product-form-body" noValidate>
+          <div className="form-tab-content">
+            <div className="form-field">
               <label htmlFor="brand-name">
-                Nombre de la marca <span className="req">*</span>
+                Nombre de la marca <em>*</em>
               </label>
-              <div className="input-wrap">
+              <div className={`input-wrap ${errors.name ? 'is-invalid' : ''}`}>
                 <input
                   id="brand-name"
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="Ej: Colanta, Nestlé, Coca-Cola..."
+                  aria-invalid={Boolean(errors.name)}
+                  aria-describedby={errors.name ? fieldErrorId('name') : undefined}
                   autoFocus
                 />
               </div>
-              {errors.name && <span className="field-error">{errors.name}</span>}
+              {errors.name && (
+                <span id={fieldErrorId('name')} className="field-error-text">
+                  {errors.name}
+                </span>
+              )}
             </div>
 
-            <div className="input-field-block">
+            <div className="form-field">
               <label htmlFor="brand-slug">
-                Slug (URL amigable) <span className="req">*</span>
+                Slug (URL amigable) <em>*</em>
               </label>
-              <div className="input-wrap">
+              <div className={`input-wrap ${errors.slug ? 'is-invalid' : ''}`}>
                 <input
                   id="brand-slug"
                   type="text"
                   value={formData.slug}
                   onChange={(e) => handleSlugChange(e.target.value)}
                   placeholder="colanta"
-                  className="mono"
+                  aria-invalid={Boolean(errors.slug)}
+                  aria-describedby={errors.slug ? fieldErrorId('slug') : 'brand-slug-hint'}
                 />
               </div>
-              {errors.slug && <span className="field-error">{errors.slug}</span>}
+              {errors.slug ? (
+                <span id={fieldErrorId('slug')} className="field-error-text">
+                  {errors.slug}
+                </span>
+              ) : (
+                <small id="brand-slug-hint" className="field-hint">
+                  Se genera automáticamente a partir del nombre.
+                </small>
+              )}
             </div>
 
-            <div className="input-field-block">
-              <label htmlFor="brand-logo">URL del Logo (Opcional)</label>
-              <div className="input-wrap">
+            <div className="form-field">
+              <label htmlFor="brand-logo">URL del logo (opcional)</label>
+              <div className={`input-wrap ${errors.logoUrl ? 'is-invalid' : ''}`}>
                 <input
                   id="brand-logo"
                   type="url"
                   value={formData.logoUrl || ''}
                   onChange={(e) => setFormData((prev) => ({ ...prev, logoUrl: e.target.value || null }))}
                   placeholder="https://ejemplo.com/logo.png"
+                  aria-invalid={Boolean(errors.logoUrl)}
+                  aria-describedby={errors.logoUrl ? fieldErrorId('logoUrl') : 'brand-logo-hint'}
                 />
               </div>
-              <span className="field-helper">Enlace directo a imagen PNG, SVG o JPG</span>
-              {errors.logoUrl && <span className="field-error">{errors.logoUrl}</span>}
+              {errors.logoUrl ? (
+                <span id={fieldErrorId('logoUrl')} className="field-error-text">
+                  {errors.logoUrl}
+                </span>
+              ) : (
+                <small id="brand-logo-hint" className="field-hint">
+                  Enlace directo a imagen PNG, SVG o JPG
+                </small>
+              )}
             </div>
 
-            <div className="input-field-block">
-              <label>Estado de operación</label>
-              <div className="checkbox-toggle-card">
-                <label className="toggle-row-simple">
-                  <input
-                    type="checkbox"
-                    checked={formData.isActive}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-                  />
-                  <span>{formData.isActive ? 'Marca Activa' : 'Marca Inactiva'}</span>
-                </label>
-              </div>
-            </div>
+            <fieldset className="form-field catalog-form-fieldset">
+              <legend>Estado de operación</legend>
+              <label className="toggle-row-simple catalog-form-toggle">
+                <input
+                  type="checkbox"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                />
+                <span>{formData.isActive ? 'Marca activa' : 'Marca inactiva'}</span>
+              </label>
+            </fieldset>
           </div>
 
-          <div className="drawer-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
+          <footer className="dialog-footer form-drawer-footer">
+            <button type="button" className="outline-button" onClick={onClose} disabled={isSubmitting}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary icon-button-text"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <AppIcon name="refresh" size={16} className="spin" />
-                  <span>Guardando...</span>
-                </>
-              ) : (
-                <>
-                  <AppIcon name="save" size={16} />
-                  <span>{mode === 'create' ? 'Crear Marca' : 'Guardar Cambios'}</span>
-                </>
-              )}
+            <button type="submit" className="primary-button" disabled={isSubmitting} aria-busy={isSubmitting}>
+              <AppIcon
+                name={isSubmitting ? 'refresh' : 'save'}
+                size={16}
+                className={isSubmitting ? 'spin-animation' : ''}
+              />
+              <span>
+                {isSubmitting ? 'Guardando...' : mode === 'create' ? 'Crear marca' : 'Guardar cambios'}
+              </span>
             </button>
-          </div>
+          </footer>
         </form>
-      </div>
+      </aside>
     </div>,
     document.body
   )

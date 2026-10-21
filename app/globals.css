@@ -2102,6 +2102,103 @@ textarea:disabled {
   border-top: 1px solid var(--line);
 }
 
+/* Catalog form drawers (Categorías, Marcas): compact variant of the product form drawer */
+.product-form-drawer.catalog-form-drawer {
+  width: min(100%, 560px) !important;
+}
+.catalog-form-header {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.catalog-form-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.catalog-form-title .stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.catalog-form-title h2 {
+  font-size: 19px;
+  font-weight: 800;
+  word-break: break-word;
+}
+.catalog-form-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color .2s ease, color .2s ease;
+}
+.catalog-form-close:hover {
+  background: #f1f5f9;
+  color: var(--foreground);
+}
+.catalog-form-close:focus-visible,
+.catalog-form-drawer .primary-button:focus-visible,
+.catalog-form-drawer .outline-button:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.catalog-form-close:disabled,
+.catalog-form-drawer .primary-button:disabled,
+.catalog-form-drawer .outline-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.catalog-form-drawer .custom-form-textarea {
+  font-family: inherit;
+  resize: vertical;
+}
+.catalog-form-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.catalog-form-fieldset legend {
+  padding: 0;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+.catalog-form-toggle {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.catalog-form-toggle:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3.5px rgba(0, 27, 92, 0.12);
+}
+@media (max-width: 680px) {
+  .product-form-drawer.catalog-form-drawer {
+    width: 100vw !important;
+  }
+  .catalog-form-drawer .form-drawer-footer > button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-form-drawer,
+  .catalog-form-drawer * {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 /* Detail Drawer Styles */
 .product-detail-drawer {
   width: clamp(380px, 54vw, 720px) !important;

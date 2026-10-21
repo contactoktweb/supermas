@@ -10,6 +10,11 @@
 import { NextRequest } from 'next/server'
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  isPasswordChangeRequired,
+  PASSWORD_CHANGE_REQUIRED_CODE,
+  PASSWORD_CHANGE_REQUIRED_MESSAGE,
+} from '@/lib/auth/password-change-flag'
 
 export interface ServerUser {
   userId: string
@@ -18,6 +23,10 @@ export interface ServerUser {
   companyId: string
   roleCode: string
   isAdmin: boolean
+  /** JWT de la petición (necesario para operar sobre la propia cuenta en Supabase Auth) */
+  accessToken: string
+  /** true mientras el usuario no haya cambiado la contraseña inicial asignada por un administrador */
+  mustChangePassword: boolean
   /** Cliente Supabase que actúa COMO el usuario (RLS + auth.uid()) */
   userClient: SupabaseClient<any, 'public', any>
   /** Verifica un permiso con la función SQL has_permission (fuente de verdad del RBAC) */
@@ -25,7 +34,7 @@ export interface ServerUser {
 }
 
 export class AuthError extends Error {
-  constructor(message: string, public readonly status: 401 | 403) {
+  constructor(message: string, public readonly status: 401 | 403, public readonly code?: string) {
     super(message)
     this.name = 'AuthError'
   }
@@ -38,7 +47,18 @@ function extractToken(req: NextRequest): string | null {
   return cookie ? decodeURIComponent(cookie) : null
 }
 
-export async function requireServerUser(req: NextRequest): Promise<ServerUser> {
+export interface RequireServerUserOptions {
+  /**
+   * Permite continuar aunque la contraseña inicial siga pendiente de cambio.
+   * Solo debe usarlo la API que realiza ese cambio.
+   */
+  allowPendingPasswordChange?: boolean
+}
+
+export async function requireServerUser(
+  req: NextRequest,
+  options: RequireServerUserOptions = {}
+): Promise<ServerUser> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (!url || !anon || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -51,6 +71,13 @@ export async function requireServerUser(req: NextRequest): Promise<ServerUser> {
   const admin = createAdminClient()
   const { data: authData, error: authErr } = await admin.auth.getUser(token)
   if (authErr || !authData?.user) throw new AuthError('Sesión inválida o expirada.', 401)
+
+  // app_metadata se lee del usuario actual en Supabase Auth (no del JWT), así que es autoritativo
+  // aunque el token se haya emitido antes de quitar o poner la bandera.
+  const mustChangePassword = isPasswordChangeRequired(authData.user.app_metadata)
+  if (mustChangePassword && !options.allowPendingPasswordChange) {
+    throw new AuthError(PASSWORD_CHANGE_REQUIRED_MESSAGE, 403, PASSWORD_CHANGE_REQUIRED_CODE)
+  }
 
   const { data: row, error: rowErr } = await admin
     .from('users')
@@ -83,6 +110,8 @@ export async function requireServerUser(req: NextRequest): Promise<ServerUser> {
     companyId: row.company_id,
     roleCode,
     isAdmin: roleCode === 'ADMIN' || roleCode === 'SUPERADMIN',
+    accessToken: token,
+    mustChangePassword,
     userClient,
     can,
   }

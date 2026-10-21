@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import {
+  CHANGE_PASSWORD_PATH,
+  PASSWORD_CHANGE_REQUIRED_CODE,
+  PASSWORD_CHANGE_REQUIRED_MESSAGE,
+  tokenRequiresPasswordChange,
+} from '@/lib/auth/password-change-flag'
 
 /**
  * SUPER MÁS ERP/POS - Middleware de Seguridad y Protección de Rutas
@@ -24,10 +30,20 @@ export function middleware(request: NextRequest) {
 
   const isPublicAuthPage = pathname === '/login' || pathname === '/recuperar-contrasena'
 
+  // Contraseña inicial pendiente (bandera de app_metadata dentro del JWT). Aquí solo se decide la
+  // navegación; requireServerUser vuelve a comprobarlo contra Supabase Auth en cada API.
+  const mustChangePassword = token ? tokenRequiresPasswordChange(token) : false
+
   // Manejo de llamadas API sin autenticación (retornar JSON en lugar de redirección HTML)
   if (pathname.startsWith('/api/')) {
     if (!token) {
       return NextResponse.json({ success: false, error: 'No autorizado: sesión requerida' }, { status: 401 })
+    }
+    if (mustChangePassword) {
+      return NextResponse.json(
+        { success: false, error: PASSWORD_CHANGE_REQUIRED_MESSAGE, code: PASSWORD_CHANGE_REQUIRED_CODE },
+        { status: 403 }
+      )
     }
     return NextResponse.next()
   }
@@ -39,6 +55,19 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set('redirectTo', pathname)
     }
     return NextResponse.redirect(loginUrl)
+  }
+
+  // 1.1 Contraseña inicial pendiente: la única pantalla disponible es la de cambio de contraseña
+  if (token && mustChangePassword) {
+    if (pathname === CHANGE_PASSWORD_PATH || pathname === '/recuperar-contrasena') {
+      return NextResponse.next()
+    }
+    return NextResponse.redirect(new URL(CHANGE_PASSWORD_PATH, request.url))
+  }
+
+  // 1.2 Sin cambio pendiente, la pantalla de cambio obligatorio no aplica
+  if (token && pathname === CHANGE_PASSWORD_PATH) {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   // 2. Usuario YA autenticado visitando /login

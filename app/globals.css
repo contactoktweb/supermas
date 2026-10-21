@@ -6035,3 +6035,79 @@ html, body {
   transform: translateX(4px);
 }
 
+
+/* ============================================================
+   Cambio obligatorio de contraseña (primer ingreso)
+   ============================================================ */
+.password-change-form { gap: 12px; }
+.password-field { display: flex; flex-direction: column; gap: 6px; }
+.password-field-label { font-size: 13px; font-weight: 600; color: var(--navy); }
+.password-field-wrap { position: relative; height: 46px; }
+.password-visibility-toggle {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 36px; height: 36px; margin-right: -8px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  transition: background-color .2s ease, color .2s ease;
+}
+.password-visibility-toggle:hover { background: #eef2fa; color: var(--navy); }
+.password-visibility-toggle:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.password-field-error { margin: -4px 0 0; color: #b91c1c; font-size: 12px; font-weight: 600; animation: fade .2s ease; }
+
+.password-strength { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
+.password-strength-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.password-strength-caption { color: var(--muted); font-weight: 600; }
+.password-strength-label { font-weight: 700; color: var(--muted); transition: color .25s ease; }
+.password-strength-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.password-strength-segment { height: 6px; border-radius: 4px; background: #e2e8f0; transform-origin: left; transition: background-color .3s ease, transform .3s ease; }
+.password-strength-segment.is-filled { animation: grow .3s ease both; }
+.password-strength[data-level="1"] .is-filled { background: #dc2626; }
+.password-strength[data-level="1"] .password-strength-label { color: #b91c1c; }
+.password-strength[data-level="2"] .is-filled { background: #d97706; }
+.password-strength[data-level="2"] .password-strength-label { color: #b45309; }
+.password-strength[data-level="3"] .is-filled { background: #16a34a; }
+.password-strength[data-level="3"] .password-strength-label { color: #15803d; }
+.password-strength[data-level="4"] .is-filled { background: #047857; }
+.password-strength[data-level="4"] .password-strength-label { color: #047857; }
+.password-rules { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.password-rules li { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; transition: color .2s ease; }
+.password-rules li svg { color: #94a3b8; transition: color .2s ease, transform .2s ease; }
+.password-rules li.is-met { color: #15803d; }
+.password-rules li.is-met svg { color: #16a34a; transform: scale(1.08); }
+@media (min-width: 480px) { .password-rules { grid-template-columns: 1fr 1fr; } }
+
+.password-change-pill { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.password-change-alert {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 16px; padding: 12px 14px;
+  border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 13px; line-height: 1.45;
+  animation: fade .2s ease;
+}
+.password-change-alert svg { flex-shrink: 0; color: #dc2626; }
+.password-change-submit { width: 100%; height: 46px; margin-top: 6px; font-size: 14px; }
+.password-change-submit:disabled, .password-change-signout:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+.password-change-signout {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; align-self: center;
+  min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--muted); font-size: 13px; font-weight: 600; transition: color .2s ease, background-color .2s ease;
+}
+.password-change-signout:hover { color: var(--navy); background: #eef2fa; }
+.password-change-signout:focus-visible, .password-change-full:focus-visible, .password-change-submit:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.password-change-full { width: 100%; height: 46px; font-size: 14px; }
+.password-change-status { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 0; color: var(--muted); font-size: 14px; }
+.password-change-spinner { width: 34px; height: 34px; border: 3px solid #e2e8f0; border-top-color: var(--navy); border-radius: 50%; animation: spin .8s linear infinite; }
+.password-change-spinner.is-small { width: 14px; height: 14px; border-width: 2px; border-color: #ffffff66; border-top-color: #fff; }
+.password-change-result { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0; text-align: center; animation: scaleIn .3s ease both; }
+.password-change-result h2 { margin: 6px 0 0; font-size: 22px; color: var(--navy); }
+.password-change-result p { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.password-change-result-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; }
+.password-change-result-icon.is-success { background: #ecfdf5; color: #059669; }
+.password-change-result-icon.is-error { background: #fef2f2; color: #dc2626; }
+.password-change-footer { width: min(100%, 430px); margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-shell *, .login-shell *::before, .login-shell *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .password-change-spinner { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+}

@@ -3,6 +3,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireServerUser, requireAnyPermission, AuthError } from '@/lib/auth/server-auth'
 import { CreateUserSchema } from '@/features/users/schemas/user.schema'
 import { User, UserRole, UserStatus } from '@/features/users/types'
+import { MUST_CHANGE_PASSWORD_KEY } from '@/lib/auth/password-change-flag'
+import { getDefaultInitialPassword } from '@/features/users/constants/initial-password'
 
 function mapDbUserToDomain(row: any): User {
   const fullName = row.full_name || row.email || ''
@@ -148,7 +150,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 4. Determinar contraseña de acceso (provista o temporal segura)
-    const initialPassword = (data as any).password?.trim() || `SuperMas${new Date().getFullYear()}*`
+    const initialPassword = (data as any).password?.trim() || getDefaultInitialPassword()
 
     // 5. Verificar si ya existe en auth.users (caso huérfano de intentos previos)
     let authUserId: string | null = null
@@ -171,6 +173,8 @@ export async function POST(request: NextRequest) {
         app_metadata: {
           role: data.role,
           company_id: companyId,
+          // La contraseña la definió un administrador: el usuario debe cambiarla al ingresar.
+          [MUST_CHANGE_PASSWORD_KEY]: true,
         },
         user_metadata: {
           full_name: `${data.firstName.trim()} ${data.lastName.trim()}`,
@@ -186,6 +190,8 @@ export async function POST(request: NextRequest) {
         app_metadata: {
           role: data.role,
           company_id: companyId,
+          // La contraseña la definió un administrador: el usuario debe cambiarla al ingresar.
+          [MUST_CHANGE_PASSWORD_KEY]: true,
         },
         user_metadata: {
           full_name: `${data.firstName.trim()} ${data.lastName.trim()}`,

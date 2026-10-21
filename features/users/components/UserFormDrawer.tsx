@@ -6,6 +6,7 @@ import { User, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
 import { SYSTEM_ROLES, DEFINITIVE_ROLES } from '../services/role-permissions'
 import { userService } from '../services/user.service'
+import { getDefaultInitialPassword } from '../constants/initial-password'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -34,6 +35,7 @@ export function UserFormDrawer({
   const [assignedCashRegisterId, setAssignedCashRegisterId] = useState<string>('')
   const [status, setStatus] = useState<UserStatus>('ACTIVE')
   const [password, setPassword] = useState('')
+  const defaultInitialPassword = getDefaultInitialPassword()
 
   const [cashRegisters, setCashRegisters] = useState<Array<{ id: string; code: string; name: string; locationId: string; status: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -390,14 +392,20 @@ export function UserFormDrawer({
           {/* Contraseña Inicial (Solo al registrar nuevo usuario) */}
           {!isEditing && (
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+              <label
+                htmlFor="user-initial-password"
+                style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}
+              >
                 Contraseña Inicial (Opcional)
               </label>
               <input
+                id="user-initial-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Por defecto: SuperMas2026*"
+                placeholder={`Por defecto: ${defaultInitialPassword}`}
+                autoComplete="new-password"
+                aria-describedby="user-initial-password-help"
                 style={{
                   width: '100%',
                   padding: '9px 12px',
@@ -406,8 +414,26 @@ export function UserFormDrawer({
                   fontSize: 14,
                 }}
               />
-              <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
-                Si se deja en blanco, el sistema asignará automáticamente <code>SuperMas{new Date().getFullYear()}*</code>.
+              <span id="user-initial-password-help" style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block', lineHeight: 1.5 }}>
+                Si se deja en blanco, el sistema asignará automáticamente <code>{defaultInitialPassword}</code>.
+              </span>
+              <span
+                style={{
+                  marginTop: 8,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  color: '#1e3a8a',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                <AppIcon name="shield" size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+                Por seguridad, el colaborador deberá cambiar esta contraseña por una personal en su primer ingreso.
               </span>
             </div>
           )}

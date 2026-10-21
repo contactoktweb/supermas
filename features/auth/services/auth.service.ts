@@ -8,7 +8,18 @@
 
 import { supabaseClient } from '@/lib/supabase/client'
 import { getCachedUserProfile, invalidateSessionContext } from '@/lib/supabase/session-context'
+import { CHANGE_PASSWORD_API_PATH, isPasswordChangeRequired } from '@/lib/auth/password-change-flag'
 import { AuthUser, LoginCredentials, UserRoleCode } from '../types'
+import type { ChangePasswordInput } from '../schemas/password-policy.schema'
+
+/** Vida mínima de la cookie de sesión al re-sincronizarla (segundos). */
+const MIN_COOKIE_TTL_SECONDS = 60
+
+/** Resultado del cambio de contraseña inicial una vez aplicado en el servidor. */
+export type InitialPasswordChangeOutcome = 'SESSION_REFRESHED' | 'SIGN_IN_REQUIRED'
+
+/** Estado de la sesión local respecto al cambio obligatorio de contraseña. */
+export type PendingPasswordChangeStatus = 'NO_SESSION' | 'PENDING' | 'NOT_REQUIRED'
 
 export class AuthService {
   /**
@@ -154,6 +165,64 @@ export class AuthService {
       console.error('Error al actualizar contraseña en Supabase Auth:', error)
       throw new Error(error.message || 'Error al actualizar la contraseña.')
     }
+  }
+
+  /**
+   * Indica si la sesión actual tiene pendiente el cambio de la contraseña inicial
+   * (bandera `must_change_password` de app_metadata, incluida en el JWT).
+   */
+  async getPendingPasswordChangeStatus(): Promise<PendingPasswordChangeStatus> {
+    const { data } = await supabaseClient.auth.getSession()
+    const session = data.session
+    // La cookie del middleware se alinea con la sesión local; si quedara desfasada, el
+    // middleware y esta verificación se redirigirían mutuamente.
+    if (!session?.user) {
+      this.syncAuthCookies(null, null)
+      return 'NO_SESSION'
+    }
+    const secondsToExpiry = session.expires_at ? session.expires_at - Math.floor(Date.now() / 1000) : session.expires_in
+    this.syncAuthCookies(session.access_token, null, Math.max(MIN_COOKIE_TTL_SECONDS, secondsToExpiry || 0))
+    return isPasswordChangeRequired(session.user.app_metadata) ? 'PENDING' : 'NOT_REQUIRED'
+  }
+
+  /**
+   * Cambia la contraseña inicial asignada por un administrador. El servidor valida la política,
+   * aplica el cambio y quita la bandera; luego se refresca la sesión para obtener un JWT sin ella.
+   */
+  async changeInitialPassword(input: ChangePasswordInput): Promise<InitialPasswordChangeOutcome> {
+    const { data: sessionData } = await supabaseClient.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) {
+      throw new Error('Su sesión expiró. Ingrese de nuevo con su contraseña actual.')
+    }
+
+    let result: { success?: boolean; error?: string } | null = null
+    let responseOk = false
+    try {
+      const response = await fetch(CHANGE_PASSWORD_API_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(input),
+      })
+      responseOk = response.ok
+      result = await response.json().catch(() => null)
+    } catch {
+      throw new Error('No hay conexión con el servidor. Verifique su red e intente de nuevo.')
+    }
+    if (!responseOk || !result?.success) {
+      throw new Error(result?.error || 'No fue posible actualizar la contraseña.')
+    }
+
+    const { data: refreshed, error: refreshError } = await supabaseClient.auth.refreshSession()
+    const session = refreshed?.session
+    if (refreshError || !session || isPasswordChangeRequired(session.user.app_metadata)) {
+      await this.signOut()
+      return 'SIGN_IN_REQUIRED'
+    }
+
+    const profile = await this.fetchUserProfile(session.user.id)
+    this.syncAuthCookies(session.access_token, profile?.roleCode || null, session.expires_in || 3600)
+    return 'SESSION_REFRESHED'
   }
 
   /**

@@ -9,6 +9,8 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { MUST_CHANGE_PASSWORD_KEY } from '@/lib/auth/password-change-flag'
+import { getDefaultInitialPassword } from '../constants/initial-password'
 import { User, UserFilters, UserStats, UserRole, UserStatus } from '../types'
 import { AuditLogEntry } from '@/features/audit/types'
 
@@ -250,7 +252,7 @@ export class UserRepository {
 
     let userId = data.id
     if (!userId) {
-      const password = data.password || `SuperMas${new Date().getFullYear()}*`
+      const password = data.password || getDefaultInitialPassword()
       const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: data.email.toLowerCase().trim(),
         password,
@@ -258,6 +260,7 @@ export class UserRepository {
         app_metadata: {
           role: data.role,
           company_id: companyId,
+          [MUST_CHANGE_PASSWORD_KEY]: true,
         },
         user_metadata: {
           full_name: `${data.firstName.trim()} ${data.lastName.trim()}`,

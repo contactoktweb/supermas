@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { DIANStatusBadge, InvoiceTypeBadge, InvoiceStatusBadge } from './DIANStatusBadge'
 import { Invoice } from '../types'
 import { DianFiscalPanel, resolutionLegend } from './DianFiscalPanel'
+import { customerReceiptHref } from '@/features/customer-receipt'
 
 interface InvoiceDetailDrawerProps {
   isOpen: boolean
@@ -512,14 +513,27 @@ export function InvoiceDetailDrawer({
             )}
           </div>
 
-          <button
-            type="button"
-            className="primary-button compact"
-            onClick={handlePrint}
-            style={{ fontSize: 12 }}
-          >
-            <AppIcon name="print" size={14} /> Imprimir Comprobante
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {invoice.saleId && invoice.type === 'ELECTRONICA' && (
+              <a
+                href={customerReceiptHref(invoice.saleId)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="outline-button"
+                style={{ fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
+              >
+                <AppIcon name="fileText" size={14} /> Imprimir para cliente (15×20)
+              </a>
+            )}
+            <button
+              type="button"
+              className="primary-button compact"
+              onClick={handlePrint}
+              style={{ fontSize: 12 }}
+            >
+              <AppIcon name="print" size={14} /> Imprimir Comprobante
+            </button>
+          </div>
         </div>
       </aside>
     </div>

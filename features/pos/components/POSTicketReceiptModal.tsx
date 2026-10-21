@@ -5,6 +5,7 @@ import { supabaseClient } from '@/lib/supabase/client'
 import { POSTicketReceipt } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
 import { Heart } from 'lucide-react'
+import { customerReceiptHref } from '@/features/customer-receipt'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -256,6 +257,18 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
         </div>
 
         {/* Actions */}
+        <a
+          href={customerReceiptHref(receipt.saleId, {
+            cashReceived: receipt.paymentMethod === 'EFECTIVO' ? receipt.amountPaid : undefined,
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="outline-button"
+          style={{ height: 42, fontSize: 13, fontWeight: 700, gap: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}
+        >
+          <AppIcon name="fileText" size={16} />
+          <span>Imprimir para cliente (15×20)</span>
+        </a>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 4 }}>
           <button
             type="button"

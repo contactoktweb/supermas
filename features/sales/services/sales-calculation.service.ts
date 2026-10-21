@@ -1,5 +1,11 @@
 import { SaleItem, CreateSaleItemDTO } from '../types'
 
+/** Línea para la vista previa: admite un precio ya resuelto (p. ej. el del catálogo cargado). */
+export type SaleLinePreviewInput = CreateSaleItemDTO & { unitPrice?: number; taxRatePercent?: number }
+
+/** Redondeo a centavos, igual que el servidor (NUMERIC(15,2)). */
+const roundMoney = (value: number): number => Math.round(value * 100) / 100
+
 export interface ProductSource {
   id: string
   name: string
@@ -75,11 +81,12 @@ export class SalesCalculationService {
   }
 
   /**
-   * Calcula con precisión una línea de venta
+   * Calcula una línea de venta para la vista previa. Los valores definitivos (precio, IVA, costo y
+   * totales) los calcula el servidor al grabar la venta.
    */
   calculateLineItem(
     product: ProductSource,
-    dto: CreateSaleItemDTO,
+    dto: SaleLinePreviewInput,
     priceList: 'DEFAULT' | 'WHOLESALE' | 'VIP' = 'DEFAULT'
   ): SaleItem {
     const quantity = Math.max(1, dto.quantity)
@@ -88,15 +95,15 @@ export class SalesCalculationService {
       : this.resolveUnitPrice(product, priceList, quantity)
 
     const discountPercent = Math.min(100, Math.max(0, dto.discountPercent || 0))
-    const grossSubtotal = quantity * unitPrice
-    const discountAmount = Math.round(grossSubtotal * (discountPercent / 100))
-    const netSubtotal = grossSubtotal - discountAmount
+    const grossSubtotal = roundMoney(quantity * unitPrice)
+    const discountAmount = roundMoney(grossSubtotal * (discountPercent / 100))
+    const netSubtotal = roundMoney(grossSubtotal - discountAmount)
 
     const taxRatePercent = this.resolveTaxRate(product, dto.taxRatePercent)
-    const taxAmount = Math.round(netSubtotal * (taxRatePercent / 100))
-    const total = netSubtotal + taxAmount
+    const taxAmount = roundMoney(netSubtotal * (taxRatePercent / 100))
+    const total = roundMoney(netSubtotal + taxAmount)
 
-    const unitCost = product.averageCost || Math.round(unitPrice * 0.7)
+    const unitCost = product.averageCost || 0
 
     return {
       id: `sitem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,

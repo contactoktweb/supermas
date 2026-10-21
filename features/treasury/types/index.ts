@@ -8,8 +8,9 @@
  * - Movimientos de extracto bancario
  * - Conciliación bancaria
  *
- * Integrado con Contabilidad: Al confirmarse un pago o recaudo,
- * Tesorería solicita a Contabilidad la generación del asiento oficial de partida doble.
+ * Integrado con Contabilidad: al ejecutar un pago o registrar un recaudo, el servidor causa en la
+ * misma transacción su comprobante (CE egreso, RC recibo de caja, CI consignación/ingreso a banco)
+ * con la subcuenta PUC real de la cuenta bancaria o caja.
  */
 
 export type BankAccountType = 'CORRIENTE' | 'AHORROS' | 'CAJA_EFECTIVO'
@@ -62,10 +63,8 @@ export interface TreasuryPayment {
   status: TreasuryPaymentStatus
   accountingEntryId?: string | null
   accountingEntryNumber?: string | null
-  debitAccountCode: string
-  debitAccountName: string
-  creditAccountCode: string
-  creditAccountName: string
+  /** Tipo de comprobante contable: CE (pagos), RC o CI (recaudos) */
+  voucherTypeCode?: string | null
   notes?: string
   createdById?: string
   createdByName?: string
@@ -96,10 +95,8 @@ export interface TreasuryReceipt {
   status: TreasuryReceiptStatus
   accountingEntryId?: string | null
   accountingEntryNumber?: string | null
-  debitAccountCode: string
-  debitAccountName: string
-  creditAccountCode: string
-  creditAccountName: string
+  /** Tipo de comprobante contable: CE (pagos), RC o CI (recaudos) */
+  voucherTypeCode?: string | null
   notes?: string
   createdById?: string
   createdByName?: string
@@ -141,6 +138,25 @@ export interface BankReconciliation {
   reconciledAt?: string
   reconciledBy?: string
   notes?: string
+}
+
+/** Resultado de registrar un pago o recaudo: documento de tesorería y su comprobante contable. */
+export interface TreasuryPostingResult {
+  documentId: string
+  documentNumber: string
+  amount: number
+  accountingEntryId: string | null
+  accountingEntryNumber: string | null
+  voucherTypeCode: string | null
+  idempotentReplay: boolean
+}
+
+/** Cliente elegible para un recaudo (con su saldo de cartera). */
+export interface ReceiptCustomerOption {
+  id: string
+  name: string
+  documentNumber: string
+  currentBalance: number
 }
 
 export interface TreasuryStats {

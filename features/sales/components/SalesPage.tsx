@@ -6,6 +6,7 @@ import { SalesStats } from './SalesStats'
 import { SalesFilters } from './SalesFilters'
 import { SalesTable } from './SalesTable'
 import { NewSaleDrawer } from './NewSaleDrawer'
+import { SaleCreatedNotice } from './SaleCreatedNotice'
 import { SaleDetailDrawer } from './SaleDetailDrawer'
 import { SaleCancelModal } from './SaleCancelModal'
 import { SaleReturnModal } from './SaleReturnModal'
@@ -13,7 +14,7 @@ import { SaleInvoiceModal } from './SaleInvoiceModal'
 import { SaleRemissionModal } from './SaleRemissionModal'
 import { useSales } from '../hooks/useSales'
 import { useSaleDetail } from '../hooks/useSaleDetail'
-import { Sale, CreateSaleDTO, SaleReturnDTO } from '../types'
+import { Sale, CreateSaleDTO, CreateSaleResult, SaleReturnDTO } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 
@@ -44,6 +45,7 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
 
   // Modal / Drawer UI states
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false)
+  const [lastCreatedSale, setLastCreatedSale] = useState<CreateSaleResult | null>(null)
   const [selectedSaleIdForDetail, setSelectedSaleIdForDetail] = useState<string | null>(null)
   const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false)
 
@@ -147,7 +149,8 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
   }
 
   const handleCreateSaleSubmit = async (dto: CreateSaleDTO) => {
-    await createSale(dto)
+    const result = await createSale(dto)
+    setLastCreatedSale(result)
   }
 
   const handleConfirmCancel = async (reason: string) => {
@@ -313,6 +316,14 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
           </button>
         </div>
       </div>
+
+      {lastCreatedSale && (
+        <SaleCreatedNotice
+          result={lastCreatedSale}
+          onViewDetail={() => handleViewDetail(lastCreatedSale.sale)}
+          onDismiss={() => setLastCreatedSale(null)}
+        />
+      )}
 
       {/* 2. KPI Cards */}
       <SalesStats stats={stats} loading={statsLoading} />

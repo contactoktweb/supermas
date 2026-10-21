@@ -1,5 +1,8 @@
 import { z } from 'zod'
 
+/** Tope de descuento por línea; el servidor aplica el mismo (fn_create_sale_with_payments). */
+export const MAX_SALE_DISCOUNT_PERCENT = 50
+
 export const saleStatusSchema = z.enum([
   'PENDING',
   'CONFIRMED',
@@ -29,13 +32,11 @@ export const createSaleItemSchema = z.object({
     .number()
     .positive('La cantidad a vender debe ser mayor a 0')
     .max(100000, 'La cantidad no puede superar 100,000 unidades'),
-  unitPrice: z.number().nonnegative('El precio no puede ser negativo').optional(),
   discountPercent: z
     .number()
     .min(0, 'El descuento no puede ser negativo')
-    .max(100, 'El descuento no puede exceder el 100%')
+    .max(MAX_SALE_DISCOUNT_PERCENT, `El descuento no puede exceder el ${MAX_SALE_DISCOUNT_PERCENT}%`)
     .default(0),
-  taxRatePercent: z.number().min(0).max(100).optional(),
   notes: z.string().optional(),
 })
 
@@ -46,6 +47,7 @@ export const createSaleSchema = z.object({
     .array(createSaleItemSchema)
     .min(1, 'Debe incluir al menos un producto en la venta'),
   paymentMethod: paymentMethodSchema.default('EFECTIVO'),
+  idempotencyKey: z.string().uuid('Clave de idempotencia no válida'),
   documentTypeToGenerate: z
     .enum(['FACTURA_POS', 'FACTURA_ELECTRONICA', 'REMISION', 'NINGUNO'])
     .default('FACTURA_POS'),

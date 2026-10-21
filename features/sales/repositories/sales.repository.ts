@@ -62,10 +62,24 @@ function mapDbStatusToDomain(status?: string): SaleStatus {
   }
 }
 
-/** Pago de una venta tal como lo recibe fn_register_sale_payments (amount null = saldo restante del total). */
-export type SalePaymentInput = { method: string; amount: number | null; bank_account_id?: string }
+/** Pago de una venta tal como lo recibe el servidor (amount null = saldo restante del total que calcula). */
+export type SalePaymentInput = {
+  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'CREDIT'
+  amount: number | null
+  bank_account_id?: string
+}
 
-const BANK_PAYMENT_METHODS = new Set(['BANK_TRANSFER', 'CREDIT_CARD', 'DEBIT_CARD'])
+/** Respuesta de fn_create_sale_with_payments (073). */
+export interface CreateSaleRpcResult {
+  success: boolean
+  idempotent_replay: boolean
+  sale_id: string
+  sale_number: string
+  total_amount: number
+  accounting_entry_id: string | null
+  accounting_entry_number: string | null
+  voucher_type_code: string | null
+}
 
 export class SalesRepository {
   /**
@@ -184,6 +198,10 @@ export class SalesRepository {
         total_amount,
         total_cost_amount,
         payment_method,
+        payment_status,
+        paid_amount,
+        payment_terms,
+        due_date,
         status,
         notes,
         created_at,
@@ -378,6 +396,10 @@ export class SalesRepository {
         total_amount,
         total_cost_amount,
         payment_method,
+        payment_status,
+        paid_amount,
+        payment_terms,
+        due_date,
         status,
         notes,
         created_at,
@@ -556,170 +578,36 @@ export class SalesRepository {
   }
 
   /**
-   * Crea una nueva venta en public.sales
+   * Crea la venta del módulo Ventas en una sola transacción del servidor (fn_create_sale_with_payments):
+   * número, precios, IVA, costo, stock/kardex, pagos, caja del usuario, banco, cartera y asiento.
+   * El navegador solo envía ids, cantidades, descuentos y pagos.
    */
-  async create(sale: Sale, payments: SalePaymentInput[] = []): Promise<Sale> {
-    const { data: authUser } = await supabaseClient.auth.getUser()
-    const companyId = await this.resolveCompanyId()
-
-    // Tesorería y contabilidad deben usar la MISMA cuenta bancaria (la elegida en el pago → sale_payments).
-    // Se valida antes de grabar la venta para no dejarla a medias.
-    const explicitTotal = payments.reduce((sum, p) => sum + (p.amount ?? 0), 0)
-    const bankPayments: Array<{ bankAccountId: string; amount: number; method: string }> = []
-    for (const p of payments) {
-      if (!BANK_PAYMENT_METHODS.has(p.method)) continue
-      if (!p.bank_account_id) {
-        throw new Error('Seleccione la cuenta bancaria que recibe el pago: la venta no se registró.')
-      }
-      const { data: account, error: accountError } = await supabaseClient
-        .from('bank_accounts')
-        .select('id')
-        .eq('id', p.bank_account_id)
-        .eq('is_active', true)
-        .maybeSingle()
-      if (accountError || !account) {
-        throw new Error('La cuenta bancaria elegida no existe o está inactiva: la venta no se registró.')
-      }
-      bankPayments.push({
-        bankAccountId: p.bank_account_id,
-        amount: p.amount ?? Math.round((sale.totalAmount - explicitTotal) * 100) / 100,
-        method: p.method,
-      })
-    }
-
-    const isCredit = sale.paymentMethod === 'CREDITO';
-    const paidAmount = isCredit ? 0 : sale.totalAmount;
-    const paymentStatus = isCredit ? 'PENDING' : 'PAID';
-    const paymentTerms = isCredit ? 'CREDITO' : 'CONTADO';
-    const dueDate = sale.dueDate || (sale.date ? sale.date.split('T')[0] : new Date().toISOString().split('T')[0]);
-
-    const { data: created, error } = await supabaseClient
-      .from('sales')
-      .insert({
-        company_id: companyId,
-        location_id: sale.locationId,
-        customer_id: sale.customerId,
-        seller_user_id: authUser.user?.id || (sale.sellerId && sale.sellerId.length === 36 ? sale.sellerId : null),
-        sale_number: sale.saleNumber,
-        subtotal_amount: sale.subtotal,
-        discount_amount: sale.discountTotal,
-        tax_amount: sale.taxTotal,
-        total_amount: sale.totalAmount,
-        total_cost_amount: sale.totalCost,
-        payment_method: mapDomainPaymentMethodToDb(sale.paymentMethod),
-        paid_amount: paidAmount,
-        payment_status: paymentStatus,
-        payment_terms: paymentTerms,
-        due_date: dueDate,
-        status: sale.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED',
-        notes: sale.notes,
-      })
-      .select()
-      .single()
-
-    if (error || !created) {
-      throw new Error(`Error al registrar venta: ${error?.message}`)
-    }
-
-    if (sale.items && sale.items.length > 0) {
-      const itemsPayload = sale.items.map((it) => ({
-        company_id: companyId,
-        sale_id: created.id,
+  async createWithPayments(input: {
+    locationId: string
+    customerId: string
+    idempotencyKey: string
+    items: Array<{ productId: string; quantity: number; discountPercent: number }>
+    payments: SalePaymentInput[]
+    notes?: string
+  }): Promise<CreateSaleRpcResult> {
+    const { data, error } = await supabaseClient.rpc('fn_create_sale_with_payments', {
+      p_location_id: input.locationId,
+      p_customer_id: input.customerId,
+      p_idempotency_key: input.idempotencyKey,
+      p_items: input.items.map((it) => ({
         product_id: it.productId,
         quantity: it.quantity,
-        unit_cost: it.unitCost,
-        unit_price: it.unitPrice,
         discount_percent: it.discountPercent,
-        tax_rate_percent: it.taxRatePercent,
-        tax_amount: it.taxAmount,
-        subtotal: it.subtotal,
-        total: it.total,
-      }))
-      await supabaseClient.from('sale_items').insert(itemsPayload)
+      })),
+      p_payments: input.payments,
+      p_notes: input.notes ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as CreateSaleRpcResult | null
+    if (!res?.success || !res.sale_id) {
+      throw new Error('El servidor no confirmó el registro de la venta. Intente de nuevo: no se duplicará.')
     }
-
-    if (isCredit) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle();
-      if (custRow) {
-        const newBal = Number(custRow.current_balance || 0) + sale.totalAmount;
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId);
-      }
-    } else {
-      try {
-        if (sale.paymentMethod === 'EFECTIVO') {
-          const { data: openSession } = await supabaseClient
-            .from('cash_sessions')
-            .select('id')
-            .eq('status', 'OPEN')
-            .limit(1)
-            .maybeSingle();
-          if (openSession?.id) {
-            await supabaseClient.from('cash_movements').insert({
-              session_id: openSession.id,
-              type: 'SALE_CASH',
-              amount: sale.totalAmount,
-              reason: 'Venta contado ' + sale.saleNumber,
-              authorized_by_user_id: authUser.user?.id || null,
-            });
-          }
-        }
-        // Cada pago bancario entra a la cuenta elegida en el pago (la misma que usa el asiento contable).
-        for (const [index, bankPayment] of bankPayments.entries()) {
-          if (!(bankPayment.amount > 0)) continue
-          const { data: bankAccount } = await supabaseClient
-            .from('bank_accounts')
-            .select('id, current_balance')
-            .eq('id', bankPayment.bankAccountId)
-            .maybeSingle();
-          if (!bankAccount?.id) continue
-          const newBal = Number(bankAccount.current_balance || 0) + bankPayment.amount;
-          await supabaseClient
-            .from('bank_accounts')
-            .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-            .eq('id', bankAccount.id);
-
-          const suffix = Date.now().toString().slice(-6) + (bankPayments.length > 1 ? `-${index + 1}` : '')
-          await supabaseClient.from('bank_movements').insert({
-            company_id: companyId,
-            location_id: sale.locationId,
-            bank_account_id: bankAccount.id,
-            movement_number: 'MOV-VTA-' + suffix,
-            movement_date: dueDate,
-            movement_type: 'DEBIT',
-            amount: bankPayment.amount,
-            balance_after: newBal,
-            concept: 'Ingreso venta contado ' + sale.saleNumber,
-            is_reconciled: true,
-            created_by_user_id: authUser.user?.id || null,
-          });
-
-          await supabaseClient.from('treasury_receipts').insert({
-            company_id: companyId,
-            location_id: sale.locationId,
-            receipt_number: 'TES-REC-' + suffix,
-            customer_id: sale.customerId,
-            bank_account_id: bankAccount.id,
-            amount: bankPayment.amount,
-            receipt_date: dueDate,
-            payment_method: bankPayment.method === 'BANK_TRANSFER' ? 'TRANSFERENCIA' : 'TARJETA',
-            status: 'COLLECTED',
-            notes: 'Recaudo venta contado ' + sale.saleNumber,
-            created_by_user_id: authUser.user?.id || null,
-          });
-        }
-      } catch (finErr) {
-        console.warn('Advertencia registrando movimiento financiero de venta:', finErr);
-      }
-    }
-
-    return (await this.findById(created.id))!
+    return res
   }
 
   /**
@@ -751,51 +639,6 @@ export class SalesRepository {
 
     if (error || !data) return null
     return this.findById(id)
-  }
-
-  /**
-   * Registra los movimientos de salida de inventario (SALE_OUT) para Kardex en PostgreSQL
-   */
-  async createInventoryMovements(
-    sale: Sale,
-    user: { userId: string; userName: string }
-  ): Promise<void> {
-    const companyId = await this.resolveCompanyId()
-
-    for (const item of sale.items) {
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', item.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const newStock = Math.max(0, prevStock - item.quantity)
-      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
-
-      const { error: movErr } = await supabaseClient.from('inventory_movements').insert({
-        company_id: companyId,
-        product_id: item.productId,
-        location_id: sale.locationId,
-        movement_type: 'SALE_OUT',
-        quantity_in: 0,
-        quantity_out: item.quantity,
-        previous_stock: prevStock,
-        new_stock: newStock,
-        unit_cost: cost,
-        total_cost: item.quantity * cost,
-        document_type: 'SALE',
-        document_reference: sale.saleNumber,
-        reason: `Salida por venta comercial ${sale.saleNumber} - Cliente: ${sale.customerName}`,
-        user_id: user.userId || null,
-      })
-
-      if (movErr) {
-        console.error('Error insertando movimiento de inventario (SALE_OUT):', movErr)
-        throw new Error(`Error registrando movimiento de salida en Kardex: ${movErr.message}`)
-      }
-    }
   }
 
   /**
@@ -842,16 +685,6 @@ export class SalesRepository {
         throw new Error(`Error registrando reversión en Kardex: ${revErr.message}`)
       }
     }
-  }
-
-  /** Registra los pagos (con cuenta bancaria destino) y causa el asiento contable de la venta. */
-  async registerPaymentsAndAccounting(saleId: string, payments: SalePaymentInput[]): Promise<any> {
-    const { data, error } = await supabaseClient.rpc('fn_register_sale_payments', {
-      p_sale_id: saleId,
-      p_payments: payments,
-    })
-    if (error) throw new Error(error.message)
-    return data
   }
 
   /**

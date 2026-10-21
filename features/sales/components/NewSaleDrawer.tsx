@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { salesCalculationService } from '../services/sales-calculation.service'
+import { MAX_SALE_DISCOUNT_PERCENT } from '../schemas/sales.schema'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 
@@ -24,6 +25,7 @@ interface CartItem extends CreateSaleItemDTO {
   availableUnits: number
   unitPrice: number
   unitCost: number
+  taxRatePercent: number
   discountAmount: number
   taxAmount: number
   subtotal: number
@@ -54,6 +56,9 @@ export function NewSaleDrawer({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO')
   const [documentType, setDocumentType] = useState<'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'>('FACTURA_POS')
   const [notes, setNotes] = useState<string>('')
+  // Una clave por intento de venta: si la respuesta se pierde, reintentar no duplica la venta.
+  // Cambia cuando cambia el contenido de la venta (cliente, sede, productos o pago).
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID())
   // Cuenta bancaria destino (contabilidad PUC por cuenta exacta)
   const [bankOptions, setBankOptions] = useState<Array<{ id: string; label: string }>>([])
   const [bankAccountId, setBankAccountId] = useState<string>('')
@@ -114,7 +119,7 @@ export function NewSaleDrawer({
         .order('first_name', { ascending: true }),
       supabaseClient
         .from('products')
-        .select('id, name, sku, barcode, sale_price, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt')
+        .select('id, name, sku, barcode, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt, iva_treatment')
         .eq('is_active', true)
         .order('name', { ascending: true }),
     ])
@@ -133,25 +138,23 @@ export function NewSaleDrawer({
           }))
           setAllCustomers(mappedCusts)
 
-          const mappedProds = (prodRes.data || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            barcode: p.barcode || '',
-            imageUrl: p.primary_image_url || '',
-            unitOfMeasure: p.unit_of_measure || 'UND',
-            status: 'ACTIVE',
-            prices: {
-              defaultPrice: Number(p.sale_price ?? p.public_sale_price ?? 0),
-              wholesalePrice: Number(p.wholesale_price ?? p.sale_price ?? 0),
-              specialPrice: Number(p.sale_price ?? 0),
-            },
-            tax: {
-              vatRate: p.is_tax_exempt ? 0 : Number(p.tax_rate_percent ?? 19),
-              isExempt: Boolean(p.is_tax_exempt),
-            },
-            cost: 0,
-          }))
+          // Vista previa con el precio vigente y el tratamiento de IVA del producto; el servidor recalcula al grabar.
+          const mappedProds = (prodRes.data || []).map((p: any) => {
+            const isExempt = Boolean(p.is_tax_exempt) || p.iva_treatment === 'EXENTO' || p.iva_treatment === 'EXCLUIDO'
+            return {
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              barcode: p.barcode || '',
+              imageUrl: p.primary_image_url || '',
+              unitOfMeasure: p.unit_of_measure || 'UND',
+              status: 'ACTIVE',
+              normalPrice: Number(p.public_sale_price ?? 0),
+              wholesalePrice: p.wholesale_price ? Number(p.wholesale_price) : undefined,
+              vatRatePercent: isExempt ? 0 : Number(p.tax_rate_percent ?? 0),
+              isExempt,
+            }
+          })
           setAllProducts(mappedProds)
 
           if (mappedCusts.length > 0) {
@@ -182,7 +185,7 @@ export function NewSaleDrawer({
       try {
         const { data, error } = await supabaseClient
           .from('stock_levels')
-          .select('product_id, quantity, location_id')
+          .select('product_id, quantity, reserved_quantity, location_id')
           .eq('location_id', selectedLocationId)
 
         if (isMounted && !error && data) {
@@ -190,7 +193,7 @@ export function NewSaleDrawer({
             data.map((s: any) => ({
               productId: s.product_id,
               locationId: s.location_id,
-              availableUnits: Number(s.quantity || 0),
+              availableUnits: Math.max(0, Number(s.quantity || 0) - Number(s.reserved_quantity || 0)),
             }))
           )
         }
@@ -219,6 +222,10 @@ export function NewSaleDrawer({
       }
     }
   }, [isOpen, locations])
+
+  useEffect(() => {
+    setIdempotencyKey(crypto.randomUUID())
+  }, [isOpen, selectedCustomerId, selectedLocationId, cart, paymentMethod, bankAccountId, mixedCashAmount, mixedRestMethod])
 
   // Selected customer object
   const selectedCustomer = useMemo(() => {
@@ -370,7 +377,7 @@ export function NewSaleDrawer({
 
   // Update item discount
   const handleUpdateDiscount = (productId: string, discountPercent: number) => {
-    const clamped = Math.min(100, Math.max(0, discountPercent))
+    const clamped = Math.min(MAX_SALE_DISCOUNT_PERCENT, Math.max(0, discountPercent))
     setCart((prev) =>
       prev.map((item) =>
         item.productId === productId ? { ...item, discountPercent: clamped } : item
@@ -400,10 +407,17 @@ export function NewSaleDrawer({
       setIsSubmitting(true)
       setErrorMessage(null)
 
+      if (paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totals.totalAmount)) {
+        setErrorMessage('En pago mixto, la parte en efectivo debe ser mayor a cero y menor que el total.')
+        setStep(3)
+        return
+      }
+
       const payload: CreateSaleDTO = {
         customerId: selectedCustomerId,
         locationId: selectedLocationId,
         paymentMethod,
+        idempotencyKey,
         bankAccountId: bankAccountId || undefined,
         mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
         mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
@@ -412,7 +426,6 @@ export function NewSaleDrawer({
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
-          unitPrice: i.unitPrice,
           discountPercent: i.discountPercent,
           notes: i.notes,
         })),
@@ -560,7 +573,7 @@ export function NewSaleDrawer({
                   fontWeight: 700,
                 }}
               >
-                {step > item.s ? '✓' : item.s}
+                {step > item.s ? <AppIcon name="checkSimple" size={12} /> : item.s}
               </span>
               <span>{item.label}</span>
             </button>
@@ -899,7 +912,7 @@ export function NewSaleDrawer({
                           <input
                             type="number"
                             min="0"
-                            max="100"
+                            max={MAX_SALE_DISCOUNT_PERCENT}
                             value={item.discountPercent || 0}
                             onChange={(e) => handleUpdateDiscount(item.productId, parseFloat(e.target.value) || 0)}
                             placeholder="% Dcto"

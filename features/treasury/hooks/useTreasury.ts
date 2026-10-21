@@ -10,6 +10,7 @@ import {
   TreasuryReceipt,
   TreasuryStats,
   BankMovement,
+  TreasuryPostingResult,
 } from '../types'
 
 export type TreasuryTab = 'banks' | 'payments' | 'receipts' | 'flow' | 'movements'
@@ -73,47 +74,36 @@ export function useTreasury() {
     loadData()
   }, [loadData])
 
+  const currentUser = () => ({
+    id: authUser?.id || 'usr-system',
+    name: authUser?.fullName || 'Administrador',
+    role: authUser?.roleCode || 'SUPERADMIN',
+  })
+
   const executePayment = async (
     paymentId: string,
-    executionData: {
-      paymentDate: string
-      bankAccountId: string
-      referenceNumber: string
-      supportDocumentUrl?: string
-    }
-  ) => {
-    const user = {
-      id: authUser?.id || 'usr-system',
-      name: authUser?.fullName || 'Administrador',
-      role: authUser?.roleCode || 'SUPERADMIN',
-    }
-    const result = await treasuryService.executePayment(paymentId, executionData, user)
+    executionData: { bankAccountId: string; referenceNumber?: string }
+  ): Promise<TreasuryPostingResult> => {
+    const result = await treasuryService.executePayment(paymentId, executionData, currentUser())
     await loadData()
     return result
   }
 
-  const executeCustomerCollection = async (data: {
-    customerId: string
-    customerName: string
-    customerDoc: string
-    invoiceId?: string
-    invoiceNumber?: string
-    bankAccountId: string
-    amount: number
-    receiptDate: string
-    paymentMethod?: 'TRANSFERENCIA' | 'CONSIGNACION' | 'EFECTIVO' | 'TARJETA'
-    referenceNumber?: string
-    notes?: string
-  }) => {
-    const user = {
-      id: authUser?.id || 'usr-system',
-      name: authUser?.fullName || 'Administrador',
-      role: authUser?.roleCode || 'SUPERADMIN',
-    }
-    const result = await treasuryService.executeCustomerCollection(data, user)
+  const executeCustomerCollection = async (
+    data: Parameters<typeof treasuryService.executeCustomerCollection>[0]
+  ): Promise<TreasuryPostingResult> => {
+    const result = await treasuryService.executeCustomerCollection(data, currentUser())
     await loadData()
     return result
   }
+
+  const causePendingAccounting = async (kind: 'PAYMENT' | 'RECEIPT', documentId: string) => {
+    const entryNumber = await treasuryService.causePendingAccounting(kind, documentId)
+    await loadData()
+    return entryNumber
+  }
+
+  const getReceiptCustomers = useCallback(() => treasuryService.getReceiptCustomers(), [])
 
   const createBankAccount = async (data: {
     bankName: string
@@ -124,12 +114,7 @@ export function useTreasury() {
     locationId?: string
     description?: string
   }) => {
-    const user = {
-      id: authUser?.id || 'usr-system',
-      name: authUser?.fullName || 'Administrador',
-      role: authUser?.roleCode || 'SUPERADMIN',
-    }
-    const result = await treasuryService.createBankAccount(data, user)
+    const result = await treasuryService.createBankAccount(data, currentUser())
     await loadData()
     return result
   }
@@ -143,12 +128,7 @@ export function useTreasury() {
   }
 
   const reconcileMovement = async (movementId: string, reconciled: boolean = true) => {
-    const user = {
-      id: authUser?.id || 'usr-system',
-      name: authUser?.fullName || 'Administrador',
-      role: authUser?.roleCode || 'SUPERADMIN',
-    }
-    const result = await treasuryService.reconcileMovement(movementId, reconciled, user)
+    const result = await treasuryService.reconcileMovement(movementId, reconciled, currentUser())
     await loadData()
     return result
   }
@@ -168,6 +148,8 @@ export function useTreasury() {
     loadData,
     executePayment,
     executeCustomerCollection,
+    causePendingAccounting,
+    getReceiptCustomers,
     createBankAccount,
     reconcileMovement,
     getBankLedgerOptions,

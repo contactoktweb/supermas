@@ -6,6 +6,8 @@ import { useTreasury, TreasuryTab } from '../hooks/useTreasury'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import Link from 'next/link'
+import { TreasuryReceiptModal } from './TreasuryReceiptModal'
+import { TreasuryPostingResult } from '../types'
 
 const TABS: { id: TreasuryTab; label: string; icon: LightIconName }[] = [
   { id: 'banks', label: 'Cuentas Bancarias y Saldos', icon: 'wallet' },
@@ -30,6 +32,9 @@ export function TreasuryPage() {
     setFilters,
     loadData,
     executePayment,
+    executeCustomerCollection,
+    causePendingAccounting,
+    getReceiptCustomers,
     createBankAccount,
     reconcileMovement,
     getBankLedgerOptions,
@@ -70,6 +75,9 @@ export function TreasuryPage() {
   }
 
   const [executingPaymentId, setExecutingPaymentId] = useState<string | null>(null)
+  const [isExecutingPayment, setIsExecutingPayment] = useState(false)
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
+  const [causingDocumentId, setCausingDocumentId] = useState<string | null>(null)
   const [selectedBankId, setSelectedBankId] = useState<string>('')
   const [refNumber, setRefNumber] = useState<string>('')
   const [successToast, setSuccessToast] = useState<string | null>(null)
@@ -95,22 +103,48 @@ export function TreasuryPage() {
     }
   }, [bankAccounts, selectedBankId])
 
+  const showPostingToast = (label: string, res: TreasuryPostingResult) => {
+    setSuccessToast(
+      `${label} ${res.documentNumber} registrado por ${formatCOP(res.amount)}. Comprobante contable ${res.accountingEntryNumber || 'generado'}.`
+    )
+    setTimeout(() => setSuccessToast(null), 8000)
+  }
+
   const handleExecutePayment = async (paymentId: string) => {
     try {
+      setIsExecutingPayment(true)
       setActionError(null)
       const res = await executePayment(paymentId, {
-        paymentDate: new Date().toISOString().slice(0, 10),
         bankAccountId: selectedBankId,
-        referenceNumber: refNumber || `TRF-${Math.floor(100000 + Math.random() * 900000)}`,
-        supportDocumentUrl: '/comprobantes/egreso-bancario.pdf',
+        referenceNumber: refNumber.trim() || undefined,
       })
       setExecutingPaymentId(null)
-      setSuccessToast(
-        `Pago ${res.paymentNumber} ejecutado exitosamente. Se generó el comprobante contable ${res.accountingEntryNumber || 'automatizado'}.`
-      )
-      setTimeout(() => setSuccessToast(null), 6000)
+      setRefNumber('')
+      showPostingToast('Pago', res)
     } catch (err: any) {
       setActionError(err.message || 'Error al ejecutar el desembolso.')
+    } finally {
+      setIsExecutingPayment(false)
+    }
+  }
+
+  const handleReceiptRegistered = (res: TreasuryPostingResult) => {
+    setIsReceiptModalOpen(false)
+    setActionError(null)
+    showPostingToast(res.idempotentReplay ? 'Recaudo (ya registrado)' : 'Recaudo', res)
+  }
+
+  const handleCausePending = async (kind: 'PAYMENT' | 'RECEIPT', documentId: string, documentNumber: string) => {
+    try {
+      setCausingDocumentId(documentId)
+      setActionError(null)
+      const entryNumber = await causePendingAccounting(kind, documentId)
+      setSuccessToast(`${documentNumber} contabilizado con el comprobante ${entryNumber || 'generado'}.`)
+      setTimeout(() => setSuccessToast(null), 6000)
+    } catch (err: any) {
+      setActionError(err.message || `No se pudo contabilizar ${documentNumber}.`)
+    } finally {
+      setCausingDocumentId(null)
     }
   }
 
@@ -168,7 +202,7 @@ export function TreasuryPage() {
     <div className="treasury-module page-enter space-y-6">
       {/* Toast Notification */}
       {successToast && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between shadow-sm animate-fade-in">
+        <div role="status" aria-live="polite" className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between shadow-sm animate-fade-in">
           <div className="flex items-center gap-2">
             <AppIcon name="check" size={18} />
             <span>{successToast}</span>
@@ -177,14 +211,15 @@ export function TreasuryPage() {
             type="button"
             className="text-emerald-700 hover:text-emerald-900 font-bold"
             onClick={() => setSuccessToast(null)}
+            aria-label="Cerrar mensaje"
           >
-            ×
+            <AppIcon name="closeSimple" size={16} />
           </button>
         </div>
       )}
 
       {actionError && (
-        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between shadow-sm">
+        <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <AppIcon name="warning" size={18} />
             <span>{actionError}</span>
@@ -193,8 +228,9 @@ export function TreasuryPage() {
             type="button"
             className="text-rose-700 hover:text-rose-900 font-bold"
             onClick={() => setActionError(null)}
+            aria-label="Cerrar mensaje de error"
           >
-            ×
+            <AppIcon name="closeSimple" size={16} />
           </button>
         </div>
       )}
@@ -425,7 +461,7 @@ export function TreasuryPage() {
                         <th style={{ textAlign: 'right' }}>Monto</th>
                         <th>Fecha Pago</th>
                         <th>Estado</th>
-                        <th>Asiento Contable</th>
+                        <th>Comprobante Contable</th>
                         <th style={{ textAlign: 'right' }}>Acciones</th>
                       </tr>
                     </thead>
@@ -476,12 +512,21 @@ export function TreasuryPage() {
                               )}
                             </td>
                             <td>
-                              {payment.accountingEntryNumber ? (
+                              {payment.accountingEntryNumber || payment.accountingEntryId ? (
                                 <span className="font-mono text-xs font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded">
-                                  {payment.accountingEntryNumber}
+                                  {payment.accountingEntryNumber || 'Contabilizado'}
                                 </span>
+                              ) : payment.status === 'PAID' ? (
+                                <button
+                                  type="button"
+                                  className="outline-button text-[11px] py-1 px-2.5"
+                                  disabled={causingDocumentId === payment.id}
+                                  onClick={() => handleCausePending('PAYMENT', payment.id, payment.paymentNumber)}
+                                >
+                                  {causingDocumentId === payment.id ? 'Contabilizando...' : 'Contabilizar'}
+                                </button>
                               ) : (
-                                <span className="text-gray-400 text-xs italic">Pendiente de asiento</span>
+                                <span className="text-gray-400 text-xs italic">Se genera al ejecutar</span>
                               )}
                             </td>
                             <td style={{ textAlign: 'right' }}>
@@ -508,6 +553,19 @@ export function TreasuryPage() {
           {/* TAB 3: RECAUDOS DE CLIENTES */}
           {activeTab === 'receipts' && (
             <div className="space-y-4">
+              <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-gray-500">
+                  Cada recaudo abona la cartera del cliente y genera su comprobante RC (caja) o CI (banco).
+                </div>
+                <button
+                  type="button"
+                  className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5"
+                  onClick={() => setIsReceiptModalOpen(true)}
+                >
+                  <AppIcon name="plus" size={14} />
+                  <span>Registrar Recaudo</span>
+                </button>
+              </div>
               <div className="table-panel animated-table">
                 <div className="table-scroll">
                   <table>
@@ -520,7 +578,7 @@ export function TreasuryPage() {
                         <th>Método</th>
                         <th style={{ textAlign: 'right' }}>Valor Recaudado</th>
                         <th>Fecha</th>
-                        <th>Asiento Generado</th>
+                        <th>Comprobante Contable</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -566,9 +624,22 @@ export function TreasuryPage() {
                               </span>
                             </td>
                             <td>
-                              <span className="font-mono text-xs font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded">
-                                {rec.accountingEntryNumber || 'AST-GENERADO'}
-                              </span>
+                              {rec.accountingEntryNumber || rec.accountingEntryId ? (
+                                <span className="font-mono text-xs font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded">
+                                  {rec.accountingEntryNumber || 'Contabilizado'}
+                                </span>
+                              ) : rec.status === 'CANCELLED' ? (
+                                <span className="text-gray-400 text-xs italic">Anulado</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="outline-button text-[11px] py-1 px-2.5"
+                                  disabled={causingDocumentId === rec.id}
+                                  onClick={() => handleCausePending('RECEIPT', rec.id, rec.receiptNumber)}
+                                >
+                                  {causingDocumentId === rec.id ? 'Contabilizando...' : 'Contabilizar'}
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))
@@ -584,9 +655,9 @@ export function TreasuryPage() {
           {activeTab === 'flow' && (
             <div className="p-6 bg-white rounded-xl border border-gray-200 space-y-6">
               <div>
-                <h3 className="text-sm font-bold text-gray-900">Flujo Canónico: Tesorería ↔ Contabilidad</h3>
+                <h3 className="text-sm font-bold text-gray-900">Flujo Canónico: Tesorería y Contabilidad</h3>
                 <p className="text-xs text-gray-500 mt-1">
-                  Separación de responsabilidades: Tesorería administra desembolsos y recaudos; Contabilidad genera los comprobantes oficiales.
+                  Tesorería administra desembolsos y recaudos; cada operación genera en el mismo registro su comprobante contable oficial.
                 </p>
               </div>
 
@@ -610,11 +681,10 @@ export function TreasuryPage() {
                   </p>
                 </div>
                 <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                  <span className="font-bold text-emerald-900">4. Asiento Contable Automático</span>
+                  <span className="font-bold text-emerald-900">4. Comprobante Contable Automático</span>
                   <p className="text-emerald-800">
-                    Contabilidad genera el comprobante con partida doble:<br />
-                    • <strong>Débito:</strong> Proveedor (220505)<br />
-                    • <strong>Crédito:</strong> Banco (111005)
+                    Pago a proveedor: comprobante <strong>CE</strong> (Débito proveedores, Crédito subcuenta del banco).<br />
+                    Recaudo de cliente: <strong>RC</strong> en caja o <strong>CI</strong> en banco (Débito subcuenta, Crédito cartera).
                   </p>
                 </div>
               </div>
@@ -864,6 +934,7 @@ export function TreasuryPage() {
                 <input
                   className="filter-select w-full"
                   placeholder="Ej: TRF-9940129"
+                  maxLength={80}
                   value={refNumber}
                   onChange={(e) => setRefNumber(e.target.value)}
                 />
@@ -871,11 +942,20 @@ export function TreasuryPage() {
 
               <div className="p-3 bg-blue-50/70 rounded-lg text-blue-900 border border-blue-100">
                 <span className="font-bold block mb-1">Impacto Contable:</span>
-                Al confirmar, se descontará el valor del banco y se creará automáticamente el comprobante contable con partida doble:
+                Al confirmar se descuenta el valor del banco y se genera el comprobante de egreso (CE):
                 <br />
-                • Débito: <strong>220505 Proveedores Nacionales</strong>
-                <br />
-                • Crédito: <strong>111005 Bancos Nacionales</strong>
+                Débito: <strong>Proveedores</strong> · Crédito:{' '}
+                <strong>
+                  {(() => {
+                    const bank = bankAccounts.find((b) => b.id === selectedBankId)
+                    return bank?.accountingAccountCode
+                      ? `${bank.accountingAccountCode} ${bank.accountingAccountName}`
+                      : 'subcuenta PUC de la cuenta bancaria'
+                  })()}
+                </strong>
+                {!bankAccounts.find((b) => b.id === selectedBankId)?.accountingAccountId && (
+                  <span className="block mt-1 text-amber-700">Esta cuenta no tiene subcuenta PUC asignada: el pago no se podrá contabilizar.</span>
+                )}
               </div>
             </div>
 
@@ -883,6 +963,7 @@ export function TreasuryPage() {
               <button
                 type="button"
                 className="outline-button text-xs py-1.5 px-3"
+                disabled={isExecutingPayment}
                 onClick={() => setExecutingPaymentId(null)}
               >
                 Cancelar
@@ -890,14 +971,25 @@ export function TreasuryPage() {
               <button
                 type="button"
                 className="primary-button text-xs py-1.5 px-3"
+                disabled={isExecutingPayment || !selectedBankId}
                 onClick={() => handleExecutePayment(executingPaymentId)}
               >
-                Confirmar Desembolso y Contabilizar
+                {isExecutingPayment ? 'Procesando...' : 'Confirmar Desembolso y Contabilizar'}
               </button>
             </div>
           </div>
         </div>,
         document.body
+      )}
+
+      {isReceiptModalOpen && mounted && (
+        <TreasuryReceiptModal
+          bankAccounts={bankAccounts}
+          loadCustomers={getReceiptCustomers}
+          onSubmit={executeCustomerCollection}
+          onRegistered={handleReceiptRegistered}
+          onClose={() => setIsReceiptModalOpen(false)}
+        />
       )}
     </div>
   )

@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseClient } from './client'
+import { getSessionCompanyContext } from './session-context'
 
 /**
  * SUPER MÁS ERP/POS — Blindaje Multiempresa Canónico
@@ -8,6 +9,7 @@ import { supabaseClient } from './client'
  *
  * Flujo fiduciario:
  * Usuario -> Supabase Auth -> public.users -> company_id real -> RLS PostgreSQL
+ * (en el navegador, memoizado por sesión e invalidado en cambios de autenticación)
  *
  * REGLAS DE SEGURIDAD:
  * - Si no hay sesión activa: lanza Error controlado.
@@ -23,9 +25,10 @@ export async function resolveUserCompanyId(
   client: SupabaseClient = supabaseClient,
   preferredCompanyId?: string
 ): Promise<string> {
-  const { data: authData, error: authError } = await client.auth.getUser()
+  // En el navegador la empresa se memoiza por sesión (ver session-context); en el servidor se consulta siempre.
+  const context = await getSessionCompanyContext(client)
 
-  if (authError || !authData?.user) {
+  if (!context) {
     // Si no hay usuario en sesión, pero se invocó con un company_id explícito en un contexto de backend/test verificado
     if (preferredCompanyId && preferredCompanyId.trim().length > 0) {
       return preferredCompanyId
@@ -33,15 +36,7 @@ export async function resolveUserCompanyId(
     throw new Error('No hay una sesión activa de usuario autenticado para determinar la empresa.')
   }
 
-  const { data: userProfile, error: profileError } = await client
-    .from('users')
-    .select('company_id, is_active')
-    .eq('id', authData.user.id)
-    .maybeSingle()
-
-  if (profileError || !userProfile) {
-    throw new Error('No se encontró un perfil de usuario registrado en public.users.')
-  }
+  const userProfile = { company_id: context.companyId, is_active: context.isActive }
 
   if (userProfile.is_active === false) {
     throw new Error('La cuenta del usuario autenticado se encuentra inactiva o suspendida.')

@@ -7,6 +7,7 @@
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
+import { getCachedUserProfile, invalidateSessionContext } from '@/lib/supabase/session-context'
 import { AuthUser, LoginCredentials, UserRoleCode } from '../types'
 
 export class AuthService {
@@ -103,6 +104,7 @@ export class AuthService {
     try {
       await supabaseClient.auth.signOut()
     } finally {
+      invalidateSessionContext()
       this.syncAuthCookies(null, null)
     }
   }
@@ -191,6 +193,12 @@ export class AuthService {
    * asociados directamente en PostgreSQL bajo las políticas RLS.
    */
   async fetchUserProfile(userId: string): Promise<AuthUser | null> {
+    // Memoizado por sesión en el navegador: el arranque (StrictMode, SIGNED_IN, getCurrentUser)
+    // comparte una sola lectura de users/role_permissions/user_locations.
+    return getCachedUserProfile(userId, () => this.loadUserProfile(userId))
+  }
+
+  private async loadUserProfile(userId: string): Promise<AuthUser | null> {
     try {
       // 1. Obtener usuario + rol desde public.users y public.roles
       const { data: profileData, error: profileError } = await supabaseClient

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { accountingService } from '../services/accounting.service'
 import { accountingExportService } from '../services/accounting-export.service'
 import {
@@ -43,9 +43,101 @@ export type AccountingTab =
   | 'receivables_payables'
   | 'config'
 
-export function useAccounting(userRole: string = 'SUPERADMIN') {
+/** Conjuntos de datos que el módulo carga bajo demanda. */
+export type AccountingResource =
+  | 'dashboard'
+  | 'accounts'
+  | 'entries'
+  | 'thirdParties'
+  | 'movements'
+  | 'auxiliary'
+  | 'balanceSheet'
+  | 'incomeStatement'
+  | 'ledger'
+  | 'receivables'
+  | 'payables'
+  | 'costs'
+  | 'categoryMappings'
+  | 'exogena'
+
+/** Datos que necesita cada pestaña: solo se piden al abrirla. */
+const TAB_RESOURCES: Record<AccountingTab, AccountingResource[]> = {
+  dashboard: ['dashboard'],
+  accounts: ['accounts'],
+  entries: ['entries'],
+  third_parties: ['thirdParties'],
+  movements: ['accounts', 'entries', 'auxiliary'],
+  journal: ['entries'],
+  ledger: ['accounts', 'ledger'],
+  balance: ['balanceSheet'],
+  results: ['incomeStatement'],
+  costs: ['costs'],
+  receivables_payables: ['receivables', 'payables'],
+  config: ['categoryMappings', 'exogena', 'accounts'],
+}
+
+const ALL_RESOURCES = Object.keys({
+  dashboard: 1,
+  accounts: 1,
+  entries: 1,
+  thirdParties: 1,
+  movements: 1,
+  auxiliary: 1,
+  balanceSheet: 1,
+  incomeStatement: 1,
+  ledger: 1,
+  receivables: 1,
+  payables: 1,
+  costs: 1,
+  categoryMappings: 1,
+  exogena: 1,
+} satisfies Record<AccountingResource, 1>) as AccountingResource[]
+
+const REPORT_PERIOD = '2026-09'
+
+interface ResourceStatus {
+  key: string
+  state: 'loading' | 'ready' | 'error' | 'stale'
+  hasData: boolean
+  seq: number
+}
+
+interface UseAccountingOptions {
+  /** Datos adicionales que requieren los paneles abiertos (drawers/modales). */
+  extraResources?: AccountingResource[]
+}
+
+/**
+ * Clave de cada recurso según los filtros que realmente usa su consulta:
+ * si la clave no cambia, se reutilizan los datos ya cargados.
+ */
+function resourceKey(resource: AccountingResource, filters: AccountingFilters, ledgerAccountId: string | null): string {
+  switch (resource) {
+    case 'accounts':
+      return JSON.stringify([filters.query, filters.accountClass, filters.nature, filters.status, filters.level, filters.page, filters.pageSize])
+    case 'entries':
+      return JSON.stringify([filters.query, filters.entryStatus, filters.sourceType, filters.locationId, filters.dateFrom, filters.dateTo, filters.page, filters.pageSize])
+    case 'movements':
+      return JSON.stringify([filters.entryStatus, filters.sourceType, filters.locationId, filters.accountId, filters.dateFrom, filters.dateTo])
+    case 'auxiliary':
+      return JSON.stringify([filters.periodMode, filters.year, filters.month, filters.dateFrom, filters.dateTo, filters.accountId, filters.query, filters.thirdPartyId, filters.costCenterId])
+    case 'balanceSheet':
+    case 'incomeStatement':
+    case 'costs':
+      return String(filters.locationId ?? '')
+    case 'ledger':
+      // El mayor por defecto se elige entre las cuentas de la página actual del PUC.
+      return JSON.stringify([
+        filters.locationId,
+        ledgerAccountId ?? resourceKey('accounts', filters, null),
+      ])
+    default:
+      return ''
+  }
+}
+
+export function useAccounting(userRole: string = 'SUPERADMIN', options: UseAccountingOptions = {}) {
   const [activeTab, setActiveTab] = useState<AccountingTab>('dashboard')
-  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Datos principales
@@ -63,6 +155,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
   const [balanceSheet, setBalanceSheet] = useState<BalanceSheetReport | null>(null)
   const [incomeStatement, setIncomeStatement] = useState<IncomeStatementReport | null>(null)
   const [selectedLedger, setSelectedLedger] = useState<GeneralLedgerReport | null>(null)
+  const [ledgerAccountId, setLedgerAccountId] = useState<string | null>(null)
   const [accountsReceivable, setAccountsReceivable] = useState<AccountsReceivableItem[]>([])
   const [accountsPayable, setAccountsPayable] = useState<AccountsPayableItem[]>([])
   const [costAnalysis, setCostAnalysis] = useState<CostAnalysisItem[]>([])
@@ -88,65 +181,202 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     pageSize: 25,
   })
 
-  // Carga inicial y reactiva de datos
-  const loadData = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
+  // Estado de carga por recurso: en ref para decidir de forma síncrona (StrictMode, efectos repetidos)
+  // y espejado en estado para renderizar.
+  const statusRef = useRef<Partial<Record<AccountingResource, ResourceStatus>>>({})
+  const inFlightRef = useRef<Partial<Record<AccountingResource, Promise<void>>>>({})
+  const seqRef = useRef(0)
+  const [statusMap, setStatusMap] = useState<Partial<Record<AccountingResource, ResourceStatus>>>({})
 
-      const [dashRes, accsRes, entriesRes, movsRes, auxRes, bsRes, isRes, cxcRes, cxpRes, costsRes, mapRes, exoRes, tpsRes] =
-        await Promise.all([
-          accountingService.getDashboard(userRole),
-          accountingService.getAccounts(filters, userRole),
-          accountingService.getEntries(filters, userRole),
-          accountingService.getMovements(filters, userRole),
-          accountingService.getAuxiliaryLedgerReport(filters, userRole),
-          accountingService.getBalanceSheet('2026-09', filters.locationId, userRole),
-          accountingService.getIncomeStatement('2026-09', filters.locationId, userRole),
-          accountingService.getAccountsReceivable(userRole),
-          accountingService.getAccountsPayable(userRole),
-          accountingService.getCostAnalysis({ locationId: filters.locationId }, userRole),
-          accountingService.getCategoryMappings(userRole),
-          accountingService.getExogenaPreparation(userRole),
-          accountingService.getThirdParties({}, userRole),
-        ])
+  const filtersRef = useRef(filters)
+  filtersRef.current = filters
+  const ledgerAccountIdRef = useRef(ledgerAccountId)
+  ledgerAccountIdRef.current = ledgerAccountId
 
-      setDashboard(dashRes)
-      setAccounts(accsRes.data)
-      setTotalAccounts(accsRes.total)
-      setEntries(entriesRes.data)
-      setTotalEntries(entriesRes.total)
-      setThirdParties(tpsRes)
-      setMovements(movsRes.data)
-      setTotalMovements(movsRes.total)
-      setAuxiliaryReport(auxRes)
-      setBalanceSheet(bsRes)
-      setIncomeStatement(isRes)
-      setAccountsReceivable(cxcRes)
-      setAccountsPayable(cxpRes)
-      setCostAnalysis(costsRes)
-      setCategoryMappings(mapRes)
-      setExogenaPrep(exoRes)
+  const extraResources = options.extraResources
+  const extraKey = (extraResources || []).join(',')
+  const requiredResources = useMemo<AccountingResource[]>(
+    () => Array.from(new Set([...TAB_RESOURCES[activeTab], ...(extraKey ? (extraKey.split(',') as AccountingResource[]) : [])])),
+    [activeTab, extraKey]
+  )
+  const requiredRef = useRef(requiredResources)
+  requiredRef.current = requiredResources
 
-      // Cargar libro mayor para la primera cuenta con movimientos (130505 - Clientes Nacionales)
-      if (accsRes.data.length > 0) {
-        const preferredAcc =
-          accsRes.data.find((a) => a.code === '130505') ||
-          accsRes.data.find((a) => a.code === '111005') ||
-          accsRes.data[0]
-        const ledgerRes = await accountingService.getGeneralLedger(preferredAcc.id, '2026-09', filters.locationId, userRole)
-        setSelectedLedger(ledgerRes)
+  const writeStatus = useCallback((resource: AccountingResource, status: ResourceStatus) => {
+    statusRef.current = { ...statusRef.current, [resource]: status }
+    setStatusMap(statusRef.current)
+  }, [])
+
+  /** Ejecuta la consulta de un recurso y vuelca el resultado en su estado. */
+  const fetchResource = useCallback(
+    async (resource: AccountingResource, currentFilters: AccountingFilters, currentLedgerId: string | null) => {
+      switch (resource) {
+        case 'dashboard': {
+          const res = await accountingService.getDashboard(userRole)
+          return () => setDashboard(res)
+        }
+        case 'accounts': {
+          const res = await accountingService.getAccounts(currentFilters, userRole)
+          return () => {
+            setAccounts(res.data)
+            setTotalAccounts(res.total)
+          }
+        }
+        case 'entries': {
+          const res = await accountingService.getEntries(currentFilters, userRole)
+          return () => {
+            setEntries(res.data)
+            setTotalEntries(res.total)
+          }
+        }
+        case 'thirdParties': {
+          const res = await accountingService.getThirdParties({}, userRole)
+          return () => setThirdParties(res)
+        }
+        case 'movements': {
+          const res = await accountingService.getMovements(currentFilters, userRole)
+          return () => {
+            setMovements(res.data)
+            setTotalMovements(res.total)
+          }
+        }
+        case 'auxiliary': {
+          const res = await accountingService.getAuxiliaryLedgerReport(currentFilters, userRole)
+          return () => setAuxiliaryReport(res)
+        }
+        case 'balanceSheet': {
+          const res = await accountingService.getBalanceSheet(REPORT_PERIOD, currentFilters.locationId, userRole)
+          return () => setBalanceSheet(res)
+        }
+        case 'incomeStatement': {
+          const res = await accountingService.getIncomeStatement(REPORT_PERIOD, currentFilters.locationId, userRole)
+          return () => setIncomeStatement(res)
+        }
+        case 'ledger': {
+          let accountId = currentLedgerId
+          if (!accountId) {
+            // Libro mayor por defecto: 130505 (Clientes Nacionales), 111005 o la primera cuenta listada.
+            const accsRes = await accountingService.getAccounts(currentFilters, userRole)
+            const preferredAcc =
+              accsRes.data.find((a) => a.code === '130505') ||
+              accsRes.data.find((a) => a.code === '111005') ||
+              accsRes.data[0]
+            if (!preferredAcc) return () => undefined
+            accountId = preferredAcc.id
+          }
+          const res = await accountingService.getGeneralLedger(accountId, REPORT_PERIOD, currentFilters.locationId, userRole)
+          return () => setSelectedLedger(res)
+        }
+        case 'receivables': {
+          const res = await accountingService.getAccountsReceivable(userRole)
+          return () => setAccountsReceivable(res)
+        }
+        case 'payables': {
+          const res = await accountingService.getAccountsPayable(userRole)
+          return () => setAccountsPayable(res)
+        }
+        case 'costs': {
+          const res = await accountingService.getCostAnalysis({ locationId: currentFilters.locationId }, userRole)
+          return () => setCostAnalysis(res)
+        }
+        case 'categoryMappings': {
+          const res = await accountingService.getCategoryMappings(userRole)
+          return () => setCategoryMappings(res)
+        }
+        case 'exogena': {
+          const res = await accountingService.getExogenaPreparation(userRole)
+          return () => setExogenaPrep(res)
+        }
       }
-    } catch (err: any) {
-      setError(err.message || 'Error al cargar los datos contables.')
-    } finally {
-      setIsLoading(false)
+    },
+    [userRole]
+  )
+
+  /**
+   * Garantiza que los recursos indicados estén cargados para los filtros actuales.
+   * Reutiliza lo ya cargado (misma clave) y no duplica peticiones en curso.
+   */
+  const ensureResources = useCallback(
+    (resources: AccountingResource[], force = false): Promise<void> => {
+      const currentFilters = filtersRef.current
+      const currentLedgerId = ledgerAccountIdRef.current
+      const pending: Promise<void>[] = []
+      let startedAny = false
+
+      for (const resource of resources) {
+        const key = resourceKey(resource, currentFilters, currentLedgerId)
+        const status = statusRef.current[resource]
+        const sameKey = status?.key === key
+
+        if (!force && sameKey && status?.state === 'ready') continue
+        if (!force && sameKey && status?.state === 'loading') {
+          const running = inFlightRef.current[resource]
+          if (running) pending.push(running)
+          continue
+        }
+
+        if (!startedAny) {
+          startedAny = true
+          setError(null)
+        }
+        const seq = ++seqRef.current
+        writeStatus(resource, { key, state: 'loading', hasData: Boolean(status?.hasData), seq })
+
+        const run = fetchResource(resource, currentFilters, currentLedgerId)
+          .then((apply) => {
+            if (statusRef.current[resource]?.seq !== seq) return
+            apply?.()
+            writeStatus(resource, { key, state: 'ready', hasData: true, seq })
+          })
+          .catch((err: any) => {
+            if (statusRef.current[resource]?.seq !== seq) return
+            setError(err?.message || 'Error al cargar los datos contables.')
+            writeStatus(resource, { key, state: 'error', hasData: Boolean(status?.hasData), seq })
+          })
+          .finally(() => {
+            if (inFlightRef.current[resource] === run) delete inFlightRef.current[resource]
+          })
+
+        inFlightRef.current[resource] = run
+        pending.push(run)
+      }
+
+      return Promise.all(pending).then(() => undefined)
+    },
+    [fetchResource, writeStatus]
+  )
+
+  /** Marca todos los datos como desactualizados y recarga los que están a la vista. */
+  const reloadVisible = useCallback(async () => {
+    accountingService.invalidateCache()
+    for (const resource of ALL_RESOURCES) {
+      const status = statusRef.current[resource]
+      if (status && status.state !== 'loading') {
+        statusRef.current = { ...statusRef.current, [resource]: { ...status, state: 'stale' } }
+      }
     }
-  }, [filters, userRole])
+    setStatusMap(statusRef.current)
+    await ensureResources(requiredRef.current, true)
+  }, [ensureResources])
+
+  // Carga perezosa: solo lo que necesitan la pestaña activa y los paneles abiertos.
+  const requiredSignature = requiredResources
+    .map((resource) => `${resource}:${resourceKey(resource, filters, ledgerAccountId)}`)
+    .join('|')
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    ensureResources(requiredRef.current)
+  }, [requiredSignature, ensureResources])
+
+  // El esqueleto solo cubre la primera carga de la pestaña; los paneles cargan sin ocultarla.
+  const isLoading = TAB_RESOURCES[activeTab].some((resource) => {
+    const status = statusMap[resource]
+    if (!status) return true
+    return status.state === 'loading' && !status.hasData
+  })
+
+  // Recarga manual (botón Actualizar / Reintentar): ignora la caché.
+  const loadData = reloadVisible
 
   const updateFilters = (newFilters: Partial<AccountingFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters, page: 1 }))
@@ -167,13 +397,10 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
     })
   }
 
-  const loadLedgerForAccount = async (accountId: string) => {
-    try {
-      const ledger = await accountingService.getGeneralLedger(accountId, '2026-09', filters.locationId, userRole)
-      setSelectedLedger(ledger)
-    } catch (err: any) {
-      setError(err.message)
-    }
+  // Cambia la cuenta del Libro Mayor; la consulta la lanza la carga perezosa de la pestaña.
+  const loadLedgerForAccount = (accountId: string) => {
+    ledgerAccountIdRef.current = accountId
+    setLedgerAccountId(accountId)
   }
 
   const createAccount = async (data: AccountFormData) => {
@@ -182,7 +409,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return created
   }
 
@@ -192,7 +419,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return updated
   }
 
@@ -202,7 +429,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return updated
   }
 
@@ -238,7 +465,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return created
   }
 
@@ -248,7 +475,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return result
   }
 
@@ -258,7 +485,7 @@ export function useAccounting(userRole: string = 'SUPERADMIN') {
       name: 'Admin Mauricio',
       role: userRole,
     })
-    await loadData()
+    await reloadVisible()
     return updated
   }
 

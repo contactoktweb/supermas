@@ -57,25 +57,13 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
     return null
   }, [effectivePath])
 
-  // Estado de secciones expandidas / colapsadas persistido
+  // Estado de secciones expandidas / colapsadas persistido.
+  // El primer render usa valores deterministas (iguales en servidor y cliente) para no romper
+  // la hidratación; lo guardado en sessionStorage se aplica justo después, antes del pintado.
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>(() => {
     if (cachedExpandedSections) {
       if (activeSectionId) cachedExpandedSections[activeSectionId] = true
       return { ...cachedExpandedSections }
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        const stored = sessionStorage.getItem(SIDEBAR_EXPANDED_KEY)
-        if (stored) {
-          const parsed = JSON.parse(stored)
-          if (activeSectionId) parsed[activeSectionId] = true
-          cachedExpandedSections = parsed
-          return parsed
-        }
-      } catch {
-        // Fallback a defaults si falla sessionStorage
-      }
     }
 
     const initial: Record<string, boolean> = {
@@ -91,9 +79,26 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
     if (activeSectionId) {
       initial[activeSectionId] = true
     }
-    cachedExpandedSections = initial
     return initial
   })
+
+  // Restaurar las secciones guardadas en esta pestaña (solo en el cliente, tras hidratar)
+  useIsomorphicLayoutEffect(() => {
+    if (cachedExpandedSections) return
+    let restored = expandedSections
+    try {
+      const stored = sessionStorage.getItem(SIDEBAR_EXPANDED_KEY)
+      if (stored) {
+        restored = { ...JSON.parse(stored) }
+        if (activeSectionId) restored[activeSectionId] = true
+      }
+    } catch {
+      // Si sessionStorage no está disponible se conservan los valores por defecto
+    }
+    cachedExpandedSections = restored
+    if (restored !== expandedSections) setExpandedSections(restored)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Sincronizar auto-expansión al cambiar de ruta
   useEffect(() => {

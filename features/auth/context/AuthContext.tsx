@@ -10,6 +10,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react'
 import { supabaseClient } from '@/lib/supabase/client'
+import { invalidateCachedUserProfile } from '@/lib/supabase/session-context'
 import { authService } from '../services/auth.service'
 import { AuthUser, LoginCredentials, UserRoleCode } from '../types'
 
@@ -63,6 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (session?.user) {
+          // Al refrescar el token se vuelven a leer rol/permisos/sedes, como antes de memoizar el perfil.
+          if (event === 'TOKEN_REFRESHED') invalidateCachedUserProfile()
           const profile = await authService.fetchUserProfile(session.user.id)
           // Mantener la cookie de sesión al día (las rutas /api validan este token en el servidor)
           if (session.access_token) {

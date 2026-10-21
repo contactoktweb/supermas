@@ -29,8 +29,13 @@ export class AccountingReportService {
    * Genera el Dashboard financiero consolidado
    */
   async getDashboard(): Promise<AccountingDashboard> {
-    const accounts = await accountingRepository.getAllAccounts()
-    const entries = await accountingRepository.getAllEntries()
+    // Lecturas independientes en paralelo; catálogo, saldos y movimientos salen de la caché compartida.
+    const [accounts, entryStatuses, allMovements, warehouseBreakdown] = await Promise.all([
+      accountingRepository.getAllAccounts(),
+      accountingRepository.getRecentEntryStatuses(),
+      accountingRepository.getAllMovements(),
+      this.getWarehouseFinancials(),
+    ])
 
     let totalAssets = 0
     let totalLiabilities = 0
@@ -78,11 +83,10 @@ export class AccountingReportService {
     const profitMarginPercent = totalRevenues > 0 ? Number(((netProfit / totalRevenues) * 100).toFixed(1)) : 0
 
     // Conteo de comprobantes reales
-    const postedEntriesCount = entries.filter((e) => e.status === 'POSTED').length
-    const pendingDraftEntriesCount = entries.filter((e) => e.status === 'DRAFT').length
+    const postedEntriesCount = entryStatuses.filter((status) => status === 'POSTED').length
+    const pendingDraftEntriesCount = entryStatuses.filter((status) => status === 'DRAFT').length
 
     // Puntos mensuales calculados a partir de movimientos contables reales
-    const allMovements = await accountingRepository.getAllMovements()
     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
     const now = new Date()
     const currentYear = now.getFullYear()
@@ -123,9 +127,6 @@ export class AccountingReportService {
         profit: rev - cst - exp,
       })
     }
-
-    // Resumen financiero por bodega
-    const warehouseBreakdown = await this.getWarehouseFinancials()
 
     return {
       totalAssets,
@@ -290,9 +291,7 @@ export class AccountingReportService {
    * Libro Mayor por cuenta contable
    */
   async getGeneralLedger(accountId: string, period?: string, locationId?: string): Promise<GeneralLedgerReport> {
-    const account =
-      (await accountingRepository.getAccountById(accountId)) ||
-      (await accountingRepository.getAccountByCode(accountId))
+    const account = await accountingRepository.findAccountByIdOrCode(accountId)
 
     if (!account) {
       throw new Error(`Cuenta contable con identificador "${accountId}" no existe.`)
@@ -336,8 +335,10 @@ export class AccountingReportService {
    * con cálculo de saldo inicial, movimientos débitos (+), movimientos créditos (-) y saldo final.
    */
   async getAuxiliaryLedgerReport(filters?: AccountingFilters): Promise<AuxiliaryLedgerReport> {
-    const accounts = await accountingRepository.getAllAccounts()
-    const allMovements = await accountingRepository.getAllMovements()
+    const [accounts, allMovements] = await Promise.all([
+      accountingRepository.getAllAccounts(),
+      accountingRepository.getAllMovements(),
+    ])
 
     // 1. Determinar el periodo
     const periodMode = filters?.periodMode || 'MONTH'
@@ -690,7 +691,7 @@ export class AccountingReportService {
         cost_price,
         sale_price,
         wholesale_price,
-        stock_levels (quantity, location_id, cost)
+        stock_levels (quantity, location_id, cost:average_cost)
       `)
       .eq('company_id', companyId)
       .eq('is_active', true)
@@ -699,11 +700,10 @@ export class AccountingReportService {
       prodQuery = prodQuery.eq('category', filters.category)
     }
 
-    const { data: products } = await prodQuery
-    const { data: locations } = await supabaseClient
-      .from('locations')
-      .select('id, name')
-      .eq('company_id', companyId)
+    const [{ data: products }, { data: locations }] = await Promise.all([
+      prodQuery,
+      supabaseClient.from('locations').select('id, name').eq('company_id', companyId),
+    ])
 
     const locMap = new Map((locations || []).map((l: any) => [l.id, l.name]))
     const results: CostAnalysisItem[] = []
@@ -753,30 +753,29 @@ export class AccountingReportService {
    */
   async getWarehouseFinancials(): Promise<WarehouseFinancialSummary[]> {
     const companyId = await resolveUserCompanyId(supabaseClient)
-    const { data: locations } = await supabaseClient
-      .from('locations')
-      .select('id, name, code, type')
-      .eq('company_id', companyId)
-      .neq('status', 'INACTIVE')
-
-    const movements = await accountingRepository.getAllMovements()
-
-    const { data: sales } = await supabaseClient
-      .from('sales')
-      .select('location_id, total_amount, paid_amount, status')
-      .eq('company_id', companyId)
-      .neq('status', 'CANCELLED')
-
-    const { data: purchases } = await supabaseClient
-      .from('purchases')
-      .select('location_id, total_amount, paid_amount, inventory_status')
-      .eq('company_id', companyId)
-      .neq('inventory_status', 'CANCELLED')
-
-    const { data: stockLevels } = await supabaseClient
-      .from('stock_levels')
-      .select('location_id, quantity, cost')
-      .eq('company_id', companyId)
+    const [{ data: locations }, movements, { data: sales }, { data: purchases }, { data: stockLevels }] =
+      await Promise.all([
+        supabaseClient
+          .from('locations')
+          .select('id, name, code, type')
+          .eq('company_id', companyId)
+          .neq('status', 'INACTIVE'),
+        accountingRepository.getAllMovements(),
+        supabaseClient
+          .from('sales')
+          .select('location_id, total_amount, paid_amount, status')
+          .eq('company_id', companyId)
+          .neq('status', 'CANCELLED'),
+        supabaseClient
+          .from('purchases')
+          .select('location_id, total_amount, paid_amount, inventory_status')
+          .eq('company_id', companyId)
+          .neq('inventory_status', 'CANCELLED'),
+        supabaseClient
+          .from('stock_levels')
+          .select('location_id, quantity, cost:average_cost')
+          .eq('company_id', companyId),
+      ])
 
     return ((locations as any[]) || []).map((loc: any) => {
       const locMovements = movements.filter((m) => m.locationId === loc.id)

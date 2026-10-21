@@ -12,6 +12,7 @@ import {
   PeriodMode,
 } from '../../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
 
 interface AccountingMovementsTabProps {
   movements: AccountingMovement[]
@@ -68,19 +69,10 @@ export function AccountingMovementsTab({
   onSelectEntry,
   onExportAuxiliary,
 }: AccountingMovementsTabProps) {
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const locations = useAccountingLocations()
   const [masterParties, setMasterParties] = useState<{ doc: string; name: string }[]>([])
 
   useEffect(() => {
-    supabaseClient
-      .from('locations')
-      .select('id, name')
-      .neq('status', 'INACTIVE')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setLocations(data)
-      })
-
     Promise.all([
       supabaseClient.from('customers').select('document_number, company_name, first_name, last_name'),
       supabaseClient.from('suppliers').select('tax_id, name, legal_name'),

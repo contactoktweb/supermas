@@ -75,6 +75,16 @@ export class AccountingService {
     return allowed.includes(permission)
   }
 
+  /** Descarta las lecturas contables memoizadas para forzar datos frescos. */
+  invalidateCache(): void {
+    accountingRepository.invalidateCache()
+  }
+
+  /** Sedes activas (id, nombre) para los filtros de reportes contables. */
+  async getActiveLocations(): Promise<{ id: string; name: string }[]> {
+    return accountingRepository.getActiveLocations()
+  }
+
   private assertPermission(permission: AccountingPermission, userRole: string = 'SUPERADMIN'): void {
     if (!this.hasPermission(permission, userRole)) {
       throw new Error(`Acceso denegado: Se requiere el permiso "${permission}" para esta operación contable.`)

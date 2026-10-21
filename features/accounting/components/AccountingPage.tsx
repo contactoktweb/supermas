@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
-import { useAccounting, AccountingTab } from '../hooks/useAccounting'
+import React, { useState, useCallback, useMemo } from 'react'
+import { useAccounting, AccountingTab, AccountingResource } from '../hooks/useAccounting'
 import { useAccountingPermissions } from '../hooks/useAccountingPermissions'
 import { AccountingHeader } from './AccountingHeader'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
@@ -57,8 +57,29 @@ const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] =
   { id: 'config', label: 'Configuración Contable', icon: 'settings' },
 ]
 
+// Datos que necesita cada panel flotante mientras está abierto.
+const NEW_ENTRY_RESOURCES: AccountingResource[] = ['accounts', 'thirdParties']
+const NEW_ACCOUNT_RESOURCES: AccountingResource[] = ['accounts']
+const EXPORT_RESOURCES: AccountingResource[] = ['thirdParties', 'entries', 'movements', 'accounts']
+
 export function AccountingPage() {
   const permissions = useAccountingPermissions('SUPERADMIN')
+
+  // Modales y Drawers
+  const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
+  const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
+  const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
+
+  const panelResources = useMemo<AccountingResource[]>(() => {
+    const resources: AccountingResource[] = []
+    if (isNewEntryOpen) resources.push(...NEW_ENTRY_RESOURCES)
+    if (isNewAccountOpen) resources.push(...NEW_ACCOUNT_RESOURCES)
+    if (isExportModalOpen || isTrialBalancePdfOpen) resources.push(...EXPORT_RESOURCES)
+    return Array.from(new Set(resources))
+  }, [isNewEntryOpen, isNewAccountOpen, isExportModalOpen, isTrialBalancePdfOpen])
+
   const {
     activeTab,
     setActiveTab,
@@ -90,7 +111,7 @@ export function AccountingPage() {
     reverseEntry,
     updateCategoryMapping,
     exportCSV,
-  } = useAccounting('SUPERADMIN')
+  } = useAccounting('SUPERADMIN', { extraResources: panelResources })
 
   // Notificaciones Toast
   const [toasts, setToasts] = useState<AccountingToastMessage[]>([])
@@ -104,13 +125,7 @@ export function AccountingPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  // Modales y Drawers
-  const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
-  const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
-  const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [exportInitialType, setExportInitialType] = useState<AccountingExportType>('third_parties')
-  const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
   const [pdfReportType, setPdfReportType] = useState<AccountingExportType>('trial_balance')
   const [accountingPdfParams, setAccountingPdfParams] = useState<AccountingExportPdfParams>({
     reportType: 'trial_balance',

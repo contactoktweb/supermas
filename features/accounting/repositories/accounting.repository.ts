@@ -9,10 +9,21 @@
  * - RPCs atómicas: fn_create_manual_accounting_entry, fn_reverse_accounting_entry,
  *   fn_cause_sale_accounting, fn_cause_purchase_accounting,
  *   fn_cause_payment_accounting, fn_cause_receipt_accounting,
- *   fn_close_accounting_period, fn_reopen_accounting_period.
+ *   fn_close_accounting_period, fn_reopen_accounting_period,
+ *   fn_accounting_account_balances (saldos agregados, migración 061).
+ *
+ * Las lecturas compartidas (catálogo PUC, saldos, movimientos, sedes) se memoizan en el
+ * navegador (ver accounting-cache) y se invalidan en cada mutación contable.
  */
 
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import {
+  ACCOUNTING_CATALOG_TTL_MS,
+  ACCOUNTING_DATA_TTL_MS,
+  createCachedResource,
+  invalidateAccountingCache,
+} from './accounting-cache'
 import {
   AccountingAccount,
   AccountingEntry,
@@ -83,10 +94,78 @@ export class AccountingRepository {
     }
   }
 
+  /** Catálogo PUC completo (todas las cuentas visibles por RLS), ordenado por código. */
+  private readonly catalogCache = createCachedResource(async () => {
+    // select('*'): mapAccount usa columnas (description, updated_at) que no figuran en las
+    // migraciones; listarlas explícitamente rompería la consulta si no existen en la base.
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('*')
+      .order('code', { ascending: true })
+    if (error) throw new Error(`Error consultando el catálogo PUC: ${error.message}`)
+    return (data || []) as any[]
+  }, ACCOUNTING_CATALOG_TTL_MS)
+
+  /** Débitos y créditos acumulados por cuenta en comprobantes POSTED. */
+  private readonly postedTotalsCache = createCachedResource(
+    () => this.loadPostedTotalsByAccount(),
+    ACCOUNTING_DATA_TTL_MS
+  )
+
+  private readonly movementsCache = createCachedResource(
+    () => this.getMovements({ page: 1, pageSize: 2000 }).then((res) => res.data),
+    ACCOUNTING_DATA_TTL_MS
+  )
+
+  private readonly entryStatusesCache = createCachedResource(
+    () => this.loadRecentEntryStatuses(),
+    ACCOUNTING_DATA_TTL_MS
+  )
+
+  private readonly activeLocationsCache = createCachedResource(async () => {
+    const { data } = await supabaseClient
+      .from('locations')
+      .select('id, name')
+      .neq('status', 'INACTIVE')
+      .order('name')
+    return (data || []) as { id: string; name: string }[]
+  }, ACCOUNTING_CATALOG_TTL_MS)
+
+  /** Descarta las lecturas memoizadas; se usa tras cualquier mutación contable. */
+  invalidateCache(): void {
+    invalidateAccountingCache()
+  }
+
+  private async getCatalogRows(): Promise<any[]> {
+    try {
+      return await this.catalogCache.get()
+    } catch (err: any) {
+      console.warn('Advertencia consultando cuentas contables:', err?.message)
+      return []
+    }
+  }
+
   /**
-   * Obtiene la suma de saldos de todas las cuentas a partir de líneas en comprobantes POSTED
+   * Totales POSTED por cuenta agregados en la base (RPC fn_accounting_account_balances).
+   * Si la RPC aún no está desplegada o falla, se calcula como antes leyendo las líneas.
    */
-  private async getAccountBalances(): Promise<Map<string, number>> {
+  private async loadPostedTotalsByAccount(): Promise<Map<string, { debits: number; credits: number }>> {
+    const { data, error } = await supabaseClient.rpc('fn_accounting_account_balances')
+    if (!error && Array.isArray(data)) {
+      const map = new Map<string, { debits: number; credits: number }>()
+      for (const row of data as any[]) {
+        map.set(row.account_id, {
+          debits: Number(row.total_debit) || 0,
+          credits: Number(row.total_credit) || 0,
+        })
+      }
+      return map
+    }
+    return this.loadPostedTotalsFromLines()
+  }
+
+  /** Cálculo legado en el cliente: suma todas las líneas de comprobantes POSTED. */
+  private async loadPostedTotalsFromLines(): Promise<Map<string, { debits: number; credits: number }>> {
     const { data, error } = await supabaseClient
       .from('accounting_entry_lines')
       .select(`
@@ -101,100 +180,91 @@ export class AccountingRepository {
     if (!error && data) {
       for (const row of data as any[]) {
         const accId = row.account_id
-        const d = Number(row.debit_amount) || 0
-        const c = Number(row.credit_amount) || 0
         const cur = map.get(accId) || { debits: 0, credits: 0 }
-        cur.debits += d
-        cur.credits += c
+        cur.debits += Number(row.debit_amount) || 0
+        cur.credits += Number(row.credit_amount) || 0
         map.set(accId, cur)
       }
     }
+    return map
+  }
+
+  /**
+   * Saldo neto de cada cuenta del catálogo según su naturaleza:
+   * DEBIT = débitos - créditos; CREDIT = créditos - débitos.
+   */
+  private async getAccountBalances(): Promise<Map<string, number>> {
+    const [catalog, totals] = await Promise.all([
+      this.getCatalogRows(),
+      this.postedTotalsCache.get().catch(() => new Map<string, { debits: number; credits: number }>()),
+    ])
 
     const resultMap = new Map<string, number>()
-    // También obtenemos la naturaleza de las cuentas para calcular el saldo neto
-    const { data: accounts } = await supabaseClient.from('accounting_accounts').select('id, nature')
-    if (accounts) {
-      for (const acc of accounts as any[]) {
-        const stats = map.get(acc.id) || { debits: 0, credits: 0 }
-        const isDebit = acc.nature === 'DEBIT'
-        const bal = isDebit ? stats.debits - stats.credits : stats.credits - stats.debits
-        resultMap.set(acc.id, bal)
-      }
+    for (const acc of catalog) {
+      const stats = totals.get(acc.id) || { debits: 0, credits: 0 }
+      const isDebit = acc.nature === 'DEBIT'
+      resultMap.set(acc.id, isDebit ? stats.debits - stats.credits : stats.credits - stats.debits)
     }
-
     return resultMap
   }
 
   /**
-   * Consulta el catálogo de cuentas PUC con filtros y paginación
+   * Consulta el catálogo de cuentas PUC con filtros y paginación.
+   * Filtra en memoria sobre el catálogo compartido (mismo orden por código y mismos criterios
+   * que la consulta original), por lo que cambiar filtros o página no genera peticiones.
    */
   async getAccounts(filters?: AccountingFilters): Promise<{ data: AccountingAccount[]; total: number }> {
-    let query = supabaseClient.from('accounting_accounts').select('*', { count: 'exact' })
+    const [catalog, balances] = await Promise.all([this.getCatalogRows(), this.getAccountBalances()])
 
-    if (filters?.query) {
-      const q = filters.query.trim()
-      query = query.or(`code.ilike.%${q}%,name.ilike.%${q}%`)
-    }
+    const q = filters?.query?.trim().toLowerCase() || ''
+    const lvlMap: Record<string, number> = { CLASS: 1, GROUP: 2, ACCOUNT: 3, SUBACCOUNT: 4, AUXILIARY: 5 }
 
-    if (filters?.accountClass && filters.accountClass !== ('ALL' as any)) {
-      query = query.eq('account_class', Number(filters.accountClass))
-    }
-
-    if (filters?.nature && filters.nature !== ('ALL' as any)) {
-      query = query.eq('nature', filters.nature)
-    }
-
-    if (filters?.status && filters.status !== ('ALL' as any)) {
-      query = query.eq('is_active', filters.status === 'ACTIVE')
-    }
-
-    if (filters?.level && filters.level !== ('ALL' as any)) {
-      if (filters.level === 'IMPUTABLE') {
-        query = query.in('level', [4, 5])
-      } else {
-        const lvlMap: Record<string, number> = {
-          CLASS: 1,
-          GROUP: 2,
-          ACCOUNT: 3,
-          SUBACCOUNT: 4,
-          AUXILIARY: 5,
-        }
-        if (lvlMap[filters.level]) {
-          query = query.eq('level', lvlMap[filters.level])
+    const filtered = catalog.filter((row: any) => {
+      if (q) {
+        const code = String(row.code || '').toLowerCase()
+        const name = String(row.name || '').toLowerCase()
+        if (!code.includes(q) && !name.includes(q)) return false
+      }
+      if (filters?.accountClass && filters.accountClass !== ('ALL' as any)) {
+        if (Number(row.account_class) !== Number(filters.accountClass)) return false
+      }
+      if (filters?.nature && filters.nature !== ('ALL' as any)) {
+        if (row.nature !== filters.nature) return false
+      }
+      if (filters?.status && filters.status !== ('ALL' as any)) {
+        if (Boolean(row.is_active) !== (filters.status === 'ACTIVE')) return false
+      }
+      if (filters?.level && filters.level !== ('ALL' as any)) {
+        if (filters.level === 'IMPUTABLE') {
+          if (row.level !== 4 && row.level !== 5) return false
+        } else if (lvlMap[filters.level] && row.level !== lvlMap[filters.level]) {
+          return false
         }
       }
-    }
-
-    query = query.order('code', { ascending: true })
+      return true
+    })
 
     const page = filters?.page || 1
     const pageSize = filters?.pageSize || 50
     const start = (page - 1) * pageSize
-    query = query.range(start, start + pageSize - 1)
+    const pageRows = filtered.slice(start, start + pageSize)
 
-    const { data, count, error } = await query
-
-    if (error || !data) {
-      console.warn('Advertencia consultando cuentas contables:', error?.message)
-      return { data: [], total: 0 }
+    return {
+      data: pageRows.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0)),
+      total: filtered.length,
     }
-
-    const balances = await this.getAccountBalances()
-    const mapped = data.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0))
-
-    return { data: mapped, total: count || mapped.length }
   }
 
   async getAllAccounts(): Promise<AccountingAccount[]> {
-    const { data, error } = await supabaseClient
-      .from('accounting_accounts')
-      .select('*')
-      .order('code', { ascending: true })
+    const [catalog, balances] = await Promise.all([this.getCatalogRows(), this.getAccountBalances()])
+    return catalog.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0))
+  }
 
-    if (error || !data) return []
-
-    const balances = await this.getAccountBalances()
-    return data.map((row: any) => this.mapAccount(row, balances.get(row.id) || 0))
+  /** Busca una cuenta del catálogo compartido por id o, en su defecto, por código. */
+  async findAccountByIdOrCode(idOrCode: string): Promise<AccountingAccount | null> {
+    const [catalog, balances] = await Promise.all([this.getCatalogRows(), this.getAccountBalances()])
+    const row = catalog.find((a: any) => a.id === idOrCode) || catalog.find((a: any) => a.code === idOrCode)
+    return row ? this.mapAccount(row, balances.get(row.id) || 0) : null
   }
 
   async getAccountById(id: string): Promise<AccountingAccount | null> {
@@ -219,6 +289,12 @@ export class AccountingRepository {
     if (error || !data) return null
     const balances = await this.getAccountBalances()
     return this.mapAccount(data, balances.get(data.id) || 0)
+  }
+
+  /** Sedes activas (id, nombre) para los selectores de los reportes contables. */
+  async getActiveLocations(): Promise<{ id: string; name: string }[]> {
+    const rows = await this.activeLocationsCache.get()
+    return [...rows]
   }
 
   async createAccount(data: AccountFormData): Promise<AccountingAccount> {
@@ -253,6 +329,7 @@ export class AccountingRepository {
       throw new Error(`Error creando cuenta contable: ${error?.message || 'Error desconocido'}`)
     }
 
+    this.invalidateCache()
     return this.mapAccount(newRow, 0)
   }
 
@@ -285,6 +362,7 @@ export class AccountingRepository {
       throw new Error(`Error actualizando cuenta: ${error?.message || 'Error desconocido'}`)
     }
 
+    this.invalidateCache()
     const balances = await this.getAccountBalances()
     return this.mapAccount(updated, balances.get(id) || 0)
   }
@@ -421,6 +499,30 @@ export class AccountingRepository {
     return res.data
   }
 
+  /**
+   * Estados de los mismos comprobantes que getAllEntries (1000 más recientes, mismo orden),
+   * sin descargar líneas: basta para los contadores del dashboard.
+   */
+  async getRecentEntryStatuses(): Promise<string[]> {
+    const statuses = await this.entryStatusesCache.get()
+    return [...statuses]
+  }
+
+  private async loadRecentEntryStatuses(): Promise<string[]> {
+    const { data, error } = await supabaseClient
+      .from('accounting_entries')
+      .select('status')
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(0, 999)
+
+    if (error || !data) {
+      console.warn('Advertencia consultando asientos contables:', error?.message)
+      return []
+    }
+    return (data as any[]).map((row) => (row.status as string) || 'DRAFT')
+  }
+
   async getEntryById(id: string): Promise<AccountingEntry | null> {
     const { data, error } = await supabaseClient
       .from('accounting_entries')
@@ -538,6 +640,7 @@ export class AccountingRepository {
       throw new Error(`Error al crear asiento: ${error?.message || res?.error || 'Partida doble descuadrada o error de validación'}`)
     }
 
+    this.invalidateCache()
     const created = await this.getEntryById(res.entry_id)
     if (!created) {
       throw new Error('Comprobante creado pero no se pudo recuperar.')
@@ -564,6 +667,8 @@ export class AccountingRepository {
       throw new Error(`Error reversando asiento: ${error?.message || res?.error}`)
     }
 
+    this.invalidateCache()
+
     const [original, reversal] = await Promise.all([
       this.getEntryById(res.original_entry_id),
       this.getEntryById(res.reversal_entry_id),
@@ -586,6 +691,7 @@ export class AccountingRepository {
     if (error || !data?.success) {
       throw new Error(`Error en causación de venta: ${error?.message || data?.error}`)
     }
+    this.invalidateCache()
     return data
   }
 
@@ -599,6 +705,7 @@ export class AccountingRepository {
     if (error || !data?.success) {
       throw new Error(`Error en causación de compra: ${error?.message || data?.error}`)
     }
+    this.invalidateCache()
     return data
   }
 
@@ -612,6 +719,7 @@ export class AccountingRepository {
     if (error || !data?.success) {
       throw new Error(`Error en causación de pago: ${error?.message || data?.error}`)
     }
+    this.invalidateCache()
     return data
   }
 
@@ -625,6 +733,7 @@ export class AccountingRepository {
     if (error || !data?.success) {
       throw new Error(`Error en causación de recaudo: ${error?.message || data?.error}`)
     }
+    this.invalidateCache()
     return data
   }
 
@@ -722,9 +831,10 @@ export class AccountingRepository {
     return { data: mapped, total: count || mapped.length }
   }
 
+  /** Todos los movimientos (memoizado y compartido por dashboard, auxiliar, mayor y exógena). */
   async getAllMovements(): Promise<AccountingMovement[]> {
-    const res = await this.getMovements({ page: 1, pageSize: 2000 })
-    return res.data
+    const movements = await this.movementsCache.get()
+    return [...movements]
   }
 
   // --- CONFIGURACIÓN DE CUENTAS POR CATEGORÍA ---
@@ -831,10 +941,7 @@ export class AccountingRepository {
   }
 
   async closePeriod(periodCode: string, user: { id: string; name: string }): Promise<AccountingPeriod> {
-    const { data: comp } = await supabaseClient.auth.getUser()
-    // Obtenemos company_id de la sesión o del usuario
-    const { data: userRow } = await supabaseClient.from('users').select('company_id').eq('id', user.id).single()
-    const companyId = userRow?.company_id
+    const companyId = await resolveUserCompanyId(supabaseClient).catch(() => undefined)
 
     const { data: res, error } = await supabaseClient.rpc('fn_close_accounting_period', {
       p_company_id: companyId,
@@ -846,6 +953,8 @@ export class AccountingRepository {
       throw new Error(`Error cerrando periodo: ${error.message}`)
     }
 
+    this.invalidateCache()
+
     const p = await this.getPeriodByCode(periodCode)
     if (!p) throw new Error('No se pudo recuperar el periodo cerrado.')
     return p
@@ -856,8 +965,7 @@ export class AccountingRepository {
     reason: string,
     user: { id: string; name: string }
   ): Promise<AccountingPeriod> {
-    const { data: userRow } = await supabaseClient.from('users').select('company_id').eq('id', user.id).single()
-    const companyId = userRow?.company_id
+    const companyId = await resolveUserCompanyId(supabaseClient).catch(() => undefined)
 
     const { data: res, error } = await supabaseClient.rpc('fn_reopen_accounting_period', {
       p_company_id: companyId,
@@ -869,6 +977,8 @@ export class AccountingRepository {
     if (error) {
       throw new Error(`Error reabriendo periodo: ${error.message}`)
     }
+
+    this.invalidateCache()
 
     const p = await this.getPeriodByCode(periodCode)
     if (!p) throw new Error('No se pudo recuperar el periodo reabierto.')
@@ -945,17 +1055,7 @@ export class AccountingRepository {
    * Crea un nuevo tercero contable especificando naturaleza jurídica
    */
   async createThirdParty(data: ThirdPartyFormData): Promise<ThirdParty> {
-    const { data: userRow } = await supabaseClient.auth.getUser()
-    let companyId: string | undefined
-
-    if (userRow?.user?.id) {
-      const { data: u } = await supabaseClient
-        .from('users')
-        .select('company_id')
-        .eq('id', userRow.user.id)
-        .single()
-      companyId = u?.company_id
-    }
+    let companyId: string | undefined = await resolveUserCompanyId(supabaseClient).catch(() => undefined)
 
     if (!companyId) {
       const { data: comp } = await supabaseClient.from('companies').select('id').limit(1).single()

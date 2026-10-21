@@ -3,7 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { IncomeStatementReport } from '../../types'
-import { supabaseClient } from '@/lib/supabase/client'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
 
 interface AccountingIncomeStatementTabProps {
   incomeStatement: IncomeStatementReport | null
@@ -16,18 +16,7 @@ export function AccountingIncomeStatementTab({
   locationId = 'ALL',
   onLocationChange,
 }: AccountingIncomeStatementTabProps) {
-  const [locations, setLocations] = React.useState<{ id: string; name: string }[]>([])
-
-  React.useEffect(() => {
-    supabaseClient
-      .from('locations')
-      .select('id, name')
-      .neq('status', 'INACTIVE')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setLocations(data)
-      })
-  }, [])
+  const locations = useAccountingLocations()
 
   if (!incomeStatement) return null
 

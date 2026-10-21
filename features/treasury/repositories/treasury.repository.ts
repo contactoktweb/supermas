@@ -200,7 +200,7 @@ export class TreasuryRepository {
         company_name,
         first_name,
         last_name,
-        tax_id
+        tax_id:document_number
       ),
       bank_accounts (
         id,

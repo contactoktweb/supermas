@@ -395,7 +395,7 @@ export class CategoryRepository {
   private translateDbError(error: any): string {
     const msg = error?.message || ''
     if (msg.includes('categories_company_id_slug_key')) {
-      return 'Ya existe una categoría con este slug en su empresa.'
+      return 'Ya existe una categoría con ese nombre (o con el mismo enlace web) en su empresa.'
     }
     if (msg.includes('categories_company_id_code_key')) {
       return 'Ya existe una categoría con este código en su empresa.'

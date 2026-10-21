@@ -314,7 +314,7 @@ export class BrandRepository {
       return 'Ya existe una marca con este nombre en su empresa.'
     }
     if (msg.includes('brands_company_id_slug_key')) {
-      return 'Ya existe una marca con este slug en su empresa.'
+      return 'Ya existe una marca con ese nombre (o con el mismo enlace web) en su empresa.'
     }
     if (msg.includes('foreign key constraint') || msg.includes('violates foreign key')) {
       return 'No se puede realizar la operación porque la marca tiene productos vinculados.'

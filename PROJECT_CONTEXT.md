@@ -34,7 +34,23 @@ Sistema multi-bodega con centro logístico (CEDI Principal) y tiendas/puntos de 
 - **Catálogo Distribuidora** (`/catalogo-distribuidora`) — *Administración de visibilidad comercial B2B, cotizaciones vía WhatsApp, vinculación con Catálogo Super Más y compra directa web*
 - **Auditoría** (`/auditoria`) — *Trazabilidad e historial de eventos con `auditService.log()` y persistencia inmutable; sin eventos ni contadores ficticios.*
 - **Reportes y Analítica** (`/reportes`) — *Centro de inteligencia de negocios, ventas, compras, Kardex, costos CMV, benchmark de bodegas, clientes, proveedores, cajas, facturación DIAN, contabilidad y ecommerce*
-- **Usuarios** (`/usuarios`)
+- **Usuarios** (`/usuarios`) — *Cambios de rol y estado solo por `PATCH /api/users` (matriz: solo ADMIN/SUPERADMIN asignan roles; nadie asigna SUPERADMIN); contraseña temporal aleatoria mostrada una vez y cambio obligatorio en el primer ingreso (`app_metadata.must_change_password`).*
+- **Cajas** (`/cajas`) — *Turnos, movimientos y arqueos; solo el dueño del turno o un admin opera y cierra.*
+- **Aprobación de precios** (`/aprobaciones-precios`) — *Quien no tiene `prices.approve` no escribe precios: crea solicitudes que el ADMIN aprueba o rechaza (campana de notificaciones `user_notifications`).*
+- **Devoluciones** (`/devoluciones`) — *Condición por línea BUENO / MAL_ESTADO; el mal estado no reingresa al stock vendible y exige destino PRODUCCION o PROVEEDOR.*
+- **Recursos Humanos** (`/recursos-humanos`) — *Empleados, documentos (bucket privado `hr-documents`), ingreso/retiro con historial inmutable, áreas y cargos, novedades, vacaciones (15 días hábiles/año, alertas Art. 190 CST, festivos de Colombia en `hr_holidays`), reportes y exportación para nómina. Permisos `hr.*` solo RECURSOS_HUMANOS y ADMIN.*
+
+## Facturación Electrónica DIAN (estado)
+- Software propio, **solo HABILITACIÓN** (Anexo Técnico 1.9); PRODUCCIÓN bloqueada en `dian.config.ts` y en la BD (`fn_dian_active_environment`).
+- Implementado y probado localmente: numeración atómica con snapshot de resolución, UBL 2.1 (factura, NC, ND), CUFE/CUDE, QR, firma XAdES-BES, SOAP (SendTestSetAsync, SendBillSync, GetStatusZip) y orquestador con estados reales. Pendiente: certificado digital (.p12), PIN y clave técnica en `.env.local` para transmitir en habilitación.
+- Solo ADMIN (y SUPERADMIN) emiten factura electrónica (`invoices.create`).
+
+## Modelo de Seguridad (resumen)
+- RLS por empresa con `get_auth_company_id()`; los helpers (`get_auth_company_id`, `has_permission`, `has_location_access`…) devuelven NULL/false si el usuario está inactivo o tiene el cambio de contraseña pendiente.
+- Tablas del RBAC (`roles`, `permissions`, `role_permissions`) de solo lectura para la app; trigger anti-escalada en `users`.
+- Ventas, pagos, caja, banco, devoluciones y documentos fiscales solo se escriben por funciones `SECURITY DEFINER` con control de acceso (POS: `fn_execute_pos_sale_with_payments`; Ventas: `fn_create_sale_with_payments`; conversiones y anulación: `fn_convert_quote_to_sale`, `fn_convert_web_order_to_sale`, `fn_cancel_sale`).
+- Contabilidad: comprobantes con tipo y consecutivo propio (`FC-000001`, catálogo `accounting_voucher_types`); `fn_create_accounting_entry` solo para el servidor; asientos manuales por `fn_create_manual_accounting_entry`; la cuenta PUC del producto y `accounting_inventory_account_map` definen inventario, costo e ingreso por línea.
+- Cabeceras de seguridad (CSP, HSTS, X-Frame-Options) en `next.config.mjs`.
 
 ## Arquitectura del Módulo de Contabilidad y Tesorería
 ```text

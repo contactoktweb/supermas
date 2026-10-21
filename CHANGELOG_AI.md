@@ -1,5 +1,14 @@
 # CHANGELOG AI — Super Más ERP/POS
 
+## [2026-10-21] — DIAN en habilitación, contabilidad, RRHH y endurecimiento de seguridad (rama `feat/dian-habilitacion`, migraciones 058–079)
+
+- **Facturación DIAN (058–060)**: numeración atómica, UBL 2.1, CUFE/CUDE, QR, firma XAdES, SOAP y notas crédito/débito, solo en habilitación. Pendiente el certificado digital para transmitir.
+- **Ventas y PUC (059, 062, 073, 079)**: pagos por cuenta bancaria con su subcuenta PUC; venta POS y del módulo Ventas atómicas e idempotentes con precio, IVA y costo del servidor; conversión de cotizaciones y pedidos web y anulación atómicas; la cuenta PUC del producto define inventario, costo e ingreso del asiento.
+- **Contabilidad (061, 064, 065, 067, 072)**: tipos de comprobante con consecutivo propio, rango de cuentas en exportaciones, balance general y estado de resultados desglosados con PDF real, saldos por RPC, reversiones contadas en reportes y cierre, y RPC contables con control de acceso.
+- **Operación (063, 066, 068, 069)**: cambio de contraseña obligatorio, integridad de categorías, devoluciones con producto en mal estado (producción/proveedor) y aprobación de precios con notificaciones.
+- **Recursos Humanos (070)**: módulo completo con vacaciones según el CST.
+- **Seguridad (071, 074–078)**: solo ADMIN emite factura electrónica; RBAC de solo lectura (antes era escribible por anon); anti-escalada en `users`; usuarios inactivos o con contraseña pendiente sin acceso por RLS; aislamiento por empresa en políticas y storage; caja y tesorería con permisos; CSP y Next 16.3.8.
+
 ## [2026-10-01] — PASO 2: Multiempresa y Configuración de Empresa (Supabase Client + RLS + PostgreSQL)
 
 - **Eliminación Total de Datos y Fallbacks Mock de Empresa**:

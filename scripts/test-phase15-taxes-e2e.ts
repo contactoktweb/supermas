@@ -23,6 +23,7 @@ import { supabaseAdmin } from '../lib/supabase/admin'
 import { taxService } from '../features/taxes/services/tax.service'
 import { taxRepository } from '../features/taxes/repositories/tax.repository'
 import { taxCalculationService } from '../features/taxes/services/tax-calculation.service'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -111,7 +112,7 @@ async function runPhase15TaxesE2ETests() {
     const userEmailA = `tax_admin_${testSuffix.toLowerCase()}@supermas.local`
     const { data: userACreated, error: userAErr } = await supabaseAdmin.auth.admin.createUser({
       email: userEmailA,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: 'Contador Tributario' },
     })

@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import { publicCatalogService } from '../services/public-catalog.service'
-import { handleCorsOptions, jsonResponse, corsHeaders } from '../utils/cors'
+import { handleCorsOptions, jsonResponse } from '../utils/cors'
 import { SuperCatalogProduct } from '@/features/super-catalog/types'
 import { DistributorCatalogProduct } from '@/features/distributor-catalog/types'
 

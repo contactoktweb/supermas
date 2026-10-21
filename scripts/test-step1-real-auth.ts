@@ -26,6 +26,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { NextRequest } from 'next/server'
 import { middleware } from '../middleware'
+import { requireEnv } from './require-env'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -64,7 +65,7 @@ async function runStep1Tests() {
   console.log('🚀 INICIANDO BATERÍA DE PRUEBAS DEL PASO 1 — AUTH REAL SUPABASE')
   console.log('====================================================================\n')
 
-  const testPassword = process.env.STAGING_AUTH_PASSWORD || ''
+  const testPassword = requireEnv('STAGING_AUTH_PASSWORD')
 
   // Obtener el primer usuario fiduciario registrado en auth.users
   const { data: usersList, error: listErr } = await adminClient.auth.admin.listUsers()

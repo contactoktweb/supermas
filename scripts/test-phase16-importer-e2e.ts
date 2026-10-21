@@ -20,6 +20,7 @@ import {
 } from '../lib/csv-parser'
 import { productImportService } from '../features/products/services/product-import.service'
 import { customerImportService } from '../features/customers/services/customer-import.service'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -117,7 +118,7 @@ async function runPhase16ImporterE2ETests() {
     const authEmail = `admin_import_${testSuffix}@supermas.com`
     const { data: authUserData, error: userAErr } = await supabaseAdmin.auth.admin.createUser({
       email: authEmail,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: 'Admin Importador' },
     })

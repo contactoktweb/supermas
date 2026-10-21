@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireServerUser, requireAnyPermission } from '@/lib/auth/server-auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getDianSafeSummary, maskIdentifier, getDianConfig } from '@/features/invoices/services/dian/dian.config'
-import { loadSigningCertificate, describeCertificate } from '@/features/invoices/services/dian/dian-certificate'
+import { loadSigningCertificate, describeCertificate, DianCertificateError } from '@/features/invoices/services/dian/dian-certificate'
 import { dianErrorResponse } from '../_shared'
 
 export const runtime = 'nodejs'
@@ -36,8 +36,14 @@ export async function GET(req: NextRequest) {
       try {
         const cfg = getDianConfig()
         certificate = describeCertificate(loadSigningCertificate(cfg.secrets.certificateBase64, cfg.secrets.certificatePassword))
-      } catch (e: any) {
-        certificate = { error: e?.message || 'No se pudo leer el certificado.' }
+      } catch (e) {
+        // DianCertificateError trae mensajes redactados para el administrador (sin secretos); el resto se oculta.
+        if (e instanceof DianCertificateError) {
+          certificate = { error: e.message }
+        } else {
+          console.error('[DIAN] Error leyendo el certificado:', e instanceof Error ? e.message : String(e))
+          certificate = { error: 'No se pudo leer el certificado digital. Verifique el archivo y su contraseña.' }
+        }
       }
     }
 

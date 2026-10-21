@@ -24,6 +24,7 @@
 import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
 import dotenv from 'dotenv'
+import { requireEnv } from './require-env'
 dotenv.config({ path: '.env.local' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
@@ -112,7 +113,7 @@ async function runPhase12TestSuite() {
     const emailA = `contador_a_${runId}@supermas.com`
     const { data: userACreated, error: userAErr } = await adminSupabase.auth.admin.createUser({
       email: emailA,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: `Contador A ${runId}` },
     })
@@ -129,7 +130,7 @@ async function runPhase12TestSuite() {
     const emailB = `contador_b_${runId}@supermas.com`
     const { data: userBCreated, error: userBErr } = await adminSupabase.auth.admin.createUser({
       email: emailB,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: `Contador B ${runId}` },
     })

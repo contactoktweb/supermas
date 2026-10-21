@@ -4,10 +4,11 @@ import { settingsService } from '../features/settings/services/settings.service'
 import { UserSettingsContext } from '../features/settings/types'
 import { execSync } from 'child_process'
 import * as fs from 'fs'
+import { requireEnv } from './require-env'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
+const adminPassword = requireEnv('STAGING_AUTH_PASSWORD')
 
 interface TestResult {
   code: string

@@ -19,8 +19,9 @@ dotenv.config({ path: '.env.local' })
 import { supabaseClient } from '../lib/supabase/client'
 import { warehouseService } from '../features/warehouses/services/warehouse.service'
 import { warehouseRepository } from '../features/warehouses/repositories/warehouse.repository'
+import { requireEnv } from './require-env'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
+const adminPassword = requireEnv('STAGING_AUTH_PASSWORD')
 
 interface TestResult {
   code: string

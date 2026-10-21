@@ -1,6 +1,7 @@
 import pg from 'pg'
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+import { requireEnv } from './require-env'
 
 dotenv.config({ path: '.env.local' })
 
@@ -9,7 +10,7 @@ const MAIN_LOCATION_ID = 'd87117f6-fb86-4641-b2a2-9f4ed41a9374'
 const SUPERADMIN_ROLE_ID = 'c0000000-0000-0000-0000-000000000001'
 
 const ADMIN_EMAIL = 'samirdurant234@gmail.com'
-const ADMIN_INITIAL_PASSWORD = 'Admin123'
+const ADMIN_INITIAL_PASSWORD = requireEnv('STAGING_ADMIN_INITIAL_PASSWORD')
 
 async function runCleanAndSetupAdmin() {
   console.log('============================================================')
@@ -92,7 +93,7 @@ async function runCleanAndSetupAdmin() {
 
     if (adminAuthUser) {
       console.log(`  - Usuario existente encontrado en Auth: ${adminAuthUser.id}`)
-      // Actualizar contraseña a Admin123 y metadatos oficiales
+      // Actualizar contraseña inicial (STAGING_ADMIN_INITIAL_PASSWORD) y metadatos oficiales
       const { data: updatedAuth, error: updErr } = await adminSupabase.auth.admin.updateUserById(
         adminAuthUser.id,
         {
@@ -113,7 +114,7 @@ async function runCleanAndSetupAdmin() {
       )
       if (updErr) throw updErr
       adminAuthUser = updatedAuth.user
-      console.log('  - Contraseña actualizada a Admin123 y app_metadata configurada como SUPERADMIN.')
+      console.log('  - Contraseña inicial actualizada y app_metadata configurada como SUPERADMIN.')
     } else {
       console.log('  - Creando usuario administrador inicial en Auth...')
       const { data: createdAuth, error: createErr } = await adminSupabase.auth.admin.createUser({

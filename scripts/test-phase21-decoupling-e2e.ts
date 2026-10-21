@@ -21,6 +21,7 @@ import { userRepository } from '../features/users/repositories/user.repository'
 import { settingsRepository } from '../features/settings/repositories/settings.repository'
 import { exogenaRepository } from '../features/exogena/repositories/exogena.repository'
 import { userService } from '../features/users/services/user.service'
+import { requireEnv } from './require-env'
 
 const DATABASE_URL = process.env.DATABASE_URL
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -175,7 +176,7 @@ async function runPhase21TestSuite() {
 
     // T04: UserRepository - Creación Persistente de Usuario y Asignación de Bodega en PostgreSQL
     const testEmail = `colaborador.p21.${testSuffix}@supermas.test`
-    const testPassword = 'PasswordAndrea2026*'
+    const testPassword = requireEnv('E2E_TEST_USER_PASSWORD')
     const collabAuthRes = await supabaseAdmin.auth.admin.createUser({
       email: testEmail,
       password: testPassword,

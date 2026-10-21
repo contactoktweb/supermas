@@ -23,8 +23,9 @@ import { categoryService } from '../features/categories/services/category.servic
 import { categoryRepository } from '../features/categories/repositories/category.repository'
 import { brandService } from '../features/brands/services/brand.service'
 import { brandRepository } from '../features/brands/repositories/brand.repository'
+import { requireEnv } from './require-env'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
+const adminPassword = requireEnv('STAGING_AUTH_PASSWORD')
 
 interface TestResult {
   code: string

@@ -16,6 +16,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { clientSafeDatabaseMessage, logDatabaseError } from '@/lib/errors/database-error'
 import { DianConfig, getDianConfig, validateDianConfiguration } from './dian.config'
 import {
   buildInvoiceDocument,
@@ -130,7 +131,10 @@ export class DianOrchestratorService {
       p_environment: this.config.environment,
       p_software_id: software?.software_id || null,
     })
-    if (error) throw new DianOrchestratorError(error.message, error.code === '42501' ? 403 : 400)
+    if (error) {
+      const message = clientSafeDatabaseMessage('DIAN emitir factura', error, 'No se pudo emitir la factura electrónica.')
+      throw new DianOrchestratorError(message, error.code === '42501' ? 403 : 400)
+    }
     const invoiceId = String(data.invoice_id)
     const result = await this.process(actor, invoiceId)
     return { ...result, idempotentReplay: Boolean(data.idempotent_replay) }
@@ -171,7 +175,10 @@ export class DianOrchestratorService {
       p_idempotency_key: idempotencyKey,
       p_environment: this.config.environment,
     })
-    if (error) throw new DianOrchestratorError(error.message, error.code === '42501' ? 403 : 400)
+    if (error) {
+      const message = clientSafeDatabaseMessage('DIAN emitir nota', error, 'No se pudo emitir la nota electrónica.')
+      throw new DianOrchestratorError(message, error.code === '42501' ? 403 : 400)
+    }
     const noteId = String(data.note_id)
     const result = await this.process(actor, noteId)
     return { ...result, idempotentReplay: Boolean(data.idempotent_replay) }
@@ -205,7 +212,10 @@ export class DianOrchestratorService {
       .eq('id', inv.id)
       .or(`transmission_state.in.(${claimable.join(',')}),and(transmission_state.eq.SENDING,updated_at.lt.${staleBefore})`)
       .select('id')
-    if (claimErr) throw new DianOrchestratorError(`No se pudo reservar la factura: ${claimErr.message}`, 500)
+    if (claimErr) {
+      logDatabaseError('DIAN reservar factura', claimErr)
+      throw new DianOrchestratorError('No se pudo reservar la factura para su procesamiento.', 500)
+    }
     if (!claimed || claimed.length === 0) {
       return this.result(inv, inv.transmission_state, 'Otro proceso está generando o enviando esta factura. Espere unos segundos y consulte de nuevo.')
     }
@@ -229,7 +239,8 @@ export class DianOrchestratorService {
     try {
       doc = buildInvoiceDocument(kind === 'INVOICE' ? await this.loadDocumentInput(inv) : await this.loadNoteInput(inv))
     } catch (e: any) {
-      const problems = e instanceof DianDocumentError ? e.problems : [e?.message || String(e)]
+      if (!(e instanceof DianDocumentError)) console.error('[DIAN] Error armando el documento fiscal:', e?.message || String(e))
+      const problems = e instanceof DianDocumentError ? e.problems : ['No se pudieron cargar los datos fiscales del documento.']
       await this.update(inv.id, { transmission_state: 'BLOCKED_CONFIG', last_error: problems.join(' | ') })
       await this.event(actor, inv, 'VALIDATION_FAILED', 'ERROR', null, { problems })
       return this.result({ ...inv, transmission_state: 'BLOCKED_CONFIG' }, 'BLOCKED_CONFIG', 'Datos fiscales incompletos.', problems)
@@ -461,7 +472,10 @@ export class DianOrchestratorService {
       .eq('id', invoiceId)
       .eq('company_id', companyId)
       .maybeSingle()
-    if (error) throw new DianOrchestratorError(`Error consultando la factura: ${error.message}`, 500)
+    if (error) {
+      logDatabaseError('DIAN consultar factura', error)
+      throw new DianOrchestratorError('Error consultando la factura.', 500)
+    }
     if (!data) throw new DianOrchestratorError('Factura no encontrada en su empresa.', 404)
     if (!['INVOICE', 'CREDIT_NOTE', 'DEBIT_NOTE'].includes(data.document_type)) {
       throw new DianOrchestratorError(`Tipo de documento no soportado: ${data.document_type}.`, 400)
@@ -607,7 +621,10 @@ export class DianOrchestratorService {
       .select('line_number, product_id, sku, description, quantity, unit_price, discount_percent, net_amount, iva_treatment, tax_rate_percent, tax_amount')
       .eq('document_id', note.id)
       .order('line_number', { ascending: true })
-    if (error) throw new DianDocumentError([`No se pudieron leer las líneas de la nota: ${error.message}`])
+    if (error) {
+      logDatabaseError('DIAN leer líneas de la nota', error)
+      throw new DianDocumentError(['No se pudieron leer las líneas de la nota.'])
+    }
 
     const kind: DianDocumentKind = note.document_type
     const concepts = kind === 'CREDIT_NOTE' ? CREDIT_NOTE_CONCEPTS : DEBIT_NOTE_CONCEPTS
@@ -649,7 +666,10 @@ export class DianOrchestratorService {
       .from('electronic_invoices')
       .update({ ...patch, updated_at: new Date().toISOString() })
       .eq('id', invoiceId)
-    if (error) throw new DianOrchestratorError(`No se pudo guardar el estado de la factura: ${error.message}`, 500)
+    if (error) {
+      logDatabaseError('DIAN guardar estado de la factura', error)
+      throw new DianOrchestratorError('No se pudo guardar el estado de la factura.', 500)
+    }
   }
 
   private async event(actor: DianActor, inv: any, type: string, status: string, sent: any, received: any): Promise<void> {

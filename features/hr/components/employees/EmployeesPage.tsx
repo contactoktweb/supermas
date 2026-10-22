@@ -75,9 +75,10 @@ export function EmployeesPage() {
           employee={null}
           canSensitive={permissions.canSensitive}
           onClose={() => setIsCreating(false)}
-          onSaved={(id, name) => {
+          onSaved={(id, name, warning) => {
             setIsCreating(false)
             notify('success', 'Empleado registrado', `${name} quedó activo con su evento de ingreso.`)
+            if (warning) notify('error', 'Autorización pendiente', warning)
             router.push(employeeProfilePath(id))
           }}
         />

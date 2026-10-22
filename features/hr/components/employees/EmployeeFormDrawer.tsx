@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import type { SelectOption } from '@/components/ui/CustomSelect'
+import { FileUpload } from '@/components/ui/FileUpload'
 import { HrDrawer } from '../shared/HrDrawer'
 import {
   HrCheckboxField,
@@ -17,6 +18,7 @@ import { useHrQuery } from '../../hooks/useHrQuery'
 import { useHrCatalogs } from '../../hooks/useHrCatalogs'
 import { hrOrgService } from '../../services/hr-org.service'
 import { hrEmployeeService } from '../../services/hr-employee.service'
+import { hrDocumentService } from '../../services/hr-document.service'
 import {
   bankAccountSchema,
   employeeCreateSchema,
@@ -28,6 +30,9 @@ import {
   BANK_ACCOUNT_TYPE_LABELS,
   CONTRACT_TYPE_LABELS,
   DOCUMENT_ID_TYPE_LABELS,
+  DOCUMENT_TYPE_LABELS,
+  HR_DOCUMENT_MAX_BYTES,
+  HR_DOCUMENT_MIME_TYPES,
   SALARY_TYPE_LABELS,
   WORK_SCHEDULE_LABELS,
   toSelectOptions,
@@ -39,7 +44,8 @@ interface EmployeeFormDrawerProps {
   employee: Employee | null
   canSensitive: boolean
   onClose: () => void
-  onSaved: (employeeId: string, fullName: string) => void
+  /** `warning` llega cuando el empleado se creó pero el soporte adjunto no se pudo guardar. */
+  onSaved: (employeeId: string, fullName: string, warning?: string) => void
 }
 
 type EmployeeFormValues = EmployeeCreateInput & { accountNumber: string }
@@ -99,6 +105,9 @@ export function EmployeeFormDrawer({ employee, canSensitive, onClose, onSaved }:
   const form = useHrForm<EmployeeFormValues>(initialValues(employee))
   const { values, setField, errors, isSubmitting } = form
   const { options, isLoading: catalogsLoading } = useHrCatalogs()
+  const [consentFile, setConsentFile] = useState<File | null>(null)
+  const [consentPreview, setConsentPreview] = useState('')
+  const [consentFileError, setConsentFileError] = useState('')
 
   const loadPeople = useCallback(
     () => Promise.all([hrOrgService.listEmployeeOptions(), hrOrgService.listErpUsers()]),
@@ -123,6 +132,14 @@ export function EmployeeFormDrawer({ employee, canSensitive, onClose, onSaved }:
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (consentFile && !(HR_DOCUMENT_MIME_TYPES as readonly string[]).includes(consentFile.type)) {
+      setConsentFileError('La autorización debe ser PDF, JPG o PNG.')
+      return
+    }
+    if (consentFile && consentFile.size > HR_DOCUMENT_MAX_BYTES) {
+      setConsentFileError('La autorización debe pesar como máximo 5 MB.')
+      return
+    }
     let savedId = employee?.id ?? ''
     const ok = await form.submit(isEdit ? employeePersonalSchema : employeeCreateSchema, async (data) => {
       const accountNumber = data.accountNumber.trim()
@@ -138,7 +155,25 @@ export function EmployeeFormDrawer({ employee, canSensitive, onClose, onSaved }:
         await hrEmployeeService.saveBankAccountNumber(savedId, accountNumber)
       }
     })
-    if (ok) onSaved(savedId, `${values.firstName.trim()} ${values.lastName.trim()}`)
+    if (!ok) return
+    const fullName = `${values.firstName.trim()} ${values.lastName.trim()}`
+    let warning: string | undefined
+    if (!isEdit && consentFile) {
+      // El empleado ya existe: un fallo aquí no debe repetir el alta, solo avisar.
+      try {
+        await hrDocumentService.upload(savedId, {
+          documentType: 'AUTORIZACION_DATOS',
+          name: DOCUMENT_TYPE_LABELS.AUTORIZACION_DATOS,
+          description: values.dataConsentVersion.trim(),
+          issueDate: values.dataConsentAt,
+          expiresAt: '',
+          file: consentFile,
+        })
+      } catch {
+        warning = 'No se pudo guardar la autorización adjunta. Cárguela desde la ficha del empleado, pestaña Documentos.'
+      }
+    }
+    onSaved(savedId, fullName, warning)
   }
 
   const positionHint = useMemo(
@@ -289,13 +324,39 @@ export function EmployeeFormDrawer({ employee, canSensitive, onClose, onSaved }:
               <HrTextField label="Versión de la política autorizada" required value={values.dataConsentVersion} onChange={(v) => setField('dataConsentVersion', v)} error={errors.dataConsentVersion} maxLength={40} placeholder="Ej: Política de datos v1" />
             </div>
             {!isEdit && (
-              <HrCheckboxField
-                label="El empleado firmó la autorización de tratamiento de sus datos personales"
-                description="Cargue el documento firmado en la pestaña Documentos de la ficha."
-                checked={values.dataConsentAccepted === true}
-                onChange={(v) => setField('dataConsentAccepted', v)}
-                error={errors.dataConsentAccepted}
-              />
+              <>
+                <FileUpload
+                  label="Autorización firmada (opcional)"
+                  accept={HR_DOCUMENT_MIME_TYPES.join(',')}
+                  fileType="any"
+                  compact
+                  value={consentPreview}
+                  helperText="PDF, JPG o PNG de máximo 5 MB. Se guarda en los Documentos del empleado."
+                  error={consentFileError || undefined}
+                  onChange={(dataUrl, file) => {
+                    setConsentFile(file)
+                    setConsentPreview(dataUrl)
+                    setConsentFileError('')
+                    setField('dataConsentAccepted', true)
+                  }}
+                  onRemove={() => {
+                    setConsentFile(null)
+                    setConsentPreview('')
+                    setConsentFileError('')
+                  }}
+                />
+                <HrCheckboxField
+                  label="El empleado firmó la autorización de tratamiento de sus datos personales"
+                  description={
+                    consentFile
+                      ? 'El documento adjunto se guardará en la pestaña Documentos al registrar el ingreso.'
+                      : 'Si no lo tiene a mano, puede cargarlo después desde la ficha del empleado, pestaña Documentos.'
+                  }
+                  checked={values.dataConsentAccepted === true}
+                  onChange={(v) => setField('dataConsentAccepted', v)}
+                  error={errors.dataConsentAccepted}
+                />
+              </>
             )}
             <HrTextAreaField label="Observaciones" value={values.notes} onChange={(v) => setField('notes', v)} error={errors.notes} maxLength={1000} />
           </HrFormSection>

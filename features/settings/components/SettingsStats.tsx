@@ -1,115 +1,63 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { SettingsStats } from '../types'
+import type { SettingsStats } from '../types'
 
 interface SettingsStatsProps {
   stats: SettingsStats | null
 }
 
-function useCountUp(target: number, duration = 800) {
-  const [count, setCount] = useState(0)
-
-  useEffect(() => {
-    let start = 0
-    const end = target
-    if (start === end) {
-      setCount(end)
-      return
-    }
-
-    const stepTime = Math.abs(Math.floor(duration / (end || 1)))
-    const timer = setInterval(() => {
-      start += 1
-      setCount(start)
-      if (start >= end) {
-        clearInterval(timer)
-        setCount(end)
-      }
-    }, Math.max(stepTime, 20))
-
-    return () => clearInterval(timer)
-  }, [target, duration])
-
-  return count
-}
+const formatLastModified = (iso: string | null | undefined) =>
+  iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'medium', timeStyle: 'short' }) : 'Sin cambios registrados'
 
 export function SettingsStatsCards({ stats }: SettingsStatsProps) {
-  const totalActive = useCountUp(stats?.totalActiveSettings || 0)
-  const totalCritical = useCountUp(stats?.totalCriticalSettings || 0)
-  const categoriesCount = useCountUp(stats?.categoriesCount || 16)
-
-  const formatLastModified = (iso?: string) => {
-    if (!iso) return 'Hoy'
-    try {
-      const d = new Date(iso)
-      return d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return 'Hoy'
-    }
-  }
-
   return (
-    <section className="stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* 1. Total Activas */}
-      <article className="stat-card hover:border-slate-700 transition-all duration-300">
+    <section className="stats-grid grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" aria-label="Resumen de configuración">
+      <article className="stat-card">
         <div className="stat-icon blue">
           <AppIcon name="settings" size={18} />
         </div>
         <div className="stat-text">
-          <span>Configuraciones Activas</span>
-          <strong>{totalActive}</strong>
+          <span>Parámetros editables</span>
+          <strong>{stats?.editableSettingsCount ?? 0}</strong>
           <small className="positive">
             <AppIcon name="check" size={13} />
-            En funcionamiento
+            Conectados a sus módulos
           </small>
         </div>
       </article>
 
-      {/* 2. Última Modificación */}
-      <article className="stat-card hover:border-slate-700 transition-all duration-300">
+      <article className="stat-card">
         <div className="stat-icon teal">
-          <AppIcon name="kardex" size={18} />
+          <AppIcon name="history" size={18} />
         </div>
         <div className="stat-text">
-          <span>Último Cambio</span>
-          <strong className="text-sm sm:text-base truncate">
-            {formatLastModified(stats?.lastModifiedAt)}
-          </strong>
-          <small className="text-slate-400 truncate">
-            por {stats?.lastModifiedBy || 'Admin Mauricio'}
-          </small>
+          <span>Último cambio</span>
+          <strong className="text-sm leading-snug">{formatLastModified(stats?.lastModifiedAt)}</strong>
+          {stats?.lastModifiedBy && <small className="text-slate-400 truncate">por {stats.lastModifiedBy}</small>}
         </div>
       </article>
 
-      {/* 3. Parámetros Críticos */}
-      <article className="stat-card hover:border-rose-900/50 transition-all duration-300">
-        <div className="stat-icon red">
-          <AppIcon name="warning" size={18} />
-        </div>
-        <div className="stat-text">
-          <span>Parámetros Críticos</span>
-          <strong className="text-rose-400">{totalCritical}</strong>
-          <small className="warning-text">
-            <AppIcon name="alerts" size={13} />
-            Requieren confirmación
-          </small>
-        </div>
-      </article>
-
-      {/* 4. Categorías Globales */}
-      <article className="stat-card hover:border-slate-700 transition-all duration-300">
+      <article className="stat-card">
         <div className="stat-icon amber">
-          <AppIcon name="dashboard" size={18} />
+          <AppIcon name="warehouse" size={18} />
         </div>
         <div className="stat-text">
-          <span>Categorías Globales</span>
-          <strong>{categoriesCount}</strong>
-          <small className="positive">
-            <AppIcon name="check" size={13} />
-            Módulos integrados
-          </small>
+          <span>Sedes activas</span>
+          <strong>{stats?.activeLocationsCount ?? 0}</strong>
+          <small className="text-slate-400">Disponibles para POS y despacho web</small>
+        </div>
+      </article>
+
+      <article className="stat-card">
+        <div className="stat-icon red">
+          <AppIcon name="roles" size={18} />
+        </div>
+        <div className="stat-text">
+          <span>Roles del sistema</span>
+          <strong>{stats?.rolesCount ?? 0}</strong>
+          <small className="text-slate-400">Se asignan desde Usuarios</small>
         </div>
       </article>
     </section>

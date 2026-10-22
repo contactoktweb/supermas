@@ -1,42 +1,52 @@
 /**
- * SUPER MÁS ERP/POS - Repositorio de Configuración (settingsRepository)
+ * SUPER MÁS ERP/POS - Repositorio de Configuración General.
  *
- * Capa de persistencia conectada exclusivamente a PostgreSQL / Supabase Real
- * (public.companies, public.system_settings, public.audit_logs).
- * Respeta Row Level Security (RLS) y aislamiento multiempresa por company_id.
+ * Fuentes reales:
+ * - companies: datos legales y fiscales DIAN de la empresa.
+ * - system_settings: parámetros operativos que leen los demás módulos (ver runtime-settings.ts).
+ * - locations.is_ecommerce_source: bodega que despacha la tienda web.
+ * - dian_resolutions, dian_software_config, accounting_periods, accounting_default_accounts,
+ *   roles/role_permissions: solo lectura; se administran en sus propios módulos.
+ * La escritura en system_settings la restringe RLS a administradores.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseClient } from '@/lib/supabase/client'
-import { createClient } from '@supabase/supabase-js'
-import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
-import { getSessionUserId } from '@/lib/supabase/session-context'
-
-const supabaseAdmin =
-  typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY
-    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
-        auth: { autoRefreshToken: false, persistSession: false },
-      })
-    : supabaseClient
-
-function getDbClient() {
-  if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    return supabaseAdmin
-  }
-  return supabaseClient
-}
-import {
+import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
+import { RUNTIME_SETTING_KEYS, getRuntimeSettings, invalidateRuntimeSettings } from '../services/runtime-settings'
+import type {
+  AccountingOverview,
+  CashSettings,
   CompanySettings,
-  InventorySettings,
-  POSSettings,
   EcommerceSettings,
-  SystemSettingItem,
+  FiscalOverview,
+  GeneralSettings,
+  InventorySettings,
+  LocationOption,
+  POSSettings,
+  RoleSummary,
   SettingsStats,
-  SettingChangeHistory,
-  SettingsCategory,
 } from '../types'
-import { SYSTEM_ROLES } from '@/features/users/services/role-permissions'
 
-function mapDbCompanyToSettings(row: any): CompanySettings {
+const db = (): SupabaseClient => supabaseClient
+
+/** Cantidad de parámetros editables que expone la pantalla (empresa aparte). */
+const EDITABLE_SETTINGS_COUNT = 13
+
+const ACCOUNT_PURPOSE_LABELS: Record<string, string> = {
+  CASH: 'Caja',
+  CUSTOMER_CREDIT: 'Clientes (cartera)',
+  INVENTORY: 'Inventario',
+  SUPPLIERS_PAYABLE: 'Proveedores',
+  VAT_GENERATED: 'IVA generado',
+  VAT_DEDUCTIBLE: 'IVA descontable',
+  SALES_INCOME: 'Ingresos por ventas',
+  SALES_RETURNS: 'Devoluciones en ventas',
+  FINANCIAL_INCOME: 'Ingresos financieros',
+  COST_OF_SALES: 'Costo de ventas',
+}
+
+function mapCompany(row: any): CompanySettings {
   return {
     id: row.id,
     companyName: row.trade_name || row.business_name || '',
@@ -44,622 +54,352 @@ function mapDbCompanyToSettings(row: any): CompanySettings {
     nit: row.tax_id || '',
     dv: row.verification_digit || '',
     fiscalRegime: row.tax_regime || 'RESPONSABLE_DE_IVA',
-    economicActivityCode: row.economic_activity_code || '4711',
+    economicActivityCode: row.economic_activity_code || '',
     legalRepresentative: row.legal_representative_name || '',
     legalRepresentativeDoc: row.legal_representative_doc || '',
     address: row.address || '',
     city: row.city || '',
     department: row.department || '',
     country: row.country || 'Colombia',
-    postalCode: '050001',
+    postalCode: row.postal_code || '',
     phone: row.phone || '',
-    mobile: '',
     email: row.email || '',
     billingEmail: row.invoice_email || '',
-    website: '',
-    logoUrl: row.logo_url || '/super-mas-logo.svg',
     currency: row.currency || 'COP',
-    status: (row.status as any) || 'ACTIVE',
-    timezone: 'America/Bogota',
-    commercialDescription: '',
+    status: row.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE',
+    dianDepartmentCode: row.dian_department_code || '',
+    dianMunicipalityCode: row.dian_municipality_code || '',
+    dianOrganizationType: row.dian_organization_type === '2' ? '2' : '1',
+    rutResponsibilities: row.rut_responsibilities || '',
+    dianTaxLevelCodes: row.dian_tax_level_codes || '',
+    dianTaxSchemeCode: row.dian_tax_scheme_code || '',
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
-    updatedBy: 'Sistema',
   }
 }
 
-const DEFAULT_INVENTORY_SETTINGS: InventorySettings = {
-  defaultMinStockThreshold: 10,
-  criticalLowStockThreshold: 3,
-  valuationMethod: 'WEIGHTED_AVERAGE',
-  allowNegativeStock: false,
-  requireReasonForManualAdjustments: true,
-  autoGenerateKardexMovement: true,
-  stockCheckFrequencyHours: 24,
-  webAvailability: {
-    showAvailableBadge: true,
-    showLowStockBadge: true,
-    showOutOfStockBadge: false,
-    lowStockWarningThreshold: 5,
-    hideOutOfStockAfterDays: 7,
-  },
-  transferRules: {
-    requireDualApproval: false,
-    autoBlockTransitAfterHours: 48,
-    defaultOriginLocationId: 'loc-001',
-  },
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Sistema',
-}
-
-const DEFAULT_POS_SETTINGS: POSSettings = {
-  defaultLocationId: 'loc-001',
-  defaultLocationName: 'Sede Principal',
-  defaultCashRegisterId: 'pos-reg-01',
-  genericCustomerId: 'cust-gen-01',
-  genericCustomerName: 'Consumidor Final',
-  genericCustomerDoc: '222222222222',
-  autoPrintReceipt: true,
-  allowQuickSaleWithoutCustomer: true,
-  defaultReceiptTemplate: 'TICKET_80MM',
-  enableSoundFeedback: true,
-  enabledPaymentMethods: ['CASH', 'CARD', 'TRANSFER', 'CREDIT'],
-  cashRegisterRules: {
-    recommendedInitialFloat: 200000,
-    maxAllowedInitialFloat: 500000,
-    requireDailyClose: true,
-    maxOpenHoursBeforeAlert: 14,
-    maxDifferenceToleranceAmount: 5000,
-    requireDualSignatureOnDiscrepancy: true,
-  },
-  salesPriceList: 'PRICE_NORMAL',
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Sistema',
-}
-
-const DEFAULT_ECOMMERCE_SETTINGS: EcommerceSettings = {
-  dispatchWarehouseId: 'loc-001',
-  dispatchWarehouseName: 'Sede Principal',
-  superCatalogEnabled: true,
-  distributorCatalogEnabled: true,
-  publicShowPrices: true,
-  publicShowAvailability: true,
-  defaultLowStockThreshold: 10,
-  outOfStockBehavior: 'HIDE',
-  webPriceList: 'PRICE_NORMAL',
-  distributorPriceList: 'PRICE_WHOLESALE',
-  whatsapp: {
-    phoneNumber: '+573001234567',
-    displayPhoneNumber: '+57 300 123 4567',
-    defaultQuoteTemplate: 'Hola, requiero cotización para el producto {{product}}',
-    defaultSupportTemplate: 'Hola, tengo una consulta sobre mi pedido {{order}}',
-    allowDirectWhatsAppPurchase: true,
-  },
-  cartRules: {
-    minOrderAmount: 20000,
-    maxOrderAmount: 5000000,
-    autoReserveStockMinutes: 15,
-  },
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Sistema',
+function companyPayload(data: CompanySettings) {
+  return {
+    business_name: data.legalName,
+    trade_name: data.companyName,
+    tax_id: data.nit.replace(/[^0-9]/g, ''),
+    verification_digit: data.dv,
+    tax_regime: data.fiscalRegime,
+    economic_activity_code: data.economicActivityCode,
+    legal_representative_name: data.legalRepresentative || null,
+    legal_representative_doc: data.legalRepresentativeDoc || null,
+    address: data.address,
+    city: data.city,
+    department: data.department,
+    country: data.country,
+    postal_code: data.postalCode || null,
+    phone: data.phone,
+    email: data.email,
+    invoice_email: data.billingEmail || null,
+    dian_department_code: data.dianDepartmentCode,
+    dian_municipality_code: data.dianMunicipalityCode,
+    dian_organization_type: data.dianOrganizationType,
+    rut_responsibilities: data.rutResponsibilities,
+    dian_tax_level_codes: data.dianTaxLevelCodes,
+    dian_tax_scheme_code: data.dianTaxSchemeCode,
+  }
 }
 
 export class SettingsRepository {
-  /**
-   * Obtiene la configuración institucional de la empresa del usuario autenticado desde Supabase
-   */
-  async getCompanySettings(companyIdOverride?: string): Promise<CompanySettings | null> {
-    try {
-      const data = await getAuthenticatedCompany(getDbClient(), companyIdOverride)
-      if (!data) {
-        return null
-      }
-      return mapDbCompanyToSettings(data)
-    } catch (error: any) {
-      console.error('Error al consultar companies en Supabase:', error)
-      throw new Error(`Error consultando empresa: ${error.message}`)
-    }
+  async getCompanySettings(): Promise<CompanySettings | null> {
+    const data = await getAuthenticatedCompany(db())
+    return data ? mapCompany(data) : null
   }
 
-  /**
-   * Crea la empresa inicial (Bootstrap Onboarding) en public.companies
-   */
-  async createCompany(data: Partial<CompanySettings>, actorName: string): Promise<CompanySettings> {
-    const payload = {
-      business_name: data.legalName || data.companyName,
-      trade_name: data.companyName || data.legalName,
-      tax_id: data.nit?.replace(/[^0-9]/g, '') || data.nit,
-      verification_digit: data.dv || '0',
-      tax_regime: data.fiscalRegime || 'RESPONSABLE_DE_IVA',
-      economic_activity_code: data.economicActivityCode || '4711',
-      legal_representative_name: data.legalRepresentative || null,
-      legal_representative_doc: data.legalRepresentativeDoc || null,
-      address: data.address || '',
-      city: data.city || '',
-      department: data.department || '',
-      country: data.country || 'Colombia',
-      phone: data.phone || data.mobile || null,
-      email: data.email || null,
-      invoice_email: data.billingEmail || data.email || null,
-      logo_url: data.logoUrl || null,
-      currency: data.currency || 'COP',
-      status: 'ACTIVE',
-    }
-
-    const { data: inserted, error } = await getDbClient()
+  async createCompany(data: CompanySettings): Promise<CompanySettings> {
+    const { data: inserted, error } = await db()
       .from('companies')
-      .insert(payload)
+      .insert({ ...companyPayload(data), currency: 'COP', status: 'ACTIVE' })
       .select()
       .single()
-
-    if (error) {
-      console.error('Error al crear empresa en Supabase:', error)
-      throw new Error(`Error al registrar empresa: ${error.message}`)
-    }
-
-    await this.recordChange({
-      actor: actorName,
-      category: 'COMPANY',
-      key: 'company.profile',
-      fieldLabel: 'Creación de Empresa (Onboarding)',
-      previousValue: null,
-      newValue: inserted.business_name,
-      isCritical: true,
-      notes: 'Registro inicial de empresa fiduciaria en el ERP.',
-    })
-
-    return mapDbCompanyToSettings(inserted)
+    if (error) throw new Error('No se pudo registrar la empresa. Verifique los datos e intente de nuevo.')
+    return mapCompany(inserted)
   }
 
-  /**
-   * Actualiza los datos institucionales de la empresa
-   */
-  async updateCompanySettings(
-    data: Partial<CompanySettings>,
-    actorName: string,
-    companyIdOverride?: string
-  ): Promise<CompanySettings> {
-    const company = await getAuthenticatedCompany(getDbClient(), companyIdOverride)
-    if (!company) {
-      throw new Error('No se encontró la empresa del usuario para actualizar.')
-    }
+  async updateCompanySettings(data: CompanySettings): Promise<CompanySettings> {
+    const company = await getAuthenticatedCompany(db())
+    if (!company) throw new Error('No se encontró la empresa del usuario.')
 
-    const updatePayload: Record<string, any> = {
-      updated_at: new Date().toISOString(),
-    }
-
-    if (data.legalName !== undefined) updatePayload.business_name = data.legalName
-    if (data.companyName !== undefined) updatePayload.trade_name = data.companyName
-    if (data.nit !== undefined) updatePayload.tax_id = data.nit.replace(/[^0-9]/g, '')
-    if (data.dv !== undefined) updatePayload.verification_digit = data.dv
-    if (data.fiscalRegime !== undefined) updatePayload.tax_regime = data.fiscalRegime
-    if (data.economicActivityCode !== undefined) updatePayload.economic_activity_code = data.economicActivityCode
-    if (data.legalRepresentative !== undefined) updatePayload.legal_representative_name = data.legalRepresentative
-    if (data.legalRepresentativeDoc !== undefined) updatePayload.legal_representative_doc = data.legalRepresentativeDoc
-    if (data.address !== undefined) updatePayload.address = data.address
-    if (data.city !== undefined) updatePayload.city = data.city
-    if (data.department !== undefined) updatePayload.department = data.department
-    if (data.country !== undefined) updatePayload.country = data.country
-    if (data.phone !== undefined) updatePayload.phone = data.phone
-    if (data.email !== undefined) updatePayload.email = data.email
-    if (data.billingEmail !== undefined) updatePayload.invoice_email = data.billingEmail
-    if (data.logoUrl !== undefined) updatePayload.logo_url = data.logoUrl
-    if (data.currency !== undefined) updatePayload.currency = data.currency
-
-    const { data: updated, error } = await getDbClient()
+    const { data: updated, error } = await db()
       .from('companies')
-      .update(updatePayload)
+      .update({ ...companyPayload(data), updated_at: new Date().toISOString() })
       .eq('id', company.id)
       .select()
-      .single()
-
-    if (error) {
-      console.error('Error al actualizar empresa en Supabase:', error)
-      throw new Error(`Error al actualizar empresa: ${error.message}`)
-    }
-
-    await this.recordChange({
-      actor: actorName,
-      category: 'COMPANY',
-      key: 'company.profile',
-      fieldLabel: 'Actualización Datos Empresa',
-      previousValue: company.trade_name || company.business_name,
-      newValue: updated.trade_name || updated.business_name,
-      isCritical: false,
-      notes: 'Actualización de configuración institucional.',
-    })
-
-    return mapDbCompanyToSettings(updated)
-  }
-
-  /**
-   * Obtiene los parámetros generales de inventario desde PostgreSQL
-   */
-  async getInventorySettings(): Promise<InventorySettings> {
-    const { data } = await getDbClient()
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'inventory.policies')
       .maybeSingle()
-
-    if (data?.value) {
-      return {
-        ...DEFAULT_INVENTORY_SETTINGS,
-        ...(typeof data.value === 'string' ? JSON.parse(data.value) : data.value),
-      }
-    }
-    return DEFAULT_INVENTORY_SETTINGS
+    if (error || !updated) throw new Error('No se pudo guardar la información de la empresa.')
+    return mapCompany(updated)
   }
 
-  /**
-   * Actualiza las políticas de inventario en PostgreSQL
-   */
-  async updateInventorySettings(data: Partial<InventorySettings>, actorName: string): Promise<InventorySettings> {
-    const prev = await this.getInventorySettings()
-    const now = new Date().toISOString()
-
-    const isCritical = Boolean(
-      (data.valuationMethod && data.valuationMethod !== prev.valuationMethod) ||
-      (data.allowNegativeStock !== undefined && data.allowNegativeStock !== prev.allowNegativeStock)
-    )
-
-    const updated: InventorySettings = {
-      ...prev,
-      ...data,
-      updatedAt: now,
-      updatedBy: actorName,
-    }
-
-    await getDbClient()
-      .from('system_settings')
-      .upsert(
-        {
-          key: 'inventory.policies',
-          category: 'INVENTORY',
-          value: updated,
-          type: 'JSON',
-          description: 'Políticas generales de inventario y valoración de stock',
-          is_critical: isCritical,
-          requires_audit: true,
-          updated_at: now,
-        },
-        { onConflict: 'key' }
-      )
-
-    await this.recordChange({
-      actor: actorName,
-      category: 'INVENTORY',
-      key: 'inventory.policies',
-      fieldLabel: 'Políticas de Inventario y Valoración',
-      previousValue: `Método: ${prev.valuationMethod}, Stock Mínimo: ${prev.defaultMinStockThreshold}`,
-      newValue: `Método: ${updated.valuationMethod}, Stock Mínimo: ${updated.defaultMinStockThreshold}`,
-      isCritical,
-      notes: isCritical ? 'Cambio crítico en política de valoración o existencias negativas.' : undefined,
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene la configuración de cajas y POS desde PostgreSQL
-   */
-  async getPOSSettings(): Promise<POSSettings> {
-    const { data } = await getDbClient()
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'pos.terminal_rules')
-      .maybeSingle()
-
-    if (data?.value) {
-      return {
-        ...DEFAULT_POS_SETTINGS,
-        ...(typeof data.value === 'string' ? JSON.parse(data.value) : data.value),
-      }
-    }
-    return DEFAULT_POS_SETTINGS
-  }
-
-  /**
-   * Actualiza la configuración de cajas y POS en PostgreSQL
-   */
-  async updatePOSSettings(data: Partial<POSSettings>, actorName: string): Promise<POSSettings> {
-    const prev = await this.getPOSSettings()
-    const now = new Date().toISOString()
-
-    const updated: POSSettings = {
-      ...prev,
-      ...data,
-      updatedAt: now,
-      updatedBy: actorName,
-    }
-
-    await getDbClient()
-      .from('system_settings')
-      .upsert(
-        {
-          key: 'pos.terminal_rules',
-          category: 'POS',
-          value: updated,
-          type: 'JSON',
-          description: 'Reglas y parámetros de funcionamiento de Puntos de Venta y Cajas',
-          is_critical: false,
-          requires_audit: true,
-          updated_at: now,
-        },
-        { onConflict: 'key' }
-      )
-
-    await this.recordChange({
-      actor: actorName,
-      category: 'POS',
-      key: 'pos.terminal_rules',
-      fieldLabel: 'Reglas de Punto de Venta y Cajas',
-      previousValue: `Sede: ${prev.defaultLocationName}`,
-      newValue: `Sede: ${updated.defaultLocationName}`,
-      isCritical: false,
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene la configuración de canales web y ecommerce desde PostgreSQL
-   */
-  async getEcommerceSettings(): Promise<EcommerceSettings> {
-    const { data } = await getDbClient()
-      .from('system_settings')
-      .select('value')
-      .eq('key', 'ecommerce.dispatch_node')
-      .maybeSingle()
-
-    if (data?.value) {
-      return {
-        ...DEFAULT_ECOMMERCE_SETTINGS,
-        ...(typeof data.value === 'string' ? JSON.parse(data.value) : data.value),
-      }
-    }
-    return DEFAULT_ECOMMERCE_SETTINGS
-  }
-
-  /**
-   * Actualiza la configuración de canales web y ecommerce en PostgreSQL
-   */
-  async updateEcommerceSettings(data: Partial<EcommerceSettings>, actorName: string): Promise<EcommerceSettings> {
-    const prev = await this.getEcommerceSettings()
-    const now = new Date().toISOString()
-
-    const isCritical = Boolean(
-      data.dispatchWarehouseId && data.dispatchWarehouseId !== prev.dispatchWarehouseId
-    )
-
-    const updated: EcommerceSettings = {
-      ...prev,
-      ...data,
-      updatedAt: now,
-      updatedBy: actorName,
-    }
-
-    await getDbClient()
-      .from('system_settings')
-      .upsert(
-        {
-          key: 'ecommerce.dispatch_node',
-          category: 'ECOMMERCE',
-          value: updated,
-          type: 'JSON',
-          description: 'Configuración de nodo logístico y parámetros de ecommerce',
-          is_critical: isCritical,
-          requires_audit: true,
-          updated_at: now,
-        },
-        { onConflict: 'key' }
-      )
-
-    await this.recordChange({
-      actor: actorName,
-      category: 'ECOMMERCE',
-      key: 'ecommerce.dispatch_node',
-      fieldLabel: 'Bodega de Despacho Ecommerce',
-      previousValue: prev.dispatchWarehouseName,
-      newValue: updated.dispatchWarehouseName,
-      isCritical,
-      notes: isCritical ? 'Cambio de nodo logístico de despacho web.' : undefined,
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene el catálogo completo de variables dinámicas del sistema desde PostgreSQL
-   */
-  async getSystemSettings(category?: SettingsCategory): Promise<SystemSettingItem[]> {
-    let query = getDbClient().from('system_settings').select('*')
-    if (category) {
-      query = query.eq('category', category)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      console.error('Error al consultar system_settings:', error)
-      return []
-    }
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      key: row.key,
-      value: row.value,
-      category: row.category as SettingsCategory,
-      description: row.description || '',
-      type: row.type || 'STRING',
-      isCritical: Boolean(row.is_critical),
-      updatedAt: row.updated_at || new Date().toISOString(),
-      updatedBy: 'Sistema',
-    }))
-  }
-
-  /**
-   * Obtiene una variable dinámica individual por su clave
-   */
-  async getSystemSettingByKey(key: string): Promise<SystemSettingItem | null> {
-    const { data, error } = await getDbClient()
-      .from('system_settings')
-      .select('*')
-      .eq('key', key)
-      .maybeSingle()
-
-    if (error || !data) return null
-
+  /** Lee la configuración editable a partir de la misma fuente que usan los módulos. */
+  async getOperationalSettings(): Promise<{
+    inventory: InventorySettings
+    pos: POSSettings
+    cash: CashSettings
+    ecommerce: Omit<EcommerceSettings, 'dispatchLocationId'>
+    general: GeneralSettings
+  }> {
+    invalidateRuntimeSettings()
+    const runtime = await getRuntimeSettings(db())
     return {
-      id: data.id,
-      key: data.key,
-      value: data.value,
-      category: data.category as SettingsCategory,
-      description: data.description || '',
-      type: data.type || 'STRING',
-      isCritical: Boolean(data.is_critical),
-      updatedAt: data.updated_at || new Date().toISOString(),
-      updatedBy: 'Sistema',
+      inventory: runtime.inventory,
+      pos: runtime.pos,
+      cash: runtime.cash,
+      ecommerce: {
+        superCatalogEnabled: runtime.storefront.superCatalogEnabled,
+        distributorCatalogEnabled: runtime.storefront.distributorCatalogEnabled,
+        whatsappPhone: runtime.storefront.whatsappPhone,
+        whatsappQuoteTemplate: runtime.storefront.whatsappQuoteTemplate,
+      },
+      general: {
+        exogenaDefaultYear: runtime.exogenaDefaultYear,
+        sessionTimeoutMinutes: runtime.sessionTimeoutMinutes,
+      },
     }
   }
 
-  /**
-   * Actualiza el valor de una variable dinámica
-   */
-  async updateSystemSetting(
+  private async readJson(key: string): Promise<Record<string, unknown>> {
+    const { data } = await db().from('system_settings').select('value').eq('key', key).maybeSingle()
+    const value = data?.value
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value)
+      } catch {
+        return {}
+      }
+    }
+    return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
+  }
+
+  /** Guarda un valor; si la clave aún no existe la crea. RLS devuelve 0 filas a quien no es administrador. */
+  private async writeSetting(
     key: string,
-    value: any,
-    actorName: string,
-    notes?: string
-  ): Promise<SystemSettingItem> {
-    const prev = await this.getSystemSettingByKey(key)
-    if (!prev) {
-      throw new Error(`La variable de configuración "${key}" no existe.`)
-    }
-
+    value: unknown,
+    meta: { category: string; type: 'JSON' | 'NUMBER'; description: string }
+  ): Promise<void> {
     const now = new Date().toISOString()
-
-    const { data, error } = await getDbClient()
+    const { data, error } = await db()
       .from('system_settings')
-      .update({
-        value,
-        updated_at: now,
-      })
+      .update({ value, updated_at: now })
       .eq('key', key)
-      .select()
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Error al actualizar configuración "${key}": ${error?.message}`)
+      .select('id')
+    if (error) throw new Error('No se pudo guardar la configuración.')
+    if (data && data.length > 0) {
+      invalidateRuntimeSettings()
+      return
     }
 
-    await this.recordChange({
-      actor: actorName,
-      category: prev.category,
-      key: prev.key,
-      fieldLabel: prev.description,
-      previousValue: prev.value,
-      newValue: value,
-      isCritical: prev.isCritical,
-      notes,
+    const { error: insertError } = await db().from('system_settings').insert({
+      key,
+      value,
+      category: meta.category,
+      type: meta.type,
+      description: meta.description,
+      is_critical: false,
+      requires_audit: true,
+      updated_at: now,
     })
-
-    return {
-      id: data.id,
-      key: data.key,
-      value: data.value,
-      category: data.category as SettingsCategory,
-      description: data.description || '',
-      type: data.type || 'STRING',
-      isCritical: Boolean(data.is_critical),
-      updatedAt: data.updated_at,
-      updatedBy: actorName,
-    }
+    if (insertError) throw new Error('No tiene permisos para modificar la configuración general.')
+    invalidateRuntimeSettings()
   }
 
-  /**
-   * Consulta los roles del sistema y su matriz de permisos (solo lectura)
-   */
-  async getPredefinedRoles() {
-    return Object.values(SYSTEM_ROLES)
+  /** Mezcla los campos en el JSON existente para no perder otros parámetros guardados en la misma clave. */
+  private async mergeJsonSetting(
+    key: string,
+    patch: Record<string, unknown>,
+    meta: { category: string; description: string }
+  ): Promise<void> {
+    const current = await this.readJson(key)
+    await this.writeSetting(key, { ...current, ...patch, updatedAt: new Date().toISOString() }, { ...meta, type: 'JSON' })
   }
 
-  /**
-   * Obtiene el historial reciente de cambios en configuración desde public.audit_logs
-   */
-  async getChangeHistory(limit = 20): Promise<SettingChangeHistory[]> {
-    const { data, error } = await getDbClient()
-      .from('audit_logs')
-      .select('*')
-      .eq('module', 'SETTINGS')
-      .order('created_at', { ascending: false })
-      .limit(limit)
+  async updateInventorySettings(data: InventorySettings): Promise<void> {
+    await this.mergeJsonSetting(RUNTIME_SETTING_KEYS.inventory, { ...data }, {
+      category: 'INVENTORY',
+      description: 'Umbrales de stock predeterminados para productos nuevos e importados',
+    })
+  }
 
-    if (error || !data || data.length === 0) {
-      return []
-    }
+  async updatePOSSettings(data: POSSettings): Promise<void> {
+    await this.mergeJsonSetting(RUNTIME_SETTING_KEYS.pos, { ...data }, {
+      category: 'POS',
+      description: 'Parámetros del punto de venta y reglas de caja',
+    })
+  }
 
-    return data.map((row: any) => ({
+  async updateCashSettings(data: CashSettings): Promise<void> {
+    const current = await this.readJson(RUNTIME_SETTING_KEYS.pos)
+    const rules = current.cashRegisterRules && typeof current.cashRegisterRules === 'object' ? current.cashRegisterRules : {}
+    await this.mergeJsonSetting(RUNTIME_SETTING_KEYS.pos, { cashRegisterRules: { ...rules, ...data } }, {
+      category: 'POS',
+      description: 'Parámetros del punto de venta y reglas de caja',
+    })
+  }
+
+  async updateEcommerceSettings(data: Omit<EcommerceSettings, 'dispatchLocationId'>): Promise<void> {
+    const current = await this.readJson(RUNTIME_SETTING_KEYS.ecommerce)
+    const whatsapp = current.whatsapp && typeof current.whatsapp === 'object' ? current.whatsapp : {}
+    await this.mergeJsonSetting(
+      RUNTIME_SETTING_KEYS.ecommerce,
+      {
+        superCatalogEnabled: data.superCatalogEnabled,
+        distributorCatalogEnabled: data.distributorCatalogEnabled,
+        whatsapp: { ...whatsapp, phoneNumber: data.whatsappPhone, defaultQuoteTemplate: data.whatsappQuoteTemplate },
+      },
+      { category: 'ECOMMERCE', description: 'Canales web, catálogos públicos y contacto por WhatsApp' }
+    )
+  }
+
+  async updateGeneralSettings(data: GeneralSettings): Promise<void> {
+    await this.writeSetting(RUNTIME_SETTING_KEYS.exogenaYear, data.exogenaDefaultYear, {
+      category: 'EXOGENA',
+      type: 'NUMBER',
+      description: 'Año gravable predeterminado para información exógena',
+    })
+    await this.writeSetting(RUNTIME_SETTING_KEYS.sessionTimeout, data.sessionTimeoutMinutes, {
+      category: 'SECURITY',
+      type: 'NUMBER',
+      description: 'Minutos de inactividad antes de cerrar la sesión',
+    })
+  }
+
+  async getLocations(): Promise<LocationOption[]> {
+    const { data, error } = await db()
+      .from('locations')
+      .select('id, code, name, is_ecommerce_source')
+      .eq('status', 'ACTIVE')
+      .order('name')
+    if (error) return []
+    return (data ?? []).map((row: any) => ({
       id: row.id,
-      timestamp: row.created_at,
-      actor: row.user_name || 'Sistema',
-      category: (row.entity_name || 'COMPANY') as SettingsCategory,
-      key: row.entity_id || 'system.setting',
-      fieldLabel: row.action,
-      previousValue: row.previous_value,
-      newValue: row.new_value,
-      isCritical: false,
-      notes: row.action,
+      code: row.code,
+      name: row.name,
+      isEcommerceSource: Boolean(row.is_ecommerce_source),
     }))
   }
 
-  /**
-   * Registra una modificación en public.audit_logs
-   */
-  private async recordChange(entry: Omit<SettingChangeHistory, 'id' | 'timestamp'>) {
-    try {
-      const companyId = await resolveUserCompanyId().catch(() => null)
-      if (!companyId) return
+  /** Marca una sola bodega como origen de los pedidos web (la misma marca que edita el módulo Bodegas). */
+  async setEcommerceDispatchLocation(locationId: string): Promise<void> {
+    const client = db()
+    if (locationId) {
+      const { data, error } = await client
+        .from('locations')
+        .update({ is_ecommerce_source: true })
+        .eq('id', locationId)
+        .select('id')
+      if (error || !data?.length) throw new Error('No se pudo asignar la bodega de despacho web.')
+    }
+    let clearQuery = client.from('locations').update({ is_ecommerce_source: false }).eq('is_ecommerce_source', true)
+    if (locationId) clearQuery = clearQuery.neq('id', locationId)
+    const { error } = await clearQuery
+    if (error) throw new Error('No se pudo actualizar la bodega de despacho web.')
+  }
 
-      const client = getDbClient()
-      await client.from('audit_logs').insert({
-        company_id: companyId,
-        user_id: await getSessionUserId(client),
-        module: 'SETTINGS',
-        action: `SETTING_${entry.category}_UPDATED`,
-        entity_name: entry.category,
-        entity_id: entry.key,
-        user_name: entry.actor,
-        previous_value: entry.previousValue ? JSON.stringify(entry.previousValue) : null,
-        new_value: entry.newValue ? JSON.stringify(entry.newValue) : null,
-        created_at: new Date().toISOString(),
-      })
-    } catch (err) {
-      console.error('Error al registrar cambio de configuración en auditoría:', err)
+  async getFiscalOverview(): Promise<FiscalOverview> {
+    const [resolutionRes, softwareRes] = await Promise.all([
+      db()
+        .from('dian_resolutions')
+        .select('dian_prefix, resolution_number, valid_from, valid_to, initial_range, final_range, last_assigned_number, environment')
+        .eq('is_active', true)
+        .order('valid_to', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      db()
+        .from('dian_software_config')
+        .select('software_name, environment, operation_mode, certificate_expiration')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle(),
+    ])
+    const r: any = resolutionRes.data
+    const s: any = softwareRes.data
+    return {
+      resolution: r
+        ? {
+            prefix: r.dian_prefix,
+            resolutionNumber: r.resolution_number,
+            validFrom: r.valid_from,
+            validTo: r.valid_to,
+            initialRange: Number(r.initial_range ?? 0),
+            finalRange: Number(r.final_range ?? 0),
+            lastAssignedNumber: Number(r.last_assigned_number ?? 0),
+            environment: r.environment || '',
+          }
+        : null,
+      software: s
+        ? {
+            softwareName: s.software_name || '',
+            environment: s.environment || '',
+            operationMode: s.operation_mode || '',
+            certificateExpiration: s.certificate_expiration,
+          }
+        : null,
     }
   }
 
-  /**
-   * Calcula estadísticas agregadas para el tablero principal de configuración
-   */
-  async getStats(): Promise<SettingsStats> {
-    const settings = await this.getSystemSettings()
-    const criticalCount = settings.filter((s) => s.isCritical).length
+  async getAccountingOverview(): Promise<AccountingOverview> {
+    const [periodsRes, accountsRes] = await Promise.all([
+      db()
+        .from('accounting_periods')
+        .select('period_code, month, year, status')
+        .eq('status', 'OPEN')
+        .order('year', { ascending: false })
+        .order('month', { ascending: false })
+        .limit(6),
+      db().from('accounting_default_accounts').select('purpose, account:accounting_accounts(code, name)'),
+    ])
+    return {
+      openPeriods: (periodsRes.data ?? []).map((p: any) => ({
+        code: p.period_code,
+        label: new Date(p.year, Number(p.month) - 1, 1).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }),
+      })),
+      defaultAccounts: (accountsRes.data ?? [])
+        .map((row: any) => ({
+          purpose: ACCOUNT_PURPOSE_LABELS[row.purpose] || row.purpose,
+          code: row.account?.code || '',
+          name: row.account?.name || '',
+        }))
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    }
+  }
 
-    const { data: latestLog } = await getDbClient()
+  /** Roles y permisos tal como están en la base (la misma fuente que aplica RLS). */
+  async getRoles(): Promise<RoleSummary[]> {
+    const { data, error } = await db()
+      .from('roles')
+      .select('id, code, name, description, scope, role_permissions(permission:permissions(code))')
+      .order('name')
+    if (error) return []
+    return (data ?? []).map((row: any) => ({
+      id: row.id,
+      code: row.code,
+      name: row.name,
+      description: row.description || '',
+      scope: row.scope || '',
+      permissions: (row.role_permissions ?? [])
+        .map((rp: any) => rp.permission?.code)
+        .filter(Boolean)
+        .sort(),
+    }))
+  }
+
+  async getStats(rolesCount: number, activeLocationsCount: number): Promise<SettingsStats> {
+    const { data: latestLog } = await db()
       .from('audit_logs')
       .select('created_at, user_name')
       .eq('module', 'SETTINGS')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-
     return {
-      totalActiveSettings: settings.length + 32,
-      lastModifiedAt: latestLog?.created_at || new Date().toISOString(),
-      lastModifiedBy: latestLog?.user_name || 'Sistema',
-      totalCriticalSettings: criticalCount + 3,
-      categoriesCount: 16,
-      activeModulesCount: 12,
+      editableSettingsCount: EDITABLE_SETTINGS_COUNT,
+      lastModifiedAt: latestLog?.created_at ?? null,
+      lastModifiedBy: latestLog?.user_name ?? null,
+      rolesCount,
+      activeLocationsCount,
     }
   }
 }

@@ -1,16 +1,31 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { RolesConsultationView } from '@/features/settings/components/views/RolesConsultationView'
-import { SYSTEM_ROLES } from '@/features/users/services/role-permissions'
+import { settingsRepository } from '@/features/settings/repositories/settings.repository'
+import type { RoleSummary } from '@/features/settings/types'
 
 export function RolesView() {
-  const rolesList = Object.values(SYSTEM_ROLES)
-  const totalPermissions = rolesList.reduce(
-    (acc, r) => Math.max(acc, r.permissions?.length || 0),
-    0
-  )
+  const [rolesList, setRolesList] = useState<RoleSummary[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    settingsRepository
+      .getRoles()
+      .then((roles) => {
+        if (active) setRolesList(roles)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const totalPermissions = rolesList.reduce((acc, r) => Math.max(acc, r.permissions.length), 0)
 
   return (
     <div className="space-y-6">
@@ -22,7 +37,7 @@ export function RolesView() {
             Roles y Permisos
           </h1>
           <p className="welcome-subtitle">
-            Consulta la matriz oficial de los 7 roles definitivos del ERP Super Más y sus permisos asignados por módulo.
+            Consulta los roles del ERP Super Más y los permisos que cada uno tiene asignados por módulo.
           </p>
         </div>
       </header>
@@ -34,11 +49,11 @@ export function RolesView() {
             <AppIcon name="roles" size={18} />
           </div>
           <div className="stat-text">
-            <span>Roles predefinidos</span>
+            <span>Roles del sistema</span>
             <strong>{rolesList.length}</strong>
             <small className="positive">
               <AppIcon name="check" size={12} />
-              Inmutables
+              Asignados en Usuarios
             </small>
           </div>
         </article>
@@ -88,7 +103,11 @@ export function RolesView() {
 
       {/* Matrix Panel */}
       <div className="table-panel p-6 bg-white rounded-2xl border border-slate-200/80 shadow-sm">
-        <RolesConsultationView roles={rolesList} />
+        {isLoading ? (
+          <p className="text-xs text-slate-500">Cargando roles…</p>
+        ) : (
+          <RolesConsultationView roles={rolesList} />
+        )}
       </div>
     </div>
   )

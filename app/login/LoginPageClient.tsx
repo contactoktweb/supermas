@@ -53,5 +53,5 @@ export function LoginPageClient() {
     return null
   }
 
-  return <LoginForm redirectTo={redirectTo} />
+  return <LoginForm redirectTo={redirectTo} closedByInactivity={searchParams?.get('motivo') === 'inactividad'} />
 }

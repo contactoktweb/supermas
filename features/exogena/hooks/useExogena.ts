@@ -11,6 +11,7 @@ import {
   ExogenaValidationError,
 } from '../types'
 import { UserRoleType } from './useExogenaPermissions'
+import { DEFAULT_RUNTIME_SETTINGS, getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 const DEFAULT_STATS: ExogenaStats = {
   recordsToReportCount: 0,
@@ -24,7 +25,7 @@ const DEFAULT_STATS: ExogenaStats = {
 }
 
 export function useExogena(userRole: UserRoleType = 'SUPERADMIN') {
-  const [selectedYear, setSelectedYear] = useState<number>(2025)
+  const [selectedYear, setSelectedYear] = useState<number>(DEFAULT_RUNTIME_SETTINGS.exogenaDefaultYear)
   const [availableYears, setAvailableYears] = useState<Array<{ year: number; label: string; status: string }>>([])
   const [normativa, setNormativa] = useState<ExogenaYearNormativa | null>(null)
   const [stats, setStats] = useState<ExogenaStats>(DEFAULT_STATS)
@@ -36,6 +37,17 @@ export function useExogena(userRole: UserRoleType = 'SUPERADMIN') {
   const [isValidating, setIsValidating] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Año gravable predeterminado de Configuración → Exógena.
+  useEffect(() => {
+    let active = true
+    getRuntimeSettings().then((settings) => {
+      if (active) setSelectedYear(settings.exogenaDefaultYear)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   // Cargar años disponibles al inicio
   useEffect(() => {

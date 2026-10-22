@@ -26,6 +26,7 @@ import { brandService } from '@/features/brands/services/brand.service'
 import { extractErrorMessage } from '@/lib/utils'
 import { supabaseClient } from '@/lib/supabase/client'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { useRuntimeSettings } from '@/features/settings/hooks/useRuntimeSettings'
 
 interface ProductFormDrawerProps {
   isOpen: boolean
@@ -109,8 +110,11 @@ export function ProductFormDrawer({
 
   // Governance & Stock Thresholds
   const [status, setStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE')
-  const [minStockThreshold, setMinStockThreshold] = useState<number>(15)
-  const [criticalStockThreshold, setCriticalStockThreshold] = useState<number>(5)
+  // Valores iniciales de Configuración → Inventario para productos nuevos.
+  const { settings: runtimeSettings } = useRuntimeSettings()
+  const stockDefaults = runtimeSettings.inventory
+  const [minStockThreshold, setMinStockThreshold] = useState<number>(stockDefaults.defaultMinStockThreshold)
+  const [criticalStockThreshold, setCriticalStockThreshold] = useState<number>(stockDefaults.criticalLowStockThreshold)
   const [auditReason, setAuditReason] = useState('')
   const [priceChangeReason, setPriceChangeReason] = useState('')
 
@@ -267,14 +271,21 @@ export function ProductFormDrawer({
         setWebSuperMas(true)
         setWebDistribuidora(false)
         setStatus('ACTIVE')
-        setMinStockThreshold(15)
-        setCriticalStockThreshold(5)
+        setMinStockThreshold(stockDefaults.defaultMinStockThreshold)
+        setCriticalStockThreshold(stockDefaults.criticalLowStockThreshold)
         // Sin preselección: quien crea el producto elige su línea de inventario.
         setAccountingAccountId('')
         setAuditReason('')
       }
     }
   }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
+
+  // La configuración se carga en segundo plano: al llegar, ajusta solo los umbrales del producto nuevo.
+  useEffect(() => {
+    if (mode !== 'create') return
+    setMinStockThreshold(stockDefaults.defaultMinStockThreshold)
+    setCriticalStockThreshold(stockDefaults.criticalLowStockThreshold)
+  }, [mode, stockDefaults.defaultMinStockThreshold, stockDefaults.criticalLowStockThreshold])
 
   if (!isOpen || !mounted) return null
 

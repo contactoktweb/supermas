@@ -1,340 +1,156 @@
 /**
- * SUPER MÁS ERP/POS - Servicio Central de Configuración (SettingsService)
+ * SUPER MÁS ERP/POS - Servicio de Configuración General.
  *
- * Fachada de negocio encargada de:
- * 1. Control de acceso RBAC y verificación de permisos (settings.*).
- * 2. Validación de esquemas con Zod antes de persistir.
- * 3. Detección y confirmación obligatoria para cambios críticos.
- * 4. Trazabilidad inmutable mediante auditService.log().
- * 5. Exposición de estadísticas y consulta de roles predefinidos (read-only).
+ * Valida con Zod, verifica el permiso settings.manage (la base lo vuelve a exigir con RLS) y
+ * registra cada cambio en auditoría.
  */
 
 import { settingsRepository } from '../repositories/settings.repository'
 import { auditService } from '@/features/audit/services/audit.service'
 import {
-  CompanySettings,
-  InventorySettings,
-  POSSettings,
-  EcommerceSettings,
-  SystemSettingItem,
-  SettingsStats,
-  SettingChangeHistory,
-  SettingsCategory,
-  UserSettingsContext,
-  SettingsPermission,
-} from '../types'
-import {
+  cashSettingsSchema,
   companySettingsSchema,
+  ecommerceSettingsSchema,
+  generalSettingsSchema,
   inventorySettingsSchema,
   posSettingsSchema,
-  ecommerceSettingsSchema,
-  updateDynamicSettingSchema,
-  CompanySettingsInput,
-  InventorySettingsInput,
-  POSSettingsInput,
-  EcommerceSettingsInput,
-  UpdateDynamicSettingInput,
 } from '../schemas/settings.schema'
+import type {
+  CashSettings,
+  CompanySettings,
+  EcommerceSettings,
+  GeneralSettings,
+  InventorySettings,
+  POSSettings,
+  UserSettingsContext,
+} from '../types'
 
-export const DEFAULT_SETTINGS_USER: UserSettingsContext = {
-  userId: 'system-actor',
-  name: 'Administrador del Sistema',
-  role: 'SUPERADMIN',
-  permissions: ['settings.manage'],
-}
+type AuditChange = { label: string; field: string; previousValue: string; newValue: string }
 
 export class SettingsService {
-  /**
-   * Verifica permisos del usuario contra el rol y permisos reales
-   */
-  private assertPermission(permission: string, user: UserSettingsContext): void {
-    if (user.role === 'SUPERADMIN') return
-    if (user.permissions.includes('settings.manage')) return
-    if (user.permissions.includes(permission as any)) return
-    throw new Error(`Acceso denegado: Se requiere autorización para esta operación de configuración.`)
+  private assertCanManage(user: UserSettingsContext): void {
+    const isAdmin = user.role === 'SUPERADMIN' || user.role === 'ADMIN'
+    if (isAdmin || user.permissions.includes('settings.manage')) return
+    throw new Error('No tiene permisos para modificar la configuración general.')
   }
 
-  /**
-   * Obtiene las métricas consolidadas del tablero de configuración
-   */
-  async getStats(user: UserSettingsContext): Promise<SettingsStats> {
-    this.assertPermission('settings.manage', user)
-    return settingsRepository.getStats()
+  private async audit(user: UserSettingsContext, entity: string, reference: string, details: string, changes: AuditChange[]) {
+    await auditService.log({
+      action: 'SETTING_UPDATED',
+      module: 'SETTINGS',
+      entityType: entity,
+      entityId: entity,
+      entityReference: reference,
+      userId: user.userId,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      details,
+      changes,
+    })
   }
 
-  /**
-   * Obtiene la configuración institucional de la empresa
-   */
-  async getCompanySettings(user?: UserSettingsContext, companyIdOverride?: string): Promise<CompanySettings | null> {
-    if (user) {
-      this.assertPermission('settings.manage', user)
+  private diff<T extends object>(labels: Partial<Record<keyof T, string>>, before: T, after: T): AuditChange[] {
+    return (Object.keys(labels) as Array<keyof T>)
+      .filter((field) => String(before[field]) !== String(after[field]))
+      .map((field) => ({
+        label: labels[field] as string,
+        field: String(field),
+        previousValue: String(before[field] ?? ''),
+        newValue: String(after[field] ?? ''),
+      }))
+  }
+
+  async saveCompany(input: CompanySettings, current: CompanySettings | null, user: UserSettingsContext): Promise<CompanySettings> {
+    this.assertCanManage(user)
+    const validated = companySettingsSchema.parse(input) as CompanySettings
+    const saved = current?.id
+      ? await settingsRepository.updateCompanySettings(validated)
+      : await settingsRepository.createCompany(validated)
+
+    const changes = current
+      ? this.diff<CompanySettings>(
+          {
+            companyName: 'Nombre comercial',
+            legalName: 'Razón social',
+            nit: 'NIT',
+            address: 'Dirección',
+            city: 'Ciudad',
+            postalCode: 'Código postal',
+            dianMunicipalityCode: 'Municipio DIAN',
+            rutResponsibilities: 'Responsabilidades RUT',
+            dianTaxLevelCodes: 'Responsabilidad fiscal DIAN',
+          },
+          current,
+          saved
+        )
+      : []
+    await this.audit(user, 'COMPANY_SETTINGS', saved.nit, `Datos de la empresa ${current ? 'actualizados' : 'registrados'} por ${user.name}.`, changes)
+    return saved
+  }
+
+  async saveInventory(input: InventorySettings, current: InventorySettings, user: UserSettingsContext): Promise<void> {
+    this.assertCanManage(user)
+    const validated = inventorySettingsSchema.parse(input)
+    await settingsRepository.updateInventorySettings(validated)
+    await this.audit(user, 'INVENTORY_SETTINGS', 'Inventario', `Umbrales de stock actualizados por ${user.name}.`,
+      this.diff<InventorySettings>({ defaultMinStockThreshold: 'Stock mínimo', criticalLowStockThreshold: 'Umbral crítico' }, current, validated))
+  }
+
+  async savePOS(input: POSSettings, current: POSSettings, user: UserSettingsContext): Promise<void> {
+    this.assertCanManage(user)
+    const validated = posSettingsSchema.parse(input)
+    await settingsRepository.updatePOSSettings(validated)
+    await this.audit(user, 'POS_SETTINGS', 'Punto de venta', `Parámetros del punto de venta actualizados por ${user.name}.`,
+      this.diff<POSSettings>({ defaultLocationId: 'Sede predeterminada', autoPrintReceipt: 'Impresión automática' }, current, validated))
+  }
+
+  async saveCash(input: CashSettings, current: CashSettings, user: UserSettingsContext): Promise<void> {
+    this.assertCanManage(user)
+    const validated = cashSettingsSchema.parse(input)
+    await settingsRepository.updateCashSettings(validated)
+    await this.audit(user, 'CASH_SETTINGS', 'Cajas', `Reglas de caja actualizadas por ${user.name}.`,
+      this.diff<CashSettings>(
+        {
+          recommendedInitialFloat: 'Base sugerida',
+          maxAllowedInitialFloat: 'Base máxima',
+          maxDifferenceToleranceAmount: 'Tolerancia de descuadre',
+        },
+        current,
+        validated
+      ))
+  }
+
+  async saveEcommerce(input: EcommerceSettings, current: EcommerceSettings, user: UserSettingsContext): Promise<void> {
+    this.assertCanManage(user)
+    const validated = ecommerceSettingsSchema.parse(input)
+    if (validated.dispatchLocationId !== current.dispatchLocationId) {
+      await settingsRepository.setEcommerceDispatchLocation(validated.dispatchLocationId)
     }
-    return settingsRepository.getCompanySettings(companyIdOverride || (user as any)?.companyId)
+    await settingsRepository.updateEcommerceSettings(validated)
+    await this.audit(user, 'ECOMMERCE_SETTINGS', 'Canales web', `Canales web actualizados por ${user.name}.`,
+      this.diff<EcommerceSettings>(
+        {
+          dispatchLocationId: 'Bodega de despacho web',
+          superCatalogEnabled: 'Catálogo Super Más',
+          distributorCatalogEnabled: 'Catálogo Distribuidora',
+          whatsappPhone: 'WhatsApp comercial',
+        },
+        current,
+        validated
+      ))
   }
 
-  /**
-   * Registra la empresa inicial (Onboarding Bootstrap)
-   */
-  async createCompany(
-    rawInput: Partial<CompanySettingsInput>,
-    user: UserSettingsContext
-  ): Promise<CompanySettings> {
-    this.assertPermission('settings.manage', user)
-    const validated = companySettingsSchema.parse(rawInput)
-    const created = await settingsRepository.createCompany(validated, user.name)
-
-    await auditService.log({
-      action: 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'COMPANY_SETTINGS',
-      entityId: created.id || 'COMPANY',
-      entityReference: created.nit,
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: 'INFO',
-      details: `Empresa inicial registrada en el sistema por ${user.name}: "${created.companyName}".`,
-    })
-
-    return created
-  }
-
-  /**
-   * Actualiza la información institucional de la empresa
-   */
-  async updateCompanySettings(
-    rawInput: Partial<CompanySettingsInput>,
-    user: UserSettingsContext
-  ): Promise<CompanySettings> {
-    this.assertPermission('settings.manage', user)
-
-    const current = await settingsRepository.getCompanySettings(user.companyId)
-    const merged = { ...(current || {}), ...rawInput }
-    const validated = companySettingsSchema.parse(merged)
-
-    const updated = await settingsRepository.updateCompanySettings(validated, user.name, user.companyId)
-
-    await auditService.log({
-      action: 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'COMPANY_SETTINGS',
-      entityId: updated.id || 'COMPANY',
-      entityReference: updated.nit,
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: 'INFO',
-      details: `Información de la empresa actualizada por ${user.name}: "${updated.companyName}".`,
-      changes: [
-        { label: 'Nombre Comercial', field: 'companyName', previousValue: current?.companyName || '', newValue: updated.companyName },
-        { label: 'Razón Social', field: 'legalName', previousValue: current?.legalName || '', newValue: updated.legalName },
-        { label: 'Dirección', field: 'address', previousValue: current?.address || '', newValue: updated.address },
-        { label: 'Teléfono', field: 'phone', previousValue: current?.phone || '', newValue: updated.phone },
-      ],
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene los parámetros generales de inventario
-   */
-  async getInventorySettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<InventorySettings> {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getInventorySettings()
-  }
-
-  /**
-   * Actualiza las políticas de inventario
-   */
-  async updateInventorySettings(
-    rawInput: Partial<InventorySettingsInput>,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
-  ): Promise<InventorySettings> {
-    this.assertPermission('settings.inventory', user)
-    this.assertPermission('settings.update', user)
-
-    const current = await settingsRepository.getInventorySettings()
-    const merged = { ...current, ...rawInput }
-    const validated = inventorySettingsSchema.parse(merged)
-
-    const isValuationChanged = validated.valuationMethod !== current.valuationMethod
-    const isNegativeStockChanged = validated.allowNegativeStock !== current.allowNegativeStock
-    const isCritical = isValuationChanged || isNegativeStockChanged
-
-    const updated = await settingsRepository.updateInventorySettings(validated, user.name)
-
-    await auditService.log({
-      action: isCritical ? 'CRITICAL_CONFIG_CHANGED' : 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'INVENTORY_SETTINGS',
-      entityId: 'INVENTORY',
-      entityReference: 'Políticas de Inventario',
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: isCritical ? 'WARNING' : 'INFO',
-      details: `Políticas de inventario modificadas por ${user.name}. Método: ${updated.valuationMethod}, Stock Mínimo: ${updated.defaultMinStockThreshold}.`,
-      changes: [
-        { label: 'Método de Valoración', field: 'valuationMethod', previousValue: current.valuationMethod, newValue: updated.valuationMethod },
-        { label: 'Stock Mínimo General', field: 'defaultMinStockThreshold', previousValue: String(current.defaultMinStockThreshold), newValue: String(updated.defaultMinStockThreshold) },
-      ],
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene la configuración de cajas y terminales POS
-   */
-  async getPOSSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<POSSettings> {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getPOSSettings()
-  }
-
-  /**
-   * Actualiza la configuración de cajas y POS
-   */
-  async updatePOSSettings(
-    rawInput: Partial<POSSettingsInput>,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
-  ): Promise<POSSettings> {
-    this.assertPermission('settings.update', user)
-
-    const current = await settingsRepository.getPOSSettings()
-    const merged = { ...current, ...rawInput }
-    const validated = posSettingsSchema.parse(merged)
-
-    const updated = await settingsRepository.updatePOSSettings(validated, user.name)
-
-    await auditService.log({
-      action: 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'POS_SETTINGS',
-      entityId: 'POS',
-      entityReference: 'Configuración POS y Cajas',
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: 'INFO',
-      details: `Configuración de terminales POS y cajas modificada por ${user.name}.`,
-      changes: [
-        { label: 'Sede Predeterminada', field: 'defaultLocationId', previousValue: current.defaultLocationId, newValue: updated.defaultLocationId },
-        { label: 'Impresión Automática', field: 'autoPrintReceipt', previousValue: String(current.autoPrintReceipt), newValue: String(updated.autoPrintReceipt) },
-      ],
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene la configuración de ecommerce y catálogos web
-   */
-  async getEcommerceSettings(user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<EcommerceSettings> {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getEcommerceSettings()
-  }
-
-  /**
-   * Actualiza la configuración de canales web y ecommerce
-   */
-  async updateEcommerceSettings(
-    rawInput: Partial<EcommerceSettingsInput>,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
-  ): Promise<EcommerceSettings> {
-    this.assertPermission('settings.ecommerce', user)
-    this.assertPermission('settings.update', user)
-
-    const current = await settingsRepository.getEcommerceSettings()
-    const merged = { ...current, ...rawInput }
-    const validated = ecommerceSettingsSchema.parse(merged)
-
-    const isWarehouseChanged = validated.dispatchWarehouseId !== current.dispatchWarehouseId
-    const isCritical = isWarehouseChanged
-
-    const updated = await settingsRepository.updateEcommerceSettings(validated, user.name)
-
-    await auditService.log({
-      action: isCritical ? 'CRITICAL_CONFIG_CHANGED' : 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'ECOMMERCE_SETTINGS',
-      entityId: 'ECOMMERCE',
-      entityReference: 'Canales Web y Catálogos',
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: isCritical ? 'WARNING' : 'INFO',
-      details: `Configuración de ecommerce modificada por ${user.name}. Bodega despacho: ${updated.dispatchWarehouseName}.`,
-      changes: [
-        { label: 'Bodega Despacho Ecommerce', field: 'dispatchWarehouseId', previousValue: current.dispatchWarehouseName, newValue: updated.dispatchWarehouseName },
-        { label: 'Línea WhatsApp', field: 'whatsapp.phoneNumber', previousValue: current.whatsapp.phoneNumber, newValue: updated.whatsapp.phoneNumber },
-      ],
-    })
-
-    return updated
-  }
-
-  /**
-   * Obtiene el catálogo de variables dinámicas del sistema
-   */
-  async getSystemSettings(
-    category?: SettingsCategory,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
-  ): Promise<SystemSettingItem[]> {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getSystemSettings(category)
-  }
-
-  /**
-   * Actualiza el valor de una variable dinámica por su clave
-   */
-  async updateSystemSetting(
-    rawInput: UpdateDynamicSettingInput,
-    user: UserSettingsContext = DEFAULT_SETTINGS_USER
-  ): Promise<SystemSettingItem> {
-    this.assertPermission('settings.update', user)
-    const { key, value, notes } = updateDynamicSettingSchema.parse(rawInput)
-
-    const current = await settingsRepository.getSystemSettingByKey(key)
-    if (!current) {
-      throw new Error(`Parámetro de configuración "${key}" no encontrado.`)
-    }
-
-    const updated = await settingsRepository.updateSystemSetting(key, value, user.name, notes)
-
-    await auditService.log({
-      action: updated.isCritical ? 'CRITICAL_CONFIG_CHANGED' : 'SETTING_UPDATED',
-      module: 'SETTINGS',
-      entityType: 'SYSTEM_SETTING',
-      entityId: updated.id,
-      entityReference: updated.key,
-      userId: user.userId,
-      userName: user.name,
-      userRole: user.role,
-      level: updated.isCritical ? 'WARNING' : 'INFO',
-      details: `Variable dinámica "${updated.key}" actualizada a: ${JSON.stringify(value)}.`,
-      changes: [
-        { label: updated.description, field: updated.key, previousValue: String(current.value), newValue: String(value) },
-      ],
-    })
-
-    return updated
-  }
-
-  /**
-   * Consulta los roles del sistema y su matriz de permisos (solo lectura)
-   */
-  async getPredefinedRoles(user: UserSettingsContext = DEFAULT_SETTINGS_USER) {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getPredefinedRoles()
-  }
-
-  /**
-   * Obtiene el historial de auditoría de cambios en configuración
-   */
-  async getChangeHistory(limit = 20, user: UserSettingsContext = DEFAULT_SETTINGS_USER): Promise<SettingChangeHistory[]> {
-    this.assertPermission('settings.read', user)
-    return settingsRepository.getChangeHistory(limit)
+  async saveGeneral(input: GeneralSettings, current: GeneralSettings, user: UserSettingsContext): Promise<void> {
+    this.assertCanManage(user)
+    const validated = generalSettingsSchema.parse(input)
+    await settingsRepository.updateGeneralSettings(validated)
+    await this.audit(user, 'GENERAL_SETTINGS', 'Exógena y seguridad', `Parámetros generales actualizados por ${user.name}.`,
+      this.diff<GeneralSettings>(
+        { exogenaDefaultYear: 'Año gravable de exógena', sessionTimeoutMinutes: 'Minutos de inactividad' },
+        current,
+        validated
+      ))
   }
 }
 

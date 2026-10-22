@@ -14,9 +14,11 @@ import { AppIcon } from '@/components/ui/Icon'
 interface LoginFormProps {
   onSuccess?: () => void
   redirectTo?: string
+  /** La sesión anterior se cerró por inactividad (Configuración → Seguridad). */
+  closedByInactivity?: boolean
 }
 
-export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
+export function LoginForm({ onSuccess, redirectTo, closedByInactivity = false }: LoginFormProps) {
   const { signIn, requestPasswordReset, isLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -142,6 +144,13 @@ export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
                 <h2>Bienvenido</h2>
                 <p>Ingresa tus credenciales para acceder al sistema</p>
               </div>
+
+              {closedByInactivity && !errorMessage && (
+                <div className="login-info-alert" role="status">
+                  <AppIcon name="clock" size={16} />
+                  <span>Tu sesión se cerró por inactividad. Ingresa de nuevo para continuar.</span>
+                </div>
+              )}
 
               {errorMessage && (
                 <div

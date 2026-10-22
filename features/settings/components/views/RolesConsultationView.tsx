@@ -3,15 +3,17 @@
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { DEFINITIVE_ROLES } from '@/features/users/services/role-permissions'
+import type { RoleSummary } from '../../types'
 
 interface RolesConsultationViewProps {
-  roles: any[]
+  roles: RoleSummary[]
 }
 
 export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
+  const roleOrder: readonly string[] = DEFINITIVE_ROLES
   const sortedRoles = [...roles].sort((a, b) => {
-    const aDefIndex = DEFINITIVE_ROLES.indexOf(a.code)
-    const bDefIndex = DEFINITIVE_ROLES.indexOf(b.code)
+    const aDefIndex = roleOrder.indexOf(a.code)
+    const bDefIndex = roleOrder.indexOf(b.code)
     if (aDefIndex !== -1 && bDefIndex !== -1) return aDefIndex - bDefIndex
     if (aDefIndex !== -1) return -1
     if (bDefIndex !== -1) return 1
@@ -31,10 +33,10 @@ export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
         </div>
         <div className="space-y-1 text-xs">
           <strong className="text-[var(--navy)] block font-semibold">
-            Matriz de Roles Predefinidos del Sistema (Solo Lectura)
+            Roles y permisos vigentes (solo lectura)
           </strong>
           <p className="text-slate-600 leading-relaxed">
-            Los roles del ERP son inmutables y están definidos a nivel de seguridad en el núcleo de la aplicación. La asignación de roles a miembros del equipo se realiza exclusivamente desde el módulo <strong>Usuarios</strong>.
+            Estos son los permisos que la base de datos aplica a cada rol. Los roles se asignan a cada persona desde el módulo <strong>Usuarios</strong>.
           </p>
         </div>
       </div>
@@ -95,7 +97,7 @@ export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
               <span className="text-xs font-bold uppercase tracking-wider text-[var(--navy)]">
                 Permisos Asignados ({activeRole.permissions?.length || 0})
               </span>
-              <span className="text-[11px] text-slate-400">Inmutables por seguridad</span>
+              <span className="text-[11px] text-slate-400">Definidos por la administración del sistema</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">

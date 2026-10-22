@@ -5,9 +5,6 @@ export type CashLocationOption = Pick<LocationWithMetrics, 'id' | 'name'>
 
 export const ALL_LOCATIONS = 'ALL'
 
-/** Base de apertura sugerida al abrir un turno (COP). */
-export const DEFAULT_OPENING_FLOAT = 100000
-
 /** Tiempo de permanencia del aviso de éxito (ms). */
 export const TOAST_DURATION_MS = 6000
 
@@ -37,8 +34,9 @@ export function formatTime(value: string): string {
 
 export type CashDifferenceKind = 'BALANCED' | 'SURPLUS' | 'SHORTAGE'
 
-export function getDifferenceKind(difference: number): CashDifferenceKind {
-  if (difference === 0) return 'BALANCED'
+/** `tolerance` es el descuadre aceptado (Configuración → Cajas) que se trata como cuadrado. */
+export function getDifferenceKind(difference: number, tolerance = 0): CashDifferenceKind {
+  if (Math.abs(difference) <= Math.max(tolerance, 0)) return 'BALANCED'
   return difference > 0 ? 'SURPLUS' : 'SHORTAGE'
 }
 

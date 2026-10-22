@@ -1,29 +1,22 @@
 /**
- * SUPER MÁS ERP/POS - Tipos del Módulo Configuración y Parámetros Globales
+ * SUPER MÁS ERP/POS - Tipos del módulo Configuración General.
  *
- * Define las interfaces para las 16 categorías de configuración, variables dinámicas
- * del sistema, estadísticas consolidadas, trazabilidad de cambios y permisos RBAC.
+ * Cada categoría edita una fuente real (companies, system_settings, locations) o muestra en solo
+ * lectura la fuente oficial que se administra en su propio módulo (DIAN, contabilidad, roles).
  */
 
 export type SettingsCategory =
   | 'COMPANY'
-  | 'WAREHOUSES'
   | 'INVENTORY'
-  | 'PRODUCTS'
-  | 'PRICING'
   | 'POS'
   | 'CASH'
   | 'ECOMMERCE'
-  | 'CATALOGS'
   | 'BILLING'
   | 'TAX'
   | 'ACCOUNTING'
   | 'EXOGENA'
-  | 'ALERTS'
   | 'SECURITY'
   | 'ROLES'
-
-export type SettingValueType = 'STRING' | 'NUMBER' | 'BOOLEAN' | 'JSON'
 
 export interface CompanySettings {
   id?: string
@@ -38,130 +31,98 @@ export interface CompanySettings {
   address: string
   city: string
   department: string
-  country?: string
+  country: string
   postalCode: string
   phone: string
-  mobile: string
   email: string
   billingEmail: string
-  website: string
-  logoUrl: string
   currency: string
-  status?: 'ACTIVE' | 'INACTIVE'
-  timezone: string
-  commercialDescription: string
+  status: 'ACTIVE' | 'INACTIVE'
+  /** Datos fiscales que usa la facturación electrónica DIAN (UBL 2.1). */
+  dianDepartmentCode: string
+  dianMunicipalityCode: string
+  dianOrganizationType: '1' | '2'
+  rutResponsibilities: string
+  dianTaxLevelCodes: string
+  dianTaxSchemeCode: string
   updatedAt: string
-  updatedBy: string
 }
 
 export interface InventorySettings {
   defaultMinStockThreshold: number
   criticalLowStockThreshold: number
-  valuationMethod: 'WEIGHTED_AVERAGE' | 'PEPS_FIFO'
-  allowNegativeStock: boolean
-  requireReasonForManualAdjustments: boolean
-  autoGenerateKardexMovement: boolean
-  stockCheckFrequencyHours: number
-  webAvailability: {
-    showAvailableBadge: boolean
-    showLowStockBadge: boolean
-    showOutOfStockBadge: boolean
-    lowStockWarningThreshold: number
-    hideOutOfStockAfterDays: number
-  }
-  transferRules: {
-    requireDualApproval: boolean
-    autoBlockTransitAfterHours: number
-    defaultOriginLocationId: string
-  }
-  updatedAt: string
-  updatedBy: string
 }
 
 export interface POSSettings {
   defaultLocationId: string
-  defaultLocationName: string
-  defaultCashRegisterId: string
-  genericCustomerId: string
-  genericCustomerName: string
-  genericCustomerDoc: string
   autoPrintReceipt: boolean
-  allowQuickSaleWithoutCustomer: boolean
-  defaultReceiptTemplate: string
-  enableSoundFeedback: boolean
-  enabledPaymentMethods: Array<'CASH' | 'CARD' | 'TRANSFER' | 'CREDIT'>
-  cashRegisterRules: {
-    recommendedInitialFloat: number
-    maxAllowedInitialFloat: number
-    requireDailyClose: boolean
-    maxOpenHoursBeforeAlert: number
-    maxDifferenceToleranceAmount: number
-    requireDualSignatureOnDiscrepancy: boolean
-  }
-  salesPriceList: string
-  updatedAt: string
-  updatedBy: string
+}
+
+export interface CashSettings {
+  recommendedInitialFloat: number
+  maxAllowedInitialFloat: number
+  maxDifferenceToleranceAmount: number
 }
 
 export interface EcommerceSettings {
-  dispatchWarehouseId: string
-  dispatchWarehouseName: string
+  dispatchLocationId: string
   superCatalogEnabled: boolean
   distributorCatalogEnabled: boolean
-  publicShowPrices: boolean
-  publicShowAvailability: boolean
-  defaultLowStockThreshold: number
-  outOfStockBehavior: string
-  webPriceList: string
-  distributorPriceList: string
-  whatsapp: {
-    phoneNumber: string
-    displayPhoneNumber: string
-    defaultQuoteTemplate: string
-    defaultSupportTemplate: string
-    allowDirectWhatsAppPurchase: boolean
-  }
-  cartRules: {
-    minOrderAmount: number
-    maxOrderAmount: number
-    autoReserveStockMinutes: number
-  }
-  updatedAt: string
-  updatedBy: string
+  whatsappPhone: string
+  whatsappQuoteTemplate: string
 }
 
-export interface SystemSettingItem {
+export interface GeneralSettings {
+  exogenaDefaultYear: number
+  sessionTimeoutMinutes: number
+}
+
+export interface LocationOption {
   id: string
-  key: string
-  value: any
-  category: SettingsCategory
+  code: string
+  name: string
+  isEcommerceSource: boolean
+}
+
+export interface FiscalOverview {
+  resolution: {
+    prefix: string
+    resolutionNumber: string
+    validFrom: string | null
+    validTo: string | null
+    initialRange: number
+    finalRange: number
+    lastAssignedNumber: number
+    environment: string
+  } | null
+  software: {
+    softwareName: string
+    environment: string
+    operationMode: string
+    certificateExpiration: string | null
+  } | null
+}
+
+export interface AccountingOverview {
+  openPeriods: Array<{ code: string; label: string }>
+  defaultAccounts: Array<{ purpose: string; code: string; name: string }>
+}
+
+export interface RoleSummary {
+  id: string
+  code: string
+  name: string
   description: string
-  type: SettingValueType
-  isCritical: boolean
-  updatedAt: string
-  updatedBy: string
-}
-
-export interface SettingChangeHistory {
-  id: string
-  timestamp: string
-  actor: string
-  category: SettingsCategory
-  key: string
-  fieldLabel: string
-  previousValue: any
-  newValue: any
-  isCritical: boolean
-  notes?: string
+  scope: string
+  permissions: string[]
 }
 
 export interface SettingsStats {
-  totalActiveSettings: number
-  lastModifiedAt: string
-  lastModifiedBy: string
-  totalCriticalSettings: number
-  categoriesCount: number
-  activeModulesCount: number
+  editableSettingsCount: number
+  lastModifiedAt: string | null
+  lastModifiedBy: string | null
+  rolesCount: number
+  activeLocationsCount: number
 }
 
 export interface CategoryCardInfo {
@@ -171,27 +132,15 @@ export interface CategoryCardInfo {
   iconName: string
   badgeText: string
   badgeTone: 'blue' | 'teal' | 'amber' | 'purple' | 'red' | 'slate'
-  isCritical: boolean
   isReadOnly?: boolean
 }
 
-export type SettingsPermission =
-  | 'settings.manage'
-  | 'settings.read'
-  | 'settings.update'
-  | 'settings.company'
-  | 'settings.inventory'
-  | 'settings.ecommerce'
-  | 'settings.billing'
-  | 'settings.tax'
-  | 'settings.accounting'
-  | 'settings.alerts'
-  | 'settings.security'
+export type SettingsPermission = 'settings.manage' | 'settings.read' | 'settings.update'
 
 export interface UserSettingsContext {
   userId: string
   companyId?: string
   name: string
-  role: 'SUPERADMIN' | 'WAREHOUSE_ADMIN' | 'POINT_ADMIN' | 'ACCOUNTANT' | 'CASHIER' | string
-  permissions: SettingsPermission[]
+  role: string
+  permissions: string[]
 }

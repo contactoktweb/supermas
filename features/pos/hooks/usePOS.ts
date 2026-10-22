@@ -103,7 +103,7 @@ export function usePOS() {
           supabaseClient
             .from('categories')
             .select('name')
-            .eq('status', 'ACTIVE')
+            .eq('is_active', true)
             .order('name', { ascending: true }),
         ])
 

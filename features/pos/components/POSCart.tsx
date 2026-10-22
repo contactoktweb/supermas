@@ -164,6 +164,12 @@ export function POSCart({
             <span style={{ fontSize: 12 }}>
               Haz clic en un producto o escanea su código de barras.
             </span>
+            <ul className="pos-shortcuts" aria-label="Atajos de teclado">
+              <li><kbd>F2</kbd> Buscar producto</li>
+              <li><kbd>F4</kbd> Cambiar cliente</li>
+              <li><kbd>F8</kbd> Cobrar</li>
+              <li><kbd>F9</kbd> Ventas del turno</li>
+            </ul>
           </div>
         ) : (
           activeCart.map((item) => (

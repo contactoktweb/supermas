@@ -314,9 +314,9 @@ export class POSRepository {
 
     if (error || !data || data.length === 0) return null
 
+    // La venta solo acepta la caja abierta de la misma sede: nunca se toma la de otra sede.
     if (locationId) {
-      const match = data.find((s: any) => s.cash_registers?.location_id === locationId)
-      return match || data[0]
+      return data.find((s: any) => s.cash_registers?.location_id === locationId) ?? null
     }
 
     return data[0]

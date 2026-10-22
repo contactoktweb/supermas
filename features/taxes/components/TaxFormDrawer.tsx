@@ -6,6 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { TaxConfig, TaxType, TaxStatus } from '../types'
 import { taxConfigFormSchema, TaxConfigFormData } from '../schemas/tax.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface TaxFormDrawerProps {
   mode: 'create' | 'edit'
@@ -329,20 +330,11 @@ export function TaxFormDrawer({
               <label htmlFor="tax-valid-from" style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
                 Inicio de vigencia <span style={{ color: 'var(--red)' }}>*</span>
               </label>
-              <input
+              <DatePicker
                 id="tax-valid-from"
-                type="date"
                 value={formData.validFrom}
-                onChange={(e) => handleInputChange('validFrom', e.target.value)}
                 required
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  outline: 'none',
-                }}
+                onChange={(value) => handleInputChange('validFrom', value)}
               />
               {errors.validFrom && (
                 <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4, display: 'block' }}>
@@ -355,19 +347,10 @@ export function TaxFormDrawer({
               <label htmlFor="tax-valid-until" style={{ display: 'block', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>
                 Fin de vigencia (Opcional)
               </label>
-              <input
+              <DatePicker
                 id="tax-valid-until"
-                type="date"
                 value={formData.validUntil || ''}
-                onChange={(e) => handleInputChange('validUntil', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  border: '1px solid var(--line)',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  outline: 'none',
-                }}
+                onChange={(value) => handleInputChange('validUntil', value)}
               />
               {errors.validUntil && (
                 <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4, display: 'block' }}>

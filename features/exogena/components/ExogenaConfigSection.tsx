@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ExogenaYearNormativa } from '../types'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface ExogenaConfigSectionProps {
   normativa: ExogenaYearNormativa | null
@@ -229,22 +230,12 @@ export function ExogenaConfigSection({
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
               Fecha Límite DIAN
             </label>
-            <input
-              type="date"
+            <DatePicker
               value={dueDate}
-              onChange={(e) => {
-                setDueDate(e.target.value)
-                setHasChanges(true)
-              }}
               disabled={!canConfigure}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 6,
-                border: '1px solid var(--line, #cbd5e1)',
-                background: 'var(--surface, #ffffff)',
-                fontSize: 13,
-                color: 'var(--text)',
+              onChange={(value) => {
+                setDueDate(value)
+                setHasChanges(true)
               }}
             />
           </div>

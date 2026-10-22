@@ -3,6 +3,7 @@
 import React, { useId } from 'react'
 import { CustomSelect, type SelectOption } from '@/components/ui/CustomSelect'
 import { AppIcon } from '@/components/ui/Icon'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface FieldShellProps {
   id: string
@@ -75,6 +76,24 @@ export function HrTextField({
   prefix,
 }: HrTextFieldProps) {
   const id = useId()
+  if (type === 'date') {
+    return (
+      <FieldShell id={id} label={label} required={required} error={error} hint={hint} className={className}>
+        <DatePicker
+          id={id}
+          value={value}
+          onChange={onChange}
+          min={min}
+          max={max}
+          disabled={disabled}
+          required={required}
+          placeholder={placeholder}
+          error={Boolean(error)}
+          aria-describedby={describedBy(id, error, hint)}
+        />
+      </FieldShell>
+    )
+  }
   return (
     <FieldShell id={id} label={label} required={required} error={error} hint={hint} className={className}>
       <div className={`input-wrap ${error ? 'is-invalid' : ''}`}>

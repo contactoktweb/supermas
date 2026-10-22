@@ -24,6 +24,7 @@ import { useAccountingCatalog, useAccountingCompanyHeader } from '../../hooks/us
 import { formatPucRangeLabel } from '../../utils/puc-code-range'
 import { todayBogotaIsoDate } from '../../utils/report-format'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface AccountingExportModalProps {
   isOpen: boolean
@@ -664,21 +665,19 @@ export function AccountingExportModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div>
                   <span className="block text-[10px] text-slate-500 mb-0.5">Fecha Inicial:</span>
-                  <input
-                    type="date"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <DatePicker
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    size="sm"
+                    onChange={(value) => setStartDate(value)}
                   />
                 </div>
 
                 <div>
                   <span className="block text-[10px] text-slate-500 mb-0.5">Fecha Final:</span>
-                  <input
-                    type="date"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <DatePicker
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    size="sm"
+                    onChange={(value) => setEndDate(value)}
                   />
                 </div>
 

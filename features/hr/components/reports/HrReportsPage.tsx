@@ -13,6 +13,7 @@ import { useHrToasts } from '../../hooks/useHrToasts'
 import { hrReportService, type HrReportKind } from '../../services/hr-report.service'
 import { downloadTable, type ExportFormat } from '../../utils/hr-export'
 import { addDaysIso, firstDayOfMonthIso, todayIso } from '../../utils/hr-format'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 const PREVIEW_ROWS = 50
 
@@ -123,11 +124,20 @@ export function HrReportsPage() {
             <>
               <label className="search-box w-full! sm:w-auto! text-[11px]">
                 <span>Desde</span>
-                <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)} />
+                <DatePicker
+                  value={from}
+                  max={to}
+                  onChange={(value) => setFrom(value)}
+                />
               </label>
               <label className="search-box w-full! sm:w-auto! text-[11px]">
                 <span>Hasta</span>
-                <input type="date" value={to} min={from} max={addDaysIso(todayIso(), 366)} onChange={(e) => setTo(e.target.value)} />
+                <DatePicker
+                  value={to}
+                  min={from}
+                  max={addDaysIso(todayIso(), 366)}
+                  onChange={(value) => setTo(value)}
+                />
               </label>
             </>
           )}

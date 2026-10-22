@@ -25,6 +25,7 @@ import { categoryService } from '@/features/categories/services/category.service
 import { brandService } from '@/features/brands/services/brand.service'
 import { extractErrorMessage } from '@/lib/utils'
 import { supabaseClient } from '@/lib/supabase/client'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface ProductFormDrawerProps {
   isOpen: boolean
@@ -1115,20 +1116,18 @@ export function ProductFormDrawer({
                       <div className="form-field">
                         <label>Vigente desde (opcional)</label>
                         <div className="input-wrap">
-                          <input
-                            type="date"
+                          <DatePicker
                             value={newTierStartDate}
-                            onChange={(e) => setNewTierStartDate(e.target.value)}
+                            onChange={(value) => setNewTierStartDate(value)}
                           />
                         </div>
                       </div>
                       <div className="form-field">
                         <label>Vigente hasta (opcional)</label>
                         <div className="input-wrap">
-                          <input
-                            type="date"
+                          <DatePicker
                             value={newTierEndDate}
-                            onChange={(e) => setNewTierEndDate(e.target.value)}
+                            onChange={(value) => setNewTierEndDate(value)}
                           />
                         </div>
                       </div>

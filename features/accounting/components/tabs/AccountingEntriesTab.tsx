@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry, AccountingFilters, AccountingVoucherType } from '../../types'
 import { VoucherTypeBadge } from '../VoucherTypeBadge'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface AccountingEntriesTabProps {
   entries: AccountingEntry[]
@@ -120,12 +121,12 @@ export function AccountingEntriesTab({
           <label className="filter-select-wrap flex items-center gap-1.5 text-xs" title="Filtrar asientos por mes">
             <AppIcon name="calendar" size={14} />
             <span className="sr-only">Mes de los asientos</span>
-            <input
-              type="month"
-              className="filter-select text-xs"
+            <DatePicker
+              mode="month"
               value={selectedMonth}
-              onChange={(e) => handleMonthChange(e.target.value)}
               aria-label="Mes de los asientos"
+              size="sm"
+              onChange={(value) => handleMonthChange(value)}
             />
           </label>
           {selectedMonth && (

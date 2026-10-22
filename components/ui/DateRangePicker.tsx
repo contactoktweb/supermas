@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { AppIcon } from './Icon'
+import { DatePicker } from './DatePicker'
 
 export interface DateRangeValue {
   startDate: string // YYYY-MM-DD
@@ -105,7 +106,11 @@ export function DateRangePicker({
     if (!isOpen) return
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest?.('.date-picker-popover')
+      ) {
         onClose()
       }
     }
@@ -127,8 +132,7 @@ export function DateRangePicker({
 
   if (!isOpen) return null
 
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+  const handleStartChange = (val: string) => {
     setStart(val)
     if (end && val > end) {
       setError('La fecha inicial no puede ser posterior a la fecha final')
@@ -137,8 +141,7 @@ export function DateRangePicker({
     }
   }
 
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+  const handleEndChange = (val: string) => {
     setEnd(val)
     if (start && start > val) {
       setError('La fecha final no puede ser anterior a la fecha inicial')
@@ -219,15 +222,7 @@ export function DateRangePicker({
               <AppIcon name="calendar" size={12} />
               <span>Desde (Fecha inicial):</span>
             </label>
-            <input
-              id="date-range-start"
-              type="date"
-              className="styled-date-input"
-              value={start}
-              onChange={handleStartChange}
-              max={end || undefined}
-              required
-            />
+            <DatePicker id="date-range-start" size="sm" value={start} onChange={handleStartChange} max={end || undefined} required />
           </div>
 
           <div className="date-range-separator">
@@ -239,15 +234,7 @@ export function DateRangePicker({
               <AppIcon name="calendar" size={12} />
               <span>Hasta (Fecha final):</span>
             </label>
-            <input
-              id="date-range-end"
-              type="date"
-              className="styled-date-input"
-              value={end}
-              onChange={handleEndChange}
-              min={start || undefined}
-              required
-            />
+            <DatePicker id="date-range-end" size="sm" value={end} onChange={handleEndChange} min={start || undefined} required />
           </div>
         </div>
 

@@ -16,6 +16,7 @@ import {
   monthDateRange,
 } from '../../utils/report-format'
 import { FinancialStatementTree } from '../reports/FinancialStatementTree'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 /** Al abrir el reporte se despliegan clases y grupos (nivel 2): quedan visibles las cuentas de 4 dígitos. */
 const DEFAULT_EXPAND_LEVEL = 2
@@ -213,13 +214,13 @@ export function AccountingIncomeStatementTab({
           {periodMode === 'MONTH' ? (
             <label className="flex flex-col gap-1">
               <span className="font-semibold text-gray-600">Mes y año</span>
-              <input
-                type="month"
-                className="h-9 px-2 bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+              <DatePicker
+                mode="month"
                 value={selectedFrom.slice(0, 7)}
-                onChange={(e) => {
-                  if (!/^\d{4}-\d{2}$/.test(e.target.value)) return
-                  const range = monthDateRange(e.target.value)
+                size="sm"
+                onChange={(value) => {
+                  if (!/^\d{4}-\d{2}$/.test(value)) return
+                  const range = monthDateRange(value)
                   onFiltersChange({ resultsDateFrom: range.dateFrom, resultsDateTo: range.dateTo })
                 }}
               />
@@ -228,20 +229,18 @@ export function AccountingIncomeStatementTab({
             <div className="grid grid-cols-2 gap-2">
               <label className="flex flex-col gap-1">
                 <span className="font-semibold text-gray-600">Desde</span>
-                <input
-                  type="date"
-                  className="h-9 px-2 bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                <DatePicker
                   value={selectedFrom}
-                  onChange={(e) => handleRangeChange(e.target.value, selectedTo)}
+                  size="sm"
+                  onChange={(value) => handleRangeChange(value, selectedTo)}
                 />
               </label>
               <label className="flex flex-col gap-1">
                 <span className="font-semibold text-gray-600">Hasta</span>
-                <input
-                  type="date"
-                  className="h-9 px-2 bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/60"
+                <DatePicker
                   value={selectedTo}
-                  onChange={(e) => handleRangeChange(selectedFrom, e.target.value)}
+                  size="sm"
+                  onChange={(value) => handleRangeChange(selectedFrom, value)}
                 />
               </label>
             </div>

@@ -36,6 +36,7 @@ import {
 } from '../../utils/report-format'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 import { incomeStatementLines, incomeStatementSections } from '../../utils/income-statement'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 export interface TrialBalancePdfModalProps {
   isOpen: boolean
@@ -848,11 +849,10 @@ export function TrialBalancePdfModal({
             {!isBalanceReport && (
               <label className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Desde</span>
-                <input
-                  type="date"
+                <DatePicker
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                  size="sm"
+                  onChange={(value) => setStartDate(value)}
                 />
               </label>
             )}
@@ -860,12 +860,11 @@ export function TrialBalancePdfModal({
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                 {isBalanceReport ? 'Fecha de corte' : 'Hasta'}
               </span>
-              <input
-                type="date"
+              <DatePicker
                 value={endDate}
                 max={isBalanceReport ? todayIso : undefined}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                size="sm"
+                onChange={(value) => setEndDate(value)}
               />
             </label>
             <label className="flex flex-col gap-0.5">

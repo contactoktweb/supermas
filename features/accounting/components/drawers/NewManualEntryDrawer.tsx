@@ -11,6 +11,7 @@ import {
   ManualVoucherTypeCode,
 } from '../../schemas/accounting.schema'
 import { supabaseClient } from '@/lib/supabase/client'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface NewManualEntryDrawerProps {
   isOpen: boolean
@@ -369,12 +370,11 @@ export function NewManualEntryDrawer({
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Fecha del Asiento:</label>
-                <input
-                  type="date"
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <DatePicker
                   value={date}
-                  onChange={(e) => setDate(e.target.value)}
                   required
+                  size="sm"
+                  onChange={(value) => setDate(value)}
                 />
               </div>
               <div>
@@ -382,13 +382,11 @@ export function NewManualEntryDrawer({
                   <span>Fecha de Vencimiento:</span>
                   <span className="text-[10px] text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">Opcional</span>
                 </label>
-                <input
-                  type="date"
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <DatePicker
                   value={dueDate}
                   min={date}
-                  onChange={(e) => setDueDate(e.target.value)}
-                  placeholder="yyyy-mm-dd"
+                  size="sm"
+                  onChange={(value) => setDueDate(value)}
                 />
               </div>
               <div>

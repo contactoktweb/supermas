@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Purchase, PurchaseStatus, PurchasePaymentType } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
 
 type PurchaseSortField = 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt'
 
@@ -296,16 +297,9 @@ export function PurchaseTable({
               purchases.map((p) => {
                 const hasAttachment = p.attachments && p.attachments.length > 0
                 const canConfirm = p.status === 'BORRADOR' || p.status === 'DRAFT'
-                const canReceive =
-                  p.status === 'CONFIRMADA' ||
-                  p.status === 'PENDING_RECEPTION' ||
-                  p.status === 'RECIBIDA_PARCIALMENTE' ||
-                  p.status === 'BORRADOR' ||
-                  p.status === 'DRAFT'
-                const canPay =
-                  p.pendingBalance > 0 &&
-                  p.status !== 'CANCELLED' &&
-                  p.status !== 'CANCELADA'
+                // Solo órdenes confirmadas reciben mercancía o pagos; el servidor rechaza borradores.
+                const canReceive = canReceivePurchase(p.status)
+                const canPay = p.pendingBalance > 0 && !isDraftPurchase(p.status) && !isCancelledPurchase(p.status)
                 const canEdit = p.status === 'BORRADOR' || p.status === 'DRAFT'
                 const hasReceivedItems = p.items?.some((it) => (it.receivedQuantity || 0) > 0)
                 const canCancel =

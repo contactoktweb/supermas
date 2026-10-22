@@ -1,6 +1,13 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { purchaseService } from './purchase.service'
 import { RegisterPaymentInput, UserPermissionContext } from '../types'
+import {
+  INVENTORY_STATUS,
+  PAYABLE_INVENTORY_STATUSES,
+  isCancelledPurchase,
+  pendingPurchaseBalance,
+  todayBogota,
+} from '../utils/purchase-status'
 
 export interface AccountPayableItem {
   id: string
@@ -113,19 +120,46 @@ export class AccountsPayableService {
       { count: 'exact' }
     )
 
-    // Solo documentos no anulados a menos que se filtre específicamente por ANULADA
+    const todayStr = todayBogota()
+
+    // Solo compras que generan deuda (sin borradores ni anuladas), salvo que se pidan las anuladas.
+    // El estado se filtra en el servidor para que la paginación y el total cuadren.
     if (params.status === 'ANULADA') {
-      query = query.eq('inventory_status', 'CANCELLED')
+      query = query.in('inventory_status', [...INVENTORY_STATUS.CANCELLED])
     } else {
-      query = query.neq('inventory_status', 'CANCELLED')
+      query = query.in('inventory_status', PAYABLE_INVENTORY_STATUSES)
+      switch (params.status) {
+        case 'PAGADA':
+          query = query.eq('payment_status', 'PAID')
+          break
+        case 'VENCIDA':
+          query = query.neq('payment_status', 'PAID').lt('due_date', todayStr)
+          break
+        case 'PENDIENTE':
+        case 'PARCIAL':
+          query = query
+            .eq('payment_status', params.status === 'PENDIENTE' ? 'PENDING' : 'PARTIAL')
+            .or(`due_date.is.null,due_date.gte.${todayStr}`)
+          break
+      }
     }
 
-    // Filtro por texto
-    if (params.query && params.query.trim()) {
-      const q = params.query.trim().toLowerCase()
-      query = query.or(
-        `purchase_number.ilike.%${q}%,supplier_invoice_number.ilike.%${q}%,notes.ilike.%${q}%`
-      )
+    // Texto: número, factura del proveedor, notas o nombre del proveedor.
+    const term = (params.query || '').trim().replace(/[,()*%\\]/g, ' ').trim()
+    if (term) {
+      const { data: matchingSuppliers } = await supabaseClient
+        .from('suppliers')
+        .select('id')
+        .or(`name.ilike.%${term}%,legal_name.ilike.%${term}%,tax_id.ilike.%${term}%`)
+        .limit(50)
+      const supplierIds = (matchingSuppliers ?? []).map((sup) => sup.id)
+      const filters = [
+        `purchase_number.ilike.%${term}%`,
+        `supplier_invoice_number.ilike.%${term}%`,
+        `notes.ilike.%${term}%`,
+      ]
+      if (supplierIds.length > 0) filters.push(`supplier_id.in.(${supplierIds.join(',')})`)
+      query = query.or(filters.join(','))
     }
 
     // Filtro por Proveedor
@@ -153,10 +187,9 @@ export class AccountsPayableService {
 
     if (error) {
       console.error('Error consultando Cuentas por Pagar:', error)
-      throw new Error(`Error consultando Cuentas por Pagar: ${error.message}`)
+      throw new Error('No se pudieron cargar las cuentas por pagar.')
     }
 
-    const todayStr = new Date().toISOString().split('T')[0]
     const today = new Date(todayStr).getTime()
 
     let items: AccountPayableItem[] = (data || []).map((row: any) => {
@@ -181,7 +214,7 @@ export class AccountsPayableService {
 
       let status: 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'VENCIDA' | 'ANULADA' = 'PENDIENTE'
 
-      if (row.inventory_status === 'CANCELLED') {
+      if (isCancelledPurchase(row.inventory_status)) {
         status = 'ANULADA'
       } else if (pendingBalance <= 0 || row.payment_status === 'PAID') {
         status = 'PAGADA'
@@ -221,11 +254,6 @@ export class AccountsPayableService {
       }
     })
 
-    // Filtro por estado en memoria si se especificó PENDIENTE, PARCIAL, VENCIDA o PAGADA
-    if (params.status && params.status !== 'ALL') {
-      items = items.filter((it) => it.status === params.status)
-    }
-
     const canReadCost = userContext
       ? userContext.userRole === 'ADMIN' ||
         userContext.userRole === 'SUPERADMIN' ||
@@ -262,29 +290,20 @@ export class AccountsPayableService {
     const { data, error } = await supabaseClient
       .from('purchases')
       .select('id, total_amount, paid_amount, payment_status, due_date, inventory_status')
-      .neq('inventory_status', 'CANCELLED')
+      .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
 
     if (error || !data) {
-      return {
-        totalPendingBalance: 0,
-        totalOverdueBalance: 0,
-        pendingInvoicesCount: 0,
-        overdueInvoicesCount: 0,
-        paidThisMonth: 0,
-        isCostRedacted: false,
-      }
+      throw new Error('No se pudieron calcular los indicadores de cuentas por pagar.')
     }
 
-    const todayStr = new Date().toISOString().split('T')[0]
+    const todayStr = todayBogota()
     let totalPendingBalance = 0
     let totalOverdueBalance = 0
     let pendingInvoicesCount = 0
     let overdueInvoicesCount = 0
 
     for (const p of data) {
-      const tot = Number(p.total_amount || 0)
-      const paid = Number(p.paid_amount || 0)
-      const pending = Math.max(0, tot - paid)
+      const pending = pendingPurchaseBalance(p)
 
       if (pending > 0) {
         totalPendingBalance += pending
@@ -298,9 +317,7 @@ export class AccountsPayableService {
     }
 
     // Pagos del mes en curso
-    const startOfMonth = new Date()
-    startOfMonth.setDate(1)
-    const startOfMonthStr = startOfMonth.toISOString().split('T')[0]
+    const startOfMonthStr = `${todayStr.slice(0, 7)}-01`
 
     const { data: monthPayments } = await supabaseClient
       .from('supplier_payments')

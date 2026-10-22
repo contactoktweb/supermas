@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
 
 interface PurchaseDetailDrawerProps {
   purchase: Purchase | null
@@ -67,16 +68,10 @@ export function PurchaseDetailDrawer({
     purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
   const canConfirm =
     purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
-  const canReceive =
-    purchase.status === 'CONFIRMADA' ||
-    purchase.status === 'PENDING_RECEPTION' ||
-    purchase.status === 'RECIBIDA_PARCIALMENTE' ||
-    purchase.status === 'BORRADOR' ||
-    purchase.status === 'DRAFT'
+  // Solo órdenes confirmadas reciben mercancía o pagos; el servidor rechaza borradores.
+  const canReceive = canReceivePurchase(purchase.status)
   const canPay =
-    purchase.pendingBalance > 0 &&
-    purchase.status !== 'CANCELLED' &&
-    purchase.status !== 'CANCELADA'
+    purchase.pendingBalance > 0 && !isDraftPurchase(purchase.status) && !isCancelledPurchase(purchase.status)
   const hasReceivedItems = purchase.items?.some((it) => (it.receivedQuantity || 0) > 0)
   const canCancel =
     purchase.status !== 'RECEIVED' &&

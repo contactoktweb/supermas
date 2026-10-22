@@ -31,6 +31,7 @@ import { PurchaseStatsSkeleton, PurchaseTableSkeleton } from './PurchaseSkeleton
 import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
 import { PurchaseToastContainer, PurchaseToastMessage } from './PurchaseToast'
+import { canReceivePurchase } from '../utils/purchase-status'
 
 interface PurchasesPageProps {
   onNavigate?: (view: string) => void
@@ -292,15 +293,13 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Action: Quick Receive (open first pending reception)
   const handleQuickReceive = () => {
-    const firstPending = purchases.find(
-      (p) => p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT'
-    )
+    const firstPending = purchases.find((p) => canReceivePurchase(p.status))
     if (firstPending) {
       setReceiveModalPurchase(firstPending)
     } else {
       addToast(
         'Sin compras pendientes',
-        'No hay compras pendientes de recepción en la lista actual.',
+        'No hay órdenes confirmadas pendientes de recepción en la lista actual.',
         'info'
       )
     }
@@ -309,7 +308,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   // Action: Navigate to Kardex filtered by document
   const handleViewKardex = (purchaseNumber: string, locationId: string) => {
     if (onNavigate) {
-      onNavigate('Kardex')
+      onNavigate(locationId ? `/kardex?locationId=${encodeURIComponent(locationId)}` : '/kardex')
     } else {
       addToast(
         'Kardex',

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { AppIcon } from './Icon'
+import { DatePicker } from './DatePicker'
 
 export interface DateRangeFilterValue {
   startDate?: string // YYYY-MM-DD
@@ -191,7 +192,11 @@ export function DateRangeFilter({
     if (!isOpen) return
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node) &&
+        !(event.target as Element).closest?.('.date-picker-popover')
+      ) {
         setIsOpen(false)
       }
     }
@@ -218,8 +223,7 @@ export function DateRangeFilter({
     setError(null)
   }
 
-  const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+  const handleStartChange = (val: string) => {
     setTempStart(val)
     if (tempEnd && val && val > tempEnd) {
       setError('La fecha inicial no puede ser posterior a la fecha final')
@@ -228,8 +232,7 @@ export function DateRangeFilter({
     }
   }
 
-  const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+  const handleEndChange = (val: string) => {
     setTempEnd(val)
     if (tempStart && val && tempStart > val) {
       setError('La fecha final no puede ser anterior a la fecha inicial')
@@ -362,14 +365,7 @@ export function DateRangeFilter({
                   <AppIcon name="calendar" size={12} color="#64748b" />
                   <span>Desde</span>
                 </label>
-                <input
-                  id="filter-start-date"
-                  type="date"
-                  className="filter-date-input"
-                  value={tempStart}
-                  onChange={handleStartChange}
-                  max={tempEnd || undefined}
-                />
+                <DatePicker id="filter-start-date" size="sm" value={tempStart} onChange={handleStartChange} max={tempEnd || undefined} />
               </div>
 
               <div className="date-inputs-arrow">
@@ -381,14 +377,7 @@ export function DateRangeFilter({
                   <AppIcon name="calendar" size={12} color="#64748b" />
                   <span>Hasta</span>
                 </label>
-                <input
-                  id="filter-end-date"
-                  type="date"
-                  className="filter-date-input"
-                  value={tempEnd}
-                  onChange={handleEndChange}
-                  min={tempStart || undefined}
-                />
+                <DatePicker id="filter-end-date" size="sm" value={tempEnd} onChange={handleEndChange} min={tempStart || undefined} />
               </div>
             </div>
 

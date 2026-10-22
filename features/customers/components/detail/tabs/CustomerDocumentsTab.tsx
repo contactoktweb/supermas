@@ -4,6 +4,9 @@ import React, { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { FileUpload } from '@/components/ui/FileUpload'
+import { extractErrorMessage } from '@/lib/utils'
+import { customerService } from '../../../services/customer.service'
 import { CustomerDocumentSummary, CustomerDocumentDTO } from '../../../types'
 
 interface CustomerDocumentsTabProps {
@@ -12,298 +15,248 @@ interface CustomerDocumentsTabProps {
   onAddDocument: (dto: CustomerDocumentDTO) => Promise<void>
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  RUT: 'RUT Tributario',
-  CAMARA_COMERCIO: 'Cámara de Comercio',
-  CEDULA: 'Cédula / Identificación',
-  ACUERDO_COMERCIAL: 'Acuerdo Comercial / Pagaré',
-  OTRO: 'Otro Documento',
-}
+type DocumentCategory = CustomerDocumentDTO['category']
 
-const DOC_CATEGORIES: { value: CustomerDocumentDTO['category']; label: string }[] = [
-  { value: 'RUT', label: 'RUT Tributario' },
+const DOC_CATEGORIES: { value: DocumentCategory; label: string }[] = [
+  { value: 'RUT', label: 'RUT' },
   { value: 'CAMARA_COMERCIO', label: 'Cámara de Comercio' },
   { value: 'CEDULA', label: 'Cédula / Identificación' },
-  { value: 'ACUERDO_COMERCIAL', label: 'Acuerdo Comercial / Pagaré' },
-  { value: 'OTRO', label: 'Otro Soporte' },
+  { value: 'ACUERDO_COMERCIAL', label: 'Acuerdo comercial / Pagaré' },
+  { value: 'OTRO', label: 'Otro soporte' },
 ]
 
-function minW(val: number): string {
-  return `min(90vw, ${val}px)`
-}
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(DOC_CATEGORIES.map((c) => [c.value, c.label]))
+const ACCEPTED_TYPES = 'application/pdf,image/jpeg,image/png'
 
-export function CustomerDocumentsTab({
-  documents,
-  customerId,
-  onAddDocument,
-}: CustomerDocumentsTabProps) {
+export function CustomerDocumentsTab({ documents, customerId, onAddDocument }: CustomerDocumentsTabProps) {
   const [showUploadModal, setShowUploadModal] = useState(false)
-  const [fileName, setFileName] = useState('')
-  const [category, setCategory] = useState<CustomerDocumentDTO['category']>('RUT')
+  const [category, setCategory] = useState<DocumentCategory>('RUT')
+  const [name, setName] = useState('')
   const [notes, setNotes] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [filePreview, setFilePreview] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [openError, setOpenError] = useState<string | null>(null)
+  const [openingId, setOpeningId] = useState<string | null>(null)
 
-  const handleUploadSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!fileName.trim()) return
+  const resetForm = () => {
+    setCategory('RUT')
+    setName('')
+    setNotes('')
+    setFile(null)
+    setFilePreview('')
+    setFormError(null)
+  }
 
+  const closeModal = () => {
+    if (uploading) return
+    setShowUploadModal(false)
+    resetForm()
+  }
+
+  const handleUploadSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (!file) {
+      setFormError('Selecciona el archivo a adjuntar.')
+      return
+    }
     try {
       setUploading(true)
-      await onAddDocument({
-        customerId,
-        fileName: fileName.trim().endsWith('.pdf') ? fileName.trim() : `${fileName.trim()}.pdf`,
-        fileSize: '1.2 MB',
-        fileType: 'application/pdf',
-        category,
-        notes: notes.trim() || undefined,
-      })
+      setFormError(null)
+      await onAddDocument({ customerId, category, name: name.trim(), notes: notes.trim() || undefined, file })
       setShowUploadModal(false)
-      setFileName('')
-      setNotes('')
+      resetForm()
     } catch (err) {
-      console.error(err)
+      setFormError(extractErrorMessage(err, 'No se pudo adjuntar el documento.'))
     } finally {
       setUploading(false)
     }
   }
 
+  const handleOpen = async (documentId: string) => {
+    try {
+      setOpeningId(documentId)
+      setOpenError(null)
+      await customerService.openDocument(documentId)
+    } catch (err) {
+      setOpenError(extractErrorMessage(err, 'No se pudo abrir el documento.'))
+    } finally {
+      setOpeningId(null)
+    }
+  }
+
   return (
     <>
-      <div className="page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Top action row */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <section className="customer-docs page-enter" aria-labelledby="customer-docs-title">
+        <header className="customer-docs-header">
           <div>
-            <strong style={{ fontSize: 13, color: 'var(--foreground)' }}>
-              Expediente Digital del Cliente
-            </strong>
-            <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>
-              Almacenamiento seguro en Supabase Storage
-            </span>
+            <h3 id="customer-docs-title">Expediente del cliente</h3>
+            <p>RUT, Cámara de Comercio, identificación y acuerdos comerciales en un repositorio privado.</p>
           </div>
-
-          <button
-            type="button"
-            className="primary-button compact"
-            onClick={() => setShowUploadModal(true)}
-          >
+          <button type="button" className="primary-button compact" onClick={() => setShowUploadModal(true)}>
             <AppIcon name="plus" size={13} color="#fff" />
-            <span>Adjuntar Documento</span>
+            <span>Adjuntar documento</span>
           </button>
-        </div>
+        </header>
 
-        {/* Documents Grid */}
-        {documents.length === 0 ? (
-          <div className="table-empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div
-              style={{
-                display: 'grid',
-                placeItems: 'center',
-                width: 48,
-                height: 48,
-                borderRadius: 12,
-                background: '#e9eef8',
-                color: 'var(--navy)',
-                margin: '0 auto 12px',
-              }}
-            >
-              <AppIcon name="fileText" size={24} />
-            </div>
-            <strong style={{ fontSize: 14 }}>No hay documentos adjuntos</strong>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-              Puedes adjuntar el RUT, certificado de Cámara de Comercio o pagarés del cliente.
-            </p>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: 14,
-            }}
-          >
-            {documents.map((doc) => (
-              <div
-                key={doc.id}
-                style={{
-                  padding: 16,
-                  borderRadius: 12,
-                  background: '#ffffff',
-                  border: '1.5px solid #cbd5e1',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 8,
-                      background: '#fef2f2',
-                      color: 'var(--red)',
-                      display: 'grid',
-                      placeItems: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <AppIcon name="fileText" size={18} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        textTransform: 'uppercase',
-                        color: 'var(--muted)',
-                      }}
-                    >
-                      {CATEGORY_LABELS[doc.category] || doc.category}
-                    </span>
-                    <strong
-                      style={{
-                        display: 'block',
-                        fontSize: 12,
-                        color: 'var(--foreground)',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        marginTop: 2,
-                      }}
-                      title={doc.fileName}
-                    >
-                      {doc.fileName}
-                    </strong>
-                    <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                      {doc.fileSize} • Subido por {doc.uploadedBy}
-                    </span>
-                  </div>
-                </div>
-
-                {doc.notes && (
-                  <p style={{ margin: 0, fontSize: 11, color: '#475569', fontStyle: 'italic' }}>
-                    {doc.notes}
-                  </p>
-                )}
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingTop: 10,
-                    borderTop: '1px solid var(--line)',
-                    fontSize: 11,
-                  }}
-                >
-                  <span style={{ color: 'var(--muted)', fontSize: 10 }}>
-                    {new Date(doc.uploadedAt).toLocaleDateString('es-CO')}
-                  </span>
-                  <a
-                    href={`#download-${doc.id}`}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      alert(`Descargando archivo: ${doc.fileName} desde Supabase Storage`)
-                    }}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      color: 'var(--navy)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <AppIcon name="eye" size={12} />
-                    <span>Ver / Descargar</span>
-                  </a>
-                </div>
-              </div>
-            ))}
+        {openError && (
+          <div className="form-error-banner" role="alert">
+            <AppIcon name="warning" size={16} />
+            <span>{openError}</span>
           </div>
         )}
-      </div>
 
-      {/* Upload Modal — mounted via portal at document root */}
-      {showUploadModal && createPortal(
-        <div className="drawer-backdrop modal-center" onClick={() => setShowUploadModal(false)}>
-          <div
-            className="warehouse-card page-enter"
-            style={{ width: minW(440), maxWidth: 440, padding: 24, cursor: 'default' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <strong style={{ fontSize: 16, color: 'var(--navy)' }}>Adjuntar Soporte al Cliente</strong>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setShowUploadModal(false)}
-              >
-                <AppIcon name="close" size={16} />
-              </button>
-            </div>
-
-            <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                  Categoría de Documento <span style={{ color: '#dc2626' }}>*</span>
-                </label>
-                <CustomSelect
-                  value={category}
-                  onChange={(val) => setCategory(val as CustomerDocumentDTO['category'])}
-                  options={DOC_CATEGORIES}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                  Nombre del archivo o descripción <span style={{ color: '#dc2626' }}>*</span>
-                </label>
-                <input
-                  type="text"
-                  className="filter-date-input"
-                  placeholder="Ej. RUT_Actualizado_2026.pdf"
-                  value={fileName}
-                  onChange={(e) => setFileName(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-                  Notas u observaciones del soporte
-                </label>
-                <textarea
-                  className="filter-date-input"
-                  style={{ minHeight: 60 }}
-                  placeholder="Vigencia, número de folios, detalles de radicación..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8 }}>
-                <button
-                  type="button"
-                  className="outline-button compact"
-                  onClick={() => setShowUploadModal(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="primary-button compact"
-                  disabled={uploading}
-                >
-                  <AppIcon name="check" size={14} color="#fff" />
-                  <span>{uploading ? 'Subiendo...' : 'Adjuntar Documento'}</span>
-                </button>
-              </div>
-            </form>
+        {documents.length === 0 ? (
+          <div className="customer-docs-empty">
+            <span className="customer-docs-empty-icon" aria-hidden="true">
+              <AppIcon name="fileText" size={24} />
+            </span>
+            <strong>No hay documentos adjuntos</strong>
+            <p>Adjunta el RUT, el certificado de Cámara de Comercio o los pagarés del cliente.</p>
           </div>
-        </div>,
-        document.body
-      )}
+        ) : (
+          <ul className="customer-docs-grid">
+            {documents.map((doc) => (
+              <li key={doc.id} className="customer-doc-card">
+                <div className="customer-doc-main">
+                  <span className="customer-doc-icon" aria-hidden="true">
+                    <AppIcon name={doc.fileType === 'application/pdf' ? 'fileText' : 'eye'} size={18} />
+                  </span>
+                  <div className="customer-doc-text">
+                    <span className="customer-doc-category">{CATEGORY_LABELS[doc.category] || doc.category}</span>
+                    <strong title={doc.fileName}>{doc.fileName}</strong>
+                    <span className="customer-doc-meta">
+                      {doc.fileSize} · {doc.uploadedBy}
+                    </span>
+                  </div>
+                </div>
+                {doc.notes && <p className="customer-doc-notes">{doc.notes}</p>}
+                <footer className="customer-doc-footer">
+                  <time dateTime={doc.uploadedAt}>{new Date(doc.uploadedAt).toLocaleDateString('es-CO')}</time>
+                  <button
+                    type="button"
+                    className="text-button"
+                    onClick={() => handleOpen(doc.id)}
+                    disabled={openingId === doc.id}
+                  >
+                    <AppIcon name="eye" size={13} />
+                    <span>{openingId === doc.id ? 'Abriendo…' : 'Ver documento'}</span>
+                  </button>
+                </footer>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {showUploadModal &&
+        createPortal(
+          <div className="drawer-backdrop modal-center" onClick={closeModal}>
+            <div
+              className="deactivate-dialog-card page-enter"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="customer-doc-upload-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="dialog-header-warning">
+                <div className="warning-icon-badge" style={{ background: '#edf2fa', color: 'var(--navy)' }}>
+                  <AppIcon name="upload" size={22} />
+                </div>
+                <div>
+                  <h3 id="customer-doc-upload-title">Adjuntar documento</h3>
+                  <span className="field-hint">Se guarda en el expediente privado del cliente.</span>
+                </div>
+                <button type="button" className="icon-button close-dialog-btn" onClick={closeModal} aria-label="Cerrar">
+                  <AppIcon name="close" size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleUploadSubmit} noValidate className="customer-doc-form">
+                {formError && (
+                  <div className="form-error-banner" role="alert">
+                    <AppIcon name="warning" size={16} />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <FileUpload
+                  label="Archivo"
+                  required
+                  accept={ACCEPTED_TYPES}
+                  fileType="any"
+                  compact
+                  value={filePreview}
+                  helperText="PDF, JPG o PNG de máximo 5 MB."
+                  onChange={(dataUrl, selected) => {
+                    setFile(selected)
+                    setFilePreview(dataUrl)
+                    setFormError(null)
+                    if (!name.trim()) setName(selected.name.replace(/\.[^.]+$/, '').slice(0, 150))
+                  }}
+                  onRemove={() => {
+                    setFile(null)
+                    setFilePreview('')
+                  }}
+                />
+
+                <div className="form-field">
+                  <label htmlFor="customer-doc-category">
+                    Tipo de documento <em>*</em>
+                  </label>
+                  <CustomSelect
+                    id="customer-doc-category"
+                    value={category}
+                    onChange={(val) => setCategory(val as DocumentCategory)}
+                    options={DOC_CATEGORIES}
+                  />
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="customer-doc-name">
+                    Nombre <em>*</em>
+                  </label>
+                  <div className="input-wrap">
+                    <input
+                      id="customer-doc-name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Ej: RUT actualizado 2026"
+                      maxLength={150}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="customer-doc-notes">Observaciones</label>
+                  <textarea
+                    id="customer-doc-notes"
+                    className="custom-form-textarea"
+                    rows={3}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Vigencia, número de folios, detalles de radicación..."
+                    maxLength={500}
+                  />
+                </div>
+
+                <div className="dialog-footer">
+                  <button type="button" className="outline-button" onClick={closeModal} disabled={uploading}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="primary-button" disabled={uploading || !file || name.trim().length < 3}>
+                    <AppIcon name={uploading ? 'refresh' : 'upload'} size={15} className={uploading ? 'spin' : ''} />
+                    <span>{uploading ? 'Adjuntando…' : 'Adjuntar documento'}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   )
 }

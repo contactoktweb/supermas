@@ -52,7 +52,7 @@ export function DistributorDirectPurchaseConfigModal({
   return (
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

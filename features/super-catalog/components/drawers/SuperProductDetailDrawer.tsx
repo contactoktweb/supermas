@@ -6,6 +6,7 @@ import { SuperCatalogProduct, ProductWebConfigUpdate } from '../../types'
 import { PriceChangeNotice } from '@/features/products/components/PriceChangeNotice'
 import { PRICE_CHANGE_REASON_MIN_LENGTH } from '@/features/products/services/product.service'
 import { roundMoney } from '@/features/products/utils/price-change-plan'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface SuperProductDetailDrawerProps {
   isOpen: boolean
@@ -405,26 +406,18 @@ export function SuperProductDetailDrawer({
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
                   Perfil Tributario DIAN
                 </label>
-                <select
+                <SelectField
                   value={taxConfigId}
-                  onChange={(e) => setTaxConfigId(e.target.value)}
                   disabled={!canUpdate}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    fontSize: '13px',
-                    borderRadius: '8px',
-                    border: '1px solid #cbd5e1',
-                    background: '#ffffff',
-                    color: '#334155',
-                  }}
+                  size="md"
+                  onChange={(value) => setTaxConfigId(value)}
                 >
                   {taxConfigs.map((tax) => (
                     <option key={tax.id} value={tax.id}>
                       {tax.name} ({tax.ratePercent}%)
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             </div>
           )}

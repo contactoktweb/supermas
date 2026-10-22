@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
-import { CustomerDetail } from '../types'
+import { CustomerDetail, CustomerDocumentDTO } from '../types'
 import { CustomerOverviewTab } from './detail/tabs/CustomerOverviewTab'
 import { CustomerSalesTab } from './detail/tabs/CustomerSalesTab'
 import { CustomerInvoicesTab } from './detail/tabs/CustomerInvoicesTab'
@@ -20,7 +20,7 @@ interface CustomerDetailDrawerProps {
   onClose: () => void
   onEdit: () => void
   onAddPayment: () => void
-  onAddDocument: (dto: any) => Promise<void>
+  onAddDocument: (dto: CustomerDocumentDTO) => Promise<void>
 }
 
 type TabType =

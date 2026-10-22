@@ -1,117 +1,83 @@
 /**
- * SUPER MÁS ERP/POS - Esquemas de Validación Zod (Módulo Configuración)
+ * SUPER MÁS ERP/POS - Validación del módulo Configuración General.
  */
 
 import { z } from 'zod'
 
+const digits = (label: string, length: number) =>
+  z.string().trim().regex(new RegExp(`^\\d{${length}}$`), `${label}: ${length} dígitos`)
+
 export const companySettingsSchema = z.object({
   id: z.string().uuid().optional(),
-  companyName: z.string().min(2, 'El nombre comercial debe tener al menos 2 caracteres'),
-  legalName: z.string().min(2, 'La razón social es obligatoria'),
-  nit: z
-    .string()
-    .min(5, 'El NIT debe tener al menos 5 dígitos')
-    .regex(/^[\d\.\-]+$/, 'El NIT solo puede contener dígitos, puntos o guiones'),
-  dv: z.string().length(1, 'El dígito de verificación debe ser de 1 dígito (0-9)'),
-  fiscalRegime: z.string().min(2, 'El régimen fiscal es obligatorio'),
-  economicActivityCode: z.string().min(4, 'Código de actividad económica CIIU requerido'),
-  legalRepresentative: z.string().optional().default(''),
-  legalRepresentativeDoc: z.string().optional().default(''),
-  address: z.string().min(3, 'Dirección requerida'),
-  city: z.string().min(2, 'Ciudad requerida'),
-  department: z.string().min(2, 'Departamento requerido'),
-  country: z.string().optional().default('Colombia'),
-  postalCode: z.string().optional().default('050001'),
-  phone: z.string().min(7, 'Teléfono requerido'),
-  mobile: z.string().optional().default(''),
-  email: z.string().email('Correo electrónico corporativo inválido'),
-  billingEmail: z.string().email('Correo de facturación electrónica inválido').or(z.string().optional().default('')),
-  website: z.string().optional().default(''),
-  logoUrl: z.string().optional().default('/super-mas-logo.svg'),
+  companyName: z.string().trim().min(2, 'El nombre comercial debe tener al menos 2 caracteres'),
+  legalName: z.string().trim().min(2, 'La razón social es obligatoria'),
+  nit: z.string().trim().regex(/^\d{5,15}$/, 'El NIT debe tener entre 5 y 15 dígitos, sin puntos ni dígito de verificación'),
+  dv: z.string().trim().regex(/^\d$/, 'El dígito de verificación es un número de 0 a 9'),
+  fiscalRegime: z.string().min(2, 'El régimen tributario es obligatorio'),
+  economicActivityCode: z.string().trim().regex(/^\d{4}$/, 'El código CIIU tiene 4 dígitos'),
+  legalRepresentative: z.string().trim().max(150).default(''),
+  legalRepresentativeDoc: z.string().trim().max(30).default(''),
+  address: z.string().trim().min(3, 'La dirección es obligatoria'),
+  city: z.string().trim().min(2, 'La ciudad es obligatoria'),
+  department: z.string().trim().min(2, 'El departamento es obligatorio'),
+  country: z.string().trim().min(2).default('Colombia'),
+  postalCode: z.string().trim().regex(/^(\d{6})?$/, 'El código postal tiene 6 dígitos').default(''),
+  phone: z.string().trim().min(7, 'El teléfono es obligatorio'),
+  email: z.string().trim().email('Correo electrónico inválido'),
+  billingEmail: z.string().trim().email('Correo de facturación inválido').or(z.literal('')).default(''),
   currency: z.string().default('COP'),
-  status: z.enum(['ACTIVE', 'INACTIVE']).optional().default('ACTIVE'),
-  timezone: z.string().default('America/Bogota'),
-  commercialDescription: z.string().max(500).optional().default(''),
+  status: z.enum(['ACTIVE', 'INACTIVE']).default('ACTIVE'),
+  dianDepartmentCode: digits('Código DIAN del departamento', 2),
+  dianMunicipalityCode: digits('Código DIAN del municipio', 5),
+  dianOrganizationType: z.enum(['1', '2']),
+  rutResponsibilities: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9-]{1,10}(;[A-Z0-9-]{1,10})*$/, 'Responsabilidades del RUT separadas por punto y coma (ej. 05;07;48)'),
+  dianTaxLevelCodes: z.string().trim().min(2, 'El código de responsabilidad fiscal es obligatorio (ej. R-99-PN)'),
+  dianTaxSchemeCode: z.string().trim().regex(/^(01|04|ZA|ZZ)$/, 'Esquema tributario DIAN: 01, 04, ZA o ZZ'),
+  updatedAt: z.string().optional(),
 })
 
-export const inventorySettingsSchema = z.object({
-  defaultMinStockThreshold: z.number().int().min(1, 'El stock mínimo debe ser al menos 1 unidad'),
-  criticalLowStockThreshold: z.number().int().min(0, 'El umbral crítico no puede ser negativo'),
-  valuationMethod: z.enum(['WEIGHTED_AVERAGE', 'PEPS_FIFO']),
-  allowNegativeStock: z.boolean().default(false),
-  requireReasonForManualAdjustments: z.boolean().default(true),
-  autoGenerateKardexMovement: z.boolean().default(true),
-  stockCheckFrequencyHours: z.number().int().positive().default(24),
-  webAvailability: z.object({
-    showAvailableBadge: z.boolean().default(true),
-    showLowStockBadge: z.boolean().default(true),
-    showOutOfStockBadge: z.boolean().default(true),
-    lowStockWarningThreshold: z.number().int().positive().default(10),
-    hideOutOfStockAfterDays: z.number().int().min(0).default(0),
-  }),
-  transferRules: z.object({
-    requireDualApproval: z.boolean().default(false),
-    autoBlockTransitAfterHours: z.number().int().positive().default(24),
-    defaultOriginLocationId: z.string().min(1),
-  }),
-})
+export const inventorySettingsSchema = z
+  .object({
+    defaultMinStockThreshold: z.number().int().min(1, 'El stock mínimo debe ser al menos 1 unidad'),
+    criticalLowStockThreshold: z.number().int().min(0, 'El umbral crítico no puede ser negativo'),
+  })
+  .refine((v) => v.criticalLowStockThreshold <= v.defaultMinStockThreshold, {
+    message: 'El umbral crítico no puede superar el stock mínimo',
+    path: ['criticalLowStockThreshold'],
+  })
 
 export const posSettingsSchema = z.object({
-  defaultLocationId: z.string().min(1, 'La sede por defecto es requerida'),
-  defaultLocationName: z.string().min(1),
-  defaultCashRegisterId: z.string().min(1, 'Caja inicial requerida'),
-  genericCustomerId: z.string().min(1),
-  genericCustomerName: z.string().min(1),
-  genericCustomerDoc: z.string().min(1),
-  autoPrintReceipt: z.boolean().default(true),
-  allowQuickSaleWithoutCustomer: z.boolean().default(true),
-  defaultReceiptTemplate: z.string().default('TICKET_58MM'),
-  enableSoundFeedback: z.boolean().default(true),
-  enabledPaymentMethods: z.array(z.enum(['CASH', 'CARD', 'TRANSFER', 'CREDIT'])).min(1),
-  cashRegisterRules: z.object({
-    recommendedInitialFloat: z.number().min(0),
-    maxAllowedInitialFloat: z.number().positive(),
-    requireDailyClose: z.boolean().default(true),
-    maxOpenHoursBeforeAlert: z.number().int().positive().default(14),
-    maxDifferenceToleranceAmount: z.number().min(0).default(0),
-    requireDualSignatureOnDiscrepancy: z.boolean().default(true),
-  }),
-  salesPriceList: z.string().default('PRICE_NORMAL'),
+  defaultLocationId: z.string(),
+  autoPrintReceipt: z.boolean(),
 })
+
+export const cashSettingsSchema = z
+  .object({
+    recommendedInitialFloat: z.number().min(0, 'La base sugerida no puede ser negativa'),
+    maxAllowedInitialFloat: z.number().min(0, 'El máximo no puede ser negativo'),
+    maxDifferenceToleranceAmount: z.number().min(0, 'La tolerancia no puede ser negativa'),
+  })
+  .refine((v) => v.maxAllowedInitialFloat === 0 || v.recommendedInitialFloat <= v.maxAllowedInitialFloat, {
+    message: 'La base sugerida no puede superar el máximo permitido',
+    path: ['recommendedInitialFloat'],
+  })
 
 export const ecommerceSettingsSchema = z.object({
-  dispatchWarehouseId: z.string().min(1, 'La bodega de despacho ecommerce es obligatoria'),
-  dispatchWarehouseName: z.string().min(1),
-  superCatalogEnabled: z.boolean().default(true),
-  distributorCatalogEnabled: z.boolean().default(true),
-  publicShowPrices: z.boolean().default(true),
-  publicShowAvailability: z.boolean().default(true),
-  defaultLowStockThreshold: z.number().int().positive().default(10),
-  outOfStockBehavior: z.string().default('SHOW_AS_OUT_OF_STOCK_DISABLE_PURCHASE'),
-  webPriceList: z.string().default('PRICE_WEB'),
-  distributorPriceList: z.string().default('PRICE_WHOLESALE'),
-  whatsapp: z.object({
-    phoneNumber: z.string().min(10, 'Número de WhatsApp corporativo requerido'),
-    displayPhoneNumber: z.string().min(10),
-    defaultQuoteTemplate: z.string().min(5),
-    defaultSupportTemplate: z.string().min(5),
-    allowDirectWhatsAppPurchase: z.boolean().default(true),
-  }),
-  cartRules: z.object({
-    minOrderAmount: z.number().min(0).default(50000),
-    maxOrderAmount: z.number().positive().default(50000000),
-    autoReserveStockMinutes: z.number().int().positive().default(120),
-  }),
+  dispatchLocationId: z.string(),
+  superCatalogEnabled: z.boolean(),
+  distributorCatalogEnabled: z.boolean(),
+  whatsappPhone: z
+    .string()
+    .trim()
+    .transform((v) => v.replace(/[^\d]/g, ''))
+    .refine((v) => v === '' || /^\d{10,15}$/.test(v), 'El WhatsApp debe incluir el indicativo del país (ej. 573001234567)'),
+  whatsappQuoteTemplate: z.string().trim().min(10, 'La plantilla debe tener al menos 10 caracteres').max(500),
 })
 
-export const updateDynamicSettingSchema = z.object({
-  key: z.string().min(1, 'La clave de configuración es obligatoria'),
-  value: z.any(),
-  notes: z.string().max(300).optional(),
+export const generalSettingsSchema = z.object({
+  exogenaDefaultYear: z.number().int().min(2019, 'Año gravable no válido').max(new Date().getFullYear(), 'Año gravable no válido'),
+  sessionTimeoutMinutes: z.number().int().min(5, 'Mínimo 5 minutos').max(720, 'Máximo 12 horas'),
 })
-
-export type CompanySettingsInput = z.infer<typeof companySettingsSchema>
-export type InventorySettingsInput = z.infer<typeof inventorySettingsSchema>
-export type POSSettingsInput = z.infer<typeof posSettingsSchema>
-export type EcommerceSettingsInput = z.infer<typeof ecommerceSettingsSchema>
-export type UpdateDynamicSettingInput = z.infer<typeof updateDynamicSettingSchema>

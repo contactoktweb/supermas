@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder, WebOrderSalePayment } from '../../types'
 import { webOrderService } from '../../services/web-order.service'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface WebOrderDispatchModalProps {
   isOpen: boolean
@@ -138,7 +139,7 @@ export function WebOrderDispatchModal({
   return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 'min(100% - 32px, 480px)',
@@ -193,10 +194,11 @@ export function WebOrderDispatchModal({
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700">Transportadora o Medio de Despacho *</label>
-            <select
+            <SelectField
               value={courier}
-              onChange={(e) => setCourier(e.target.value)}
-              className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white"
+              className="w-full"
+              size="sm"
+              onChange={(value) => setCourier(value)}
             >
               <option value="Coordinadora Mercantil">Coordinadora Mercantil</option>
               <option value="Servientrega">Servientrega</option>
@@ -204,7 +206,7 @@ export function WebOrderDispatchModal({
               <option value="Inter Rapidísimo">Inter Rapidísimo</option>
               <option value="Vehículo Propio CEDI Super Más">Vehículo Propio CEDI Super Más</option>
               <option value="Entrega en Punto / Tienda">Entrega en Punto / Tienda</option>
-            </select>
+            </SelectField>
           </div>
 
           <div className="space-y-1.5">
@@ -254,18 +256,19 @@ export function WebOrderDispatchModal({
                     No hay cuentas bancarias con cuenta contable asignada. Configúrelas en Tesorería.
                   </p>
                 ) : (
-                  <select
+                  <SelectField
                     id="dispatch-bank-account"
                     value={bankAccountId}
-                    onChange={(e) => setBankAccountId(e.target.value)}
-                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white"
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setBankAccountId(value)}
                   >
                     {bankOptions.map((b) => (
                       <option key={b.id} value={b.id}>
                         {b.label}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 )}
               </div>
             )}

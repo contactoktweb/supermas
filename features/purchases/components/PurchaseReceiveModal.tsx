@@ -416,7 +416,7 @@ export function PurchaseReceiveModal({
                 Actualización del inventario y recálculo automático del Costo Promedio Ponderado.
               </li>
               <li>
-                Generación del acta fiduciaria de recepción con número consecutivo auditable.
+                Generación del acta de recepción con número consecutivo auditable.
               </li>
             </ul>
           </div>

@@ -7,7 +7,6 @@ import {
   CustomerPaymentDTO,
   CustomerDocumentDTO,
   CustomerPaymentSummary,
-  CustomerDocumentSummary,
 } from '../types'
 
 export function useCustomerDetail(customerId: string | null) {
@@ -56,10 +55,9 @@ export function useCustomerDetail(customerId: string | null) {
     return res
   }
 
-  const addDocument = async (dto: CustomerDocumentDTO): Promise<CustomerDocumentSummary> => {
-    const res = await customerService.addDocument(dto)
+  const addDocument = async (dto: CustomerDocumentDTO): Promise<void> => {
+    await customerService.addDocument(dto)
     await fetchDetail()
-    return res
   }
 
   return {

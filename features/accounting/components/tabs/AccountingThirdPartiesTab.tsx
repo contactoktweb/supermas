@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ThirdParty, LegalNature, ThirdPartyType } from '../../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingThirdPartiesTabProps {
   thirdParties: ThirdParty[]
@@ -287,15 +288,15 @@ export function AccountingThirdPartiesTab({
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Filtro Naturaleza Jurídica */}
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={selectedNature}
-            onChange={(e) => setSelectedNature(e.target.value as any)}
+            size="sm"
+            onChange={(value) => setSelectedNature(value as any)}
           >
             <option value="ALL">Todas las Naturalezas</option>
             <option value="JURIDICA">Personas Jurídicas (NIT)</option>
             <option value="NATURAL">Personas Naturales (CC / CE)</option>
-          </select>
+          </SelectField>
 
           {onExport && (
             <button
@@ -405,21 +406,18 @@ export function AccountingThirdPartiesTab({
                             {tp.thirdPartyType === 'ACREEDOR' && <AppIcon name="warehouse" size={13} className="text-amber-700" />}
                             {tp.thirdPartyType === 'OTRO' && <AppIcon name="layers" size={13} className="text-slate-600" />}
                           </span>
-                          <select
+                          <SelectField
                             value={tp.thirdPartyType}
                             disabled={updatingId === tp.id}
-                            onChange={(e) => handleTypeChange(tp.id, e.target.value as ThirdPartyType)}
-                            className={`text-xs font-semibold pl-6 pr-6 py-1 rounded-lg border appearance-none cursor-pointer transition-all shadow-2xs ${getTypeBadgeStyle(
-                              tp.thirdPartyType
-                            )} ${updatingId === tp.id ? 'opacity-50 cursor-wait' : ''}`}
-                            title="Cambiar clasificación (Cliente, Proveedor, Empleado o Acreedor)"
+                            size="sm"
+                            onChange={(value) => handleTypeChange(tp.id, value as ThirdPartyType)}
                           >
                             <option value="CLIENTE">Cliente</option>
                             <option value="PROVEEDOR">Proveedor</option>
                             <option value="EMPLEADO">Empleado</option>
                             <option value="ACREEDOR">Acreedor</option>
                             <option value="OTRO">Otro</option>
-                          </select>
+                          </SelectField>
                           <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 flex items-center">
                             <AppIcon name="chevronDown" size={11} />
                           </span>

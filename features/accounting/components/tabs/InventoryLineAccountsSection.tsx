@@ -6,6 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccountRef, InventoryLineAccounts, InventoryLineAccountsConfig } from '../../types'
 import { InventoryLineAccountsFormData } from '../../schemas/accounting.schema'
 import { PostingAccountOption, isCostAccountCodeFor } from '../../utils/posting-accounts'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface InventoryLineAccountsSectionProps {
   config: InventoryLineAccountsConfig | null
@@ -263,12 +264,13 @@ export function InventoryLineAccountsSection({
                 <label htmlFor="inventory-line-cost" className="block font-semibold text-gray-700 mb-1">
                   Cuenta de costo de ventas:
                 </label>
-                <select
+                <SelectField
                   id="inventory-line-cost"
-                  className="filter-select w-full"
                   value={costAccountId}
-                  onChange={(e) => setCostAccountId(e.target.value)}
                   disabled={isSaving}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setCostAccountId(value)}
                 >
                   <option value="">Selecciona una cuenta auxiliar</option>
                   {costGroups.map((group) => (
@@ -280,19 +282,20 @@ export function InventoryLineAccountsSection({
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               <div>
                 <label htmlFor="inventory-line-income" className="block font-semibold text-gray-700 mb-1">
                   Cuenta de ingreso por ventas:
                 </label>
-                <select
+                <SelectField
                   id="inventory-line-income"
-                  className="filter-select w-full"
                   value={incomeAccountId}
-                  onChange={(e) => setIncomeAccountId(e.target.value)}
                   disabled={isSaving}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setIncomeAccountId(value)}
                 >
                   <option value="">Selecciona una cuenta auxiliar</option>
                   {incomeGroups.map((group) => (
@@ -304,7 +307,7 @@ export function InventoryLineAccountsSection({
                       ))}
                     </optgroup>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               {formError && (

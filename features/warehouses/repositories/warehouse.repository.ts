@@ -495,6 +495,8 @@ export class WarehouseRepository {
         unit_of_measure,
         cost_price,
         public_sale_price,
+        min_stock_threshold,
+        critical_stock_threshold,
         is_active,
         created_at,
         categories ( name ),
@@ -532,12 +534,15 @@ export class WarehouseRepository {
       const brand = p.brands?.name || 'Genérico'
       const qty = sl ? Number(sl.quantity || 0) : 0
       const cost = sl ? Number(sl.average_cost || 0) : Number(p.cost_price || 0)
-      const minStock = sl ? Number(sl.min_stock || 10) : 10
+      // Mínimo de la sede si existe; si no, los umbrales del producto (Configuración → Inventario al crearlo).
+      const productMin = Number(p.min_stock_threshold ?? 0)
+      const minStock = Number(sl?.min_stock || productMin)
+      const criticalStock = Number(p.critical_stock_threshold ?? Math.floor(minStock * 0.3))
       const maxStock = sl ? Number(sl.max_stock || 1000) : 1000
 
       let status: WarehouseInventoryItem['status'] = 'NORMAL'
       if (qty === 0) status = 'OUT_OF_STOCK'
-      else if (qty <= minStock * 0.3) status = 'CRITICAL'
+      else if (qty <= criticalStock) status = 'CRITICAL'
       else if (qty <= minStock) status = 'LOW_STOCK'
 
       return {

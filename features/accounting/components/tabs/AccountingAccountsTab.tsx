@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount, AccountClass, AccountingFilters, AccountNature } from '../../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingAccountsTabProps {
   accounts: AccountingAccount[]
@@ -91,27 +92,27 @@ export function AccountingAccountsTab({
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={filters.level || 'ALL'}
-            onChange={(e) => onFilterChange({ level: e.target.value as any })}
+            size="sm"
+            onChange={(value) => onFilterChange({ level: value as any })}
           >
             <option value="ALL">Todos los niveles</option>
             <option value="IMPUTABLE">Solo Imputables (Subcuentas y Auxiliares)</option>
             <option value="ACCOUNT">Nivel 3: Cuentas Mayor</option>
             <option value="SUBACCOUNT">Nivel 4: Subcuentas</option>
             <option value="AUXILIARY">Nivel 5: Auxiliares (ej: 111005.01)</option>
-          </select>
+          </SelectField>
 
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={filters.nature || 'ALL'}
-            onChange={(e) => onFilterChange({ nature: e.target.value as any })}
+            size="sm"
+            onChange={(value) => onFilterChange({ nature: value as any })}
           >
             <option value="ALL">Todas las naturalezas</option>
             <option value="DEBIT">Naturaleza Débito</option>
             <option value="CREDIT">Naturaleza Crédito</option>
-          </select>
+          </SelectField>
 
           {canManageAccounts && (
             <button
@@ -217,20 +218,15 @@ export function AccountingAccountsTab({
                       <td>
                         {canManageAccounts && onUpdateNature ? (
                           <div className="relative inline-flex items-center">
-                            <select
+                            <SelectField
                               value={acc.nature}
                               disabled={updatingId === acc.id}
-                              onChange={(e) => handleNatureChange(acc.id, e.target.value as AccountNature)}
-                              className={`text-[11px] font-bold py-1 px-2 pr-5 rounded-md border appearance-none cursor-pointer transition-all shadow-2xs ${
-                                acc.nature === 'DEBIT'
-                                  ? 'bg-blue-50/90 text-blue-900 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
-                                  : 'bg-amber-50/90 text-amber-900 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
-                              } ${updatingId === acc.id ? 'opacity-50 cursor-wait' : ''}`}
-                              title={`Naturaleza: ${acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}. Haz clic para cambiar.`}
+                              size="sm"
+                              onChange={(value) => handleNatureChange(acc.id, value as AccountNature)}
                             >
                               <option value="DEBIT">Débito</option>
                               <option value="CREDIT">Crédito</option>
-                            </select>
+                            </SelectField>
                             <span className="pointer-events-none absolute right-1.5 text-slate-400" aria-hidden="true">
                               <AppIcon name="chevronDown" size={10} />
                             </span>

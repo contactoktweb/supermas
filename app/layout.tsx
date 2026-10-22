@@ -1,7 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { AuthProvider } from '@/features/auth'
+import { AuthProvider, IdleSessionGuard } from '@/features/auth'
 
 export const metadata: Metadata = {
   title: 'Super Más | ERP / POS',
@@ -20,6 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="es" className="bg-background">
       <body className="antialiased">
         <AuthProvider>
+          <IdleSessionGuard />
           {children}
         </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}

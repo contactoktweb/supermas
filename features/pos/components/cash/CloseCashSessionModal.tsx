@@ -12,6 +12,7 @@ import {
   getDifferenceKind,
   getErrorMessage,
 } from './cashUi'
+import { useRuntimeSettings } from '@/features/settings/hooks/useRuntimeSettings'
 
 export interface CloseCashSessionValues {
   countedCashAmount: number
@@ -53,8 +54,14 @@ function CloseCashSessionForm({ summary, onClose, onSubmit }: CloseCashSessionFo
   const countedId = useId()
   const notesId = useId()
 
+  const { settings } = useRuntimeSettings()
+  const tolerance = settings.cash.maxDifferenceToleranceAmount
   const difference = countedCash - summary.expectedCashAmount
-  const differenceDisplay = DIFFERENCE_DISPLAY[getDifferenceKind(difference)]
+  const differenceKind = getDifferenceKind(difference, tolerance)
+  const differenceDisplay =
+    differenceKind === 'BALANCED' && difference !== 0
+      ? { ...DIFFERENCE_DISPLAY.BALANCED, label: `Diferencia dentro de la tolerancia (${formatCOP(tolerance)})` }
+      : DIFFERENCE_DISPLAY[differenceKind]
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()

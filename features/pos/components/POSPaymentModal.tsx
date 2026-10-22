@@ -4,6 +4,7 @@ import React, { useEffect, useRef } from 'react'
 import { POSBankAccountOption, POSCustomer, POSPaymentMethod, POSTotals } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
 import { POS_CARD_PAYMENTS_ENABLED } from '../schemas/pos.schema'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface POSPaymentModalProps {
   isOpen: boolean
@@ -288,16 +289,16 @@ export function POSPaymentModal({
                 No hay cuentas bancarias con subcuenta PUC configurada. Un administrador debe configurarlas en Tesorería.
               </p>
             ) : (
-              <select
+              <SelectField
                 value={bankAccountId}
-                onChange={(e) => setBankAccountId?.(e.target.value)}
-                style={{ height: 40, borderRadius: 10, border: bankMissing ? '2px solid #ef4444' : '2px solid #cbd5e1', padding: '0 10px', fontSize: 13, fontWeight: 600, color: 'var(--navy)', background: '#fff' }}
+                size="md"
+                onChange={(value) => setBankAccountId?.(value)}
               >
                 <option value="">Seleccione la cuenta…</option>
                 {usableAccounts.map((a) => (
                   <option key={a.id} value={a.id}>{accountLabel(a)}</option>
                 ))}
-              </select>
+              </SelectField>
             )}
           </div>
         )}

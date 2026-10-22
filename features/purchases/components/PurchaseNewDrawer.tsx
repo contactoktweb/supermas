@@ -15,6 +15,8 @@ import {
 import { LocationOption } from '../services/location.service'
 import { purchaseCalculationService } from '../services/purchase-calculation.service'
 import { productService } from '@/features/products/services/product.service'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface PurchaseNewDrawerProps {
   isOpen: boolean
@@ -615,12 +617,10 @@ export function PurchaseNewDrawer({
                   >
                     Fecha de compra <span style={{ color: '#dc2626' }}>*</span>
                   </label>
-                  <input
-                    type="date"
-                    className="filter-date-input"
-                    style={{ width: '100%' }}
+                  <DatePicker
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    size="sm"
+                    onChange={(value) => setDate(value)}
                   />
                 </div>
 
@@ -703,16 +703,11 @@ export function PurchaseNewDrawer({
                       <span style={{ color: '#dc2626' }}>*</span>
                     )}
                   </label>
-                  <input
-                    type="date"
-                    className="filter-date-input"
-                    style={{
-                      width: '100%',
-                      opacity: paymentType === 'CREDITO' ? 1 : 0.5,
-                    }}
-                    disabled={paymentType !== 'CREDITO'}
+                  <DatePicker
                     value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
+                    disabled={paymentType !== 'CREDITO'}
+                    size="sm"
+                    onChange={(value) => setDueDate(value)}
                   />
                 </div>
               </div>
@@ -981,20 +976,19 @@ export function PurchaseNewDrawer({
                             />
                           </td>
                           <td>
-                            <select
+                            <SelectField
                               value={item.taxCode}
-                              onChange={(e) =>
-                                handleUpdateItem(idx, 'taxCode', e.target.value)
+                              size="sm"
+                              onChange={(value) =>
+                                handleUpdateItem(idx, 'taxCode', value)
                               }
-                              className="filter-date-input"
-                              style={{ width: '100%', padding: '4px 6px' }}
                             >
                               {taxConfigs.map((tc) => (
                                 <option key={tc.id} value={tc.code}>
                                   {tc.name}
                                 </option>
                               ))}
-                            </select>
+                            </SelectField>
                           </td>
                           <td>
                             <input

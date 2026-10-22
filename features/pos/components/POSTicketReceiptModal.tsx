@@ -6,6 +6,7 @@ import { POSTicketReceipt } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
 import { Heart } from 'lucide-react'
 import { customerReceiptHref } from '@/features/customer-receipt'
+import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -37,6 +38,19 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
       .maybeSingle()
       .then(({ data }) => setCompany(data || null))
   }, [isOpen])
+
+  // Configuración → Punto de Venta: impresión automática de la tirilla al cobrar.
+  const receiptId = receipt?.saleId ?? receipt?.saleNumber ?? null
+  useEffect(() => {
+    if (!isOpen || !receiptId || !company) return
+    let cancelled = false
+    getRuntimeSettings().then((settings) => {
+      if (!cancelled && settings.pos.autoPrintReceipt) window.print()
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, receiptId, company])
 
   if (!isOpen || !receipt) return null
 

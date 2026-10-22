@@ -147,7 +147,7 @@ export function RecuperarContrasenaClient() {
           }}
         />
         <span style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
-          Validando enlace de recuperación fiduciario...
+          Validando enlace de recuperación...
         </span>
       </div>
     )
@@ -167,11 +167,11 @@ export function RecuperarContrasenaClient() {
           <h1>
             Protección de acceso
             <br />
-            <em>y control fiduciario.</em>
+            <em>a tu cuenta.</em>
           </h1>
           <p className="visual-description">
-            Actualiza tus credenciales de forma segura mediante el protocolo de autenticación
-            fiduciaria con token cifrado y vencimiento temporal.
+            Actualiza tu contraseña de forma segura con un enlace personal que vence en poco
+            tiempo.
           </p>
           <div className="visual-metrics">
             <div>
@@ -235,7 +235,7 @@ export function RecuperarContrasenaClient() {
                   marginBottom: '28px',
                 }}
               >
-                Tu contraseña ha sido modificada con éxito en el sistema fiduciario. Ahora puedes
+                Tu contraseña ha sido modificada con éxito en el sistema. Ahora puedes
                 iniciar sesión con tus nuevas credenciales.
               </p>
 

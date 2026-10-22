@@ -12,6 +12,7 @@ import {
   StockHealthStatus,
 } from '../types'
 import { inventoryService } from '../services/inventory.service'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface InventoryTableProps {
   viewMode: InventoryViewMode
@@ -853,16 +854,17 @@ export function InventoryTable({
 
             <div className="page-size-selector">
               <span>Mostrar:</span>
-              <select
+              <SelectField
                 value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
                 aria-label="Registros por página"
+                size="md"
+                onChange={(value) => onPageSizeChange(Number(value))}
               >
                 <option value={10}>10 por pág.</option>
                 <option value={25}>25 por pág.</option>
                 <option value={50}>50 por pág.</option>
                 <option value={100}>100 por pág.</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 

@@ -22,6 +22,7 @@ import {
   ProductCatalogConfigUpdate,
   BulkActionType,
 } from '../types'
+import { buildWhatsAppQuoteMessage, getRuntimeSettings, type RuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 function getDbClient() {
   if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -42,7 +43,12 @@ export class DistributorCatalogRepository {
    * Transforma y sanitiza una fila de public.products a DistributorCatalogProduct.
    * Elimina cualquier campo sensible (costos, márgenes, compras, proveedores).
    */
-  private mapRowToCatalogProduct(row: any): DistributorCatalogProduct {
+  /** Número y plantilla de WhatsApp de Configuración → Ecommerce. */
+  private async getStorefront(): Promise<RuntimeSettings['storefront']> {
+    return (await getRuntimeSettings(getDbClient())).storefront
+  }
+
+  private mapRowToCatalogProduct(row: any, storefront: RuntimeSettings['storefront']): DistributorCatalogProduct {
     const minThreshold = Number(row.min_stock_threshold ?? 10)
 
     // Calcular existencia sumando stock_levels de bodegas activas
@@ -75,13 +81,13 @@ export class DistributorCatalogRepository {
     const isDistributorActive = Boolean(row.is_published_distributor)
     const isSuperMasActive = Boolean(row.is_published_supermas)
     const canBuyDirectly = isDistributorActive && isSuperMasActive && availability !== 'OUT_OF_STOCK'
-    const canContactWhatsApp = isDistributorActive
+    const canContactWhatsApp = isDistributorActive && Boolean(storefront.whatsappPhone)
 
-    const phone = '573128849021'
+    const phone = storefront.whatsappPhone
     const message = encodeURIComponent(
-      `Hola Distribuidora Super Más, estoy interesado en cotizar el producto "${row.name}" (SKU: ${row.sku}).`
+      buildWhatsAppQuoteMessage(storefront.whatsappQuoteTemplate, { name: row.name, sku: row.sku })
     )
-    const whatsappUrl = `https://wa.me/${phone}?text=${message}`
+    const whatsappUrl = phone ? `https://wa.me/${phone}?text=${message}` : ''
 
     const categoryName = row.categories?.name || row.category || 'General'
     const brandName = row.brands?.name || row.brand || 'Genérica'
@@ -111,8 +117,8 @@ export class DistributorCatalogRepository {
       webDistribuidora: isDistributorActive,
       webSuperMas: isSuperMasActive,
       webDirectPurchaseEnabled: isDistributorActive && isSuperMasActive,
-      webWhatsAppInquiryEnabled: true,
-      webWhatsAppPhone: '+57 312 884 9021',
+      webWhatsAppInquiryEnabled: Boolean(storefront.whatsappPhone),
+      webWhatsAppPhone: storefront.whatsappPhone ? `+${storefront.whatsappPhone}` : '',
       availability,
       availabilityLabel,
       canBuyDirectly,
@@ -173,7 +179,8 @@ export class DistributorCatalogRepository {
       throw new Error(`Error al consultar catálogo: ${error.message}`)
     }
 
-    let mapped = (rows || []).map((r) => this.mapRowToCatalogProduct(r))
+    const storefront = await this.getStorefront()
+    let mapped = (rows || []).map((r) => this.mapRowToCatalogProduct(r, storefront))
 
     // Filtros en memoria post-mapeo (Categoría, Marca, Disponibilidad, Compra directa)
     if (filters.category && filters.category !== 'ALL') {
@@ -258,7 +265,7 @@ export class DistributorCatalogRepository {
       .maybeSingle()
 
     if (error || !row) return null
-    return this.mapRowToCatalogProduct(row)
+    return this.mapRowToCatalogProduct(row, await this.getStorefront())
   }
 
   /**
@@ -285,7 +292,7 @@ export class DistributorCatalogRepository {
       .maybeSingle()
 
     if (error || !row) return null
-    return this.mapRowToCatalogProduct(row)
+    return this.mapRowToCatalogProduct(row, await this.getStorefront())
   }
 
   /**
@@ -401,7 +408,7 @@ export class DistributorCatalogRepository {
       throw new Error(`Error al actualizar configuración de distribuidora: ${error?.message}`)
     }
 
-    return this.mapRowToCatalogProduct(updated)
+    return this.mapRowToCatalogProduct(updated, await this.getStorefront())
   }
 
   /**
@@ -455,7 +462,8 @@ export class DistributorCatalogRepository {
       throw new Error(`Error en actualización masiva de distribuidora: ${error.message}`)
     }
 
-    const updatedProducts = (updatedRows || []).map((r) => this.mapRowToCatalogProduct(r))
+    const storefront = await this.getStorefront()
+    const updatedProducts = (updatedRows || []).map((r) => this.mapRowToCatalogProduct(r, storefront))
 
     return {
       updatedCount: updatedProducts.length,

@@ -23,6 +23,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
 import { BankAccount } from '@/features/treasury/types'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 export function PurchasePaymentModal({
   purchase,
@@ -313,13 +314,11 @@ export function PurchasePaymentModal({
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                   Fecha del pago <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                <input
-                  type="date"
-                  className="filter-date-input"
-                  style={{ width: '100%' }}
+                <DatePicker
                   value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
                   required
+                  size="sm"
+                  onChange={(value) => setPaymentDate(value)}
                 />
               </div>
               <div>

@@ -21,6 +21,7 @@ import {
   PublicCatalogFilters,
 } from '../types'
 import { PUBLIC_CATALOG_DEFAULT_PAGE_SIZE, PUBLIC_CATALOG_MAX_PAGE_SIZE } from '../utils/request'
+import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -46,6 +47,23 @@ export class PublicCatalogService {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Empresa activa solo si el canal está habilitado en Configuración → Ecommerce;
+   * con el canal apagado el catálogo público responde vacío.
+   */
+  private async resolveChannelCompanyId(
+    channel: 'supermas' | 'distributor',
+    preferredCompanyId?: string
+  ): Promise<string | null> {
+    const [companyId, settings] = await Promise.all([
+      this.resolveCompanyId(preferredCompanyId),
+      getRuntimeSettings(supabaseAdmin),
+    ])
+    const enabled =
+      channel === 'supermas' ? settings.storefront.superCatalogEnabled : settings.storefront.distributorCatalogEnabled
+    return enabled ? companyId : null
   }
 
   /** Página y tamaño de página acotados (defensa adicional a la validación de la ruta). */
@@ -117,7 +135,7 @@ export class PublicCatalogService {
   async getSuperMasCatalog(
     filters: PublicCatalogFilters = {}
   ): Promise<PublicCatalogListResponse<PublicSuperCatalogProduct>> {
-    const companyId = await this.resolveCompanyId(filters.companyId)
+    const companyId = await this.resolveChannelCompanyId('supermas', filters.companyId)
 
     if (!companyId) {
       return {
@@ -179,7 +197,7 @@ export class PublicCatalogService {
     identifier: string,
     preferredCompanyId?: string
   ): Promise<PublicSuperCatalogProduct | null> {
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const companyId = await this.resolveChannelCompanyId('supermas', preferredCompanyId)
     if (!companyId || !identifier) return null
 
     // 1. Intentar por slug
@@ -203,7 +221,7 @@ export class PublicCatalogService {
   async getDistributorCatalog(
     filters: PublicCatalogFilters = {}
   ): Promise<PublicCatalogListResponse<PublicDistributorCatalogProduct>> {
-    const companyId = await this.resolveCompanyId(filters.companyId)
+    const companyId = await this.resolveChannelCompanyId('distributor', filters.companyId)
 
     if (!companyId) {
       return {
@@ -263,7 +281,7 @@ export class PublicCatalogService {
     identifier: string,
     preferredCompanyId?: string
   ): Promise<PublicDistributorCatalogProduct | null> {
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const companyId = await this.resolveChannelCompanyId('distributor', preferredCompanyId)
     if (!companyId || !identifier) return null
 
     // 1. Intentar por slug
@@ -285,7 +303,7 @@ export class PublicCatalogService {
    * Retorna las categorías disponibles para el canal solicitado
    */
   async getCategories(channel: 'supermas' | 'distributor' = 'supermas', preferredCompanyId?: string): Promise<string[]> {
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const companyId = await this.resolveChannelCompanyId(channel, preferredCompanyId)
     if (!companyId) return []
 
     if (channel === 'supermas') {
@@ -298,7 +316,7 @@ export class PublicCatalogService {
    * Retorna las marcas disponibles para el canal solicitado
    */
   async getBrands(channel: 'supermas' | 'distributor' = 'supermas', preferredCompanyId?: string): Promise<string[]> {
-    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const companyId = await this.resolveChannelCompanyId(channel, preferredCompanyId)
     if (!companyId) return []
 
     if (channel === 'supermas') {

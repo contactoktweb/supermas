@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountPayableItem } from '../../services/accounts-payable.service'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountsPayableTableProps {
   items: AccountPayableItem[]
@@ -410,16 +411,17 @@ export function AccountsPayableTable({
             {onPageSizeChange && (
               <div className="page-size-selector">
                 <span>Filas por página:</span>
-                <select
+                <SelectField
                   value={pageSize}
-                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
                   aria-label="Filas por página"
+                  size="md"
+                  onChange={(value) => onPageSizeChange(Number(value))}
                 >
                   <option value={10}>10</option>
                   <option value={15}>15</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
-                </select>
+                </SelectField>
               </div>
             )}
           </div>

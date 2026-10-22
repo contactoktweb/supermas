@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useId, useState } from 'react'
+import React, { useEffect, useId, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import type { CashRegister } from '../../types'
 import { CashFormError, CashModal } from './CashModal'
-import { DEFAULT_OPENING_FLOAT, REDUCED_MOTION_CLASS, getErrorMessage } from './cashUi'
+import { useRuntimeSettings } from '@/features/settings/hooks/useRuntimeSettings'
+import { REDUCED_MOTION_CLASS, formatCOP, getErrorMessage } from './cashUi'
 
 export interface OpenCashSessionValues {
   openingFloat: number
@@ -18,15 +19,27 @@ interface OpenCashSessionModalProps {
 }
 
 export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSessionModalProps) {
-  const [openingFloat, setOpeningFloat] = useState<number>(DEFAULT_OPENING_FLOAT)
+  const { settings, isLoaded } = useRuntimeSettings()
+  const { recommendedInitialFloat, maxAllowedInitialFloat } = settings.cash
+  const [openingFloat, setOpeningFloat] = useState<number>(recommendedInitialFloat)
+  const [touched, setTouched] = useState(false)
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const floatId = useId()
   const notesId = useId()
 
+  // La base sugerida de Configuración llega después del primer render; no pisa lo que el cajero escribió.
+  useEffect(() => {
+    if (isLoaded && !touched) setOpeningFloat(recommendedInitialFloat)
+  }, [isLoaded, touched, recommendedInitialFloat])
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (maxAllowedInitialFloat > 0 && openingFloat > maxAllowedInitialFloat) {
+      setError(`La base inicial no puede superar ${formatCOP(maxAllowedInitialFloat)}.`)
+      return
+    }
     try {
       setSubmitting(true)
       setError(null)
@@ -61,13 +74,20 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
               min="0"
               step="any"
               value={openingFloat}
-              onChange={(e) => setOpeningFloat(Number(e.target.value))}
+              max={maxAllowedInitialFloat > 0 ? maxAllowedInitialFloat : undefined}
+              onChange={(e) => {
+                setTouched(true)
+                setOpeningFloat(Number(e.target.value))
+              }}
               required
               autoFocus
               className="font-mono font-bold"
             />
           </div>
-          <span className="field-hint">Efectivo físico entregado al cajero para dar cambio.</span>
+          <span className="field-hint">
+            Efectivo físico entregado al cajero para dar cambio.
+            {maxAllowedInitialFloat > 0 && ` Máximo permitido: ${formatCOP(maxAllowedInitialFloat)}.`}
+          </span>
         </div>
 
         <div className="form-field">

@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Purchase, PurchaseStatus, PurchasePaymentType } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 type PurchaseSortField = 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt'
 
@@ -541,15 +542,16 @@ export function PurchaseTable({
             </span>
             <div className="page-size-selector">
               <span>Por página:</span>
-              <select
+              <SelectField
                 value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
                 aria-label="Registros por página"
+                size="md"
+                onChange={(value) => onPageSizeChange(Number(value))}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 

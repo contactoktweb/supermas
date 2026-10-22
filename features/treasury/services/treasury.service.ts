@@ -254,7 +254,7 @@ export class TreasuryService {
         userRole: user.role,
         level: 'INFO',
         result: 'SUCCESS',
-        details: `Movimiento bancario ${movementId} conciliado fiduciariamente (${reconciled ? 'CONCILIADO' : 'PENDIENTE'})`,
+        details: `Movimiento bancario ${movementId} conciliado (${reconciled ? 'CONCILIADO' : 'PENDIENTE'})`,
       })
     }
     return res

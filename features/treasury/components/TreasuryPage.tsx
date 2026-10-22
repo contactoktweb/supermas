@@ -7,7 +7,9 @@ import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import Link from 'next/link'
 import { TreasuryReceiptModal } from './TreasuryReceiptModal'
+import { TreasuryBankAccountCard } from './TreasuryBankAccountCard'
 import { TreasuryPostingResult } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 const TABS: { id: TreasuryTab; label: string; icon: LightIconName }[] = [
   { id: 'banks', label: 'Cuentas Bancarias y Saldos', icon: 'wallet' },
@@ -185,7 +187,7 @@ export function TreasuryPage() {
       setActionError(null)
       await reconcileMovement(movementId, !currentStatus)
       setSuccessToast(
-        `Movimiento ${!currentStatus ? 'conciliado fiduciariamente' : 'marcado como pendiente'}.`
+        `Movimiento ${!currentStatus ? 'conciliado' : 'marcado como pendiente'}.`
       )
       setTimeout(() => setSuccessToast(null), 4000)
     } catch (err: any) {
@@ -332,14 +334,14 @@ export function TreasuryPage() {
           {/* TAB 1: CUENTAS BANCARIAS */}
           {activeTab === 'banks' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div className="min-w-0 flex-1">
                   <h2 className="text-sm font-bold text-gray-900">Cuentas Bancarias Registradas</h2>
-                  <p className="text-xs text-gray-500">Cuentas fiduciarias activas en Supabase con enlace a cuentas PUC.</p>
+                  <p className="text-xs text-gray-500">Cuentas de la empresa con su saldo y la subcuenta contable donde se registran sus movimientos.</p>
                 </div>
                 <button
                   type="button"
-                  className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5"
+                  className="primary-button text-xs py-1.5 px-3 flex items-center gap-1.5 whitespace-nowrap"
                   onClick={() => setIsCreateBankOpen(true)}
                 >
                   <AppIcon name="plus" size={14} />
@@ -347,72 +349,22 @@ export function TreasuryPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bank-account-grid">
                 {bankAccounts.map((account) => (
-                  <div
+                  <TreasuryBankAccountCard
                     key={account.id}
-                    className="p-5 bg-white rounded-xl border border-gray-200 shadow-xs hover:border-blue-400 transition-all space-y-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-800 flex items-center justify-center font-bold text-xs">
-                          {account.bankName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-bold text-gray-900">{account.bankName}</h3>
-                          <span className="text-[11px] text-gray-500">{account.accountType} — {account.accountNumber}</span>
-                        </div>
-                      </div>
-                      <span className="badge badge-emerald">Activa</span>
-                    </div>
-
-                    <div className="pt-2 border-t border-gray-100 flex items-baseline justify-between">
-                      <span className="text-xs text-gray-500">Saldo Disponible:</span>
-                      <span className="font-mono text-base font-bold text-blue-950">
-                        {formatCOP(account.currentBalance)}
-                      </span>
-                    </div>
-
-                    <div className="text-[11px] bg-gray-50 p-2 rounded space-y-2">
-                      <div className="flex items-center justify-between font-mono">
-                        <span className="text-gray-500">Subcuenta PUC:</span>
-                        {account.accountingAccountCode ? (
-                          <strong className="text-blue-900 font-bold" title={account.accountingAccountName}>
-                            {account.accountingAccountCode} {account.accountingAccountName ? `· ${account.accountingAccountName}` : ''}
-                          </strong>
-                        ) : (
-                          <strong className="text-red-700">Sin asignar: las ventas a esta cuenta no se pueden registrar</strong>
-                        )}
-                      </div>
-                      {ledgerPrefixFor(account.accountType) && (
-                        <div className="flex items-center gap-2">
-                          <select
-                            className="filter-select text-[11px] flex-1"
-                            value={ledgerDraft[account.id] ?? account.accountingAccountId ?? ''}
-                            onChange={(e) => setLedgerDraft({ ...ledgerDraft, [account.id]: e.target.value })}
-                          >
-                            <option value="">Elegir subcuenta {ledgerPrefixFor(account.accountType)}xx…</option>
-                            {ledgerOptionsFor(account.accountType).map((o) => (
-                              <option key={o.id} value={o.id}>{o.code} · {o.name}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="outline-button text-[11px] px-2 py-1"
-                            disabled={!ledgerDraft[account.id] || ledgerDraft[account.id] === account.accountingAccountId || savingLedgerId === account.id}
-                            onClick={() => handleSaveLedger(account.id)}
-                          >
-                            {savingLedgerId === account.id ? 'Guardando…' : 'Asignar'}
-                          </button>
-                        </div>
-                      )}
-                      {ledgerPrefixFor(account.accountType) && ledgerOptionsFor(account.accountType).length === 0 && (
-                        <p className="text-[10px] text-amber-700">
-                          No hay subcuentas {ledgerPrefixFor(account.accountType)}xx. Créelas en Contabilidad → Plan de cuentas (ej. {ledgerPrefixFor(account.accountType)}0501).
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                    account={account}
+                    formattedBalance={formatCOP(account.currentBalance)}
+                    ledgerPrefix={ledgerPrefixFor(account.accountType)}
+                    ledgerOptions={ledgerOptionsFor(account.accountType).map((o) => ({
+                      value: o.id,
+                      label: `${o.code} · ${o.name}`,
+                    }))}
+                    draftLedgerId={ledgerDraft[account.id] ?? account.accountingAccountId ?? ''}
+                    isSaving={savingLedgerId === account.id}
+                    onDraftChange={(ledgerId) => setLedgerDraft({ ...ledgerDraft, [account.id]: ledgerId })}
+                    onSave={() => handleSaveLedger(account.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -433,15 +385,15 @@ export function TreasuryPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <select
-                    className="filter-select text-xs"
+                  <SelectField
                     value={filters.status || 'ALL'}
-                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                    size="sm"
+                    onChange={(value) => setFilters({ ...filters, status: value })}
                   >
                     <option value="ALL">Todos los estados</option>
                     <option value="SCHEDULED">Programados (Pendientes)</option>
                     <option value="PAID">Pagados / Desembolsados</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -693,13 +645,13 @@ export function TreasuryPage() {
             <div className="space-y-4">
               <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-gray-500">
-                  Mostrando <strong>{bankMovements.length}</strong> movimientos fiduciarios registrados en cuentas bancarias.
+                  Mostrando <strong>{bankMovements.length}</strong> movimientos registrados en cuentas bancarias.
                 </div>
                 <div className="flex items-center gap-2">
-                  <select
-                    className="filter-select text-xs"
+                  <SelectField
                     value={filters.bankAccountId || 'ALL'}
-                    onChange={(e) => setFilters({ ...filters, bankAccountId: e.target.value })}
+                    size="sm"
+                    onChange={(value) => setFilters({ ...filters, bankAccountId: value })}
                   >
                     <option value="ALL">Todas las cuentas bancarias</option>
                     {bankAccounts.map((b) => (
@@ -707,7 +659,7 @@ export function TreasuryPage() {
                         {b.bankName} ({b.accountNumber})
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -822,30 +774,36 @@ export function TreasuryPage() {
               <div>
                 <div>
                   <label className="block text-gray-700 font-semibold mb-1">Tipo de Cuenta</label>
-                  <select
-                    className="filter-select w-full"
+                  <SelectField
                     value={newAccountType}
-                    onChange={(e) => {
-                      setNewAccountType(e.target.value)
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => {
+                      setNewAccountType(value)
                       setNewLedgerId('')
                     }}
                   >
                     <option value="CORRIENTE">Corriente</option>
                     <option value="AHORROS">Ahorros</option>
                     <option value="FIDUCIARIA">Fiduciaria</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
               {ledgerPrefixFor(newAccountType) && (
                 <div>
                   <label className="block text-gray-700 font-semibold mb-1">Subcuenta PUC ({ledgerPrefixFor(newAccountType)}xx)</label>
-                  <select className="filter-select w-full" value={newLedgerId} onChange={(e) => setNewLedgerId(e.target.value)}>
+                  <SelectField
+                    value={newLedgerId}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setNewLedgerId(value)}
+                  >
                     <option value="">Asignar después</option>
                     {ledgerOptionsFor(newAccountType).map((o) => (
                       <option key={o.id} value={o.id}>{o.code} · {o.name}</option>
                     ))}
-                  </select>
+                  </SelectField>
                   <p className="text-[10px] text-gray-500 mt-1">Cada cuenta bancaria debe tener su propia subcuenta para diferenciar en contabilidad cuál recibió el dinero.</p>
                 </div>
               )}
@@ -901,17 +859,18 @@ export function TreasuryPage() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-gray-700 font-semibold mb-1">Banco de Desembolso</label>
-                <select
-                  className="filter-select w-full"
+                <SelectField
                   value={selectedBankId}
-                  onChange={(e) => setSelectedBankId(e.target.value)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setSelectedBankId(value)}
                 >
                   {bankAccounts.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.bankName} ({b.accountNumber}) — Saldo: {formatCOP(b.currentBalance)}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               <div>

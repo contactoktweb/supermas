@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AuditFilters as AuditFiltersType } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AuditFiltersProps {
   filters: AuditFiltersType
@@ -104,40 +105,24 @@ export function AuditFilters({
         </div>
 
         {/* Nivel de Severidad */}
-        <select
+        <SelectField
           value={filters.level || 'ALL'}
-          onChange={(e) => onUpdateFilter('level', e.target.value)}
           disabled={isLoading}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--line, #cbd5e1)',
-            background: 'var(--surface, #ffffff)',
-            fontSize: 13,
-            color: 'var(--text)',
-            minWidth: 150,
-          }}
+          size="md"
+          onChange={(value) => onUpdateFilter('level', value)}
         >
           <option value="ALL">Todas las severidades</option>
           <option value="CRITICAL">Solo Críticas</option>
           <option value="WARNING">Advertencias</option>
           <option value="INFO">Informativas</option>
-        </select>
+        </SelectField>
 
         {/* Módulo */}
-        <select
+        <SelectField
           value={filters.module || 'ALL'}
-          onChange={(e) => onUpdateFilter('module', e.target.value)}
           disabled={isLoading}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--line, #cbd5e1)',
-            background: 'var(--surface, #ffffff)',
-            fontSize: 13,
-            color: 'var(--text)',
-            minWidth: 140,
-          }}
+          size="md"
+          onChange={(value) => onUpdateFilter('module', value)}
         >
           <option value="ALL">Todos los módulos</option>
           <option value="INVENTORY">Inventario</option>
@@ -151,22 +136,14 @@ export function AuditFilters({
           <option value="TAXES">Impuestos</option>
           <option value="WAREHOUSES">Bodegas</option>
           <option value="EXOGENA">Exógena</option>
-        </select>
+        </SelectField>
 
         {/* Bodega */}
-        <select
+        <SelectField
           value={filters.locationId || 'ALL'}
-          onChange={(e) => onUpdateFilter('locationId', e.target.value)}
           disabled={isLoading}
-          style={{
-            padding: '8px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--line, #cbd5e1)',
-            background: 'var(--surface, #ffffff)',
-            fontSize: 13,
-            color: 'var(--text)',
-            minWidth: 160,
-          }}
+          size="md"
+          onChange={(value) => onUpdateFilter('locationId', value)}
         >
           <option value="ALL">Todas las bodegas</option>
           {locations.map((loc) => (
@@ -174,7 +151,7 @@ export function AuditFilters({
               {loc.name}
             </option>
           ))}
-        </select>
+        </SelectField>
 
         {/* Limpiar Filtros */}
         <button
@@ -251,18 +228,11 @@ export function AuditFilters({
         {/* Filtro por Colaborador */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: 'var(--muted)', fontSize: 12 }}>Usuario:</span>
-          <select
+          <SelectField
             value={filters.userId || 'ALL'}
-            onChange={(e) => onUpdateFilter('userId', e.target.value)}
             disabled={isLoading}
-            style={{
-              padding: '4px 8px',
-              borderRadius: 4,
-              border: '1px solid var(--line, #cbd5e1)',
-              background: 'var(--surface, #ffffff)',
-              fontSize: 12,
-              color: 'var(--text)',
-            }}
+            size="md"
+            onChange={(value) => onUpdateFilter('userId', value)}
           >
             <option value="ALL">Todos los usuarios</option>
             {users.map((u) => (
@@ -270,7 +240,7 @@ export function AuditFilters({
                 {u.name} ({u.roleName || 'Colaborador'})
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
       </div>
     </div>

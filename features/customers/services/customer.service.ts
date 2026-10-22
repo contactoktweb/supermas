@@ -27,6 +27,7 @@ import {
   CustomerPaymentSummary,
   CustomerDocumentSummary,
 } from '../types'
+import { customerDocumentRepository } from '../repositories/customer-document.repository'
 
 export class CustomerService {
   constructor(private repo: CustomerRepository = customerRepository) {}
@@ -321,32 +322,27 @@ export class CustomerService {
   /**
    * Adjunta un soporte o documento al expediente del cliente
    */
-  async addDocument(
-    dto: CustomerDocumentDTO,
-    user?: CustomerUserContext
-  ): Promise<CustomerDocumentSummary> {
+  async addDocument(dto: CustomerDocumentDTO, user?: CustomerUserContext): Promise<void> {
     this.checkPermission(user, 'customers.write', 'customer.documents')
     const validated = customerDocumentSchema.parse(dto)
+    await customerDocumentRepository.upload(validated)
+  }
 
-    const customer = await this.repo.findById(validated.customerId)
-    if (!customer) {
-      throw new Error(`El cliente con ID "${validated.customerId}" no existe.`)
+  /** Abre el documento en una pestaña nueva con una URL firmada de corta duración. */
+  async openDocument(documentId: string): Promise<void> {
+    const popup = window.open('about:blank', '_blank')
+    try {
+      const url = await customerDocumentRepository.createSignedUrl(documentId)
+      if (popup) {
+        popup.opener = null
+        popup.location.href = url
+      } else {
+        window.location.assign(url)
+      }
+    } catch (error) {
+      popup?.close()
+      throw error
     }
-
-    const docSummary: CustomerDocumentSummary = {
-      id: `doc-${Date.now().toString().slice(-6)}`,
-      customerId: validated.customerId,
-      fileName: validated.fileName,
-      fileUrl: `/documents/customers/${validated.customerId}/${validated.fileName}`,
-      fileType: validated.fileType,
-      fileSize: validated.fileSize,
-      category: validated.category,
-      uploadedAt: new Date().toISOString(),
-      uploadedBy: user?.userName || 'Sistema',
-      notes: validated.notes,
-    }
-
-    return docSummary
   }
 
   /**

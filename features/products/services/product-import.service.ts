@@ -22,6 +22,7 @@ import {
   ProductImportExecutionResult,
   RawProductCsvRow,
 } from '../types/import.types'
+import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 function getDbClient() {
   if (typeof window === 'undefined' && process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -376,11 +377,13 @@ export class ProductImportService {
     const userName = userContext?.userName || 'Sistema'
 
     // 1. Cargar datos maestros para resolver referencias en memoria
-    const [categoriesRes, brandsRes, locationsRes] = await Promise.all([
+    const [categoriesRes, brandsRes, locationsRes, runtimeSettings] = await Promise.all([
       client.from('categories').select('id, name, slug').eq('company_id', companyId),
       client.from('brands').select('id, name, slug').eq('company_id', companyId),
       client.from('locations').select('id, name, code, status').eq('company_id', companyId),
+      getRuntimeSettings(client),
     ])
+    const stockDefaults = runtimeSettings.inventory
 
     const categoryMap = new Map<string, string>() // Name/Slug Lowercase -> ID
     ;(categoriesRes.data || []).forEach((c: any) => {
@@ -510,8 +513,8 @@ export class ProductImportService {
           is_tax_exempt: isTaxExempt,
           short_description: row.description?.trim() || null,
           full_description: row.description?.trim() || null,
-          min_stock_threshold: Number(row.minStock ?? 10),
-          critical_stock_threshold: Number(row.criticalStock ?? 5),
+          min_stock_threshold: Number(row.minStock ?? stockDefaults.defaultMinStockThreshold),
+          critical_stock_threshold: Number(row.criticalStock ?? stockDefaults.criticalLowStockThreshold),
           is_active: true,
           is_published_supermas: row.webSuperMas !== undefined ? row.webSuperMas : true,
           is_published_distributor: row.webDistribuidora !== undefined ? row.webDistribuidora : true,

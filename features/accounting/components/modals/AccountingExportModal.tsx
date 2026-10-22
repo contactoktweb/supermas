@@ -24,6 +24,8 @@ import { useAccountingCatalog, useAccountingCompanyHeader } from '../../hooks/us
 import { formatPucRangeLabel } from '../../utils/puc-code-range'
 import { todayBogotaIsoDate } from '../../utils/report-format'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingExportModalProps {
   isOpen: boolean
@@ -459,7 +461,7 @@ export function AccountingExportModal({
       aria-labelledby="accounting-export-title"
     >
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         style={{
           width: '100%',
           maxWidth: 960,
@@ -588,10 +590,11 @@ export function AccountingExportModal({
                 <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Clase Principal PUC:
                 </label>
-                <select
-                  className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                <SelectField
                   value={mainAccountCode}
-                  onChange={(e) => setMainAccountCode(e.target.value)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setMainAccountCode(value)}
                 >
                   <option value="ALL">Todas las Clases (1 a 7)</option>
                   <option value="1">1 - ACTIVO</option>
@@ -601,17 +604,18 @@ export function AccountingExportModal({
                   <option value="5">5 - GASTOS</option>
                   <option value="6">6 - COSTOS DE VENTAS</option>
                   <option value="7">7 - COSTOS PRODUCCIÓN</option>
-                </select>
+                </SelectField>
               </div>
 
               <div>
                 <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Hasta el Nivel:
                 </label>
-                <select
-                  className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                <SelectField
                   value={maxLevel}
-                  onChange={(e) => setMaxLevel(e.target.value as any)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setMaxLevel(value as any)}
                 >
                   <option value="CLASS">Hasta Clase (1 dígito)</option>
                   <option value="GROUP">Hasta Grupo (2 dígitos)</option>
@@ -619,7 +623,7 @@ export function AccountingExportModal({
                   <option value="SUBACCOUNT">Hasta Subcuenta (6 dígitos) (Recomendado)</option>
                   <option value="AUXILIARY">Hasta Auxiliar (ej. 110505.01)</option>
                   <option value="ALL">Sin límite (Todo)</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -664,30 +668,29 @@ export function AccountingExportModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                 <div>
                   <span className="block text-[10px] text-slate-500 mb-0.5">Fecha Inicial:</span>
-                  <input
-                    type="date"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <DatePicker
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    size="sm"
+                    onChange={(value) => setStartDate(value)}
                   />
                 </div>
 
                 <div>
                   <span className="block text-[10px] text-slate-500 mb-0.5">Fecha Final:</span>
-                  <input
-                    type="date"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <DatePicker
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    size="sm"
+                    onChange={(value) => setEndDate(value)}
                   />
                 </div>
 
                 <div>
                   <span className="block text-[10px] text-slate-500 mb-0.5">Tipo Comp. (Comprobante):</span>
-                  <select
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  <SelectField
                     value={voucherType}
-                    onChange={(e) => setVoucherType(e.target.value)}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setVoucherType(value)}
                   >
                     <option value="TODOS">TODOS los Comprobantes</option>
                     <option value="FC">FC - Facturas de Compra</option>
@@ -695,7 +698,7 @@ export function AccountingExportModal({
                     <option value="RC">RC - Recibos de Caja</option>
                     <option value="CE">CE - Comprobantes de Egreso</option>
                     <option value="CC">CC - Notas de Causación</option>
-                  </select>
+                  </SelectField>
                 </div>
 
                 <div>
@@ -721,11 +724,12 @@ export function AccountingExportModal({
                   >
                     Sede:
                   </label>
-                  <select
+                  <SelectField
                     id="accounting-export-location"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     value={locationId}
-                    onChange={(e) => setLocationId(e.target.value)}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setLocationId(value)}
                   >
                     <option value="ALL">Todas las sedes (consolidado)</option>
                     {locations.map((loc) => (
@@ -733,7 +737,7 @@ export function AccountingExportModal({
                         {loc.name}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
 
                 <div>
@@ -743,11 +747,12 @@ export function AccountingExportModal({
                   >
                     Identificación Tercero:
                   </label>
-                  <select
+                  <SelectField
                     id="accounting-export-third-party"
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
                     value={selectedThirdPartyId}
-                    onChange={(e) => setSelectedThirdPartyId(e.target.value)}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setSelectedThirdPartyId(value)}
                   >
                     <option value="ALL">TODOS los Terceros</option>
                     {thirdParties.map((tp) => (
@@ -755,7 +760,7 @@ export function AccountingExportModal({
                         {tp.documentNumber ? `${tp.documentNumber} - ` : ''}{tp.companyName}
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
             </div>
@@ -811,7 +816,7 @@ export function AccountingExportModal({
                 </div>
                 <strong className="text-xs">PDF Oficial Imprimible</strong>
                 <span className="text-[10px] text-slate-500 leading-tight">
-                  Formato fiduciario ajustado al 100% en hoja Carta, con membrete y firmas
+                  Formato ajustado al 100% en hoja Carta, con membrete y firmas
                 </span>
               </button>
 
@@ -897,7 +902,7 @@ export function AccountingExportModal({
         {/* Pie del Modal */}
         <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <span className="text-[11px] text-slate-500 hidden sm:inline">
-            Exportación contable estandarizada conforme a las reglas fiduciarias y DIAN.
+            Exportación contable estandarizada conforme a las normas contables y DIAN.
           </span>
           <div className="flex items-center gap-3 ml-auto">
             <button

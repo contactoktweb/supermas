@@ -4,6 +4,8 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry, AccountingFilters, AccountingVoucherType } from '../../types'
 import { VoucherTypeBadge } from '../VoucherTypeBadge'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingEntriesTabProps {
   entries: AccountingEntry[]
@@ -120,12 +122,12 @@ export function AccountingEntriesTab({
           <label className="filter-select-wrap flex items-center gap-1.5 text-xs" title="Filtrar asientos por mes">
             <AppIcon name="calendar" size={14} />
             <span className="sr-only">Mes de los asientos</span>
-            <input
-              type="month"
-              className="filter-select text-xs"
+            <DatePicker
+              mode="month"
               value={selectedMonth}
-              onChange={(e) => handleMonthChange(e.target.value)}
               aria-label="Mes de los asientos"
+              size="sm"
+              onChange={(value) => handleMonthChange(value)}
             />
           </label>
           {selectedMonth && (
@@ -140,11 +142,11 @@ export function AccountingEntriesTab({
             </button>
           )}
 
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={selectedVoucherType || 'ALL'}
-            onChange={(e) => onFilterChange({ voucherTypeCode: e.target.value })}
             aria-label="Filtrar por tipo de comprobante"
+            size="sm"
+            onChange={(value) => onFilterChange({ voucherTypeCode: value })}
           >
             <option value="ALL">Todos los comprobantes</option>
             {voucherTypeOptions.map((vt) => (
@@ -152,12 +154,12 @@ export function AccountingEntriesTab({
                 {vt.code} — {vt.name}
               </option>
             ))}
-          </select>
+          </SelectField>
 
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={filters.sourceType || 'ALL'}
-            onChange={(e) => onFilterChange({ sourceType: e.target.value as any })}
+            size="sm"
+            onChange={(value) => onFilterChange({ sourceType: value as any })}
           >
             <option value="ALL">Todos los orígenes</option>
             <option value="SALE">Ventas / Facturación</option>
@@ -167,18 +169,18 @@ export function AccountingEntriesTab({
             <option value="SUPPLIER_PAYMENT">Pagos a Proveedores</option>
             <option value="MANUAL">Asientos Manuales</option>
             <option value="REVERSAL">Reversiones</option>
-          </select>
+          </SelectField>
 
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={filters.entryStatus || 'ALL'}
-            onChange={(e) => onFilterChange({ entryStatus: e.target.value as any })}
+            size="sm"
+            onChange={(value) => onFilterChange({ entryStatus: value as any })}
           >
             <option value="ALL">Todos los estados</option>
             <option value="POSTED">Confirmados</option>
             <option value="DRAFT">Borradores</option>
             <option value="REVERSED">Reversados / Anulados</option>
-          </select>
+          </SelectField>
 
           {canCreateEntry && (
             <button

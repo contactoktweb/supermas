@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount, AccountClass, AccountType, AccountNature, AccountLevel } from '../../types'
 import { AccountFormData } from '../../schemas/accounting.schema'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface NewAccountDrawerProps {
   isOpen: boolean
@@ -155,10 +156,11 @@ export function NewAccountDrawer({
           <div className="space-y-3">
             <div>
               <label className="block font-semibold text-slate-700 mb-1">Clase PUC:</label>
-              <select
-                className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+              <SelectField
                 value={accountClass}
-                onChange={(e) => handleClassChange(Number(e.target.value) as AccountClass)}
+                className="w-full"
+                size="sm"
+                onChange={(value) => handleClassChange(Number(value) as AccountClass)}
               >
                 <option value={1}>Clase 1: Activos</option>
                 <option value={2}>Clase 2: Pasivos</option>
@@ -167,7 +169,7 @@ export function NewAccountDrawer({
                 <option value={5}>Clase 5: Gastos</option>
                 <option value={6}>Clase 6: Costos de Venta</option>
                 <option value={7}>Clase 7: Costos de Producción</option>
-              </select>
+              </SelectField>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -198,17 +200,18 @@ export function NewAccountDrawer({
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Nivel Jerárquico:</label>
-                <select
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <SelectField
                   value={level}
-                  onChange={(e) => setLevel(e.target.value as AccountLevel)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setLevel(value as AccountLevel)}
                 >
                   <option value="CLASS">Clase (1 dígito - Nivel 1)</option>
                   <option value="GROUP">Grupo (2 dígitos - Nivel 2)</option>
                   <option value="ACCOUNT">Cuenta Mayor (4 dígitos - Nivel 3 - No imputable)</option>
                   <option value="SUBACCOUNT">Subcuenta (6 dígitos - Nivel 4 - Imputable)</option>
                   <option value="AUXILIARY">Auxiliar / Subcuenta Detalle (ej: 111005.01 - Nivel 5 - Imputable)</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -241,21 +244,23 @@ export function NewAccountDrawer({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Naturaleza Contable:</label>
-                <select
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <SelectField
                   value={nature}
-                  onChange={(e) => setNature(e.target.value as AccountNature)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setNature(value as AccountNature)}
                 >
                   <option value="DEBIT">Débito (Aumenta al Debe)</option>
                   <option value="CREDIT">Crédito (Aumenta al Haber)</option>
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Cuenta Padre (Superior):</label>
-                <select
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <SelectField
                   value={parentId}
-                  onChange={(e) => setParentId(e.target.value)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setParentId(value)}
                 >
                   <option value="">Ninguna (Nivel Superior)</option>
                   {accounts
@@ -265,7 +270,7 @@ export function NewAccountDrawer({
                         {a.code} - {a.name}
                       </option>
                     ))}
-                </select>
+                </SelectField>
               </div>
             </div>
 

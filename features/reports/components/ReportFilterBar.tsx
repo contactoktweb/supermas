@@ -4,6 +4,7 @@ import React, { useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
 import { ReportPeriod } from '../types'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 interface ReportFilterBarProps {
   searchQuery: string
@@ -114,20 +115,18 @@ export function ReportFilterBar({
         {/* Date pickers if custom range */}
         {period === 'CUSTOM' && setStartDate && setEndDate && (
           <div className="flex items-center gap-2">
-            <input
-              type="date"
+            <DatePicker
               value={startDate || ''}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
               aria-label="Fecha inicial"
+              size="sm"
+              onChange={(value) => setStartDate(value)}
             />
             <span className="text-slate-400 text-xs">hasta</span>
-            <input
-              type="date"
+            <DatePicker
               value={endDate || ''}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
               aria-label="Fecha final"
+              size="sm"
+              onChange={(value) => setEndDate(value)}
             />
           </div>
         )}

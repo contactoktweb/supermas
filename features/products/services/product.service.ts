@@ -24,6 +24,7 @@ import { categoryService } from '@/features/categories/services/category.service
 import { brandService } from '@/features/brands/services/brand.service'
 import { PostingAccountOption } from '@/features/accounting/utils/posting-accounts'
 import { planPriceChanges } from '../utils/price-change-plan'
+import { DEFAULT_RUNTIME_SETTINGS } from '@/features/settings/services/runtime-settings'
 
 /** Longitud mínima del motivo de un cambio o rechazo de precio (la base exige lo mismo). */
 export const PRICE_CHANGE_REASON_MIN_LENGTH = 5
@@ -128,8 +129,8 @@ export class ProductService {
       isTaxExempt: validated.taxProfile === 'EXENTO' || validated.taxProfile === 'EXCLUIDO',
       primaryImageUrl: validated.imageUrl || '',
       secondaryImages: validated.images && validated.images.length > 0 ? validated.images : [],
-      minStockThreshold: validated.minStockThreshold || 15,
-      criticalStockThreshold: validated.criticalStockThreshold || 5,
+      minStockThreshold: validated.minStockThreshold ?? DEFAULT_RUNTIME_SETTINGS.inventory.defaultMinStockThreshold,
+      criticalStockThreshold: validated.criticalStockThreshold ?? DEFAULT_RUNTIME_SETTINGS.inventory.criticalLowStockThreshold,
       isActive: validated.status === 'ACTIVE',
       isPublishedSupermas: validated.webSuperMas,
       isPublishedDistributor: validated.webDistribuidora,

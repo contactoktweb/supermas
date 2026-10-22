@@ -114,13 +114,18 @@ export const customerPaymentSchema = z.object({
   notes: z.string().optional(),
 })
 
+const CUSTOMER_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
+const CUSTOMER_DOCUMENT_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
+
 export const customerDocumentSchema = z.object({
-  customerId: z.string().min(1, 'El ID del cliente es requerido'),
-  fileName: z.string().min(3, 'El nombre del archivo es requerido'),
-  fileSize: z.string().default('1.0 MB'),
-  fileType: z.string().default('application/pdf'),
+  customerId: z.string().uuid('El cliente no es válido'),
+  name: z.string().trim().min(3, 'Escribe un nombre de al menos 3 caracteres').max(150, 'Máximo 150 caracteres'),
   category: z.enum(['RUT', 'CAMARA_COMERCIO', 'CEDULA', 'ACUERDO_COMERCIAL', 'OTRO']),
-  notes: z.string().optional(),
+  notes: z.string().trim().max(500, 'Máximo 500 caracteres').optional(),
+  file: z
+    .instanceof(File, { message: 'Selecciona el archivo a adjuntar' })
+    .refine((file) => file.size > 0 && file.size <= CUSTOMER_DOCUMENT_MAX_BYTES, 'El archivo debe pesar como máximo 5 MB')
+    .refine((file) => CUSTOMER_DOCUMENT_MIME_TYPES.includes(file.type), 'Formato no permitido: use PDF, JPG o PNG'),
 })
 
 export const customerFilterSchema = z.object({

@@ -97,7 +97,7 @@ export function ProductDeleteDialog({
       aria-labelledby="delete-product-title"
     >
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
@@ -217,7 +217,7 @@ export function ProductDeleteDialog({
                   </strong>
                   <p className="m-0 leading-normal text-amber-900/90">
                     Este producto tiene <strong>{usageCheck.salesCount} ventas</strong> y{' '}
-                    <strong>{usageCheck.movementsCount} movimientos</strong> de Kardex asentados. Por norma DIAN, no se pueden romper comprobantes ya emitidos. Al confirmar, el sistema retirará y desvinculará el producto por completo de todas las listas activas y POS preservando la trazabilidad fiduciaria.
+                    <strong>{usageCheck.movementsCount} movimientos</strong> de Kardex asentados. Por norma DIAN, no se pueden romper comprobantes ya emitidos. Al confirmar, el sistema retirará y desvinculará el producto por completo de todas las listas activas y POS preservando su historial.
                   </p>
                 </div>
               ) : (

@@ -9,6 +9,7 @@ import { PROTECTED_ROLE } from '../services/role-assignment'
 import { userService } from '../services/user.service'
 import { evaluatePasswordStrength, newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
 import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -386,21 +387,14 @@ export function UserFormDrawer({
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
                 Estado Operativo *
               </label>
-              <select
+              <SelectField
                 value={status}
-                onChange={(e) => setStatus(e.target.value as UserStatus)}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  borderRadius: 6,
-                  border: '1px solid var(--line, #cbd5e1)',
-                  fontSize: 14,
-                  background: 'var(--surface, #ffffff)',
-                }}
+                size="md"
+                onChange={(value) => setStatus(value as UserStatus)}
               >
                 <option value="ACTIVE">Activo (Habilitado para operar)</option>
                 <option value="INACTIVE">Inactivo (Acceso bloqueado)</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 
@@ -468,27 +462,17 @@ export function UserFormDrawer({
                 <span style={{ fontSize: 11, color: '#64748b' }}>Solo un administrador puede cambiarlo</span>
               )}
             </div>
-            <select
+            <SelectField
               value={role}
               disabled={!canAssignRoles}
               aria-label="Rol del colaborador"
-              onChange={(e) => {
-                const newRole = e.target.value as UserRole
+              size="md"
+              onChange={(value) => {
+                const newRole = value as UserRole
                 setRole(newRole)
                 if (newRole !== 'ENCARGADA_VENTA') {
                   setAssignedCashRegisterId('')
                 }
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 6,
-                border: '1px solid var(--line, #cbd5e1)',
-                fontSize: 14,
-                background: 'var(--surface, #ffffff)',
-                fontWeight: 600,
-                opacity: canAssignRoles ? 1 : 0.7,
-                cursor: canAssignRoles ? 'pointer' : 'not-allowed',
               }}
             >
               <optgroup label="7 Roles Definitivos del ERP">
@@ -516,7 +500,7 @@ export function UserFormDrawer({
                     })}
                 </optgroup>
               )}
-            </select>
+            </SelectField>
 
             {/* Explicación del rol seleccionado */}
             {roleDef && (
@@ -563,19 +547,12 @@ export function UserFormDrawer({
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
                   Punto de Venta Asignado *
                 </label>
-                <select
+                <SelectField
                   value={selectedLocations[0] || ''}
-                  onChange={(e) => {
-                    setSelectedLocations([e.target.value])
+                  size="md"
+                  onChange={(value) => {
+                    setSelectedLocations([value])
                     setAssignedCashRegisterId('')
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #c4b5fd',
-                    fontSize: 13,
-                    background: '#ffffff',
                   }}
                 >
                   {locations.map((loc) => (
@@ -583,7 +560,7 @@ export function UserFormDrawer({
                       {loc.name} ({loc.code} - {loc.type})
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               {/* Caja Asignada */}
@@ -591,17 +568,10 @@ export function UserFormDrawer({
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>
                   Caja Registradora Asignada *
                 </label>
-                <select
+                <SelectField
                   value={assignedCashRegisterId}
-                  onChange={(e) => setAssignedCashRegisterId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    border: '1px solid #c4b5fd',
-                    fontSize: 13,
-                    background: '#ffffff',
-                  }}
+                  size="md"
+                  onChange={(value) => setAssignedCashRegisterId(value)}
                 >
                   <option value="">-- Seleccionar Caja Registradora --</option>
                   {availableRegistersForLocation.map((cr) => (
@@ -609,7 +579,7 @@ export function UserFormDrawer({
                       {cr.name} ({cr.code}) — Estado: {cr.status === 'OPEN' ? 'ABIERTA' : 'CERRADA'}
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 {availableRegistersForLocation.length === 0 && (
                   <span style={{ fontSize: 11, color: '#dc2626', marginTop: 4, display: 'block' }}>
                     No hay cajas registradoras creadas en esta sede. Crea una caja en el módulo POS antes de asignar.
@@ -643,24 +613,17 @@ export function UserFormDrawer({
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
                 Bodega Asignada *
               </label>
-              <select
+              <SelectField
                 value={selectedLocations[0] || ''}
-                onChange={(e) => setSelectedLocations([e.target.value])}
-                style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: 6,
-                  border: '1px solid #86efac',
-                  fontSize: 13,
-                  background: '#ffffff',
-                }}
+                size="md"
+                onChange={(value) => setSelectedLocations([value])}
               >
                 {availableWarehouses.map((loc) => (
                   <option key={loc.id} value={loc.id}>
                     {loc.name} ({loc.code} - {loc.type})
                   </option>
                 ))}
-              </select>
+              </SelectField>
               <span style={{ fontSize: 11, color: '#166534' }}>
                 Restricción: El Jefe de Bodega solo podrá consultar existencias, despachar y recibir transferencias en la bodega asignada.
               </span>

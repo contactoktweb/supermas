@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ExogenaValidationError } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface ExogenaValidationDrawerProps {
   isOpen: boolean
@@ -234,17 +235,10 @@ export function ExogenaValidationDrawer({
             </div>
 
             {availableFormats.length > 0 && (
-              <select
+              <SelectField
                 value={formatFilter}
-                onChange={(e) => setFormatFilter(e.target.value)}
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: 6,
-                  border: '1px solid var(--line, #cbd5e1)',
-                  fontSize: 12.5,
-                  background: 'var(--surface, #ffffff)',
-                  color: 'var(--text)',
-                }}
+                size="md"
+                onChange={(value) => setFormatFilter(value)}
               >
                 <option value="ALL">Todos los formatos ({availableFormats.length})</option>
                 {availableFormats.map((f) => (
@@ -252,7 +246,7 @@ export function ExogenaValidationDrawer({
                     Formato {f}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             )}
           </div>
         </div>

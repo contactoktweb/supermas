@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { LegalNature, ThirdParty, ThirdPartyType } from '../../types'
 import { ThirdPartyFormData } from '../../schemas/accounting.schema'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface NewThirdPartyModalProps {
   isOpen: boolean
@@ -181,7 +182,7 @@ export function NewThirdPartyModal({
   return createPortal(
     <div className="drawer-backdrop modal-center p-3 sm:p-4" onClick={onClose} aria-modal="true" role="dialog">
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         style={{
           width: '100%',
           maxWidth: 720,
@@ -421,11 +422,12 @@ export function NewThirdPartyModal({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Tipo de Documento:</label>
-                  <select
-                    className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  <SelectField
                     value={documentType}
-                    onChange={(e) => {
-                      const dt = e.target.value
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => {
+                      const dt = value
                       setDocumentType(dt)
                       if (dt === 'NIT' && documentNumber) {
                         setVerificationDigit(calculateDianDv(documentNumber))
@@ -439,7 +441,7 @@ export function NewThirdPartyModal({
                     <option value="CE">CE (Cédula de Extranjería)</option>
                     <option value="PASSPORT">Pasaporte</option>
                     <option value="TI">TI (Tarjeta de Identidad)</option>
-                  </select>
+                  </SelectField>
                 </div>
 
                 <div className="md:col-span-2">

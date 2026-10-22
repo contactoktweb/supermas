@@ -17,6 +17,7 @@ import { hrAbsenceService } from '../../services/hr-absence.service'
 import { NOVELTY_STATUS_LABELS, NOVELTY_TYPE_LABELS, UNPAID_NOVELTY_TYPES, toSelectOptions } from '../../constants'
 import { addDaysIso, firstDayOfMonthIso, todayIso } from '../../utils/hr-format'
 import type { NoveltyFilters } from '../../types'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -99,11 +100,20 @@ export function NoveltiesPage() {
           <CustomSelect size="sm" value={filters.noveltyType} onChange={(v) => update({ noveltyType: v as NoveltyFilters['noveltyType'] })} options={TYPE_OPTIONS} />
           <label className="search-box w-full! text-[11px]">
             <span className="whitespace-nowrap">Desde</span>
-            <input type="date" value={filters.from} onChange={(e) => update({ from: e.target.value })} aria-label="Desde" />
+            <DatePicker
+              value={filters.from}
+              aria-label="Desde"
+              onChange={(value) => update({ from: value })}
+            />
           </label>
           <label className="search-box w-full! text-[11px]">
             <span className="whitespace-nowrap">Hasta</span>
-            <input type="date" value={filters.to} min={filters.from} onChange={(e) => update({ to: e.target.value })} aria-label="Hasta" />
+            <DatePicker
+              value={filters.to}
+              min={filters.from}
+              aria-label="Hasta"
+              onChange={(value) => update({ to: value })}
+            />
           </label>
         </div>
       </div>

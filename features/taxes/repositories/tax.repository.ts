@@ -478,7 +478,7 @@ export class TaxRepository {
         field: 'status',
         previousValue: 'ACTIVE',
         newValue: 'INACTIVE',
-        details: `Configuración desactivada. Motivo: ${reason || 'Desactivación fiduciaria'}. Histórico protegido.`,
+        details: `Configuración desactivada. Motivo: ${reason || 'Desactivación manual'}. Histórico protegido.`,
       },
     })
 

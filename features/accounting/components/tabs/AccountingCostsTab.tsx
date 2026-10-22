@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { CostAnalysisItem } from '../../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { useAccountingLocations } from '../../hooks/useAccountingLocations'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingCostsTabProps {
   costs: CostAnalysisItem[]
@@ -146,10 +147,10 @@ export function AccountingCostsTab({
         </div>
 
         <div className="flex items-center gap-2">
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            size="sm"
+            onChange={(value) => setSelectedCategory(value)}
           >
             <option value="ALL">Todas las categorías</option>
             {categories.map((c) => (
@@ -157,12 +158,12 @@ export function AccountingCostsTab({
                 {c.name}
               </option>
             ))}
-          </select>
+          </SelectField>
 
-          <select
-            className="filter-select text-xs"
+          <SelectField
             value={locationId}
-            onChange={(e) => onLocationChange(e.target.value)}
+            size="sm"
+            onChange={(value) => onLocationChange(value)}
           >
             <option value="ALL">Todas las bodegas</option>
             {locations.map((l) => (
@@ -170,7 +171,7 @@ export function AccountingCostsTab({
                 {l.name}
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
       </div>
 

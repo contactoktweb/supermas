@@ -36,6 +36,8 @@ import {
 } from '../../utils/report-format'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 import { incomeStatementLines, incomeStatementSections } from '../../utils/income-statement'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 export interface TrialBalancePdfModalProps {
   isOpen: boolean
@@ -750,7 +752,7 @@ export function TrialBalancePdfModal({
       aria-labelledby="accounting-pdf-title"
     >
       <div
-        className="modal-card animate-scale-up print:shadow-none print:border-none print:w-full print:max-w-none print:h-auto"
+        className="modal-card modal-card-flush animate-scale-up print:shadow-none print:border-none print:w-full print:max-w-none print:h-auto"
         style={{
           width: '100%',
           maxWidth: 1100,
@@ -784,11 +786,11 @@ export function TrialBalancePdfModal({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <SelectField
               value={activeReportType}
-              onChange={(e) => setActiveReportType(e.target.value as AccountingExportType)}
-              className="text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-blue-900"
               aria-label="Seleccionar reporte contable"
+              size="sm"
+              onChange={(value) => setActiveReportType(value as AccountingExportType)}
             >
               <option value="trial_balance">Balance de Comprobación</option>
               <option value="balance">Balance General</option>
@@ -798,7 +800,7 @@ export function TrialBalancePdfModal({
               <option value="entries">Comprobantes de Diario</option>
               <option value="accounts">Plan de Cuentas (PUC)</option>
               <option value="third_parties">Directorio de Terceros (DIAN)</option>
-            </select>
+            </SelectField>
 
             <button
               type="button"
@@ -848,11 +850,10 @@ export function TrialBalancePdfModal({
             {!isBalanceReport && (
               <label className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Desde</span>
-                <input
-                  type="date"
+                <DatePicker
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                  size="sm"
+                  onChange={(value) => setStartDate(value)}
                 />
               </label>
             )}
@@ -860,20 +861,20 @@ export function TrialBalancePdfModal({
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                 {isBalanceReport ? 'Fecha de corte' : 'Hasta'}
               </span>
-              <input
-                type="date"
+              <DatePicker
                 value={endDate}
                 max={isBalanceReport ? todayIso : undefined}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                size="sm"
+                onChange={(value) => setEndDate(value)}
               />
             </label>
             <label className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sede</span>
-              <select
+              <SelectField
                 value={locationId}
-                onChange={(e) => setLocationId(e.target.value)}
-                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                className="w-full"
+                size="sm"
+                onChange={(value) => setLocationId(value)}
               >
                 <option value="ALL">Todas las sedes</option>
                 {locations.map((loc) => (
@@ -881,15 +882,16 @@ export function TrialBalancePdfModal({
                     {loc.name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </label>
             {!isIncomeReport && (
               <label className="flex flex-col gap-0.5">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clase PUC</span>
-                <select
+                <SelectField
                   value={mainAccountCode}
-                  onChange={(e) => setMainAccountCode(e.target.value)}
-                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setMainAccountCode(value)}
                 >
                   <option value="ALL">Todas las clases</option>
                   {mainClasses.map((cls) => (
@@ -897,22 +899,23 @@ export function TrialBalancePdfModal({
                       Clase {cls.code} - {cls.name}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </label>
             )}
             <label className="flex flex-col gap-0.5">
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hasta el nivel</span>
-              <select
+              <SelectField
                 value={maxLevel}
-                onChange={(e) => setMaxLevel(e.target.value as TrialBalanceLevelFilter)}
-                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                className="w-full"
+                size="sm"
+                onChange={(value) => setMaxLevel(value as TrialBalanceLevelFilter)}
               >
                 <option value="CLASS">Clase</option>
                 <option value="GROUP">Grupo</option>
                 <option value="ACCOUNT">Cuenta</option>
                 <option value="SUBACCOUNT">Subcuenta</option>
                 <option value="AUXILIARY">Auxiliar</option>
-              </select>
+              </SelectField>
             </label>
           </div>
 

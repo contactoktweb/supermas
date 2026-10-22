@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { PriceChangeStatus } from '../../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 export type PriceStatusFilter = PriceChangeStatus | 'ALL'
 
@@ -50,26 +51,34 @@ export function PriceApprovalFilters({
       {showStatus && (
         <label className="price-approval-select">
           <span className="visually-hidden">Estado</span>
-          <select value={status} onChange={(e) => onStatusChange(e.target.value as PriceStatusFilter)}>
+          <SelectField
+            value={status}
+            size="md"
+            onChange={(value) => onStatusChange(value as PriceStatusFilter)}
+          >
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
             ))}
-          </select>
+          </SelectField>
         </label>
       )}
 
       <label className="price-approval-select">
         <span className="visually-hidden">Lista de precios</span>
-        <select value={priceList} onChange={(e) => onPriceListChange(e.target.value)}>
+        <SelectField
+          value={priceList}
+          size="md"
+          onChange={(value) => onPriceListChange(value)}
+        >
           <option value="ALL">Todas las listas</option>
           {priceListOptions.map((option) => (
             <option key={option.code} value={option.code}>
               {option.name}
             </option>
           ))}
-        </select>
+        </SelectField>
       </label>
     </div>
   )

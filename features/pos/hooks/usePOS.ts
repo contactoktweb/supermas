@@ -13,6 +13,7 @@ import {
   POSBankAccountOption,
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 
 export function usePOS() {
   // Real active locations state
@@ -93,7 +94,7 @@ export function usePOS() {
     async function initPOSLocationsAndUser() {
       try {
         setLocationsLoading(true)
-        const [locsRes, authUserRes, catsRes] = await Promise.all([
+        const [locsRes, authUserRes, catsRes, runtimeSettings] = await Promise.all([
           supabaseClient
             .from('locations')
             .select('id, code, name')
@@ -105,6 +106,7 @@ export function usePOS() {
             .select('name')
             .eq('is_active', true)
             .order('name', { ascending: true }),
+          getRuntimeSettings(),
         ])
 
         const activeLocs = locsRes.data || []
@@ -132,13 +134,16 @@ export function usePOS() {
           }
 
           if (activeLocs.length > 0) {
+            // Sede predeterminada de Configuración → Punto de Venta, si sigue activa.
+            const initialLoc =
+              activeLocs.find((loc) => loc.id === runtimeSettings.pos.defaultLocationId) ?? activeLocs[0]
             setUserContext((prev) => ({
               ...prev,
               userId: currentUserId,
               userName: currentUserName,
               userRole: currentUserRole,
-              locationId: activeLocs[0].id,
-              locationName: activeLocs[0].name,
+              locationId: initialLoc.id,
+              locationName: initialLoc.name,
             }))
           }
         }

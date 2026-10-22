@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { POSCartItem } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface POSDiscountModalProps {
   isOpen: boolean
@@ -183,20 +184,10 @@ export const POSDiscountModal: React.FC<POSDiscountModalProps> = ({
             <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: 'var(--navy)' }}>
               Motivo del Descuento
             </label>
-            <select
+            <SelectField
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              style={{
-                height: 42,
-                padding: '0 12px',
-                borderRadius: 9,
-                border: '1px solid #cbd5e1',
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--navy)',
-                background: '#ffffff',
-                outline: 'none',
-              }}
+              size="md"
+              onChange={(value) => setReason(value)}
             >
               {REASON_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
@@ -204,7 +195,7 @@ export const POSDiscountModal: React.FC<POSDiscountModalProps> = ({
                 </option>
               ))}
               <option value="OTRO">Otro motivo personalizado...</option>
-            </select>
+            </SelectField>
 
             {reason === 'OTRO' && (
               <input

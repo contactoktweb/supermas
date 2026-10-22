@@ -8,6 +8,7 @@ import { ReturnDispositionOptions, ReturnRecord, ReturnStats, ReturnType } from 
 import { DAMAGED_DESTINATION_LABELS, DAMAGED_STATUS_LABELS, RETURN_ITEM_CONDITION_LABELS } from '../constants'
 import { CustomerReturnFormLine, CustomerReturnLineEditor } from './CustomerReturnLineEditor'
 import { DamagedGoodsPanel } from './DamagedGoodsPanel'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface ReturnsPageProps {
   onNavigate?: (view: string) => void
@@ -474,16 +475,16 @@ export function ReturnsPage(_props: ReturnsPageProps) {
               <label htmlFor="returns-type" className="sr-only">
                 Tipo de devolución
               </label>
-              <select
+              <SelectField
                 id="returns-type"
                 value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value as ReturnType | 'ALL')}
-                className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                size="sm"
+                onChange={(value) => setSelectedType(value as ReturnType | 'ALL')}
               >
                 <option value="ALL">Todos los tipos</option>
                 <option value="CUSTOMER_RETURN">Clientes (Entrada)</option>
                 <option value="SUPPLIER_RETURN">Proveedores (Salida)</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 
@@ -747,12 +748,12 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                 <label htmlFor="customer-return-sale" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                   Seleccionar Venta
                 </label>
-                <select
+                <SelectField
                   id="customer-return-sale"
                   value={selectedSaleId}
-                  onChange={(e) => handleSaleSelect(e.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-sm"
-                  required
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => handleSaleSelect(value)}
                 >
                   <option value="">Seleccione una venta...</option>
                   {returnableSales.map((s) => (
@@ -760,7 +761,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                       {s.saleNumber} - {s.customerName} (${s.totalAmount?.toLocaleString('es-CO')})
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 {returnableSales.length === 0 && (
                   <p className="mt-1 text-xs text-slate-500">No hay ventas disponibles para devolución.</p>
                 )}
@@ -879,12 +880,12 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                 <label htmlFor="supplier-return-purchase" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
                   Seleccionar Compra Recibida
                 </label>
-                <select
+                <SelectField
                   id="supplier-return-purchase"
                   value={selectedPurchaseId}
-                  onChange={(e) => handlePurchaseSelect(e.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-300 bg-white px-2.5 text-sm"
-                  required
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => handlePurchaseSelect(value)}
                 >
                   <option value="">Seleccione una compra recibida...</option>
                   {returnablePurchases.map((p) => (
@@ -892,7 +893,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                       {p.purchaseNumber} - {p.supplierName} (${p.totalAmount?.toLocaleString('es-CO')})
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 {returnablePurchases.length === 0 && (
                   <p className="mt-1 text-xs text-slate-500">No hay compras recibidas disponibles para devolución.</p>
                 )}

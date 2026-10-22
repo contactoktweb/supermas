@@ -4,6 +4,7 @@ import React, { useId, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CashFormError, CashModal } from './CashModal'
 import { CashLocationOption, REDUCED_MOTION_CLASS, getErrorMessage } from './cashUi'
+import { SelectField } from '@/components/ui/SelectField'
 
 export interface NewCashRegisterValues {
   locationId: string
@@ -59,12 +60,11 @@ export function NewCashRegisterModal({ locations, defaultLocationId, onClose, on
           <label htmlFor={locationFieldId}>
             Bodega / sede<em>*</em>
           </label>
-          <select
+          <SelectField
             id={locationFieldId}
-            className="custom-form-input"
             value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            required
+            size="md"
+            onChange={(value) => setLocationId(value)}
           >
             {locations.length === 0 && <option value="">No hay sedes disponibles</option>}
             {locations.map((location) => (
@@ -72,7 +72,7 @@ export function NewCashRegisterModal({ locations, defaultLocationId, onClose, on
                 {location.name}
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
 
         <div className="form-field">

@@ -24,6 +24,7 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
 import { BankAccount } from '@/features/treasury/types'
+import { DatePicker } from '@/components/ui/DatePicker'
 
 export function AccountsPayablePaymentModal({
   item,
@@ -334,19 +335,10 @@ export function AccountsPayablePaymentModal({
               <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                 Fecha del pago <span style={{ color: '#dc2626' }}>*</span>
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '9px 12px',
-                  fontSize: 13,
-                  borderRadius: 8,
-                  border: '1px solid var(--border)',
-                  background: '#ffffff',
-                }}
                 required
+                onChange={(value) => setPaymentDate(value)}
               />
             </div>
             <div>

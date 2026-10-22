@@ -188,7 +188,6 @@ export interface CustomerDocumentSummary {
   id: string
   customerId?: string
   fileName: string
-  fileUrl: string
   fileType: string
   fileSize: string
   category: 'RUT' | 'CAMARA_COMERCIO' | 'CEDULA' | 'ACUERDO_COMERCIAL' | 'OTRO'
@@ -295,11 +294,10 @@ export interface CustomerPaymentDTO {
 
 export interface CustomerDocumentDTO {
   customerId: string
-  fileName: string
-  fileSize: string
-  fileType: string
+  name: string
   category: 'RUT' | 'CAMARA_COMERCIO' | 'CEDULA' | 'ACUERDO_COMERCIAL' | 'OTRO'
   notes?: string
+  file: File
 }
 
 export interface CustomerUserContext {

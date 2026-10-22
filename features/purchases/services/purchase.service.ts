@@ -96,7 +96,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<PaginatedPurchasesResponse> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos suficientes para consultar compras (purchases.read requerido)')
+      throw new Error('No tienes permisos suficientes para consultar compras.')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
@@ -119,7 +119,7 @@ export class PurchaseService {
    */
   async getById(id: string, userContext?: UserPermissionContext): Promise<Purchase | null> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para ver el detalle de compras')
+      throw new Error('No tienes permisos para ver el detalle de compras.')
     }
 
     const purchase = await this.repository.findById(id)
@@ -130,11 +130,33 @@ export class PurchaseService {
   }
 
   /**
+   * Sube la factura del proveedor después de guardar la compra. Si falla, la compra ya existe:
+   * se devuelve con un aviso en lugar de un error para no provocar un registro duplicado.
+   */
+  private async attachInvoice(purchase: Purchase, file?: File): Promise<Purchase> {
+    if (!file) return purchase
+    try {
+      await this.repository.uploadInvoiceAttachment(purchase.id, file)
+      return (await this.repository.findById(purchase.id)) ?? purchase
+    } catch (err) {
+      return {
+        ...purchase,
+        attachmentWarning: err instanceof Error ? err.message : 'No se pudo adjuntar la factura.',
+      }
+    }
+  }
+
+  /** URL temporal para ver la factura adjunta de una compra. */
+  async getInvoiceAttachmentUrl(path: string): Promise<string> {
+    return this.repository.getInvoiceAttachmentUrl(path)
+  }
+
+  /**
    * Crea una nueva orden de compra en el sistema.
    */
   async create(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para crear compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para crear compras.')
     }
 
     // 1. Validar esquema con Zod
@@ -166,7 +188,7 @@ export class PurchaseService {
       }
     }
 
-    return this.repository.create(input)
+    return this.attachInvoice(await this.repository.create(input), input.attachment?.file)
   }
 
   async createPurchase(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
@@ -182,7 +204,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para modificar compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para modificar compras.')
     }
 
     updatePurchaseSchema.parse(input)
@@ -219,7 +241,7 @@ export class PurchaseService {
       }
     }
 
-    return this.repository.update(purchaseId, input)
+    return this.attachInvoice(await this.repository.update(purchaseId, input), input.attachment?.file)
   }
 
   /**
@@ -227,7 +249,7 @@ export class PurchaseService {
    */
   async confirmOrder(purchaseId: string, userContext?: UserPermissionContext): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para confirmar órdenes de compra (purchases.create requerido)')
+      throw new Error('No tienes permisos para confirmar órdenes de compra.')
     }
 
     return this.repository.confirm(purchaseId)
@@ -242,7 +264,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.cancel')) {
-      throw new Error('No tienes permisos para anular compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para anular compras.')
     }
 
     cancelPurchaseSchema.parse({ purchaseId: id, reason })
@@ -255,7 +277,7 @@ export class PurchaseService {
    */
   async getReceipts(purchaseId?: string, userContext?: UserPermissionContext): Promise<PurchaseReceipt[]> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para consultar recepciones (purchases.read requerido)')
+      throw new Error('No tienes permisos para consultar recepciones.')
     }
 
     return this.repository.getReceipts(purchaseId)
@@ -288,7 +310,7 @@ export class PurchaseService {
     }
 
     if (!this.hasPermission(context, 'purchases.create', 'purchase.receive', 'purchase.create')) {
-      throw new Error('No tienes permisos para recibir compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para recibir compras.')
     }
 
     receivePurchaseSchema.parse(payload)
@@ -304,7 +326,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'treasury.create', 'purchases.create', 'purchase.payment')) {
-      throw new Error('No tienes permisos para registrar pagos (purchases.create / treasury.create requerido)')
+      throw new Error('No tienes permisos para registrar pagos.')
     }
 
     registerPaymentSchema.parse(input)
@@ -317,7 +339,7 @@ export class PurchaseService {
    */
   async getPurchaseStats(userContext?: UserPermissionContext): Promise<PurchaseStats> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para ver estadísticas de compras')
+      throw new Error('No tienes permisos para ver estadísticas de compras.')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')

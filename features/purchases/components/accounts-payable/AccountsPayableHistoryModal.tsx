@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountPayableItem, accountsPayableService } from '../../services/accounts-payable.service'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface AccountsPayableHistoryModalProps {
   item: AccountPayableItem | null
@@ -43,6 +44,8 @@ export function AccountsPayableHistoryModal({
     }
   }, [isOpen, item])
 
+  useEscapeKey(isOpen, onClose)
+
   if (!isOpen || !item || !mounted) return null
 
   const formatCurrency = (val: number) => {
@@ -54,41 +57,19 @@ export function AccountsPayableHistoryModal({
   }
 
   return createPortal(
-    <div
-      className="modal-backdrop page-enter"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(3px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
+    <div className="drawer-backdrop modal-center" onClick={onClose} role="dialog" aria-modal="true">
       <div
-        className="modal-content"
-        style={{
-          background: 'var(--card-bg, #ffffff)',
-          borderRadius: 16,
-          width: '100%',
-          maxWidth: 600,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '85vh',
-        }}
+        className="modal-card modal-card-flush animate-scale-up"
+        style={{ width: 'min(100%, 600px)', maxWidth: 600, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
           style={{
             padding: '20px 24px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--navy, #1e3a8a)',
-            color: '#ffffff',
+            borderBottom: '1px solid var(--line)',
+            background: '#ffffff',
+            color: 'var(--navy)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -100,7 +81,7 @@ export function AccountsPayableHistoryModal({
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: 'rgba(255, 255, 255, 0.15)',
+                background: '#edf2fa',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -109,25 +90,13 @@ export function AccountsPayableHistoryModal({
               <AppIcon name="clock" size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Historial de Abonos y Pagos</h2>
-              <p style={{ fontSize: 12, margin: 0, opacity: 0.85 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Historial de Abonos y Pagos</h3>
+              <p style={{ fontSize: 12, margin: 0, color: 'var(--muted)' }}>
                 {item.purchaseNumber} — Factura: {item.supplierInvoiceNumber}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              cursor: 'pointer',
-              padding: 4,
-              borderRadius: 6,
-              opacity: 0.85,
-            }}
-          >
+          <button type="button" onClick={onClose} className="icon-button" aria-label="Cerrar" style={{ width: 32, height: 32, borderRadius: 8 }}>
             <AppIcon name="close" size={18} />
           </button>
         </div>

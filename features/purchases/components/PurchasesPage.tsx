@@ -30,7 +30,8 @@ import { PurchaseExportModal } from './PurchaseExportModal'
 import { PurchaseStatsSkeleton, PurchaseTableSkeleton } from './PurchaseSkeleton'
 import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
-import { PurchaseToastContainer, PurchaseToastMessage } from './PurchaseToast'
+import { PurchaseToastContainer, usePurchaseToasts } from './PurchaseToast'
+import { canReceivePurchase } from '../utils/purchase-status'
 
 interface PurchasesPageProps {
   onNavigate?: (view: string) => void
@@ -90,23 +91,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // 4. Toast Notifications
-  const [toasts, setToasts] = useState<PurchaseToastMessage[]>([])
-
-  const addToast = (
-    title: string,
-    message: string,
-    type: 'success' | 'error' | 'info' | 'warning' = 'info'
-  ) => {
-    const id = `toast-${Date.now()}-${Math.random()}`
-    setToasts((prev) => [...prev, { id, title, message, type }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4500)
-  }
-
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
+  const { toasts, addToast, dismissToast } = usePurchaseToasts()
 
   // 5. Initial fetch of dynamic options (Suppliers & Locations)
   useEffect(() => {
@@ -196,6 +181,9 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${created.purchaseNumber} fue registrada con éxito (${created.status === "BORRADOR" || created.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
+    if (created.attachmentWarning) {
+      addToast('Factura sin adjuntar', `${created.attachmentWarning} Puede adjuntarla al editar el borrador.`, 'warning')
+    }
     loadData()
   }
 
@@ -207,6 +195,9 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${updated.purchaseNumber} fue actualizada con éxito (${updated.status === "BORRADOR" || updated.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
+    if (updated.attachmentWarning) {
+      addToast('Factura sin adjuntar', updated.attachmentWarning, 'warning')
+    }
     loadData()
   }
 
@@ -292,15 +283,13 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
 
   // Action: Quick Receive (open first pending reception)
   const handleQuickReceive = () => {
-    const firstPending = purchases.find(
-      (p) => p.status === 'PENDING_RECEPTION' || p.status === 'DRAFT'
-    )
+    const firstPending = purchases.find((p) => canReceivePurchase(p.status))
     if (firstPending) {
       setReceiveModalPurchase(firstPending)
     } else {
       addToast(
         'Sin compras pendientes',
-        'No hay compras pendientes de recepción en la lista actual.',
+        'No hay órdenes confirmadas pendientes de recepción en la lista actual.',
         'info'
       )
     }
@@ -309,7 +298,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   // Action: Navigate to Kardex filtered by document
   const handleViewKardex = (purchaseNumber: string, locationId: string) => {
     if (onNavigate) {
-      onNavigate('Kardex')
+      onNavigate(locationId ? `/kardex?locationId=${encodeURIComponent(locationId)}` : '/kardex')
     } else {
       addToast(
         'Kardex',
@@ -329,14 +318,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       filters.endDate
   )
 
-  const activeFilterCount = [
-    Boolean(filters.query?.trim()),
-    Boolean(filters.supplierId && filters.supplierId !== 'ALL'),
-    Boolean(filters.locationId && filters.locationId !== 'ALL'),
-    Boolean(filters.status && filters.status !== 'ALL'),
-    Boolean(filters.paymentType && filters.paymentType !== 'ALL'),
-    Boolean(filters.startDate || filters.endDate),
-  ].filter(Boolean).length
 
   return (
     <div className="products-module-wrapper purchases-module-wrapper page-enter">
@@ -348,9 +329,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         onNewPurchase={() => setIsNewDrawerOpen(true)}
         onQuickReceive={handleQuickReceive}
         onExport={() => setIsExportModalOpen(true)}
-        onResetFilters={handleResetFilters}
-        hasActiveFilters={hasActiveFilters}
-        activeFilterCount={activeFilterCount}
       />
 
       {/* 2. Key Metrics & Stats */}
@@ -374,6 +352,14 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         <PurchaseTableSkeleton />
       ) : error ? (
         <PurchaseErrorState message={error} onRetry={loadData} />
+      ) : purchases.length === 0 ? (
+        <div className="table-panel">
+          <PurchaseEmptyState
+            hasFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            onNewPurchase={() => setIsNewDrawerOpen(true)}
+          />
+        </div>
       ) : (
         <PurchaseTable
           purchases={purchases}
@@ -406,7 +392,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       <PurchaseNewDrawer
         isOpen={isNewDrawerOpen}
         suppliers={suppliers}
-        locations={locations}
+        locations={locations.filter((loc) => loc.allowPurchases)}
         initialPurchase={editingPurchase}
         onClose={() => {
           setIsNewDrawerOpen(false)
@@ -471,8 +457,8 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       {/* Modal Exportar CSV/JSON */}
       <PurchaseExportModal
         isOpen={isExportModalOpen}
-        purchases={purchases}
-        isCostRedacted={isCostRedacted}
+        filters={filters}
+        userContext={effectiveUserContext}
         onClose={() => setIsExportModalOpen(false)}
       />
     </div>

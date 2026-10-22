@@ -8,6 +8,8 @@ export interface LocationOption {
   type: string
   city?: string
   status?: string
+  /** La bodega admite órdenes de compra (locations.allow_purchases). */
+  allowPurchases: boolean
 }
 
 export class LocationService {
@@ -27,7 +29,7 @@ export class LocationService {
   async list(): Promise<LocationOption[]> {
     const { data, error } = await this.client
       .from('locations')
-      .select('id, code, name, type, city, status')
+      .select('id, code, name, type, city, status, allow_purchases')
       .eq('status', 'ACTIVE')
       .order('name', { ascending: true })
 
@@ -41,8 +43,9 @@ export class LocationService {
       code: l.code,
       name: l.name,
       type: l.type,
-      city: l.city || 'Medellín',
+      city: l.city || undefined,
       status: l.status,
+      allowPurchases: l.allow_purchases !== false,
     }))
   }
 
@@ -52,7 +55,7 @@ export class LocationService {
   async getById(id: string): Promise<LocationOption | null> {
     const { data, error } = await this.client
       .from('locations')
-      .select('id, code, name, type, city, status')
+      .select('id, code, name, type, city, status, allow_purchases')
       .eq('id', id)
       .single()
 
@@ -63,8 +66,9 @@ export class LocationService {
       code: data.code,
       name: data.name,
       type: data.type,
-      city: data.city || 'Medellín',
+      city: data.city || undefined,
       status: data.status,
+      allowPurchases: data.allow_purchases !== false,
     }
   }
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase } from '../types'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface PurchaseCancelModalProps {
   purchase: Purchase | null
@@ -34,6 +35,8 @@ export function PurchaseCancelModal({
     }
   }, [purchase])
 
+  useEscapeKey(isOpen, onClose)
+
   if (!isOpen || !purchase || !mounted) return null
 
   const handleConfirm = async () => {
@@ -63,7 +66,7 @@ export function PurchaseCancelModal({
       aria-labelledby="cancel-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 480, width: '92vw' }}
       >

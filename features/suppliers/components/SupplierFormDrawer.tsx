@@ -107,8 +107,8 @@ export function SupplierFormDrawer({
       setWhatsapp('')
       setEmail('')
       setAddress('')
-      setCity('Medellín')
-      setDepartment('Antioquia')
+      setCity('')
+      setDepartment('')
       setCountry('Colombia')
       setStatus('ACTIVE')
       setCreditDays(30)
@@ -176,7 +176,7 @@ export function SupplierFormDrawer({
       aria-labelledby="supplier-form-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 680, width: '92vw' }}
       >

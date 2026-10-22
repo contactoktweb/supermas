@@ -24,6 +24,8 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
 import { BankAccount } from '@/features/treasury/types'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { todayBogota } from '@/features/purchases/utils/purchase-status'
 
 export function PurchasePaymentModal({
   purchase,
@@ -33,7 +35,7 @@ export function PurchasePaymentModal({
 }: PurchasePaymentModalProps) {
   const [mounted, setMounted] = useState(false)
   const [amount, setAmount] = useState<number>(0)
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState<string>(todayBogota())
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFERENCIA')
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [bankAccountId, setBankAccountId] = useState<string>('')
@@ -56,12 +58,14 @@ export function PurchasePaymentModal({
   useEffect(() => {
     if (purchase) {
       setAmount(purchase.pendingBalance)
-      setPaymentDate(new Date().toISOString().split('T')[0])
+      setPaymentDate(todayBogota())
       setReference('')
       setNotes('')
       setError(null)
     }
   }, [purchase])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !purchase || !mounted) return null
 
@@ -86,7 +90,7 @@ export function PurchasePaymentModal({
       )
       return
     }
-    if ((paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'CONSIGNACION') && !bankAccountId) {
+    if (paymentMethod !== 'EFECTIVO' && !bankAccountId) {
       setError('Debe seleccionar una cuenta bancaria de origen para la transferencia.')
       return
     }
@@ -124,7 +128,7 @@ export function PurchasePaymentModal({
       aria-labelledby="payment-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 520, width: '92vw' }}
       >
@@ -350,7 +354,7 @@ export function PurchasePaymentModal({
                   />
                 ) : (
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: 8, background: '#f8fafc', borderRadius: 6, border: '1px solid var(--border)' }}>
-                    No hay cuentas bancarias activas registradas. Se procesará sin afectación directa de cuenta.
+                    No hay cuentas bancarias activas. Regístrela en Tesorería o pague en efectivo.
                   </div>
                 )}
               </div>
@@ -372,7 +376,7 @@ export function PurchasePaymentModal({
                 }}
               >
                 <AppIcon name="info" size={16} />
-                <span>El dinero en efectivo se debitará automáticamente de la sesión de caja abierta en la sede.</span>
+                <span>El efectivo sale de tu caja abierta en la sede de la compra y queda registrado en el arqueo.</span>
               </div>
             )}
 

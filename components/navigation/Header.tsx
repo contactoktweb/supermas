@@ -57,7 +57,7 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   '/compras': [
     { label: 'Inicio', href: '/' },
     { label: 'Compras' },
-    { label: 'Historial de Compras' },
+    { label: 'Órdenes de compra' },
   ],
   '/proveedores': [
     { label: 'Inicio', href: '/' },
@@ -67,12 +67,12 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
   '/recepciones': [
     { label: 'Inicio', href: '/' },
     { label: 'Compras' },
-    { label: 'Recepciones de Mercancía' },
+    { label: 'Recepciones' },
   ],
   '/cuentas-por-pagar': [
     { label: 'Inicio', href: '/' },
     { label: 'Compras' },
-    { label: 'Cuentas por Pagar (CxP)' },
+    { label: 'Cuentas por Pagar' },
   ],
   '/clientes': [
     { label: 'Inicio', href: '/' },

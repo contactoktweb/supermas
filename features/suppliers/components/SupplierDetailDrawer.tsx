@@ -129,7 +129,7 @@ export function SupplierDetailDrawer({
       aria-labelledby="supplier-detail-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 880, width: '94vw' }}
       >
@@ -576,7 +576,7 @@ export function SupplierDetailDrawer({
                     {onNewPurchase && (
                       <button
                         type="button"
-                        className="outline-button-sm"
+                        className="outline-button compact"
                         onClick={() => onNewPurchase(supplier)}
                       >
                         <AppIcon name="plus" size={13} />
@@ -626,14 +626,14 @@ export function SupplierDetailDrawer({
                                 {onViewPurchaseInModule ? (
                                   <button
                                     type="button"
-                                    className="outline-button-sm"
+                                    className="outline-button compact"
                                     onClick={() => onViewPurchaseInModule(inv.purchaseNumber)}
                                     title="Abrir compra en el módulo Compras"
                                   >
                                     <span>Ver compra</span>
                                   </button>
                                 ) : (
-                                  <a href="/compras" className="outline-button-sm">
+                                  <a href="/compras" className="outline-button compact">
                                     <span>Ver compra</span>
                                   </a>
                                 )}
@@ -786,7 +786,7 @@ export function SupplierDetailDrawer({
                                 href={inv.attachmentUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="outline-button-sm"
+                                className="outline-button compact"
                                 title="Ver archivo soporte de factura"
                               >
                                 <AppIcon name="eye" size={14} />
@@ -916,7 +916,7 @@ export function SupplierDetailDrawer({
                             href={d.url}
                             target="_blank"
                             rel="noreferrer"
-                            className="outline-button-sm"
+                            className="outline-button compact"
                             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                           >
                             <AppIcon name="eye" size={14} />

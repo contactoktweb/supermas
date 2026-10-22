@@ -117,7 +117,7 @@ export function SaleDetailDrawer({
       }}
     >
       <div
-        className="product-drawer page-enter"
+        className="product-drawer product-drawer-flush page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

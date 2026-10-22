@@ -8,6 +8,7 @@ import { LocationOption, locationService } from '../services/location.service'
 import { supplierService } from '../services/supplier.service'
 import { purchaseService } from '../services/purchase.service'
 import { SelectField } from '@/components/ui/SelectField'
+import { PageHeader } from '@/components/ui/PageHeader'
 
 interface ReceiptsPageProps {
   onNavigate?: (view: string) => void
@@ -307,61 +308,29 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
 
   return (
     <div className="products-module-wrapper receptions-module-wrapper page-enter">
-      {/* 1. Module Header */}
-      <header className="products-header-wrap">
-        <div className="header-title-group">
-          <span className="product-category-eyebrow">
-            Abastecimiento & Logística
-          </span>
-          <h1 className="header-main-title">
-            Recepciones de Mercancía
-          </h1>
-          <p className="header-sub-caption">
-            Historial de actas de recepción física, remisiones de proveedor e ingresos transaccionales a Kardex
-          </p>
-        </div>
-
-        <div className="products-actions-bar">
-          <button
-            type="button"
-            className="outline-button"
-            onClick={fetchReceipts}
-            disabled={loading}
-            title="Refrescar lista de actas"
-          >
-            <AppIcon name="refresh" size={15} className={loading ? 'spin-icon' : ''} />
-            <span>Actualizar</span>
-          </button>
-
-          {onNavigate && (
-            <button
-              type="button"
-              className="outline-button"
-              onClick={() => onNavigate('/compras')}
-              title="Ir a órdenes de compra"
-            >
-              <AppIcon name="purchases" size={15} />
-              <span>Ver Órdenes de Compra</span>
+      <PageHeader
+        eyebrow="Compras"
+        title="Recepciones"
+        subtitle="Actas de recepción de mercancía en bodega y su ingreso al inventario."
+        actions={
+          <>
+            <button type="button" className="outline-button" onClick={fetchReceipts} disabled={loading}>
+              <AppIcon name="refresh" size={15} className={loading ? 'spin' : ''} />
+              <span>Actualizar</span>
             </button>
-          )}
-
-          {onNavigate && (
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => onNavigate('/compras')}
-              title="Registrar una nueva compra"
-            >
-              <AppIcon name="plus" size={15} />
-              <span>Nueva Compra</span>
-            </button>
-          )}
-        </div>
-      </header>
+            {onNavigate && (
+              <button type="button" className="primary-button" onClick={() => onNavigate('/compras')}>
+                <AppIcon name="warehouse" size={15} />
+                <span>Recibir una orden</span>
+              </button>
+            )}
+          </>
+        }
+      />
 
       {/* 2. Key Metrics & Stats */}
       <section
-        className="stats-grid products-stats-grid page-enter"
+        className="stats-grid dashboard-primary-grid page-enter"
         aria-label="Métricas de recepciones y almacén"
       >
         <ReceiptStatCard
@@ -381,7 +350,7 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
           value={animTotalUnits.toLocaleString('es-CO')}
           iconName="check"
           tone="teal"
-          badge="Kardex Físico"
+          badge="Inventario"
           note="Stock alimentado"
           isPositive={true}
           subtext="Unidades físicas a inventario"
@@ -414,12 +383,12 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
       </section>
 
       {/* 3. Toolbar & Dynamic Filters */}
-      <div className="products-toolbar toolbar">
+      <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
         <div className="products-search-box search-box">
           <AppIcon name="search" size={16} className="search-icon" />
           <input
             type="text"
-            className="filter-input-text"
+            aria-label="Buscar recepciones"
             placeholder="Buscar por acta, remisión, proveedor, orden o almacenista..."
             value={searchQuery}
             onChange={(e) => {
@@ -907,7 +876,7 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
           aria-modal="true"
         >
           <div
-            className="product-drawer product-detail-drawer page-enter"
+            className="product-drawer product-detail-drawer page-enter print-area"
             onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: 680, width: '92vw' }}
           >

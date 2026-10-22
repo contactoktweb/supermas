@@ -10,20 +10,28 @@ import {
   SupplierWarehouseRelation,
   SupplierDocumentItem,
 } from '../types'
+import {
+  INVENTORY_STATUS,
+  PAYABLE_INVENTORY_STATUSES,
+  PENDING_RECEPTION_STATUSES,
+  hasReceivedGoods,
+  isPayablePurchase,
+  pendingPurchaseBalance,
+  todayBogota,
+} from '@/features/purchases/utils/purchase-status'
 
 /**
  * Mapea una fila de public.suppliers (con compras anidadas) a la entidad de dominio Supplier
  */
 function mapDbRowToSupplier(row: any): Supplier {
   const purchases = (row.purchases as any[]) || []
-  const totalPurchased = purchases.reduce((acc, p) => acc + Number(p.total_amount || 0), 0)
-  const currentBalance = purchases
-    .filter((p) => p.payment_status !== 'PAID' && p.inventory_status !== 'CANCELLED')
-    .reduce((acc, p) => acc + (Number(p.total_amount || 0) - Number(p.paid_amount || 0)), 0)
-  const pendingInvoicesCount = purchases.filter(
-    (p) => p.payment_status !== 'PAID' && p.inventory_status !== 'CANCELLED'
-  ).length
-  const deliveriesCount = purchases.filter((p) => p.inventory_status === 'RECEIVED').length
+  const totalPurchased = purchases
+    .filter((p) => isPayablePurchase(p.inventory_status))
+    .reduce((acc, p) => acc + Number(p.total_amount || 0), 0)
+  const currentBalance = purchases.reduce((acc, p) => acc + pendingPurchaseBalance(p), 0)
+  const pendingInvoicesCount = purchases.filter((p) => pendingPurchaseBalance(p) > 0).length
+  // Entregas: compras con mercancía recibida, total o parcialmente.
+  const deliveriesCount = purchases.filter((p) => hasReceivedGoods(p.inventory_status)).length
 
   let lastPurchaseDate: string | undefined = undefined
   if (purchases.length > 0) {
@@ -51,8 +59,8 @@ function mapDbRowToSupplier(row: any): Supplier {
     whatsapp: row.whatsapp || undefined,
     email: row.email || '',
     address: row.address || '',
-    city: row.city || 'Medellín',
-    department: row.department || 'Antioquia',
+    city: row.city || '',
+    department: row.department || '',
     country: 'Colombia',
     status: row.is_active ? 'ACTIVE' : 'INACTIVE',
     creditDays: Number(row.payment_terms_days || 0),
@@ -121,9 +129,10 @@ export class SupplierRepository {
       { count: 'exact' }
     )
 
-    // 1. Búsqueda por texto (nombre, documento, contacto, email, ciudad)
-    if (params.query && params.query.trim()) {
-      const q = params.query.trim().toLowerCase()
+    // 1. Búsqueda por texto (nombre, documento, contacto, email, ciudad); se quitan los caracteres
+    // que rompen la sintaxis del filtro.
+    const q = (params.query || '').trim().toLowerCase().replace(/[,()*%\\]/g, ' ').trim()
+    if (q) {
       query = query.or(
         `name.ilike.%${q}%,legal_name.ilike.%${q}%,commercial_name.ilike.%${q}%,tax_id.ilike.%${q}%,contact_name.ilike.%${q}%,email.ilike.%${q}%,city.ilike.%${q}%`
       )
@@ -137,6 +146,37 @@ export class SupplierRepository {
     // 3. Filtro por Estado
     if (params.status && params.status !== 'ALL') {
       query = query.eq('is_active', params.status === 'ACTIVE')
+    }
+
+    // Fecha de registro del proveedor
+    if (params.startDate) query = query.gte('created_at', params.startDate)
+    if (params.endDate) query = query.lte('created_at', `${params.endDate}T23:59:59`)
+
+    // Proveedores con compras en una bodega y/o con saldo pendiente: se resuelven primero sus ids para
+    // filtrar en el servidor y que el total y la paginación cuadren.
+    const needsBodega = Boolean(params.locationId && params.locationId !== 'ALL')
+    if (needsBodega || params.hasPendingBalance !== undefined) {
+      let purchasesQuery = supabaseClient
+        .from('purchases')
+        .select('supplier_id, total_amount, paid_amount, payment_status, inventory_status')
+        .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
+      if (needsBodega) purchasesQuery = purchasesQuery.eq('location_id', params.locationId!)
+      const { data: related, error: relatedError } = await purchasesQuery
+      if (relatedError) throw new Error('No se pudieron cargar los proveedores.')
+
+      const withPending = new Set((related ?? []).filter((p) => pendingPurchaseBalance(p) > 0).map((p) => p.supplier_id))
+      if (needsBodega) {
+        const atLocation = new Set((related ?? []).map((p) => p.supplier_id))
+        const ids = [...atLocation].filter((id) =>
+          params.hasPendingBalance === undefined ? true : params.hasPendingBalance === withPending.has(id)
+        )
+        query = query.in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'])
+      } else if (params.hasPendingBalance) {
+        const ids = [...withPending]
+        query = query.in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'])
+      } else if (withPending.size > 0) {
+        query = query.not('id', 'in', `(${[...withPending].join(',')})`)
+      }
     }
 
     // 4. Ordenamiento
@@ -164,20 +204,11 @@ export class SupplierRepository {
 
     if (error) {
       console.error('Error consultando proveedores en PostgreSQL:', error)
-      throw new Error(`Error consultando proveedores: ${error.message}`)
+      throw new Error('No se pudieron cargar los proveedores.')
     }
 
     const total = count || 0
-    let items = (data || []).map(mapDbRowToSupplier)
-
-    // Filtro adicional en memoria para hasPendingBalance si se solicitó
-    if (params.hasPendingBalance !== undefined) {
-      if (params.hasPendingBalance) {
-        items = items.filter((s) => s.currentBalance > 0)
-      } else {
-        items = items.filter((s) => s.currentBalance <= 0)
-      }
-    }
+    const items = (data || []).map(mapDbRowToSupplier)
 
     const totalPages = Math.ceil(total / pageSize) || 1
 
@@ -287,7 +318,7 @@ export class SupplierRepository {
 
     const insertPayload: any = {
       company_id: companyId,
-      tax_id: supplier.documentNumber.trim(),
+      tax_id: supplier.documentNumber.replace(/[.\-\s]/g, '').trim(),
       verification_digit: supplier.verificationDigit || null,
       name: (supplier.commercialName?.trim() || supplier.businessName.trim()),
       legal_name: supplier.businessName.trim(),
@@ -300,7 +331,7 @@ export class SupplierRepository {
       address: supplier.address.trim(),
       city: supplier.city.trim(),
       department: supplier.department.trim(),
-      payment_terms_days: supplier.creditDays || 30,
+      payment_terms_days: supplier.creditDays ?? 0,
       credit_limit: supplier.creditLimit || 0,
       notes: supplier.notes?.trim() || null,
       is_active: supplier.status === 'INACTIVE' ? false : true,
@@ -314,7 +345,11 @@ export class SupplierRepository {
 
     if (error || !data) {
       console.error('Error insertando proveedor en Supabase:', error)
-      throw new Error(`Error creando proveedor: ${error?.message || 'Error desconocido'}`)
+      throw new Error(
+        error?.code === '23505'
+          ? 'Ya existe un proveedor registrado con ese número de documento.'
+          : 'No se pudo crear el proveedor. Verifique los datos e intente de nuevo.'
+      )
     }
 
     return mapDbRowToSupplier(data)
@@ -421,7 +456,11 @@ export class SupplierRepository {
 
     if (error || !updated) {
       console.error('Error actualizando proveedor en PostgreSQL:', error)
-      throw new Error(`Error actualizando proveedor: ${error?.message || 'Error desconocido'}`)
+      throw new Error(
+        error?.code === '23505'
+          ? 'Ya existe un proveedor registrado con ese número de documento.'
+          : 'No se pudo actualizar el proveedor. Verifique los datos e intente de nuevo.'
+      )
     }
 
     return mapDbRowToSupplier(updated)
@@ -444,7 +483,7 @@ export class SupplierRepository {
       .from('purchases')
       .select('id, purchase_number, inventory_status')
       .eq('supplier_id', id)
-      .in('inventory_status', ['PENDING', 'DRAFT'])
+      .in('inventory_status', [...INVENTORY_STATUS.DRAFT, ...PENDING_RECEPTION_STATUSES])
       .limit(1)
 
     if (openPurchases && openPurchases.length > 0) {
@@ -467,56 +506,64 @@ export class SupplierRepository {
    * Obtiene estadísticas agregadas fiduciarias desde PostgreSQL
    */
   async getStats(_userContext?: any): Promise<SupplierStats> {
-    const { data: suppliersData, error: supErr } = await supabaseClient
-      .from('suppliers')
-      .select('id, is_active')
+    const today = todayBogota()
+    const monthStart = `${today.slice(0, 7)}-01`
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)
 
-    if (supErr) {
-      console.error('Error consultando estadísticas de proveedores:', supErr)
+    const [suppliersRes, purchasesRes] = await Promise.all([
+      supabaseClient.from('suppliers').select('id, is_active'),
+      supabaseClient
+        .from('purchases')
+        .select('id, supplier_id, total_amount, paid_amount, payment_status, due_date, inventory_status, issue_date')
+        .in('inventory_status', PAYABLE_INVENTORY_STATUSES),
+    ])
+    if (suppliersRes.error || purchasesRes.error) {
+      throw new Error('No se pudieron calcular las estadísticas de proveedores.')
     }
 
-    const totalSuppliers = suppliersData?.length || 0
-    const activeSuppliers = suppliersData?.filter((s) => s.is_active).length || 0
-
-    // Consultar compras para calcular saldos y facturas pendientes
-    const { data: purchasesData } = await supabaseClient
-      .from('purchases')
-      .select('id, supplier_id, total_amount, paid_amount, payment_status, due_date, inventory_status')
-      .neq('inventory_status', 'CANCELLED')
-
-    const purchases = purchasesData || []
-    const now = new Date().toISOString().split('T')[0]
+    const suppliersData = suppliersRes.data ?? []
+    const purchases = purchasesRes.data ?? []
 
     let totalPendingBalance = 0
     let pendingInvoicesCount = 0
     let overdueInvoicesCount = 0
+    let totalPurchasedPeriod = 0
     const suppliersWithRecent = new Set<string>()
 
     for (const p of purchases) {
-      if (p.payment_status !== 'PAID') {
-        const pending = Number(p.total_amount || 0) - Number(p.paid_amount || 0)
+      const pending = pendingPurchaseBalance(p)
+      if (pending > 0) {
         totalPendingBalance += pending
         pendingInvoicesCount++
-
-        if (p.due_date && p.due_date < now) {
-          overdueInvoicesCount++
-        }
+        if (p.due_date && p.due_date < today) overdueInvoicesCount++
       }
-      suppliersWithRecent.add(p.supplier_id)
+      if (p.issue_date && p.issue_date >= thirtyDaysAgo) suppliersWithRecent.add(p.supplier_id)
+      if (p.issue_date && p.issue_date >= monthStart) totalPurchasedPeriod += Number(p.total_amount || 0)
+    }
+
+    // Referencias distintas compradas en compras vigentes.
+    let suppliedProductsCount = 0
+    if (purchases.length > 0) {
+      const { data: items } = await supabaseClient
+        .from('purchase_items')
+        .select('product_id')
+        .in('purchase_id', purchases.map((p) => p.id))
+      suppliedProductsCount = new Set((items ?? []).map((i) => i.product_id)).size
     }
 
     return {
-      totalSuppliers,
-      activeSuppliers,
+      totalSuppliers: suppliersData.length,
+      activeSuppliers: suppliersData.filter((s) => s.is_active).length,
       suppliersWithRecentPurchases: suppliersWithRecent.size,
       totalPendingBalance,
       pendingInvoicesCount,
       overdueInvoicesCount,
-      totalPurchasedPeriod: purchases.reduce((acc, p) => acc + Number(p.total_amount || 0), 0),
-      suppliedProductsCount: 0,
+      totalPurchasedPeriod,
+      suppliedProductsCount,
       isCostRedacted: false,
     }
   }
+
 
   /**
    * Obtiene la relación de productos suministrados por el proveedor desde PostgreSQL
@@ -595,11 +642,12 @@ export class SupplierRepository {
       .from('purchases')
       .select('id, purchase_number, supplier_invoice_number, issue_date, due_date, total_amount, paid_amount, payment_status, invoice_attachment_url')
       .eq('supplier_id', supplierId)
+      .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
       .order('issue_date', { ascending: false })
 
     if (error || !data) return []
 
-    const now = new Date().toISOString().split('T')[0]
+    const now = todayBogota()
 
     return data.map((p) => {
       const total = Number(p.total_amount || 0)
@@ -644,6 +692,7 @@ export class SupplierRepository {
         payment_method,
         transaction_reference,
         notes,
+        creator:users!supplier_payments_created_by_user_id_fkey ( full_name ),
         purchases!inner (
           id,
           supplier_id,
@@ -665,8 +714,8 @@ export class SupplierRepository {
       date: pay.payment_date,
       amount: Number(pay.amount || 0),
       paymentMethod: pay.payment_method || 'TRANSFERENCIA',
-      reference: pay.transaction_reference || 'N/A',
-      registeredByUserName: 'Administrador',
+      reference: pay.transaction_reference || '—',
+      registeredByUserName: pay.creator?.full_name || '—',
       notes: pay.notes || undefined,
     }))
   }
@@ -736,12 +785,12 @@ export class SupplierRepository {
 
     return data.map((p) => ({
       id: p.id,
-      fileName: `Factura_${p.supplier_invoice_number || p.purchase_number}.pdf`,
-      fileType: 'application/pdf',
-      fileSize: 102400,
+      fileName: `Factura ${p.supplier_invoice_number || p.purchase_number}`,
+      fileType: /\.(jpe?g|png)$/i.test(p.invoice_attachment_url || '') ? 'image' : 'application/pdf',
+      fileSize: 0,
       url: p.invoice_attachment_url || '',
       uploadedAt: p.created_at,
-      uploadedBy: 'Sistema',
+      uploadedBy: '—',
     }))
   }
 

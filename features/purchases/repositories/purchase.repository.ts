@@ -14,6 +14,12 @@ import {
   CreatePurchaseInput,
   UpdatePurchaseInput,
 } from '../types'
+import {
+  PAYABLE_INVENTORY_STATUSES,
+  canReceivePurchase,
+  pendingPurchaseBalance,
+  todayBogota,
+} from '../utils/purchase-status'
 
 /**
  * Mapea un registro de public.purchases con sus relaciones a la entidad de dominio Purchase
@@ -58,7 +64,7 @@ function mapDbRowToPurchase(row: any): Purchase {
       date: pay.payment_date || pay.created_at,
       amount: Number(pay.amount || 0),
       paymentMethod: (pay.payment_method as any) || 'TRANSFERENCIA',
-      reference: pay.transaction_reference || 'N/A',
+      reference: pay.transaction_reference || '—',
       notes: pay.notes || undefined,
       registeredByUserId: pay.created_by_user_id || undefined,
       registeredByUserName: payUser.full_name || undefined,
@@ -122,7 +128,19 @@ function mapDbRowToPurchase(row: any): Purchase {
     itemsCount: items.reduce((acc, i) => acc + i.quantity, 0),
     items,
     payments,
-    attachments: [],
+    attachments: row.invoice_attachment_url
+      ? [
+          {
+            id: `invoice-${row.id}`,
+            fileName: `Factura ${row.supplier_invoice_number || row.purchase_number}`,
+            fileType: /\.(jpe?g|png)$/i.test(row.invoice_attachment_url) ? 'image' : 'application/pdf',
+            fileSize: 0,
+            url: row.invoice_attachment_url,
+            uploadedAt: row.updated_at || row.created_at,
+            uploadedBy: '—',
+          },
+        ]
+      : [],
     createdByUserId: row.confirmed_by_user_id || undefined,
     createdByUserName: confirmedUser.full_name || undefined,
     notes: row.notes || undefined,
@@ -135,8 +153,7 @@ function mapDbRowToPurchase(row: any): Purchase {
       ? {
           receivedAt: row.received_at,
           receivedByUserId: row.received_by_user_id || undefined,
-          receivedByUserName: receivedUser.full_name || 'Recepción Bodega',
-          notes: 'Mercancía recibida en bodega',
+          receivedByUserName: receivedUser.full_name || undefined,
         }
       : undefined,
   }
@@ -164,22 +181,22 @@ export function parsePurchaseDatabaseError(error: any): Error {
     return new Error('La bodega de destino seleccionada se encuentra inactiva.')
   }
   if (msg.includes('bodega de destino no tiene habilitadas operaciones de compra')) {
-    return new Error('La bodega de destino no tiene habilitadas operaciones de compra (allow_purchases = false).')
+    return new Error('La bodega de destino no tiene habilitadas las compras.')
   }
   if (msg.includes('usuario no tiene acceso a la bodega seleccionada')) {
     return new Error('No tienes acceso autorizado a la bodega de destino seleccionada.')
   }
   if (msg.includes('No tienes permisos suficientes para registrar compras')) {
-    return new Error('No tienes permisos para registrar compras (purchases.create requerido).')
+    return new Error('No tienes permisos para registrar compras.')
   }
   if (msg.includes('No tienes permisos para modificar compras')) {
-    return new Error('No tienes permisos para modificar compras (purchases.create requerido).')
+    return new Error('No tienes permisos para modificar compras.')
   }
   if (msg.includes('No tienes permisos para confirmar compras')) {
-    return new Error('No tienes permisos para confirmar compras (purchases.create requerido).')
+    return new Error('No tienes permisos para confirmar compras.')
   }
   if (msg.includes('No tienes permisos para anular compras')) {
-    return new Error('No tienes permisos para anular compras (purchases.create requerido).')
+    return new Error('No tienes permisos para anular compras.')
   }
   if (msg.includes('Debe incluir al menos un producto')) {
     return new Error('Debe incluir al menos un producto en la orden de compra.')
@@ -227,7 +244,7 @@ export function parsePurchaseDatabaseError(error: any): Error {
     return new Error(msg)
   }
   if (msg.includes('No tienes permisos suficientes para registrar recepciones')) {
-    return new Error('No tienes permisos suficientes para registrar recepciones (purchases.create requerido).')
+    return new Error('No tienes permisos suficientes para registrar recepciones.')
   }
   if (msg.includes('no pertenece a la orden de compra')) {
     return new Error(msg)
@@ -236,13 +253,58 @@ export function parsePurchaseDatabaseError(error: any): Error {
     return new Error('El número de orden de compra ya existe en esta empresa.')
   }
   if (code === '42501') {
-    return new Error(`Permiso denegado por políticas de seguridad: ${msg}`)
+    return new Error('No tienes permisos para realizar esta operación.')
   }
 
   return new Error(msg)
 }
 
+const PURCHASE_STATUS_EXPORT_LABELS: Record<string, string> = {
+  BORRADOR: 'Borrador',
+  CONFIRMADA: 'Confirmada',
+  RECIBIDA_PARCIALMENTE: 'Recibida parcialmente',
+  RECIBIDA: 'Recibida',
+  PAYMENT_PENDING: 'Recibida con saldo',
+  PAID: 'Pagada',
+  CANCELADA: 'Anulada',
+}
+
+const INVOICES_BUCKET = 'invoices'
+const INVOICE_MAX_BYTES = 10 * 1024 * 1024
+const INVOICE_EXTENSIONS: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
 export class PurchaseRepository {
+  /** Sube la factura del proveedor al bucket privado y la enlaza a la compra. */
+  async uploadInvoiceAttachment(purchaseId: string, file: File): Promise<void> {
+    const extension = INVOICE_EXTENSIONS[file.type]
+    if (!extension) throw new Error('La factura debe ser PDF, JPG o PNG.')
+    if (file.size > INVOICE_MAX_BYTES) throw new Error('La factura debe pesar como máximo 10 MB.')
+
+    const companyId = await resolveUserCompanyId(this.client)
+    const path = `${companyId}/purchases/${purchaseId}/${crypto.randomUUID()}.${extension}`
+    const storage = this.client.storage.from(INVOICES_BUCKET)
+    const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, upsert: false })
+    if (uploadError) throw new Error('No tienes permiso para adjuntar facturas o el archivo no es válido.')
+
+    const { error } = await this.client.from('purchases').update({ invoice_attachment_url: path }).eq('id', purchaseId)
+    if (error) {
+      await storage.remove([path])
+      throw new Error('No se pudo enlazar la factura a la compra.')
+    }
+  }
+
+  /** URL firmada de corta duración para ver la factura adjunta. */
+  async getInvoiceAttachmentUrl(path: string): Promise<string> {
+    if (/^https?:\/\//.test(path)) return path
+    const { data, error } = await this.client.storage.from(INVOICES_BUCKET).createSignedUrl(path, 60)
+    if (error || !data?.signedUrl) throw new Error('No se pudo abrir la factura adjunta.')
+    return data.signedUrl
+  }
+
   private client: SupabaseClient
 
   constructor(client: SupabaseClient = supabaseClient) {
@@ -794,7 +856,7 @@ export class PurchaseRepository {
     const { data, error } = await query
     if (error) {
       console.error('Error consultando purchase_receipts:', error)
-      return []
+      throw new Error('No se pudieron cargar las recepciones de mercancía.')
     }
 
     return (data || []).map((row: any) => {
@@ -837,63 +899,57 @@ export class PurchaseRepository {
   async getPurchaseStats(_userContext?: any): Promise<PurchaseStats> {
     const { data, error } = await this.client
       .from('purchases')
-      .select('id, total_amount, paid_amount, payment_status, inventory_status, due_date')
-      .neq('inventory_status', 'CANCELADA')
+      .select('id, total_amount, paid_amount, payment_status, payment_terms, inventory_status, due_date, issue_date')
+      .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
 
     if (error || !data) {
-      return {
-        totalPurchasedPeriod: 0,
-        pendingReceptionCount: 0,
-        creditPurchasesCount: 0,
-        cashPurchasesCount: 0,
-        pendingPaymentInvoicesCount: 0,
-        overdueInvoicesCount: 0,
-        receivedProductsUnits: 0,
-        totalPendingBalance: 0,
-        isCostRedacted: false,
+      throw new Error('No se pudieron calcular los indicadores de compras.')
+    }
+
+    const today = todayBogota()
+    const monthStart = `${today.slice(0, 7)}-01`
+    let totalPurchasedPeriod = 0
+    let totalPendingBalance = 0
+    let pendingReceptionCount = 0
+    let creditPurchasesCount = 0
+    let pendingPaymentInvoicesCount = 0
+    let overdueInvoicesCount = 0
+
+    for (const p of data) {
+      const pending = pendingPurchaseBalance(p)
+      if (p.issue_date && p.issue_date >= monthStart) totalPurchasedPeriod += Number(p.total_amount || 0)
+      if (canReceivePurchase(p.inventory_status)) pendingReceptionCount++
+      if ((p.payment_terms || '').toUpperCase() === 'CREDITO') creditPurchasesCount++
+      if (pending > 0) {
+        totalPendingBalance += pending
+        pendingPaymentInvoicesCount++
+        if (p.due_date && p.due_date < today) overdueInvoicesCount++
       }
     }
 
-    const now = new Date().toISOString().split('T')[0]
-    let totalPurchasesAmount = 0
-    let totalPaidAmount = 0
-    let totalPendingAmount = 0
-    let pendingPurchasesCount = 0
-    let receivedPurchasesCount = 0
-    let overduePurchasesCount = 0
-
-    for (const p of data) {
-      const tot = Number(p.total_amount || 0)
-      const paid = Number(p.paid_amount || 0)
-      const pending = Math.max(0, tot - paid)
-
-      totalPurchasesAmount += tot
-      totalPaidAmount += paid
-      totalPendingAmount += pending
-
-      if (p.inventory_status === 'PENDING' || p.inventory_status === 'DRAFT' || p.inventory_status === 'BORRADOR') {
-        pendingPurchasesCount++
-      } else if (p.inventory_status === 'RECEIVED' || p.inventory_status === 'RECIBIDA') {
-        receivedPurchasesCount++
-      }
-
-      if (p.payment_status !== 'PAID' && p.due_date && p.due_date < now) {
-        overduePurchasesCount++
-      }
+    // Unidades que ya entraron a bodega en las compras vigentes.
+    let receivedProductsUnits = 0
+    if (data.length > 0) {
+      const { data: items } = await this.client
+        .from('purchase_items')
+        .select('received_quantity')
+        .in('purchase_id', data.map((p) => p.id))
+      receivedProductsUnits = (items ?? []).reduce((acc, it) => acc + Number(it.received_quantity || 0), 0)
     }
 
     return {
-      totalPurchasedPeriod: totalPurchasesAmount,
-      pendingReceptionCount: pendingPurchasesCount,
-      creditPurchasesCount: pendingPurchasesCount,
-      cashPurchasesCount: Math.max(0, data.length - pendingPurchasesCount),
-      pendingPaymentInvoicesCount: pendingPurchasesCount,
-      overdueInvoicesCount: overduePurchasesCount,
-      receivedProductsUnits: 0,
-      totalPendingBalance: totalPendingAmount,
+      totalPurchasedPeriod,
+      pendingReceptionCount,
+      creditPurchasesCount,
+      cashPurchasesCount: data.length - creditPurchasesCount,
+      pendingPaymentInvoicesCount,
+      overdueInvoicesCount,
+      receivedProductsUnits,
+      totalPendingBalance,
       isCostRedacted: false,
     }
   }
+
 
   /**
    * Exporta compras en formato CSV
@@ -920,8 +976,8 @@ export class PurchaseRepository {
         `"${p.supplierName.replace(/"/g, '""')}"`,
         `"${p.supplierNit}"`,
         `"${p.destinationLocationName}"`,
-        `"${p.paymentType}"`,
-        `"${p.status}"`,
+        `"${p.paymentType === 'CREDITO' ? 'Crédito' : 'Contado'}"`,
+        `"${PURCHASE_STATUS_EXPORT_LABELS[p.status] ?? p.status}"`,
       ]
       if (!isCostRedacted) {
         base.push(

@@ -120,6 +120,8 @@ export interface Purchase {
   items: PurchaseItem[]
   payments: PurchasePayment[]
   attachments: PurchaseAttachment[]
+  /** La compra se guardó pero la factura adjunta no se pudo cargar. */
+  attachmentWarning?: string
 
   receptionInfo?: PurchaseReceptionInfo
   cancellationInfo?: PurchaseCancellationInfo
@@ -193,11 +195,12 @@ export interface CreatePurchaseInput {
   notes?: string
   items: CreatePurchaseItemInput[]
   saveAsDraft?: boolean
+  /** Factura del proveedor (PDF, JPG o PNG) que se guarda en el repositorio privado de facturas. */
   attachment?: {
+    file: File
     fileName: string
     fileType: string
     fileSize: number
-    url: string
   }
 }
 
@@ -211,11 +214,12 @@ export interface UpdatePurchaseInput {
   notes?: string
   items: CreatePurchaseItemInput[]
   saveAsDraft?: boolean
+  /** Factura del proveedor (PDF, JPG o PNG) que se guarda en el repositorio privado de facturas. */
   attachment?: {
+    file: File
     fileName: string
     fileType: string
     fileSize: number
-    url: string
   }
 }
 

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
+import { purchaseService } from '../services/purchase.service'
 
 interface PurchaseDetailDrawerProps {
   purchase: Purchase | null
@@ -35,6 +37,7 @@ export function PurchaseDetailDrawer({
 }: PurchaseDetailDrawerProps) {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<'items' | 'payments' | 'documents'>('items')
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -67,17 +70,28 @@ export function PurchaseDetailDrawer({
     purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
   const canConfirm =
     purchase.status === 'BORRADOR' || purchase.status === 'DRAFT'
-  const canReceive =
-    purchase.status === 'CONFIRMADA' ||
-    purchase.status === 'PENDING_RECEPTION' ||
-    purchase.status === 'RECIBIDA_PARCIALMENTE' ||
-    purchase.status === 'BORRADOR' ||
-    purchase.status === 'DRAFT'
+  // Solo órdenes confirmadas reciben mercancía o pagos; el servidor rechaza borradores.
+  const canReceive = canReceivePurchase(purchase.status)
   const canPay =
-    purchase.pendingBalance > 0 &&
-    purchase.status !== 'CANCELLED' &&
-    purchase.status !== 'CANCELADA'
+    purchase.pendingBalance > 0 && !isDraftPurchase(purchase.status) && !isCancelledPurchase(purchase.status)
   const hasReceivedItems = purchase.items?.some((it) => (it.receivedQuantity || 0) > 0)
+
+  // La factura está en un repositorio privado: se abre con un enlace temporal.
+  const openAttachment = async (path: string) => {
+    const popup = window.open('about:blank', '_blank')
+    try {
+      const url = await purchaseService.getInvoiceAttachmentUrl(path)
+      if (popup) {
+        popup.opener = null
+        popup.location.href = url
+      } else {
+        window.location.assign(url)
+      }
+    } catch (err) {
+      popup?.close()
+      setAttachmentError(err instanceof Error ? err.message : 'No se pudo abrir la factura.')
+    }
+  }
   const canCancel =
     purchase.status !== 'RECEIVED' &&
     purchase.status !== 'RECIBIDA' &&
@@ -730,6 +744,11 @@ export function PurchaseDetailDrawer({
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 12 }}>
+                  {attachmentError && (
+                    <p className="field-error-text" role="alert">
+                      {attachmentError}
+                    </p>
+                  )}
                   {purchase.attachments.map((att) => (
                     <div
                       key={att.id}
@@ -775,22 +794,20 @@ export function PurchaseDetailDrawer({
                             {att.fileName}
                           </strong>
                           <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                            {(att.fileSize / 1024).toFixed(1)} KB • Subido por{' '}
-                            {att.uploadedBy} el {formatDate(att.uploadedAt)}
+                            Adjuntada el {formatDate(att.uploadedAt)}
                           </span>
                         </div>
                       </div>
 
-                      <a
-                        href={att.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="outline-button-sm"
+                      <button
+                        type="button"
+                        className="outline-button compact"
                         style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        onClick={() => void openAttachment(att.url)}
                       >
                         <AppIcon name="eye" size={14} />
-                        <span>Visualizar factura</span>
-                      </a>
+                        <span>Ver factura</span>
+                      </button>
                     </div>
                   ))}
                 </div>

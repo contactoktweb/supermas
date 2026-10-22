@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase } from '../types'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface PurchaseReceiveModalProps {
   purchase: Purchase | null
@@ -47,6 +48,8 @@ export function PurchaseReceiveModal({
       setError(null)
     }
   }, [purchase])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !purchase || !mounted) return null
 
@@ -114,7 +117,7 @@ export function PurchaseReceiveModal({
       aria-labelledby="receive-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 640, width: '94vw' }}
       >
@@ -410,7 +413,7 @@ export function PurchaseReceiveModal({
             <strong>Efecto en el sistema:</strong>
             <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
               <li>
-                Ingreso al Kardex inmutable bajo movimiento <code>PURCHASE_ENTRY</code>.
+                Las unidades recibidas entran al inventario de la bodega y quedan registradas en el kardex.
               </li>
               <li>
                 Actualización del inventario y recálculo automático del Costo Promedio Ponderado.

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Supplier } from '../types'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface SupplierDeactivateModalProps {
   supplier: Supplier | null
@@ -29,6 +30,8 @@ export function SupplierDeactivateModal({
   useEffect(() => {
     if (supplier) setError(null)
   }, [supplier])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !supplier || !mounted) return null
 
@@ -56,7 +59,7 @@ export function SupplierDeactivateModal({
       aria-labelledby="deactivate-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 480, width: '92vw' }}
       >

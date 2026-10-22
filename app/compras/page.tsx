@@ -9,7 +9,8 @@ function PurchasesContent() {
   const router = useRouter()
 
   const handleNavigate = (targetView: string) => {
-    if (targetView === 'Kardex') router.push('/kardex')
+    if (targetView.startsWith('/')) router.push(targetView)
+    else if (targetView === 'Kardex') router.push('/kardex')
     else if (targetView === 'Inventario') router.push('/inventario')
     else if (targetView === 'Bodegas') router.push('/bodegas')
     else if (targetView === 'Transferencias') router.push('/transferencias')

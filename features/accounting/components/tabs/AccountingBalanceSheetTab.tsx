@@ -8,6 +8,7 @@ import { ACCOUNT_LEVEL_LABEL, collectExpandableNodeIds, pruneZeroNodes } from '.
 import { formatCop, formatIsoDateEs, todayBogotaIsoDate } from '../../utils/report-format'
 import { FinancialStatementTree } from '../reports/FinancialStatementTree'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 /** Al abrir el reporte se despliegan clases y grupos (nivel 2): quedan visibles las cuentas de 4 dígitos. */
 const DEFAULT_EXPAND_LEVEL = 2
@@ -161,10 +162,10 @@ export function AccountingBalanceSheetTab({
 
           <label className="flex flex-col gap-1">
             <span className="font-semibold text-gray-600">Sede</span>
-            <select
-              className="filter-select h-9 text-xs"
+            <SelectField
               value={locationId}
-              onChange={(e) => onFiltersChange({ locationId: e.target.value })}
+              size="sm"
+              onChange={(value) => onFiltersChange({ locationId: value })}
             >
               <option value="ALL">Todas las sedes (consolidado)</option>
               {locations.map((l) => (
@@ -172,16 +173,16 @@ export function AccountingBalanceSheetTab({
                   {l.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
 
           <label className="flex flex-col gap-1">
             <span className="font-semibold text-gray-600">Desplegar hasta</span>
-            <select
-              className="filter-select h-9 text-xs"
+            <SelectField
               value={expandLevel}
-              onChange={(e) => {
-                const level = Number(e.target.value)
+              size="sm"
+              onChange={(value) => {
+                const level = Number(value)
                 setExpandLevel(level)
                 setExpandedOverride(collectExpandableNodeIds(allNodes, level))
               }}
@@ -192,7 +193,7 @@ export function AccountingBalanceSheetTab({
                   {option.label}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
 
           <div className="flex flex-col gap-1">

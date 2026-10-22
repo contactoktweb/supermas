@@ -8,6 +8,7 @@ import { salesCalculationService } from '../services/sales-calculation.service'
 import { MAX_SALE_DISCOUNT_PERCENT } from '../schemas/sales.schema'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface NewSaleDrawerProps {
   isOpen: boolean
@@ -1027,12 +1028,16 @@ export function NewSaleDrawer({
                   {bankOptions.length === 0 ? (
                     <span style={{ fontSize: 12, color: '#991b1b' }}>No hay cuentas bancarias con subcuenta PUC. Configúrelas en Tesorería.</span>
                   ) : (
-                    <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 13 }}>
+                    <SelectField
+                      value={bankAccountId}
+                      size="md"
+                      onChange={(value) => setBankAccountId(value)}
+                    >
                       <option value="">Seleccione la cuenta…</option>
                       {bankOptions.map((o) => (
                         <option key={o.id} value={o.id}>{o.label}</option>
                       ))}
-                    </select>
+                    </SelectField>
                   )}
                 </div>
               )}

@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { TreasuryReceiptModal } from './TreasuryReceiptModal'
 import { TreasuryBankAccountCard } from './TreasuryBankAccountCard'
 import { TreasuryPostingResult } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 const TABS: { id: TreasuryTab; label: string; icon: LightIconName }[] = [
   { id: 'banks', label: 'Cuentas Bancarias y Saldos', icon: 'wallet' },
@@ -384,15 +385,15 @@ export function TreasuryPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <select
-                    className="filter-select text-xs"
+                  <SelectField
                     value={filters.status || 'ALL'}
-                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                    size="sm"
+                    onChange={(value) => setFilters({ ...filters, status: value })}
                   >
                     <option value="ALL">Todos los estados</option>
                     <option value="SCHEDULED">Programados (Pendientes)</option>
                     <option value="PAID">Pagados / Desembolsados</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -647,10 +648,10 @@ export function TreasuryPage() {
                   Mostrando <strong>{bankMovements.length}</strong> movimientos registrados en cuentas bancarias.
                 </div>
                 <div className="flex items-center gap-2">
-                  <select
-                    className="filter-select text-xs"
+                  <SelectField
                     value={filters.bankAccountId || 'ALL'}
-                    onChange={(e) => setFilters({ ...filters, bankAccountId: e.target.value })}
+                    size="sm"
+                    onChange={(value) => setFilters({ ...filters, bankAccountId: value })}
                   >
                     <option value="ALL">Todas las cuentas bancarias</option>
                     {bankAccounts.map((b) => (
@@ -658,7 +659,7 @@ export function TreasuryPage() {
                         {b.bankName} ({b.accountNumber})
                       </option>
                     ))}
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -773,30 +774,36 @@ export function TreasuryPage() {
               <div>
                 <div>
                   <label className="block text-gray-700 font-semibold mb-1">Tipo de Cuenta</label>
-                  <select
-                    className="filter-select w-full"
+                  <SelectField
                     value={newAccountType}
-                    onChange={(e) => {
-                      setNewAccountType(e.target.value)
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => {
+                      setNewAccountType(value)
                       setNewLedgerId('')
                     }}
                   >
                     <option value="CORRIENTE">Corriente</option>
                     <option value="AHORROS">Ahorros</option>
                     <option value="FIDUCIARIA">Fiduciaria</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
               {ledgerPrefixFor(newAccountType) && (
                 <div>
                   <label className="block text-gray-700 font-semibold mb-1">Subcuenta PUC ({ledgerPrefixFor(newAccountType)}xx)</label>
-                  <select className="filter-select w-full" value={newLedgerId} onChange={(e) => setNewLedgerId(e.target.value)}>
+                  <SelectField
+                    value={newLedgerId}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setNewLedgerId(value)}
+                  >
                     <option value="">Asignar después</option>
                     {ledgerOptionsFor(newAccountType).map((o) => (
                       <option key={o.id} value={o.id}>{o.code} · {o.name}</option>
                     ))}
-                  </select>
+                  </SelectField>
                   <p className="text-[10px] text-gray-500 mt-1">Cada cuenta bancaria debe tener su propia subcuenta para diferenciar en contabilidad cuál recibió el dinero.</p>
                 </div>
               )}
@@ -852,17 +859,18 @@ export function TreasuryPage() {
             <div className="space-y-3 text-xs">
               <div>
                 <label className="block text-gray-700 font-semibold mb-1">Banco de Desembolso</label>
-                <select
-                  className="filter-select w-full"
+                <SelectField
                   value={selectedBankId}
-                  onChange={(e) => setSelectedBankId(e.target.value)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setSelectedBankId(value)}
                 >
                   {bankAccounts.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.bankName} ({b.accountNumber}) — Saldo: {formatCOP(b.currentBalance)}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               <div>

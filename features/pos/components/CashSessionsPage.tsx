@@ -24,6 +24,7 @@ import {
   formatCOP,
   getErrorMessage,
 } from './cash/cashUi'
+import { SelectField } from '@/components/ui/SelectField'
 
 type CashTab = 'REGISTERS' | 'HISTORY'
 
@@ -187,10 +188,10 @@ export function CashSessionsPage() {
           <label className="filter-select-wrap gap-2">
             <AppIcon name="warehouse" size={15} />
             <span className="sr-only">Filtrar por sede</span>
-            <select
-              className="filter-select"
+            <SelectField
               value={selectedLocation}
-              onChange={(e) => setSelectedLocation(e.target.value)}
+              size="sm"
+              onChange={(value) => setSelectedLocation(value)}
             >
               <option value={ALL_LOCATIONS}>Todas las sedes</option>
               {locations.map((location) => (
@@ -198,7 +199,7 @@ export function CashSessionsPage() {
                   {location.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </label>
           <button
             type="button"

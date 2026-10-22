@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { GeneralLedgerReport, AccountingAccount } from '../../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface AccountingGeneralLedgerTabProps {
   accounts: AccountingAccount[]
@@ -57,17 +58,18 @@ export function AccountingGeneralLedgerTab({
           <label className="block text-xs font-semibold text-gray-700 mb-1.5">
             Seleccionar Cuenta PUC para Mayorización:
           </label>
-          <select
-            className="filter-select w-full text-xs font-medium"
+          <SelectField
             value={selectedLedger?.accountId || ''}
-            onChange={(e) => onSelectAccount(e.target.value)}
+            className="w-full"
+            size="sm"
+            onChange={(value) => onSelectAccount(value)}
           >
             {accounts.map((acc) => (
               <option key={acc.id} value={acc.id}>
                 {acc.code} — {acc.name} ({formatCOP(acc.balance)})
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
 
         {selectedLedger && (hasMovements || selectedLedger.initialBalance !== 0) && (

@@ -7,6 +7,7 @@ import { PurchaseReceipt, UserPermissionContext, SupplierOption } from '../types
 import { LocationOption, locationService } from '../services/location.service'
 import { supplierService } from '../services/supplier.service'
 import { purchaseService } from '../services/purchase.service'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface ReceiptsPageProps {
   onNavigate?: (view: string) => void
@@ -826,19 +827,20 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
 
               <div className="page-size-selector">
                 <span>Filas por página:</span>
-                <select
+                <SelectField
                   value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value))
+                  aria-label="Filas por página"
+                  size="md"
+                  onChange={(value) => {
+                    setPageSize(Number(value))
                     setPage(1)
                   }}
-                  aria-label="Filas por página"
                 >
                   <option value={10}>10</option>
                   <option value={15}>15</option>
                   <option value={25}>25</option>
                   <option value={50}>50</option>
-                </select>
+                </SelectField>
               </div>
             </div>
 

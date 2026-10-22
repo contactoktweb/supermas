@@ -16,6 +16,7 @@ import { useAccountingLocations } from '../../hooks/useAccountingLocations'
 import { useAccountingCatalog } from '../../hooks/useAccountingReportContext'
 import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 import { currentBogotaMonthRange } from '../../utils/report-format'
+import { SelectField } from '@/components/ui/SelectField'
 
 /** Años seleccionables en el filtro de periodo (el actual y los anteriores). */
 const YEAR_OPTIONS_COUNT = 5
@@ -259,33 +260,33 @@ export function AccountingMovementsTab({
               <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
                 <AppIcon name="calendar" size={14} color="var(--navy)" />
                 <span className="text-slate-500 font-medium">Mes:</span>
-                <select
-                  className="filter-select font-semibold text-slate-800 cursor-pointer"
+                <SelectField
                   value={currentMonth}
-                  onChange={(e) => onFilterChange({ month: e.target.value })}
+                  size="sm"
+                  onChange={(value) => onFilterChange({ month: value })}
                 >
                   {MONTH_NAMES.map((m) => (
                     <option key={m.value} value={m.value}>
                       {m.label}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
 
               <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
                 <AppIcon name="clock" size={14} color="#64748b" />
                 <span className="text-slate-500 font-medium">Año:</span>
-                <select
-                  className="filter-select font-semibold text-slate-800 cursor-pointer"
+                <SelectField
                   value={currentYear}
-                  onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
+                  size="sm"
+                  onChange={(value) => onFilterChange({ year: Number(value) })}
                 >
                   {yearOptions.map((year) => (
                     <option key={year} value={year}>
                       {year}
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
             </div>
           )}
@@ -295,17 +296,17 @@ export function AccountingMovementsTab({
             <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
               <AppIcon name="calendar" size={14} color="var(--navy)" />
               <span className="text-slate-500 font-medium">Año Fiscal:</span>
-              <select
-                className="filter-select font-semibold text-slate-800 cursor-pointer"
+              <SelectField
                 value={currentYear}
-                onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
+                size="sm"
+                onChange={(value) => onFilterChange({ year: Number(value) })}
               >
                 {yearOptions.map((year) => (
                   <option key={year} value={year}>
                     Año {year}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           )}
 
@@ -332,10 +333,11 @@ export function AccountingMovementsTab({
           <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
             <AppIcon name="users" size={14} color="var(--navy)" />
             <span className="text-slate-500 font-medium whitespace-nowrap">Tercero:</span>
-            <select
-              className="filter-select font-semibold text-slate-800 cursor-pointer max-w-[200px]"
+            <SelectField
               value={filters.thirdPartyId || 'ALL'}
-              onChange={(e) => onFilterChange({ thirdPartyId: e.target.value })}
+              className="max-w-[200px]"
+              size="sm"
+              onChange={(value) => onFilterChange({ thirdPartyId: value })}
             >
               <option value="ALL">Todos los terceros</option>
               {thirdParties.map((t) => (
@@ -343,17 +345,18 @@ export function AccountingMovementsTab({
                   {t.name} ({t.doc})
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           {/* Filtro por Centro de Costo / Bodega */}
           <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-white border border-slate-200 rounded-lg text-xs hover:border-slate-300 transition-colors shadow-2xs">
             <AppIcon name="warehouse" size={14} color="#64748b" />
             <span className="text-slate-500 font-medium whitespace-nowrap">Bodega / Centro:</span>
-            <select
-              className="filter-select font-semibold text-slate-800 cursor-pointer max-w-[180px]"
+            <SelectField
               value={filters.locationId || 'ALL'}
-              onChange={(e) => onFilterChange({ locationId: e.target.value, costCenterId: e.target.value })}
+              className="max-w-[180px]"
+              size="sm"
+              onChange={(value) => onFilterChange({ locationId: value, costCenterId: value })}
             >
               <option value="ALL">Todas las bodegas</option>
               {locations.map((loc) => (
@@ -361,7 +364,7 @@ export function AccountingMovementsTab({
                   {loc.name}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
 
           {/* Botón de limpiar filtros si hay alguno activo */}
@@ -400,10 +403,11 @@ export function AccountingMovementsTab({
             <div className="filter-select-wrap flex items-center gap-2 h-[38px] px-3 bg-blue-50/50 border border-blue-200 rounded-lg text-xs w-full">
               <AppIcon name="table" size={14} color="var(--navy)" />
               <span className="text-blue-900 font-bold whitespace-nowrap">Cuenta PUC:</span>
-              <select
-                className="filter-select font-bold text-blue-950 cursor-pointer w-full"
+              <SelectField
                 value={filters.accountId || 'ALL'}
-                onChange={(e) => onFilterChange({ accountId: e.target.value })}
+                className="w-full"
+                size="sm"
+                onChange={(value) => onFilterChange({ accountId: value })}
               >
                 <option value="ALL">Todas las cuentas (Resumen Consolidado)</option>
                 {accounts.map((acc) => (
@@ -411,7 +415,7 @@ export function AccountingMovementsTab({
                     {acc.code} — {acc.name} ({acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'})
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
 

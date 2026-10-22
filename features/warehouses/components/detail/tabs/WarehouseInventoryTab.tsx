@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseInventoryItem, LocationWithMetrics } from '../../../types'
 import { WarehousePermissions } from '../../../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface WarehouseInventoryTabProps {
   warehouse: LocationWithMetrics
@@ -59,11 +60,11 @@ export function WarehouseInventoryTab({
         </div>
 
         <div className="filter-select-wrap">
-          <select
+          <SelectField
             value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="filter-select"
             aria-label="Filtrar por categoría"
+            size="sm"
+            onChange={(value) => setCategoryFilter(value)}
           >
             <option value="ALL">Categoría: Todas</option>
             {categories.map((cat) => (
@@ -71,22 +72,22 @@ export function WarehouseInventoryTab({
                 {cat}
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
 
         <div className="filter-select-wrap">
-          <select
+          <SelectField
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="filter-select"
             aria-label="Filtrar por estado de stock"
+            size="sm"
+            onChange={(value) => setStatusFilter(value)}
           >
             <option value="ALL">Estado: Todos</option>
             <option value="NORMAL">Normal</option>
             <option value="LOW_STOCK">Stock bajo</option>
             <option value="CRITICAL">Crítico</option>
             <option value="OUT_OF_STOCK">Agotado</option>
-          </select>
+          </SelectField>
         </div>
 
         {permissions.canAdjustStock && warehouse.status === 'ACTIVE' && (

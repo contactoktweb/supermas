@@ -12,6 +12,7 @@ import {
   SystemSettingItem,
 } from '../../types'
 import { RolesConsultationView } from '../views/RolesConsultationView'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface SettingsDetailDrawerProps {
   category: SettingsCategory | null
@@ -208,16 +209,17 @@ export function SettingsDetailDrawer({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[var(--navy)] font-semibold block mb-1">Régimen Tributario *</label>
-                  <select
+                  <SelectField
                     value={compForm.fiscalRegime || 'RESPONSABLE_DE_IVA'}
-                    onChange={(e) => setCompForm({ ...compForm, fiscalRegime: e.target.value })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setCompForm({ ...compForm, fiscalRegime: value })}
                   >
                     <option value="RESPONSABLE_DE_IVA">Responsable de IVA</option>
                     <option value="NO_RESPONSABLE_DE_IVA">No Responsable de IVA</option>
                     <option value="REGIMEN_SIMPLE">Régimen Simple de Tributación (RST)</option>
                     <option value="GRAN_CONTRIBUYENTE">Gran Contribuyente</option>
-                  </select>
+                  </SelectField>
                 </div>
                 <div>
                   <label className="text-[var(--navy)] font-semibold block mb-1">Actividad Económica (CIIU) *</label>
@@ -350,14 +352,15 @@ export function SettingsDetailDrawer({
                 </div>
                 <div>
                   <label className="text-[var(--navy)] font-semibold block mb-1">Estado de la Empresa</label>
-                  <select
+                  <SelectField
                     value={compForm.status || 'ACTIVE'}
-                    onChange={(e) => setCompForm({ ...compForm, status: e.target.value as any })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setCompForm({ ...compForm, status: value as any })}
                   >
                     <option value="ACTIVE">Activa (Operacional)</option>
                     <option value="INACTIVE">Inactiva (Bloqueada)</option>
-                  </select>
+                  </SelectField>
                 </div>
               </div>
 
@@ -415,14 +418,15 @@ export function SettingsDetailDrawer({
                   <label className="text-[var(--navy)] font-semibold block mb-1">
                     Método de Valoración de Inventario (Crítico)
                   </label>
-                  <select
+                  <SelectField
                     value={invForm.valuationMethod || 'WEIGHTED_AVERAGE'}
-                    onChange={(e) => setInvForm({ ...invForm, valuationMethod: e.target.value as any })}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => setInvForm({ ...invForm, valuationMethod: value as any })}
                   >
                     <option value="WEIGHTED_AVERAGE">Promedio Ponderado (Estándar NIIF)</option>
                     <option value="PEPS_FIFO">PEPS / FIFO (Primeras en Entrar, Primeras en Salir)</option>
-                  </select>
+                  </SelectField>
                   <span className="text-[11px] text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 flex items-start gap-1.5 font-medium">
                     <AppIcon name="warning" size={14} aria-hidden="true" />
                     <span>Cambiar este parámetro requiere confirmación y afecta el costeo contable.</span>
@@ -481,15 +485,16 @@ export function SettingsDetailDrawer({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[var(--navy)] font-semibold block mb-1">Sede Predeterminada POS</label>
-                    <select
+                    <SelectField
                       value={posForm.defaultLocationId || 'loc-002'}
-                      onChange={(e) => setPOSForm({ ...posForm, defaultLocationId: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                      className="w-full"
+                      size="sm"
+                      onChange={(value) => setPOSForm({ ...posForm, defaultLocationId: value })}
                     >
                       <option value="loc-002">Punto Centro (PTO-002)</option>
                       <option value="loc-001">Bodega Principal CEDI (BOD-001)</option>
                       <option value="loc-004">Punto Calle 80 (PTO-004)</option>
-                    </select>
+                    </SelectField>
                   </div>
 
                   <div>
@@ -506,27 +511,29 @@ export function SettingsDetailDrawer({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="text-[var(--navy)] font-semibold block mb-1">Formato de Tirilla</label>
-                    <select
+                    <SelectField
                       value={posForm.defaultReceiptTemplate || 'TICKET_58MM'}
-                      onChange={(e) => setPOSForm({ ...posForm, defaultReceiptTemplate: e.target.value })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                      className="w-full"
+                      size="sm"
+                      onChange={(value) => setPOSForm({ ...posForm, defaultReceiptTemplate: value })}
                     >
                       <option value="TICKET_58MM">Tirilla Térmica 58mm</option>
                       <option value="TICKET_80MM">Tirilla Térmica 80mm</option>
                       <option value="INVOICE_HALF_PAGE">Media Página (Factura Comercial)</option>
-                    </select>
+                    </SelectField>
                   </div>
 
                   <div>
                     <label className="text-[var(--navy)] font-semibold block mb-1">Impresión Automática</label>
-                    <select
+                    <SelectField
                       value={posForm.autoPrintReceipt ? 'YES' : 'NO'}
-                      onChange={(e) => setPOSForm({ ...posForm, autoPrintReceipt: e.target.value === 'YES' })}
-                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
+                      className="w-full"
+                      size="sm"
+                      onChange={(value) => setPOSForm({ ...posForm, autoPrintReceipt: value === 'YES' })}
                     >
                       <option value="YES">Imprimir automáticamente al cobrar</option>
                       <option value="NO">Confirmar antes de imprimir</option>
-                    </select>
+                    </SelectField>
                   </div>
                 </div>
               </div>
@@ -598,10 +605,12 @@ export function SettingsDetailDrawer({
                   <label className="text-[var(--navy)] font-semibold block mb-1">
                     Bodega Designada para Despacho Ecommerce (Crítico)
                   </label>
-                  <select
+                  <SelectField
                     value={ecomForm.dispatchWarehouseId || 'loc-001'}
-                    onChange={(e) => {
-                      const locId = e.target.value
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => {
+                      const locId = value
                       const locName =
                         locId === 'loc-001'
                           ? 'Bodega Principal (CEDI)'
@@ -610,11 +619,10 @@ export function SettingsDetailDrawer({
                           : 'Punto Centro'
                       setEcomForm({ ...ecomForm, dispatchWarehouseId: locId, dispatchWarehouseName: locName })
                     }}
-                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:border-[var(--navy)] focus:ring-1 focus:ring-[var(--navy)] focus:outline-none transition-all shadow-sm"
                   >
                     <option value="loc-001">Bodega Principal (CEDI Medellín) — Recomendado</option>
                     <option value="loc-002">Bodega Norte (Yumbo)</option>
-                  </select>
+                  </SelectField>
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     Define de qué ubicación física se descuenta el stock cuando se alistan pedidos de la tienda online.
                   </span>

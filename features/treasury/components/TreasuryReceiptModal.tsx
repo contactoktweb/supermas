@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { BankAccount, ReceiptCustomerOption, TreasuryPostingResult, TreasuryReceipt } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 type ReceiptMethod = TreasuryReceipt['paymentMethod']
 
@@ -141,12 +142,12 @@ export function TreasuryReceiptModal({ bankAccounts, loadCustomers, onSubmit, on
                   value={customerQuery}
                   onChange={(e) => setCustomerQuery(e.target.value)}
                 />
-                <select
-                  aria-label="Cliente del recaudo"
-                  className="filter-select w-full"
+                <SelectField
                   value={customerId}
-                  onChange={(e) => setCustomerId(e.target.value)}
-                  required
+                  aria-label="Cliente del recaudo"
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setCustomerId(value)}
                 >
                   <option value="">Seleccione el cliente…</option>
                   {filteredCustomers.map((c) => (
@@ -154,7 +155,7 @@ export function TreasuryReceiptModal({ bankAccounts, loadCustomers, onSubmit, on
                       {c.name} ({c.documentNumber}) · Saldo {formatCOP(c.currentBalance)}
                     </option>
                   ))}
-                </select>
+                </SelectField>
                 {selectedCustomer && (
                   <p className="text-[11px] text-gray-500 mt-1">Saldo en cartera: {formatCOP(selectedCustomer.currentBalance)}</p>
                 )}
@@ -167,13 +168,19 @@ export function TreasuryReceiptModal({ bankAccounts, loadCustomers, onSubmit, on
             {activeAccounts.length === 0 ? (
               <p className="text-gray-500">No hay cuentas bancarias activas.</p>
             ) : (
-              <select id="receipt-bank" className="filter-select w-full" value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} required>
+              <SelectField
+                id="receipt-bank"
+                value={bankAccountId}
+                className="w-full"
+                size="sm"
+                onChange={(value) => setBankAccountId(value)}
+              >
                 {activeAccounts.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.bankName} ({b.accountNumber}){b.accountingAccountCode ? ` · PUC ${b.accountingAccountCode}` : ''}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             )}
             {selectedBank && !selectedBank.accountingAccountId && (
               <p className="text-[11px] text-amber-700 mt-1">Esta cuenta no tiene subcuenta PUC asignada: el recaudo no se podrá contabilizar.</p>
@@ -197,11 +204,17 @@ export function TreasuryReceiptModal({ bankAccounts, loadCustomers, onSubmit, on
             </div>
             <div>
               <label htmlFor="receipt-method" className="block text-gray-700 font-semibold mb-1">Medio</label>
-              <select id="receipt-method" className="filter-select w-full" value={method} onChange={(e) => setMethod(e.target.value as ReceiptMethod)}>
+              <SelectField
+                id="receipt-method"
+                value={method}
+                className="w-full"
+                size="sm"
+                onChange={(value) => setMethod(value as ReceiptMethod)}
+              >
                 {METHOD_OPTIONS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
           </div>
 

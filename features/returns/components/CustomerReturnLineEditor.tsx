@@ -13,6 +13,7 @@ import {
   MIN_PRODUCTION_NOTES_LENGTH,
   RETURN_ITEM_CONDITION_LABELS,
 } from '../constants'
+import { SelectField } from '@/components/ui/SelectField'
 
 /** Línea editable del formulario de devolución de cliente (una venta puede partir un producto en varias). */
 export interface CustomerReturnFormLine {
@@ -224,11 +225,12 @@ export function CustomerReturnLineEditor({
               <label htmlFor={`${fieldId}-supplier`} className="mb-1 block font-semibold uppercase tracking-wider text-slate-500">
                 Proveedor *
               </label>
-              <select
+              <SelectField
                 id={`${fieldId}-supplier`}
                 value={line.supplierId || ''}
-                onChange={(e) => onChange({ supplierId: e.target.value || undefined })}
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="w-full"
+                size="sm"
+                onChange={(value) => onChange({ supplierId: value || undefined })}
               >
                 <option value="">Seleccione el proveedor...</option>
                 {options.suppliers.map((s) => (
@@ -236,7 +238,7 @@ export function CustomerReturnLineEditor({
                     {s.name} {s.taxId ? `(NIT ${s.taxId})` : ''}
                   </option>
                 ))}
-              </select>
+              </SelectField>
               {suggestion ? (
                 <p className="mt-1 text-slate-500">
                   Sugerido: {suggestion.supplierName}, última compra recibida {suggestion.purchaseNumber}.
@@ -256,11 +258,12 @@ export function CustomerReturnLineEditor({
                 <label htmlFor={`${fieldId}-location`} className="mb-1 block font-semibold uppercase tracking-wider text-slate-500">
                   Sede o área de producción
                 </label>
-                <select
+                <SelectField
                   id={`${fieldId}-location`}
                   value={line.productionLocationId || ''}
-                  onChange={(e) => onChange({ productionLocationId: e.target.value || undefined })}
-                  className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => onChange({ productionLocationId: value || undefined })}
                 >
                   <option value="">Sin sede (indicar en la nota)</option>
                   {options.locations.map((l) => (
@@ -268,7 +271,7 @@ export function CustomerReturnLineEditor({
                       {l.name} ({l.code})
                     </option>
                   ))}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label htmlFor={`${fieldId}-notes`} className="mb-1 block font-semibold uppercase tracking-wider text-slate-500">

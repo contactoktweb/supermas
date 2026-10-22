@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseMovement } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface WarehouseMovementsTabProps {
   movements: WarehouseMovement[]
@@ -47,11 +48,11 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
         </div>
 
         <div className="filter-select-wrap">
-          <select
+          <SelectField
             value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="filter-select"
             aria-label="Filtrar por tipo de movimiento"
+            size="sm"
+            onChange={(value) => setTypeFilter(value)}
           >
             <option value="ALL">Tipo de movimiento: Todos</option>
             <option value="COMPRA">Compra</option>
@@ -62,7 +63,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
             <option value="TRANSFERENCIA_SALIDA">Transferencia (Salida)</option>
             <option value="AJUSTE_POSITIVO">Ajuste positivo</option>
             <option value="AJUSTE_NEGATIVO">Ajuste negativo</option>
-          </select>
+          </SelectField>
         </div>
 
         <button

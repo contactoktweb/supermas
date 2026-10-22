@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { POSUserContext } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface POSHeaderProps {
   userContext?: POSUserContext
@@ -180,22 +181,13 @@ export function POSHeader({
               Bodega:
             </label>
             {locations.length > 0 ? (
-              <select
+              <SelectField
                 id="pos-warehouse-select"
                 value={selectedLocationId || userContext?.locationId || ''}
-                onChange={(e) => onLocationChange?.(e.target.value)}
                 disabled={locationsLoading}
                 aria-label="Seleccionar bodega en POS"
-                style={{
-                  background: 'transparent',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: 12,
-                  fontWeight: 600,
-                  outline: 'none',
-                  cursor: 'pointer',
-                  padding: '2px 4px',
-                }}
+                size="md"
+                onChange={(value) => onLocationChange?.(value)}
               >
                 {locations.map((loc) => (
                   <option
@@ -206,7 +198,7 @@ export function POSHeader({
                     {loc.code ? `[${loc.code}] ` : ''}{loc.name}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             ) : (
               <span style={{ color: '#ffffff' }}>{activeLocation}</span>
             )}

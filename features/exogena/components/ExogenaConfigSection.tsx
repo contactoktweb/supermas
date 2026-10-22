@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ExogenaYearNormativa } from '../types'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface ExogenaConfigSectionProps {
   normativa: ExogenaYearNormativa | null
@@ -177,28 +178,20 @@ export function ExogenaConfigSection({
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
               Tipo de Persona / Obligado DIAN
             </label>
-            <select
+            <SelectField
               value={obligadoType}
-              onChange={(e) => {
-                setObligadoType(e.target.value)
-                setHasChanges(true)
-              }}
               disabled={!canConfigure}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                borderRadius: 6,
-                border: '1px solid var(--line, #cbd5e1)',
-                background: 'var(--surface, #ffffff)',
-                fontSize: 13,
-                color: 'var(--text)',
+              size="md"
+              onChange={(value) => {
+                setObligadoType(value)
+                setHasChanges(true)
               }}
             >
               <option value="Personas Jurídicas y asimiladas (Superiores a 500M)">Personas Jurídicas y asimiladas (Superiores a 500M)</option>
               <option value="Gran Contribuyente">Gran Contribuyente</option>
               <option value="Persona Natural Responsable de IVA">Persona Natural Responsable de IVA</option>
               <option value="Entidad No Contribuyente">Entidad No Contribuyente</option>
-            </select>
+            </SelectField>
           </div>
 
           <div>

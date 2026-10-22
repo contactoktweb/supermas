@@ -11,6 +11,7 @@ import {
   UserPermissionContext,
 } from '../types'
 import { productService } from '../services/product.service'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface ProductTableProps {
   products: Product[]
@@ -741,16 +742,17 @@ export function ProductTable({
             </span>
             <div className="page-size-selector">
               <span>Mostrar:</span>
-              <select
+              <SelectField
                 value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
                 aria-label="Registros por página"
+                size="md"
+                onChange={(value) => onPageSizeChange(Number(value))}
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
                 <option value={50}>50</option>
                 <option value={100}>100</option>
-              </select>
+              </SelectField>
             </div>
           </div>
 

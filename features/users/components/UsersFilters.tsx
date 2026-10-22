@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { UserFilters } from '../types'
 import { SYSTEM_ROLES } from '../services/role-permissions'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface UsersFiltersProps {
   filters: UserFilters
@@ -103,19 +104,11 @@ export function UsersFilters({
 
         {/* Filtro Rol Predefinido */}
         <div style={{ minWidth: 190 }}>
-          <select
+          <SelectField
             value={filters.role || 'ALL'}
-            onChange={(e) => onUpdateFilter('role', e.target.value)}
             disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--line, #cbd5e1)',
-              background: 'var(--surface, #ffffff)',
-              color: 'var(--text)',
-              fontSize: 14,
-            }}
+            size="md"
+            onChange={(value) => onUpdateFilter('role', value)}
           >
             <option value="ALL">Todos los roles</option>
             {Object.values(SYSTEM_ROLES).map((role) => (
@@ -123,24 +116,16 @@ export function UsersFilters({
                 {role.name}
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
 
         {/* Filtro Bodega / Sede */}
         <div style={{ minWidth: 190 }}>
-          <select
+          <SelectField
             value={filters.locationId || 'ALL'}
-            onChange={(e) => onUpdateFilter('locationId', e.target.value)}
             disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--line, #cbd5e1)',
-              background: 'var(--surface, #ffffff)',
-              color: 'var(--text)',
-              fontSize: 14,
-            }}
+            size="md"
+            onChange={(value) => onUpdateFilter('locationId', value)}
           >
             <option value="ALL">Todas las sedes</option>
             {locations.map((loc) => (
@@ -148,29 +133,21 @@ export function UsersFilters({
                 {loc.name} ({loc.code})
               </option>
             ))}
-          </select>
+          </SelectField>
         </div>
 
         {/* Filtro Estado */}
         <div style={{ minWidth: 150 }}>
-          <select
+          <SelectField
             value={filters.status || 'ALL'}
-            onChange={(e) => onUpdateFilter('status', e.target.value)}
             disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: 6,
-              border: '1px solid var(--line, #cbd5e1)',
-              background: 'var(--surface, #ffffff)',
-              color: 'var(--text)',
-              fontSize: 14,
-            }}
+            size="md"
+            onChange={(value) => onUpdateFilter('status', value)}
           >
             <option value="ALL">Todos los estados</option>
             <option value="ACTIVE">Activos</option>
             <option value="INACTIVE">Inactivos</option>
-          </select>
+          </SelectField>
         </div>
 
         {/* Limpiar Filtros */}

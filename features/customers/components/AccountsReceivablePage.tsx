@@ -11,6 +11,7 @@ import {
 } from '../services/accounts-receivable.service'
 import { CustomerPaymentModal } from './CustomerPaymentModal'
 import { Customer } from '../types'
+import { SelectField } from '@/components/ui/SelectField'
 
 function formatCOP(val: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -348,10 +349,10 @@ export function AccountsReceivablePage() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select
-            className="filter-select"
+          <SelectField
             value={filters.status || 'ALL'}
-            onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value as any, page: 1 }))}
+            size="sm"
+            onChange={(value) => setFilters((prev) => ({ ...prev, status: value as any, page: 1 }))}
           >
             <option value="ALL">Todos los Estados</option>
             <option value="PENDIENTE">Pendientes de Pago</option>
@@ -359,7 +360,7 @@ export function AccountsReceivablePage() {
             <option value="VENCIDA">Vencidas en Mora</option>
             <option value="PAGADA">Totalmente Pagadas</option>
             <option value="ANULADA">Anuladas</option>
-          </select>
+          </SelectField>
 
           {(filters.query || filters.status !== 'ALL' || filters.agingBucket !== 'ALL') && (
             <button

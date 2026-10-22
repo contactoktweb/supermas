@@ -11,6 +11,7 @@ import {
 } from '../types'
 import { DAMAGED_DESTINATION_LABELS, DAMAGED_STATUS_LABELS } from '../constants'
 import { DispatchDamagedModal } from './DispatchDamagedModal'
+import { SelectField } from '@/components/ui/SelectField'
 
 const PAGE_SIZE = 15
 const SEARCH_DEBOUNCE_MS = 300
@@ -209,19 +210,19 @@ export function DamagedGoodsPanel() {
           <label htmlFor="damaged-status" className="text-sm text-slate-600">
             Estado
           </label>
-          <select
+          <SelectField
             id="damaged-status"
             value={status}
-            onChange={(e) => {
-              setStatus(e.target.value as StatusFilter)
+            size="sm"
+            onChange={(value) => {
+              setStatus(value as StatusFilter)
               setPage(1)
             }}
-            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
           >
             <option value="PENDIENTE">{DAMAGED_STATUS_LABELS.PENDIENTE}</option>
             <option value="ENVIADO">{DAMAGED_STATUS_LABELS.ENVIADO}</option>
             <option value="ALL">Todos los estados</option>
-          </select>
+          </SelectField>
         </div>
       </div>
 

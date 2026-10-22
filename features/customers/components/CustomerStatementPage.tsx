@@ -9,6 +9,7 @@ import {
 import { customerService } from '../services/customer.service'
 import { Customer } from '../types'
 import { CustomerPaymentModal } from './CustomerPaymentModal'
+import { SelectField } from '@/components/ui/SelectField'
 
 function formatCOP(val: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -156,18 +157,17 @@ export function CustomerStatementPage() {
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>Cliente:</label>
-          <select
-            className="filter-select"
+          <SelectField
             value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            style={{ minWidth: 260, fontWeight: 600 }}
+            size="sm"
+            onChange={(value) => setSelectedCustomerId(value)}
           >
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.displayName} ({c.documentNumber}) {c.currentBalance > 0 ? `• Saldo: ${formatCOP(c.currentBalance)}` : ''}
               </option>
             ))}
-          </select>
+          </SelectField>
 
           {statement && statement.summary.totalPendingBalance > 0 && (
             <button type="button" className="primary-button" onClick={() => handleOpenPayment()}>

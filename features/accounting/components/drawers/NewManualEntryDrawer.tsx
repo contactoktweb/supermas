@@ -12,6 +12,7 @@ import {
 } from '../../schemas/accounting.schema'
 import { supabaseClient } from '@/lib/supabase/client'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { SelectField } from '@/components/ui/SelectField'
 
 interface NewManualEntryDrawerProps {
   isOpen: boolean
@@ -350,12 +351,13 @@ export function NewManualEntryDrawer({
                 <label htmlFor="manual-entry-voucher-type" className="block font-semibold text-slate-700 mb-1">
                   Tipo de Comprobante:
                 </label>
-                <select
+                <SelectField
                   id="manual-entry-voucher-type"
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
                   value={voucherTypeCode}
-                  onChange={(e) => setVoucherTypeCode(e.target.value as ManualVoucherTypeCode)}
                   disabled={manualVoucherOptions.length === 0}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setVoucherTypeCode(value as ManualVoucherTypeCode)}
                 >
                   {manualVoucherOptions.length === 0 ? (
                     <option value={DEFAULT_MANUAL_VOUCHER_TYPE_CODE}>Cargando tipos de comprobante...</option>
@@ -366,7 +368,7 @@ export function NewManualEntryDrawer({
                       </option>
                     ))
                   )}
-                </select>
+                </SelectField>
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Fecha del Asiento:</label>
@@ -391,10 +393,11 @@ export function NewManualEntryDrawer({
               </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Bodega / Centro de Costos:</label>
-                <select
-                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                <SelectField
                   value={locationId}
-                  onChange={(e) => setLocationId(e.target.value)}
+                  className="w-full"
+                  size="sm"
+                  onChange={(value) => setLocationId(value)}
                 >
                   {locations.length === 0 ? (
                     <option value="">Cargando bodegas...</option>
@@ -405,7 +408,7 @@ export function NewManualEntryDrawer({
                       </option>
                     ))
                   )}
-                </select>
+                </SelectField>
               </div>
             </div>
 
@@ -433,10 +436,11 @@ export function NewManualEntryDrawer({
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">
                     Seleccionar Tercero Existente:
                   </label>
-                  <select
-                    className="w-full h-9 px-2.5 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all font-medium"
+                  <SelectField
                     value={thirdPartyId}
-                    onChange={(e) => handleThirdPartySelect(e.target.value)}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => handleThirdPartySelect(value)}
                   >
                     <option value="">-- Seleccionar o digitar manual --</option>
                     {/* Proveedores */}
@@ -501,7 +505,7 @@ export function NewManualEntryDrawer({
                           ))}
                       </optgroup>
                     )}
-                  </select>
+                  </SelectField>
                 </div>
                 <div>
                   <label className="block text-[11px] font-medium text-slate-600 mb-1">
@@ -668,10 +672,11 @@ export function NewManualEntryDrawer({
                     {lines.map((line, idx) => (
                       <tr key={line.id} className="hover:bg-slate-50/70 transition-colors">
                         <td className="p-2.5" style={{ padding: '8px 10px' }}>
-                          <select
-                            className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md font-mono text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 truncate"
+                          <SelectField
                             value={line.accountId}
-                            onChange={(e) => handleAccountSelect(idx, e.target.value)}
+                            className="w-full"
+                            size="sm"
+                            onChange={(value) => handleAccountSelect(idx, value)}
                           >
                             {auxiliaryAccounts.length > 0 && (
                               <optgroup label="── Cuentas Auxiliares (Nivel 5 - ej: 111005.01) ──">
@@ -694,7 +699,7 @@ export function NewManualEntryDrawer({
                             {imputableAccounts.length === 0 && (
                               <option value="">No hay cuentas imputables disponibles</option>
                             )}
-                          </select>
+                          </SelectField>
                         </td>
                         <td className="p-2.5" style={{ padding: '8px 10px' }}>
                           <input

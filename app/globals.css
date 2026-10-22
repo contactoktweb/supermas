@@ -315,6 +315,17 @@ textarea:disabled {
 .custom-select-option{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border-radius:7px;color:var(--foreground);font-size:12px;cursor:pointer;transition:background-color .15s ease,color .15s ease}
 .custom-select-option:hover,.custom-select-option.is-highlighted{background:#f0f4fc;color:var(--navy)}
 .custom-select-option.is-selected{background:#edf3fc;color:var(--navy);font-weight:700}
+.custom-select-dropdown.is-portal{position:fixed;right:auto;z-index:100001;display:flex;flex-direction:column;padding:0;overflow:hidden;transform-origin:top center}
+.custom-select-dropdown.is-portal.placement-top{transform-origin:bottom center}
+.custom-select-list{flex:1;min-height:0;margin:0;padding:6px;list-style:none;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#c8d4e5 transparent}
+.custom-select-search{display:flex;align-items:center;gap:8px;margin:6px 6px 0;padding:0 10px;height:36px;border:1px solid var(--line);border-radius:8px;color:#8b98ab;background:#fafbfc;flex-shrink:0;transition:border-color .2s ease,box-shadow .2s ease}
+.custom-select-search:focus-within{border-color:var(--navy);box-shadow:0 0 0 3px #001b5c14;background:#fff}
+.custom-select-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--foreground);font-size:12px}
+.custom-select-option.is-disabled{opacity:.45;cursor:not-allowed}
+.custom-select-group{padding:10px 12px 4px;color:#8b98aa;font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}
+.custom-select-group:first-child{padding-top:4px}
+.custom-select-option.is-disabled:hover{background:transparent;color:var(--foreground)}
+@media (prefers-reduced-motion:reduce){.custom-select-dropdown{animation:none}}
 /* Selector de fechas propio (components/ui/DatePicker.tsx): mismo lenguaje visual que CustomSelect. */
 .date-picker{position:relative;width:100%;display:flex;align-items:center}
 .date-picker-trigger{width:100%;display:flex;align-items:center;gap:10px;height:50px;padding:0 14px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--foreground);font-size:12px;text-align:left;cursor:pointer;outline:none;transition:border-color .2s ease,box-shadow .2s ease,background-color .2s ease}

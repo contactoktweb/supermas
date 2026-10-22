@@ -6434,3 +6434,26 @@ html, body {
 .bank-account-ledger-form .outline-button{flex-shrink:0;height:38px}
 @media (max-width:480px){.bank-account-ledger-form{flex-direction:column;align-items:stretch}.bank-account-balance strong{font-size:18px}}
 @media (prefers-reduced-motion:reduce){.bank-account-card{transition:none}.bank-account-card:hover{transform:none}}
+
+/* Clientes: expediente documental */
+.customer-docs{display:flex;flex-direction:column;gap:16px}
+.customer-docs-header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.customer-docs-header h3{margin:0 0 4px;font-size:14px;font-weight:800;color:var(--foreground)}
+.customer-docs-header p{margin:0;color:var(--muted);font-size:11.5px}
+.customer-docs-empty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:40px 20px;border:1px dashed var(--line);border-radius:12px;text-align:center}
+.customer-docs-empty strong{font-size:14px}
+.customer-docs-empty p{margin:0;color:var(--muted);font-size:12px}
+.customer-docs-empty-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:6px;border-radius:12px;background:#e9eef8;color:var(--navy)}
+.customer-docs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px;margin:0;padding:0;list-style:none}
+.customer-doc-card{display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.customer-doc-card:hover{transform:translateY(-2px);border-color:#bcc8da;box-shadow:0 10px 22px #10213f10}
+.customer-doc-main{display:flex;align-items:flex-start;gap:12px}
+.customer-doc-icon{display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;border-radius:9px;background:#fff0ef;color:var(--red)}
+.customer-doc-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.customer-doc-category{color:var(--muted);font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase}
+.customer-doc-text strong{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.customer-doc-meta{color:var(--muted);font-size:10.5px}
+.customer-doc-notes{margin:0;color:#475569;font-size:11.5px;line-height:1.45}
+.customer-doc-footer{display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px}
+.customer-doc-form{display:flex;flex-direction:column;gap:14px;padding-top:14px}
+@media (prefers-reduced-motion:reduce){.customer-doc-card{transition:none}.customer-doc-card:hover{transform:none}}

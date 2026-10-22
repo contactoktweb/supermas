@@ -7,6 +7,7 @@
 
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { customerDocumentRepository } from './customer-document.repository'
 import {
   Customer,
   CustomerFilterParams,
@@ -398,6 +399,9 @@ export class CustomerRepository {
       .order('created_at', { ascending: false })
       .limit(20)
 
+    // El expediente documental no debe impedir abrir la ficha si falla su consulta.
+    const documents = await customerDocumentRepository.listByCustomer(id).catch(() => [])
+
     const customerAudit = (auditRaw || []).map((a: any) => ({
       id: a.id,
       timestamp: a.created_at,
@@ -415,7 +419,7 @@ export class CustomerRepository {
       remissions: [],
       webOrders: [],
       payments: customerPayments,
-      documents: [],
+      documents,
       locationRelations,
       frequentProducts: [],
       auditLogs: customerAudit,

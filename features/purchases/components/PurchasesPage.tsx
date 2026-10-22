@@ -181,6 +181,9 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${created.purchaseNumber} fue registrada con éxito (${created.status === "BORRADOR" || created.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
+    if (created.attachmentWarning) {
+      addToast('Factura sin adjuntar', `${created.attachmentWarning} Puede adjuntarla al editar el borrador.`, 'warning')
+    }
     loadData()
   }
 
@@ -192,6 +195,9 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       `La orden ${updated.purchaseNumber} fue actualizada con éxito (${updated.status === "BORRADOR" || updated.status === "DRAFT" ? "Borrador" : "Confirmada"}).`,
       "success"
     )
+    if (updated.attachmentWarning) {
+      addToast('Factura sin adjuntar', updated.attachmentWarning, 'warning')
+    }
     loadData()
   }
 
@@ -386,7 +392,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       <PurchaseNewDrawer
         isOpen={isNewDrawerOpen}
         suppliers={suppliers}
-        locations={locations}
+        locations={locations.filter((loc) => loc.allowPurchases)}
         initialPurchase={editingPurchase}
         onClose={() => {
           setIsNewDrawerOpen(false)

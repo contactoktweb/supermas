@@ -128,7 +128,19 @@ function mapDbRowToPurchase(row: any): Purchase {
     itemsCount: items.reduce((acc, i) => acc + i.quantity, 0),
     items,
     payments,
-    attachments: [],
+    attachments: row.invoice_attachment_url
+      ? [
+          {
+            id: `invoice-${row.id}`,
+            fileName: `Factura ${row.supplier_invoice_number || row.purchase_number}`,
+            fileType: /\.(jpe?g|png)$/i.test(row.invoice_attachment_url) ? 'image' : 'application/pdf',
+            fileSize: 0,
+            url: row.invoice_attachment_url,
+            uploadedAt: row.updated_at || row.created_at,
+            uploadedBy: '—',
+          },
+        ]
+      : [],
     createdByUserId: row.confirmed_by_user_id || undefined,
     createdByUserName: confirmedUser.full_name || undefined,
     notes: row.notes || undefined,
@@ -247,7 +259,42 @@ export function parsePurchaseDatabaseError(error: any): Error {
   return new Error(msg)
 }
 
+const INVOICES_BUCKET = 'invoices'
+const INVOICE_MAX_BYTES = 10 * 1024 * 1024
+const INVOICE_EXTENSIONS: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+}
+
 export class PurchaseRepository {
+  /** Sube la factura del proveedor al bucket privado y la enlaza a la compra. */
+  async uploadInvoiceAttachment(purchaseId: string, file: File): Promise<void> {
+    const extension = INVOICE_EXTENSIONS[file.type]
+    if (!extension) throw new Error('La factura debe ser PDF, JPG o PNG.')
+    if (file.size > INVOICE_MAX_BYTES) throw new Error('La factura debe pesar como máximo 10 MB.')
+
+    const companyId = await resolveUserCompanyId(this.client)
+    const path = `${companyId}/purchases/${purchaseId}/${crypto.randomUUID()}.${extension}`
+    const storage = this.client.storage.from(INVOICES_BUCKET)
+    const { error: uploadError } = await storage.upload(path, file, { contentType: file.type, upsert: false })
+    if (uploadError) throw new Error('No tienes permiso para adjuntar facturas o el archivo no es válido.')
+
+    const { error } = await this.client.from('purchases').update({ invoice_attachment_url: path }).eq('id', purchaseId)
+    if (error) {
+      await storage.remove([path])
+      throw new Error('No se pudo enlazar la factura a la compra.')
+    }
+  }
+
+  /** URL firmada de corta duración para ver la factura adjunta. */
+  async getInvoiceAttachmentUrl(path: string): Promise<string> {
+    if (/^https?:\/\//.test(path)) return path
+    const { data, error } = await this.client.storage.from(INVOICES_BUCKET).createSignedUrl(path, 60)
+    if (error || !data?.signedUrl) throw new Error('No se pudo abrir la factura adjunta.')
+    return data.signedUrl
+  }
+
   private client: SupabaseClient
 
   constructor(client: SupabaseClient = supabaseClient) {

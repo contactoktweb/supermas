@@ -18,6 +18,9 @@ import { productService } from '@/features/products/services/product.service'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
 
+const INVOICE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
+const INVOICE_MAX_BYTES = 10 * 1024 * 1024
+
 interface PurchaseNewDrawerProps {
   isOpen: boolean
   suppliers: SupplierOption[]
@@ -77,13 +80,14 @@ export function PurchaseNewDrawer({
   // Taxes
   const taxConfigs = purchaseCalculationService.getTaxConfigs()
 
-  // Step 3: Attachment (Supabase Storage preview)
+  // Paso 3: factura del proveedor; se sube al guardar la compra.
   const [attachment, setAttachment] = useState<{
+    file: File
     fileName: string
     fileType: string
     fileSize: number
-    url: string
   } | null>(null)
+  const [attachmentError, setAttachmentError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -254,17 +258,20 @@ export function PurchaseNewDrawer({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // File upload simulation (Supabase Storage)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-
-    setAttachment({
-      fileName: file.name,
-      fileType: file.type || 'application/pdf',
-      fileSize: file.size,
-      url: URL.createObjectURL(file),
-    })
+    if (!INVOICE_MIME_TYPES.includes(file.type)) {
+      setAttachmentError('La factura debe ser PDF, JPG o PNG.')
+      return
+    }
+    if (file.size > INVOICE_MAX_BYTES) {
+      setAttachmentError('La factura debe pesar como máximo 10 MB.')
+      return
+    }
+    setAttachmentError(null)
+    setAttachment({ file, fileName: file.name, fileType: file.type, fileSize: file.size })
   }
 
   // Calculated totals
@@ -1231,7 +1238,7 @@ export function PurchaseNewDrawer({
                     <input
                       type="file"
                       id="purchase-file-upload"
-                      accept=".pdf,image/*"
+                      accept={INVOICE_MIME_TYPES.join(',')}
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
                     />
@@ -1263,6 +1270,11 @@ export function PurchaseNewDrawer({
                     </label>
                   </div>
 
+                  {attachmentError && (
+                    <p className="field-error-text" role="alert" style={{ marginTop: 8 }}>
+                      {attachmentError}
+                    </p>
+                  )}
                   {attachment && (
                     <div
                       style={{

@@ -417,6 +417,16 @@ textarea:disabled {
 .danger-button{display:flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;border:0;border-radius:9px;font-weight:700;font-size:12px;color:#fff;background:var(--red);cursor:pointer;transition:.2s}
 .danger-button:hover:not(:disabled){background:#d60e09;box-shadow:0 8px 18px #fe110c38}
 .danger-button:disabled{opacity:.45;cursor:not-allowed}
+.danger-button:active:not(:disabled),.warning-button:active:not(:disabled){transform:translateY(1px)}
+.danger-button:focus-visible,.warning-button:focus-visible{outline:3px solid #fe110c40;outline-offset:2px}
+.warning-button{display:flex;align-items:center;justify-content:center;gap:8px;height:42px;padding:0 18px;border:0;border-radius:9px;font-weight:700;font-size:12px;color:#fff;background:var(--amber);cursor:pointer;transition:.2s}
+.warning-button:hover:not(:disabled){filter:brightness(.94);box-shadow:0 8px 18px #d9911738}
+.warning-button:disabled{opacity:.45;cursor:not-allowed}
+.dialog-header-warning h3{margin:2px 0 4px;font-size:17px;font-weight:700;letter-spacing:-.3px;color:var(--foreground)}
+.dialog-header-blocked .warning-icon-badge{background:#fff7e6;color:var(--amber)}
+.delete-irreversible-note{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:9px;background:#fff0ef;border:1px solid #fe110c26;color:#991b1b;font-size:12px;line-height:1.45}
+.delete-irreversible-note svg{flex-shrink:0;margin-top:1px}
+@media (max-width:480px){.dialog-footer{flex-direction:column-reverse}.dialog-footer>button{width:100%}}
 
 /* Adjust Stock & Transfer modals */
 .dialog-header-standard{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid var(--line)}

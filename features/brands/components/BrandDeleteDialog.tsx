@@ -90,7 +90,7 @@ export function BrandDeleteDialog({
             <AppIcon name={check?.canDelete ? 'trash' : 'warning'} size={24} />
           </div>
           <div>
-            <h3>Eliminar Marca</h3>
+            <h3>Eliminar marca</h3>
             <span className="mono">{brand.name}</span>
           </div>
           <button
@@ -136,8 +136,9 @@ export function BrandDeleteDialog({
                 ¿Estás seguro de que deseas eliminar permanentemente la marca{' '}
                 <strong>{brand.name}</strong>?
               </p>
-              <p className="field-helper">
-                Esta acción es irreversible y eliminará el registro de la base de datos.
+              <p className="delete-irreversible-note">
+                <AppIcon name="warning" size={15} />
+                <span>Esta acción no se puede deshacer.</span>
               </p>
             </div>
           )}
@@ -146,7 +147,7 @@ export function BrandDeleteDialog({
         <div className="dialog-footer">
           <button
             type="button"
-            className="btn btn-secondary"
+            className="outline-button"
             onClick={onClose}
             disabled={isSubmitting}
           >
@@ -156,7 +157,7 @@ export function BrandDeleteDialog({
           {!check?.canDelete && brand.isActive && onDeactivateAlternative && (
             <button
               type="button"
-              className="btn btn-warning icon-button-text"
+              className="warning-button"
               onClick={handleDeactivate}
               disabled={isSubmitting}
             >
@@ -168,7 +169,7 @@ export function BrandDeleteDialog({
           {check?.canDelete && (
             <button
               type="button"
-              className="btn btn-danger icon-button-text"
+              className="danger-button"
               onClick={handleDelete}
               disabled={isSubmitting || isLoading}
             >
@@ -180,7 +181,7 @@ export function BrandDeleteDialog({
               ) : (
                 <>
                   <AppIcon name="trash" size={16} />
-                  <span>Confirmar Eliminación</span>
+                  <span>Sí, eliminar marca</span>
                 </>
               )}
             </button>

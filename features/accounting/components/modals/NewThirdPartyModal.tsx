@@ -182,7 +182,7 @@ export function NewThirdPartyModal({
   return createPortal(
     <div className="drawer-backdrop modal-center p-3 sm:p-4" onClick={onClose} aria-modal="true" role="dialog">
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         style={{
           width: '100%',
           maxWidth: 720,

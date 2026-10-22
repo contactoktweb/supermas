@@ -97,7 +97,7 @@ export function ProductDeleteDialog({
       aria-labelledby="delete-product-title"
     >
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

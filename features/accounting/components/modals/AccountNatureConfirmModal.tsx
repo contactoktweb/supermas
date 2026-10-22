@@ -59,7 +59,7 @@ export function AccountNatureConfirmModal({ pending, onCancel, onConfirm }: Acco
       onClick={onCancel}
     >
       <div
-        className="modal-card animate-scale-up w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="modal-card modal-card-flush animate-scale-up w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-5 space-y-3">

@@ -139,7 +139,7 @@ export function WebOrderDispatchModal({
   return createPortal(
     <div className="drawer-backdrop modal-center" onClick={onClose}>
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 'min(100% - 32px, 480px)',

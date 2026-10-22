@@ -4478,6 +4478,11 @@ textarea:disabled {
   overflow-y: auto;
 }
 
+/* Modales con encabezado, cuerpo y pie propios: cada sección define su padding. */
+.modal-card.modal-card-flush {
+  padding: 0 !important;
+}
+
 .modal-header {
   display: flex;
   align-items: center;

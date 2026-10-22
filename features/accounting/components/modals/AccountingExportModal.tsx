@@ -461,7 +461,7 @@ export function AccountingExportModal({
       aria-labelledby="accounting-export-title"
     >
       <div
-        className="modal-card animate-scale-up"
+        className="modal-card modal-card-flush animate-scale-up"
         style={{
           width: '100%',
           maxWidth: 960,

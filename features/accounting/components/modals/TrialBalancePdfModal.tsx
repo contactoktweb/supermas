@@ -752,7 +752,7 @@ export function TrialBalancePdfModal({
       aria-labelledby="accounting-pdf-title"
     >
       <div
-        className="modal-card animate-scale-up print:shadow-none print:border-none print:w-full print:max-w-none print:h-auto"
+        className="modal-card modal-card-flush animate-scale-up print:shadow-none print:border-none print:w-full print:max-w-none print:h-auto"
         style={{
           width: '100%',
           maxWidth: 1100,

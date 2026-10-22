@@ -13,6 +13,7 @@ import { POSPaymentModal } from './POSPaymentModal'
 import { POSTicketReceiptModal } from './POSTicketReceiptModal'
 import { POSDailySalesDrawer } from './POSDailySalesDrawer'
 import { POSDiscountModal } from './POSDiscountModal'
+import { useCustomerDisplayBroadcast } from '../customer-display/useCustomerDisplayBroadcast'
 
 interface POSViewProps {
   onExit?: () => void
@@ -28,6 +29,8 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
     changeLocation,
     // User / Context
     userContext,
+    cashSession,
+    cashSessionLoading,
     // Catalog
     products,
     catalogLoading,
@@ -89,6 +92,24 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
 
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  // Pantalla del cliente: refleja el carrito y la venta cerrada en otra ventana.
+  useCustomerDisplayBroadcast({
+    cart,
+    totals,
+    customerName: currentCustomer?.displayName || currentCustomer?.name || 'Consumidor Final',
+    locationName: userContext.locationName,
+    lastReceipt: ticketReceipt,
+  })
+
+  const openPayment = () => {
+    if (cart.length === 0) return
+    // Sin caja abierta no se recibe efectivo: se propone transferencia.
+    if (!cashSession && (paymentMethod === 'EFECTIVO' || paymentMethod === 'MIXTO')) {
+      setPaymentMethod('TRANSFERENCIA')
+    }
+    setIsPaymentModalOpen(true)
+  }
+
   // Verify company configuration from PostgreSQL
   useEffect(() => {
     async function checkCompany() {
@@ -134,9 +155,7 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
         setIsCustomerModalOpen(true)
       } else if (e.key === 'F8') {
         e.preventDefault()
-        if (cart.length > 0) {
-          setIsPaymentModalOpen(true)
-        }
+        openPayment()
       } else if (e.key === 'F9') {
         e.preventDefault()
         openDailySales()
@@ -153,6 +172,8 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [
     cart.length,
+    cashSession,
+    paymentMethod,
     isCustomerModalOpen,
     isPaymentModalOpen,
     isReceiptModalOpen,
@@ -172,17 +193,15 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-slate-100 overflow-hidden font-sans select-none">
+    <div className="h-dvh w-full flex flex-col bg-slate-100 overflow-hidden font-sans select-none">
       {/* 1. POS Top Bar */}
       <POSHeader
         userContext={userContext}
-        locationName={userContext.locationName}
-        cashierName={userContext.userName}
-        cashRegisterNumber={userContext.cashRegisterNumber}
         locations={locations}
-        selectedLocationId={userContext.locationId}
         onLocationChange={changeLocation}
         locationsLoading={locationsLoading}
+        cashSession={cashSession}
+        cashSessionLoading={cashSessionLoading}
         onOpenDailySales={openDailySales}
         onToggleFullscreen={handleToggleFullscreen}
         isFullscreen={isFullscreen}
@@ -264,7 +283,7 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
                 alert('Configure la empresa antes de operar.')
                 return
               }
-              setIsPaymentModalOpen(true)
+              openPayment()
             }}
             onClearCart={clearCart}
           />
@@ -303,6 +322,7 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
         setMixedCashAmount={setMixedCashAmount}
         mixedRestMethod={mixedRestMethod}
         setMixedRestMethod={setMixedRestMethod}
+        canReceiveCash={Boolean(cashSession)}
       />
 
       {/* Thermal Ticket Receipt Modal */}

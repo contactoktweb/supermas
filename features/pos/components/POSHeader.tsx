@@ -1,347 +1,146 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { AppIcon } from '@/components/ui/Icon'
-import { POSUserContext } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
+import type { POSOpenCashSession, POSUserContext } from '../types'
+import { openCustomerDisplayWindow } from '../customer-display/customerDisplayChannel'
 
 interface POSHeaderProps {
-  userContext?: POSUserContext
-  locationName?: string
-  cashierName?: string
-  cashRegisterNumber?: string
-  locations?: Array<{ id: string; code: string; name: string }>
-  selectedLocationId?: string
-  onLocationChange?: (locationId: string) => void
-  locationsLoading?: boolean
+  userContext: POSUserContext
+  locations: Array<{ id: string; code: string; name: string }>
+  onLocationChange: (locationId: string) => void
+  locationsLoading: boolean
+  cashSession: POSOpenCashSession | null
+  cashSessionLoading: boolean
   onOpenDailySales: () => void
-  onToggleFullscreen?: () => void
-  isFullscreen?: boolean
+  onToggleFullscreen: () => void
+  isFullscreen: boolean
   onExit?: () => void
-  onExitPOS?: () => void
+}
+
+const CLOCK_INTERVAL_MS = 15_000
+
+function useClock() {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const update = () =>
+      setTime(new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: true }))
+    update()
+    const timer = window.setInterval(update, CLOCK_INTERVAL_MS)
+    return () => window.clearInterval(timer)
+  }, [])
+  return time
 }
 
 export function POSHeader({
   userContext,
-  locationName,
-  cashierName,
-  cashRegisterNumber,
-  locations = [],
-  selectedLocationId,
+  locations,
   onLocationChange,
-  locationsLoading = false,
+  locationsLoading,
+  cashSession,
+  cashSessionLoading,
   onOpenDailySales,
   onToggleFullscreen,
   isFullscreen,
   onExit,
-  onExitPOS,
 }: POSHeaderProps) {
-  const [timeStr, setTimeStr] = useState<string>('')
+  const time = useClock()
+  const initials = userContext.userName
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
 
-  const activeLocation = locationName || userContext?.locationName || 'Cargando sede...'
-  const activeCashier = cashierName || userContext?.userName || 'Cajero Operativo'
-  const activeRole = userContext?.userRole || 'Cajero'
-  const activeRegister = cashRegisterNumber || userContext?.cashRegisterNumber || 'CAJA-01'
-  const handleExit = onExit || onExitPOS
-
-  const handleReturnToAdmin = () => {
-    if (handleExit) {
-      handleExit()
-    } else {
-      if (typeof window !== 'undefined') {
-        window.location.href = '/'
-      }
-    }
-  }
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date()
-      setTimeStr(
-        now.toLocaleTimeString('es-CO', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          hour12: true,
-        })
-      )
-    }
-    updateTime()
-    const timer = setInterval(updateTime, 1000)
-    return () => clearInterval(timer)
-  }, [])
-
-  const handleFullscreen = () => {
-    if (onToggleFullscreen) {
-      onToggleFullscreen()
-      return
-    }
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {})
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {})
-      }
-    }
-  }
+  const exit = () => (onExit ? onExit() : window.location.assign('/'))
 
   return (
-    <header
-      style={{
-        height: 56,
-        background: 'var(--navy)',
-        color: '#ffffff',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 16px',
-        borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
-        flexShrink: 0,
-      }}
-    >
-      {/* Left: Brand & Location & Quick Return */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/super-mas-logo.svg"
-            alt="Super Más"
-            style={{ height: 26, filter: 'brightness(0) invert(1)' }}
-          />
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 800,
-              letterSpacing: '0.08em',
-              background: 'var(--red)',
-              color: '#ffffff',
-              padding: '2px 6px',
-              borderRadius: 4,
-              textTransform: 'uppercase',
-            }}
-          >
-            POS Terminal
-          </span>
-        </div>
+    <header className="pos-header">
+      <div className="pos-header-group">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/super-mas-logo.svg" alt="Super Más" className="pos-header-logo" />
 
-        {/* Botón Principal: Regresar al Panel Administrativo */}
-        <button
-          type="button"
-          onClick={handleReturnToAdmin}
-          className="outline-button"
-          style={{
-            height: 32,
-            fontSize: 11,
-            fontWeight: 700,
-            gap: 6,
-            background: 'rgba(255, 255, 255, 0.12)',
-            color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            borderRadius: 6,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 10px',
-            transition: 'all 0.15s ease',
-          }}
-          title="Regresar al panel administrativo del ERP"
-        >
-          <AppIcon name="chevronLeft" size={14} color="#38bdf8" />
-          <span>Regresar al Panel</span>
+        <button type="button" onClick={exit} className="pos-header-button" title="Volver al panel administrativo">
+          <AppIcon name="chevronLeft" size={15} />
+          <span className="pos-header-hide-md">Panel</span>
         </button>
 
-        <div
-          style={{
-            height: 18,
-            width: 1,
-            background: 'rgba(255, 255, 255, 0.2)',
-          }}
-        />
-
-        {/* Location & Cash Register */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'rgba(255, 255, 255, 0.12)',
-              border: '1px solid rgba(255, 255, 255, 0.25)',
-              padding: '2px 8px',
-              borderRadius: 6,
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            <AppIcon name="warehouse" size={14} color="#93c5fd" />
-            <label
-              htmlFor="pos-warehouse-select"
-              style={{ fontSize: 11, fontWeight: 700, color: '#93c5fd' }}
+        <div className="pos-header-location">
+          <AppIcon name="warehouse" size={15} />
+          {locations.length > 0 ? (
+            <SelectField
+              id="pos-warehouse-select"
+              value={userContext.locationId}
+              disabled={locationsLoading}
+              aria-label="Sede de venta"
+              size="sm"
+              onChange={onLocationChange}
             >
-              Bodega:
-            </label>
-            {locations.length > 0 ? (
-              <SelectField
-                id="pos-warehouse-select"
-                value={selectedLocationId || userContext?.locationId || ''}
-                disabled={locationsLoading}
-                aria-label="Seleccionar bodega en POS"
-                size="md"
-                onChange={(value) => onLocationChange?.(value)}
-              >
-                {locations.map((loc) => (
-                  <option
-                    key={loc.id}
-                    value={loc.id}
-                    style={{ background: '#0f172a', color: '#ffffff' }}
-                  >
-                    {loc.code ? `[${loc.code}] ` : ''}{loc.name}
-                  </option>
-                ))}
-              </SelectField>
-            ) : (
-              <span style={{ color: '#ffffff' }}>{activeLocation}</span>
-            )}
-          </div>
-
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              background: 'rgba(34, 197, 94, 0.2)',
-              border: '1px solid rgba(34, 197, 94, 0.4)',
-              color: '#4ade80',
-              padding: '3px 8px',
-              borderRadius: 6,
-              fontSize: 11,
-              fontWeight: 700,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: '#4ade80',
-                boxShadow: '0 0 8px #4ade80',
-              }}
-            />
-            <span>{activeRegister}</span>
-          </div>
+              {locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>
+                  {loc.name}
+                </option>
+              ))}
+            </SelectField>
+          ) : (
+            <span>{userContext.locationName}</span>
+          )}
         </div>
+
+        {cashSessionLoading ? (
+          <span className="pos-header-cash is-loading">Verificando caja…</span>
+        ) : cashSession ? (
+          <span className="pos-header-cash is-open" title={`${cashSession.registerName} abierta`}>
+            <i aria-hidden="true" />
+            {cashSession.registerCode || cashSession.registerName}
+          </span>
+        ) : (
+          <Link href="/cajas" className="pos-header-cash is-closed" title="Solo transferencias hasta abrir la caja">
+            <AppIcon name="lock" size={13} />
+            <span>Caja cerrada · Abrir</span>
+          </Link>
+        )}
       </div>
 
-      {/* Center: Live Clock */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontFamily: 'monospace',
-          fontSize: 14,
-          fontWeight: 700,
-          background: 'rgba(0, 0, 0, 0.25)',
-          padding: '4px 12px',
-          borderRadius: 8,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          color: '#e2e8f0',
-        }}
-      >
-        <AppIcon name="clock" size={14} color="#38bdf8" />
-        <span>{timeStr || 'Cargando...'}</span>
-      </div>
+      <div className="pos-header-group">
+        <span className="pos-header-clock pos-header-hide-md" aria-label="Hora actual">
+          <AppIcon name="clock" size={14} />
+          {time}
+        </span>
 
-      {/* Right: Actions & Cashier profile */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Daily Sales Button */}
-        <button
-          type="button"
-          onClick={onOpenDailySales}
-          className="outline-button"
-          style={{
-            height: 34,
-            fontSize: 12,
-            gap: 6,
-            background: 'rgba(255, 255, 255, 0.08)',
-            color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-          }}
-          title="Ver ventas del turno"
-        >
-          <AppIcon name="sales" size={14} color="#38bdf8" />
-          <span>Mis Ventas del Turno</span>
+        <button type="button" onClick={openCustomerDisplayWindow} className="pos-header-button" title="Abrir la pantalla que ve el cliente">
+          <AppIcon name="laptop" size={15} />
+          <span className="pos-header-hide-md">Pantalla cliente</span>
         </button>
 
-        {/* Fullscreen Button */}
+        <button type="button" onClick={onOpenDailySales} className="pos-header-button" title="Ventas del turno (F9)">
+          <AppIcon name="sales" size={15} />
+          <span className="pos-header-hide-md">Mis ventas</span>
+        </button>
+
         <button
           type="button"
-          onClick={handleFullscreen}
-          className="icon-button"
-          style={{
-            color: '#ffffff',
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: 'none',
-            width: 34,
-            height: 34,
-          }}
-          title={isFullscreen ? 'Salir de Pantalla Completa' : 'Pantalla Completa'}
-          aria-label="Pantalla completa"
+          onClick={onToggleFullscreen}
+          className="pos-header-icon"
+          aria-label={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+          title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
         >
           <AppIcon name="dashboard" size={16} />
         </button>
 
-        {/* Cashier Info */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            paddingLeft: 8,
-            borderLeft: '1px solid rgba(255, 255, 255, 0.2)',
-          }}
-        >
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: 'var(--red)',
-              color: '#ffffff',
-              display: 'grid',
-              placeItems: 'center',
-              fontWeight: 800,
-              fontSize: 11,
-            }}
-          >
-            {activeCashier.slice(0, 2).toUpperCase()}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <strong style={{ fontSize: 12, color: '#ffffff', lineHeight: 1.1 }}>
-              {activeCashier}
-            </strong>
-            <small style={{ fontSize: 10, color: '#94a3b8' }}>
-              {activeRole}
-            </small>
-          </div>
+        <div className="pos-header-user">
+          <span className="pos-header-avatar" aria-hidden="true">
+            {initials || 'CJ'}
+          </span>
+          <span className="pos-header-user-text pos-header-hide-lg">
+            <strong>{userContext.userName}</strong>
+            <small>{userContext.userRole}</small>
+          </span>
         </div>
 
-        {/* Additional Exit POS / Back button */}
-        <button
-          type="button"
-          onClick={handleReturnToAdmin}
-          className="icon-button"
-          style={{
-            color: '#ffffff',
-            background: 'rgba(255, 255, 255, 0.08)',
-            border: 'none',
-            width: 34,
-            height: 34,
-            marginLeft: 6,
-          }}
-          title="Salir del POS"
-          aria-label="Salir del POS"
-        >
+        <button type="button" onClick={exit} className="pos-header-icon" aria-label="Salir del POS" title="Salir del POS">
           <AppIcon name="logout" size={16} />
         </button>
       </div>

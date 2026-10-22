@@ -11,6 +11,7 @@ import {
   POSDailySaleSummary,
   POSUserContext,
   POSBankAccountOption,
+  POSOpenCashSession,
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
@@ -27,7 +28,7 @@ export function usePOS() {
     userRole: 'Cajero Operativo',
     locationId: '',
     locationName: 'Cargando sede...',
-    cashRegisterNumber: 'CAJA-01',
+    cashRegisterNumber: undefined,
     permissions: [
       'pos.access',
       'pos.create_sale',
@@ -51,6 +52,10 @@ export function usePOS() {
 
   // Cart State
   const [cart, setCart] = useState<POSCartItem[]>([])
+
+  // Caja abierta del cajero en la sede seleccionada (módulo Cajas)
+  const [cashSession, setCashSession] = useState<POSOpenCashSession | null>(null)
+  const [cashSessionLoading, setCashSessionLoading] = useState(true)
 
   // Checkout State
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
@@ -498,6 +503,35 @@ export function usePOS() {
     }
   }, [userContext])
 
+  const refreshCashSession = useCallback(async () => {
+    if (!userContext.userId || !userContext.locationId) return
+    try {
+      setCashSessionLoading(true)
+      const session = await posService.getOpenCashSession(userContext.locationId, userContext.userId)
+      if (!isMountedRef.current) return
+      setCashSession(session)
+      setUserContext((prev) => ({ ...prev, cashRegisterNumber: session?.registerCode || undefined }))
+    } catch {
+      if (isMountedRef.current) setCashSession(null)
+    } finally {
+      if (isMountedRef.current) setCashSessionLoading(false)
+    }
+  }, [userContext.userId, userContext.locationId])
+
+  // La caja se abre o cierra en el módulo Cajas (otra pestaña): se revisa al volver al POS.
+  useEffect(() => {
+    void refreshCashSession()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refreshCashSession()
+    }
+    window.addEventListener('focus', onVisible)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      window.removeEventListener('focus', onVisible)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [refreshCashSession])
+
   const openDailySales = () => {
     setIsDailySalesOpen(true)
     fetchDailySales()
@@ -511,6 +545,10 @@ export function usePOS() {
     // User / Context
     userContext,
     setUserContext,
+    // Caja
+    cashSession,
+    cashSessionLoading,
+    refreshCashSession,
     // Catalog
     products,
     catalogLoading,

@@ -25,6 +25,8 @@ interface POSPaymentModalProps {
   setMixedCashAmount?: (v: number) => void
   mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
   setMixedRestMethod?: (m: 'TARJETA' | 'TRANSFERENCIA') => void
+  /** Sin caja abierta en la sede el servidor rechaza efectivo: se deshabilitan Efectivo y Mixto. */
+  canReceiveCash?: boolean
 }
 
 const ALL_PAYMENT_METHODS: { id: POSPaymentMethod; label: string; iconName: 'sales' | 'creditCard' | 'webOrders' | 'transfers'; description: string }[] = [
@@ -66,6 +68,7 @@ export function POSPaymentModal({
   setMixedCashAmount,
   mixedRestMethod = 'TRANSFERENCIA',
   setMixedRestMethod,
+  canReceiveCash = true,
 }: POSPaymentModalProps) {
   const cashInputRef = useRef<HTMLInputElement>(null)
 
@@ -209,10 +212,14 @@ export function POSPaymentModal({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
             {PAYMENT_METHODS.map((method) => {
               const isSelected = paymentMethod === method.id
+              const needsCash = method.id === 'EFECTIVO' || method.id === 'MIXTO'
+              const isUnavailable = needsCash && !canReceiveCash
               return (
                 <button
                   key={method.id}
                   type="button"
+                  disabled={isUnavailable}
+                  title={isUnavailable ? 'Requiere caja abierta en esta sede' : undefined}
                   onClick={() => {
                     setPaymentMethod(method.id)
                     if (method.id !== 'EFECTIVO') {
@@ -228,7 +235,8 @@ export function POSPaymentModal({
                     borderRadius: 12,
                     border: isSelected ? '2px solid var(--navy)' : '1.5px solid #cbd5e1',
                     background: isSelected ? '#edf2fa' : '#ffffff',
-                    cursor: 'pointer',
+                    cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                    opacity: isUnavailable ? 0.45 : 1,
                     transition: 'all 0.15s ease',
                     textAlign: 'center',
                     boxShadow: isSelected ? '0 4px 12px rgba(0, 27, 92, 0.1)' : 'none',
@@ -245,6 +253,15 @@ export function POSPaymentModal({
             })}
           </div>
         </div>
+
+        {!canReceiveCash && (
+          <p
+            role="note"
+            style={{ margin: 0, padding: '10px 12px', borderRadius: 10, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12, lineHeight: 1.45 }}
+          >
+            No tienes caja abierta en esta sede: puedes cobrar por transferencia o abrir tu caja en el módulo Cajas para recibir efectivo.
+          </p>
+        )}
 
         {/* 3b. Cuenta bancaria que recibe el dinero (contabilidad PUC por cuenta exacta) */}
         {needsBank && (

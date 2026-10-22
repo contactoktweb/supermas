@@ -11,6 +11,7 @@ import {
   POSPaymentMethod,
   POSPaymentLine,
   POSBankAccountOption,
+  POSOpenCashSession,
 } from '../types'
 
 const DEFAULT_POS_USER: POSUserContext = {
@@ -76,6 +77,19 @@ export class POSService {
   /**
    * Obtiene el cliente genérico institucional "Consumidor Final"
    */
+  /** Caja abierta del cajero en la sede (la misma que usará el servidor al cobrar en efectivo). */
+  async getOpenCashSession(locationId: string, userId: string): Promise<POSOpenCashSession | null> {
+    if (!locationId || !userId) return null
+    const session = await this.repo.getActiveSession(undefined, locationId, userId)
+    if (!session) return null
+    return {
+      id: session.id,
+      registerCode: session.cash_registers?.code ?? '',
+      registerName: session.cash_registers?.name ?? '',
+      openedAt: session.opening_time,
+    }
+  }
+
   async getGenericCustomer(): Promise<POSCustomer> {
     return this.repo.getGenericCustomer()
   }

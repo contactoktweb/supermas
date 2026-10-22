@@ -181,6 +181,13 @@ export interface POSDailySaleSummary {
   status: string
 }
 
+export interface POSOpenCashSession {
+  id: string
+  registerCode: string
+  registerName: string
+  openedAt: string
+}
+
 export interface POSUserContext {
   userId: string
   userName: string

@@ -769,7 +769,7 @@ export function SupplierFormDrawer({
                   <input
                     type="number"
                     min="0"
-                    step="100000"
+                    step="any"
                     className="filter-date-input"
                     style={{ width: '100%', fontSize: 14, fontWeight: 700 }}
                     value={creditLimit}

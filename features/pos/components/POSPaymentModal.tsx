@@ -256,7 +256,7 @@ export function POSPaymentModal({
                 <input
                   type="number"
                   min="0"
-                  step="100"
+                  step="any"
                   value={mixedCashAmount === 0 ? '' : mixedCashAmount}
                   onChange={(e) => setMixedCashAmount?.(Number(e.target.value) || 0)}
                   placeholder="0"
@@ -356,7 +356,7 @@ export function POSPaymentModal({
                 ref={cashInputRef}
                 type="number"
                 min="0"
-                step="100"
+                step="any"
                 value={amountPaid === 0 ? '' : amountPaid}
                 onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
                 placeholder="0"

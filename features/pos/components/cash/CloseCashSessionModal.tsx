@@ -114,7 +114,7 @@ function CloseCashSessionForm({ summary, onClose, onSubmit }: CloseCashSessionFo
             id={countedId}
             type="number"
             min="0"
-            step="100"
+            step="any"
             value={countedCash}
             onChange={(e) => setCountedCash(Number(e.target.value))}
             required

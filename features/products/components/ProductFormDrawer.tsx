@@ -844,7 +844,7 @@ export function ProductFormDrawer({
                       onChange={(e) => setNormalPrice(Number(e.target.value))}
                       placeholder="0"
                       min={0}
-                      step={100}
+                      step="any"
                       required
                     />
                   </div>
@@ -882,7 +882,7 @@ export function ProductFormDrawer({
                         onChange={(e) => setWholesalePrice(Number(e.target.value))}
                         placeholder="0"
                         min={0}
-                        step={100}
+                        step="any"
                         disabled={!isWholesaleActive}
                       />
                     </div>
@@ -933,7 +933,7 @@ export function ProductFormDrawer({
                         onChange={(e) => setDistributorPrice(Number(e.target.value))}
                         placeholder="0"
                         min={0}
-                        step={100}
+                        step="any"
                         disabled={!isDistributorActive}
                       />
                     </div>
@@ -1091,7 +1091,7 @@ export function ProductFormDrawer({
                             onChange={(e) => setNewTierPrice(Number(e.target.value))}
                             placeholder="0"
                             min={0}
-                            step={100}
+                            step="any"
                             required
                           />
                         </div>
@@ -1207,7 +1207,7 @@ export function ProductFormDrawer({
                     onChange={(e) => setEstimatedCost(Number(e.target.value))}
                     placeholder="0"
                     min={0}
-                    step={100}
+                    step="any"
                   />
                 </div>
                 <small className="field-hint">
@@ -1380,7 +1380,7 @@ export function ProductFormDrawer({
                                 <input
                                   type="number"
                                   min={0}
-                                  step={100}
+                                  step="any"
                                   value={currentItem.unitCost || ''}
                                   onChange={(e) => {
                                     const val = Math.max(0, Number(e.target.value) || 0)

@@ -59,7 +59,7 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
               id={floatId}
               type="number"
               min="0"
-              step="1000"
+              step="any"
               value={openingFloat}
               onChange={(e) => setOpeningFloat(Number(e.target.value))}
               required

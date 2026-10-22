@@ -1008,7 +1008,7 @@ export function NewSaleDrawer({
                       <input
                         type="number"
                         min="0"
-                        step="100"
+                        step="any"
                         value={mixedCashAmount === 0 ? '' : mixedCashAmount}
                         onChange={(e) => setMixedCashAmount(Number(e.target.value) || 0)}
                         style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 14, fontWeight: 700 }}

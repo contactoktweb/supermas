@@ -117,7 +117,7 @@ export function CashMovementModal({ session, onClose, onSubmit }: CashMovementMo
               id={amountId}
               type="number"
               min="1"
-              step="100"
+              step="any"
               value={amount || ''}
               onChange={(e) => setAmount(Number(e.target.value))}
               placeholder="0"

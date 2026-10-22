@@ -6398,3 +6398,28 @@ html, body {
   .notif-center *,.notif-center-panel,.price-change-notice,.price-approvals-page *,.price-review-drawer *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
   .price-request-card:hover,.price-approvals-chip:hover{transform:none}
 }
+
+/* Tesorería: tarjetas de cuentas bancarias */
+.bank-account-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:16px}
+.bank-account-card{display:flex;flex-direction:column;gap:16px;padding:20px;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 5px 14px #10213f05;transition:transform .25s ease,border-color .25s ease,box-shadow .25s ease}
+.bank-account-card:hover{transform:translateY(-3px);border-color:#bcc8da;box-shadow:0 14px 26px #10213f12}
+.bank-account-card-header{display:flex;align-items:center;gap:12px}
+.bank-account-avatar{display:grid;place-items:center;width:42px;height:42px;flex-shrink:0;border-radius:11px;background:#edf2fa;color:var(--navy)}
+.bank-account-identity{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.bank-account-identity h3{margin:0;font-size:14px;font-weight:800;color:var(--foreground)}
+.bank-account-identity span{color:var(--muted);font-size:11px}
+.bank-account-balance{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:14px 16px;border-radius:11px;background:#f6f8fc}
+.bank-account-balance span{color:var(--muted);font-size:11px;font-weight:700}
+.bank-account-balance strong{color:var(--navy);font-size:20px;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+.bank-account-ledger{display:flex;flex-direction:column;gap:8px;padding-top:14px;border-top:1px solid var(--line)}
+.bank-account-ledger-caption{color:#8b98aa;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase}
+.bank-account-ledger-value{display:flex;flex-direction:column;gap:2px}
+.bank-account-ledger-value b{color:var(--navy);font:700 13px/1.3 ui-monospace,SFMono-Regular,Menlo,monospace}
+.bank-account-ledger-value span{color:#516079;font-size:12px;line-height:1.4}
+.bank-account-ledger-missing{display:flex;align-items:flex-start;gap:8px;margin:0;padding:10px 12px;border-radius:9px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:11.5px;line-height:1.45}
+.bank-account-ledger-missing svg{flex-shrink:0;margin-top:1px}
+.bank-account-ledger-form{display:flex;align-items:center;gap:8px}
+.bank-account-ledger-form .custom-select-container{flex:1;min-width:0}
+.bank-account-ledger-form .outline-button{flex-shrink:0;height:38px}
+@media (max-width:480px){.bank-account-ledger-form{flex-direction:column;align-items:stretch}.bank-account-balance strong{font-size:18px}}
+@media (prefers-reduced-motion:reduce){.bank-account-card{transition:none}.bank-account-card:hover{transform:none}}

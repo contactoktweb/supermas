@@ -4,7 +4,7 @@ import { LoginPageClient } from './LoginPageClient'
 
 export const metadata: Metadata = {
   title: 'Iniciar Sesión | Super Más ERP',
-  description: 'Acceso fiduciario seguro al sistema ERP/POS de Distribuidora Super Más.',
+  description: 'Acceso seguro al sistema ERP/POS de Distribuidora Super Más.',
 }
 
 export default function LoginPage() {

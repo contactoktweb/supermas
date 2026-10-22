@@ -305,7 +305,7 @@ export function AccountsPayablePage() {
             Cuentas por Pagar (CxP)
           </h1>
           <p className="header-sub-caption">
-            Control fiduciario de obligaciones comerciales, gestión de cartera de proveedores y abonos
+            Control de obligaciones comerciales, gestión de cartera de proveedores y abonos
           </p>
         </div>
 

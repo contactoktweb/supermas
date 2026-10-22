@@ -27,7 +27,7 @@ export function UserMini({ onLogout }: UserMiniProps) {
     <button
       className="user-mini"
       onClick={handleLogout}
-      title="Cerrar sesión fiduciaria"
+      title="Cerrar sesión"
       type="button"
       aria-label="Cerrar sesión"
     >

@@ -43,7 +43,7 @@ export function LoginPageClient() {
           }}
         />
         <span style={{ fontSize: '14px', letterSpacing: '0.5px' }}>
-          Verificando sesión fiduciaria...
+          Verificando sesión...
         </span>
       </div>
     )

@@ -228,7 +228,7 @@ export function AccountsReceivablePage() {
             Cuentas por Cobrar (CxC)
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Gestión fiduciaria de cartera, franjas de vencimiento y recaudos de clientes en PostgreSQL.
+            Gestión de cartera, franjas de vencimiento y recaudos de clientes.
           </p>
         </div>
 
@@ -378,7 +378,7 @@ export function AccountsReceivablePage() {
       <div className="table-container" style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-            Cargando cartera fiduciaria desde PostgreSQL...
+            Cargando cartera...
           </div>
         ) : error ? (
           <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>

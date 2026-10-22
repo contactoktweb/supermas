@@ -810,7 +810,7 @@ export function AccountingExportModal({
                 </div>
                 <strong className="text-xs">PDF Oficial Imprimible</strong>
                 <span className="text-[10px] text-slate-500 leading-tight">
-                  Formato fiduciario ajustado al 100% en hoja Carta, con membrete y firmas
+                  Formato ajustado al 100% en hoja Carta, con membrete y firmas
                 </span>
               </button>
 
@@ -896,7 +896,7 @@ export function AccountingExportModal({
         {/* Pie del Modal */}
         <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <span className="text-[11px] text-slate-500 hidden sm:inline">
-            Exportación contable estandarizada conforme a las reglas fiduciarias y DIAN.
+            Exportación contable estandarizada conforme a las normas contables y DIAN.
           </span>
           <div className="flex items-center gap-3 ml-auto">
             <button

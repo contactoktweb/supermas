@@ -186,7 +186,7 @@ export function TreasuryPage() {
       setActionError(null)
       await reconcileMovement(movementId, !currentStatus)
       setSuccessToast(
-        `Movimiento ${!currentStatus ? 'conciliado fiduciariamente' : 'marcado como pendiente'}.`
+        `Movimiento ${!currentStatus ? 'conciliado' : 'marcado como pendiente'}.`
       )
       setTimeout(() => setSuccessToast(null), 4000)
     } catch (err: any) {
@@ -644,7 +644,7 @@ export function TreasuryPage() {
             <div className="space-y-4">
               <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-gray-500">
-                  Mostrando <strong>{bankMovements.length}</strong> movimientos fiduciarios registrados en cuentas bancarias.
+                  Mostrando <strong>{bankMovements.length}</strong> movimientos registrados en cuentas bancarias.
                 </div>
                 <div className="flex items-center gap-2">
                   <select

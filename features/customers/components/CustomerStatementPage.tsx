@@ -150,7 +150,7 @@ export function CustomerStatementPage() {
             Estado de Cuenta del Cliente
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Ficha financiera integral, cupo de crédito disponible y movimientos en PostgreSQL.
+            Ficha financiera integral, cupo de crédito disponible y movimientos.
           </p>
         </div>
 

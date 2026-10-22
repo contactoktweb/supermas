@@ -104,7 +104,7 @@ export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
             <em>en un solo lugar.</em>
           </h1>
           <p className="visual-description">
-            Plataforma centralizada de gestión fiduciaria para bodegas, catálogo,
+            Plataforma centralizada de gestión para bodegas, catálogo,
             compras, inventario, ventas, caja, contabilidad y auditoría.
           </p>
           <div className="visual-metrics">
@@ -114,7 +114,7 @@ export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
             </div>
             <div>
               <strong>100%</strong>
-              <span>Seguridad RLS PostgreSQL</span>
+              <span>Acceso protegido por roles</span>
             </div>
           </div>
         </div>
@@ -137,10 +137,10 @@ export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
               <div className="login-heading">
                 <div className="login-status-pill">
                   <span className="login-status-indicator" />
-                  <span>Conexión Fiduciaria Segura</span>
+                  <span>Conexión segura</span>
                 </div>
                 <h2>Bienvenido</h2>
-                <p>Ingresa tus credenciales fiduciarias para acceder al sistema</p>
+                <p>Ingresa tus credenciales para acceder al sistema</p>
               </div>
 
               {errorMessage && (

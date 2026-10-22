@@ -168,26 +168,16 @@ export function SupplierTable({
               </th>
 
               {/* 8. Última Compra */}
-              <th
-                onClick={() => onSort('lastPurchaseDate')}
-                className="sortable-th"
-                style={{ minWidth: 130 }}
-              >
+              <th style={{ minWidth: 130 }}>
                 <div className="th-content">
                   <span>Última Compra</span>
-                  {getSortIcon('lastPurchaseDate')}
                 </div>
               </th>
 
               {/* 9. Saldo Pendiente */}
-              <th
-                onClick={() => onSort('currentBalance')}
-                className="sortable-th"
-                style={{ textAlign: 'right', minWidth: 140 }}
-              >
+              <th style={{ textAlign: 'right', minWidth: 140 }}>
                 <div className="th-content right">
                   <span>Saldo Pendiente</span>
-                  {getSortIcon('currentBalance')}
                 </div>
               </th>
 

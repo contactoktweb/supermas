@@ -129,9 +129,10 @@ export class SupplierRepository {
       { count: 'exact' }
     )
 
-    // 1. Búsqueda por texto (nombre, documento, contacto, email, ciudad)
-    if (params.query && params.query.trim()) {
-      const q = params.query.trim().toLowerCase()
+    // 1. Búsqueda por texto (nombre, documento, contacto, email, ciudad); se quitan los caracteres
+    // que rompen la sintaxis del filtro.
+    const q = (params.query || '').trim().toLowerCase().replace(/[,()*%\\]/g, ' ').trim()
+    if (q) {
       query = query.or(
         `name.ilike.%${q}%,legal_name.ilike.%${q}%,commercial_name.ilike.%${q}%,tax_id.ilike.%${q}%,contact_name.ilike.%${q}%,email.ilike.%${q}%,city.ilike.%${q}%`
       )
@@ -145,6 +146,37 @@ export class SupplierRepository {
     // 3. Filtro por Estado
     if (params.status && params.status !== 'ALL') {
       query = query.eq('is_active', params.status === 'ACTIVE')
+    }
+
+    // Fecha de registro del proveedor
+    if (params.startDate) query = query.gte('created_at', params.startDate)
+    if (params.endDate) query = query.lte('created_at', `${params.endDate}T23:59:59`)
+
+    // Proveedores con compras en una bodega y/o con saldo pendiente: se resuelven primero sus ids para
+    // filtrar en el servidor y que el total y la paginación cuadren.
+    const needsBodega = Boolean(params.locationId && params.locationId !== 'ALL')
+    if (needsBodega || params.hasPendingBalance !== undefined) {
+      let purchasesQuery = supabaseClient
+        .from('purchases')
+        .select('supplier_id, total_amount, paid_amount, payment_status, inventory_status')
+        .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
+      if (needsBodega) purchasesQuery = purchasesQuery.eq('location_id', params.locationId!)
+      const { data: related, error: relatedError } = await purchasesQuery
+      if (relatedError) throw new Error('No se pudieron cargar los proveedores.')
+
+      const withPending = new Set((related ?? []).filter((p) => pendingPurchaseBalance(p) > 0).map((p) => p.supplier_id))
+      if (needsBodega) {
+        const atLocation = new Set((related ?? []).map((p) => p.supplier_id))
+        const ids = [...atLocation].filter((id) =>
+          params.hasPendingBalance === undefined ? true : params.hasPendingBalance === withPending.has(id)
+        )
+        query = query.in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'])
+      } else if (params.hasPendingBalance) {
+        const ids = [...withPending]
+        query = query.in('id', ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'])
+      } else if (withPending.size > 0) {
+        query = query.not('id', 'in', `(${[...withPending].join(',')})`)
+      }
     }
 
     // 4. Ordenamiento
@@ -176,16 +208,7 @@ export class SupplierRepository {
     }
 
     const total = count || 0
-    let items = (data || []).map(mapDbRowToSupplier)
-
-    // Filtro adicional en memoria para hasPendingBalance si se solicitó
-    if (params.hasPendingBalance !== undefined) {
-      if (params.hasPendingBalance) {
-        items = items.filter((s) => s.currentBalance > 0)
-      } else {
-        items = items.filter((s) => s.currentBalance <= 0)
-      }
-    }
+    const items = (data || []).map(mapDbRowToSupplier)
 
     const totalPages = Math.ceil(total / pageSize) || 1
 

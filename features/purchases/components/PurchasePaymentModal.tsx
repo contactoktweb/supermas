@@ -90,7 +90,7 @@ export function PurchasePaymentModal({
       )
       return
     }
-    if ((paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'CONSIGNACION') && !bankAccountId) {
+    if (paymentMethod !== 'EFECTIVO' && !bankAccountId) {
       setError('Debe seleccionar una cuenta bancaria de origen para la transferencia.')
       return
     }
@@ -354,7 +354,7 @@ export function PurchasePaymentModal({
                   />
                 ) : (
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: 8, background: '#f8fafc', borderRadius: 6, border: '1px solid var(--border)' }}>
-                    No hay cuentas bancarias activas registradas. Se procesará sin afectación directa de cuenta.
+                    No hay cuentas bancarias activas. Regístrela en Tesorería o pague en efectivo.
                   </div>
                 )}
               </div>
@@ -376,7 +376,7 @@ export function PurchasePaymentModal({
                 }}
               >
                 <AppIcon name="info" size={16} />
-                <span>El dinero en efectivo se debitará automáticamente de la sesión de caja abierta en la sede.</span>
+                <span>El efectivo sale de tu caja abierta en la sede de la compra y queda registrado en el arqueo.</span>
               </div>
             )}
 

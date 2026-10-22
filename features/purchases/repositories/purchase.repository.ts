@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import { SupabaseClient } from '@supabase/supabase-js'
 import {
   Purchase,
@@ -255,17 +256,12 @@ export class PurchaseRepository {
    * Resuelve el company_id activo del usuario autenticado de forma estricta
    */
   async resolveCompanyId(): Promise<string> {
-    const { data: authData } = await this.client.auth.getUser()
-    if (authData.user) {
-      const { data: userProfile } = await this.client
-        .from('users')
-        .select('company_id')
-        .eq('id', authData.user.id)
-        .maybeSingle()
-
-      if (userProfile?.company_id) return userProfile.company_id
+    // Resolución canónica compartida (memoizada por sesión en el navegador).
+    try {
+      return await resolveUserCompanyId(this.client)
+    } catch {
+      throw new Error('No se pudo resolver la empresa activa del usuario autenticado.')
     }
-    throw new Error('No se pudo resolver la empresa activa del usuario autenticado.')
   }
 
   /**

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Heart } from 'lucide-react'
+import { useAuth } from '@/features/auth/hooks/useAuth'
 import {
   AccountingAccount,
   AccountingMovement,
@@ -11,17 +12,36 @@ import {
   ThirdParty,
   TrialBalanceLevelFilter,
   TrialBalanceReportData,
+  TrialBalanceTotals,
   AccountingExportType,
-  ThirdPartyType,
-  LegalNature,
-  AccountingEntryStatus,
+  AccountingExportFilterOptions,
+  BalanceSheetReport,
+  IncomeStatementReport,
+  FinancialStatementNode,
 } from '../../types'
 import { accountingExportService } from '../../services/accounting-export.service'
+import { accountingService } from '../../services/accounting.service'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
+import { useAccountingCatalog, useAccountingCompanyHeader } from '../../hooks/useAccountingReportContext'
+import { ACCOUNT_LEVEL_LABEL, flattenAccountTree, pruneZeroNodes, roundCurrency } from '../../utils/account-tree'
+import { comparePucCodes, formatPucRangeLabel, isPucCodeInRange, isPucDescendantOrSelf } from '../../utils/puc-code-range'
+import {
+  formatAmount,
+  formatCompanyNit,
+  formatCop,
+  formatIsoDateEs,
+  formatNowBogota,
+  taxRegimeLabel,
+  todayBogotaIsoDate,
+} from '../../utils/report-format'
+import { AccountRangeFilter } from '../filters/AccountRangeFilter'
+import { incomeStatementLines, incomeStatementSections } from '../../utils/income-statement'
 
 export interface TrialBalancePdfModalProps {
   isOpen: boolean
   onClose: () => void
   reportType?: AccountingExportType
+  /** Página visible del PUC (respaldo mientras carga el catálogo completo). */
   accounts: AccountingAccount[]
   movements: AccountingMovement[]
   entries?: AccountingEntry[]
@@ -29,9 +49,7 @@ export interface TrialBalancePdfModalProps {
   initialMainAccountCode?: string
   initialStartAccountCode?: string
   initialEndAccountCode?: string
-  initialBranch?: string
-  initialCostCenter?: string
-  initialAdministrativeArea?: string
+  initialLocationId?: string
   initialVoucherType?: string
   selectedThirdPartyName?: string
   initialSelectedThirdPartyId?: string
@@ -46,69 +64,107 @@ export interface TrialBalancePdfModalProps {
   initialEndDate?: string
 }
 
+type RemoteState = 'idle' | 'loading' | 'ready' | 'error'
+
+const LEVEL_NUMBER_BY_FILTER: Record<TrialBalanceLevelFilter, number> = {
+  CLASS: 1,
+  GROUP: 2,
+  ACCOUNT: 3,
+  SUBACCOUNT: 4,
+  AUXILIARY: 5,
+  ALL: 5,
+}
+
+/** Sangría por nivel del PUC en el documento impreso (px). */
+const PRINT_INDENT_PX = 10
+
 /**
- * Formatea un valor según el estándar contable oficial colombiano:
- * Millares separados por coma, 2 decimales separados por punto,
- * seguido por ' D' (Débito) o ' C' (Crédito).
+ * Saldo con sufijo D (débito) o C (crédito) según el lado en que queda, con separadores colombianos.
  */
 function formatAccountingBalance(amount: number, nature: 'DEBIT' | 'CREDIT'): string {
-  const absAmount = Math.abs(amount)
-  if (absAmount < 0.005) {
-    return '0.00'
-  }
-  const formattedNumber = absAmount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
-
-  let suffix = 'D'
-  if (nature === 'DEBIT') {
-    suffix = amount >= 0 ? 'D' : 'C'
-  } else {
-    suffix = amount >= 0 ? 'C' : 'D'
-  }
-
-  return `${formattedNumber} ${suffix}`
+  if (Math.abs(amount) < 0.005) return '0,00'
+  const suffix = nature === 'DEBIT' ? (amount >= 0 ? 'D' : 'C') : amount >= 0 ? 'C' : 'D'
+  return `${formatAmount(Math.abs(amount))} ${suffix}`
 }
 
-/**
- * Formatea débitos y créditos del periodo (número con 2 decimales o '0.00')
- */
+/** Débitos y créditos del periodo (siempre positivos). */
 function formatAccountingMovement(amount: number): string {
-  const absAmount = Math.abs(amount)
-  if (absAmount < 0.005) {
-    return '0.00'
-  }
-  return absAmount.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })
+  return formatAmount(Math.abs(amount))
 }
 
-/**
- * Formato monetario estándar colombiano
- */
-function formatCurrency(amount: number): string {
-  return `$${Math.abs(amount).toLocaleString('es-CO', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`
+/** Texto seguro dentro de una cadena CSS (content: "..."). */
+function cssString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, ' ')
+}
+
+/** Texto seguro para insertar en HTML. */
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+const REPORT_CONFIG: Record<AccountingExportType, { title: string; subtitle: string; icon: LightIconName; badge: string }> = {
+  trial_balance: {
+    title: 'BALANCE DE COMPROBACIÓN',
+    subtitle: 'Sumas y saldos por cuenta y subcuentas',
+    icon: 'receipt',
+    badge: 'Libro oficial',
+  },
+  movements: {
+    title: 'LIBRO AUXILIAR DE CUENTAS CONTABLES',
+    subtitle: 'Movimientos, débitos, créditos y saldos acumulados',
+    icon: 'table',
+    badge: 'Libro auxiliar',
+  },
+  entries: {
+    title: 'COMPROBANTES DE DIARIO Y CAUSACIONES',
+    subtitle: 'Asientos con partida doble verificada',
+    icon: 'receipt',
+    badge: 'Comprobantes',
+  },
+  journal: {
+    title: 'LIBRO DIARIO GENERAL',
+    subtitle: 'Líneas contables en orden cronológico',
+    icon: 'fileText',
+    badge: 'Diario general',
+  },
+  third_parties: {
+    title: 'DIRECTORIO DE TERCEROS (DIAN)',
+    subtitle: 'Clientes, proveedores, empleados y acreedores',
+    icon: 'users',
+    badge: 'Directorio DIAN',
+  },
+  accounts: {
+    title: 'PLAN ÚNICO DE CUENTAS (PUC)',
+    subtitle: 'Catálogo jerárquico de cuentas, naturalezas y niveles',
+    icon: 'layers',
+    badge: 'Catálogo PUC',
+  },
+  balance: {
+    title: 'ESTADO DE SITUACIÓN FINANCIERA (BALANCE GENERAL)',
+    subtitle: 'Activo, pasivo y patrimonio por niveles del PUC con ecuación patrimonial',
+    icon: 'wallet',
+    badge: 'Estado financiero',
+  },
+  income_statement: {
+    title: 'ESTADO DE RESULTADOS INTEGRAL',
+    subtitle: 'Ingresos, costos y gastos del periodo por niveles del PUC con utilidad neta',
+    icon: 'pieChart',
+    badge: 'Estado financiero',
+  },
 }
 
 export function TrialBalancePdfModal({
   isOpen,
   onClose,
   reportType = 'trial_balance',
-  accounts,
+  accounts: pageAccounts,
   movements,
   entries = [],
   thirdParties,
   initialMainAccountCode = 'ALL',
   initialStartAccountCode = '',
   initialEndAccountCode = '',
-  initialBranch = '01 - SUPER MÁS PRINCIPAL',
-  initialCostCenter = 'TODOS',
-  initialAdministrativeArea = 'TODAS',
+  initialLocationId = 'ALL',
   initialVoucherType = 'TODOS',
   selectedThirdPartyName,
   initialSelectedThirdPartyId = 'ALL',
@@ -124,6 +180,14 @@ export function TrialBalancePdfModal({
 }: TrialBalancePdfModalProps) {
   const [mounted, setMounted] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
+  const { user } = useAuth()
+  const generatedBy = user?.fullName || user?.email || ''
+
+  // Catálogo PUC completo, empresa (razón social, NIT, DV) y sedes reales.
+  const catalog = useAccountingCatalog(isOpen)
+  const accounts = catalog.accounts.length > 0 ? catalog.accounts : pageAccounts
+  const { company, error: companyError } = useAccountingCompanyHeader(isOpen)
+  const locations = useAccountingLocations()
 
   // Reporte activo actualmente en el visor
   const [activeReportType, setActiveReportType] = useState<AccountingExportType>(reportType)
@@ -132,27 +196,29 @@ export function TrialBalancePdfModal({
   const [mainAccountCode, setMainAccountCode] = useState<string>(initialMainAccountCode)
   const [startAccountCode, setStartAccountCode] = useState<string>(initialStartAccountCode)
   const [endAccountCode, setEndAccountCode] = useState<string>(initialEndAccountCode)
-  const [branch, setBranch] = useState<string>(initialBranch)
-  const [costCenter, setCostCenter] = useState<string>(initialCostCenter)
-  const [administrativeArea, setAdministrativeArea] = useState<string>(initialAdministrativeArea)
+  const [locationId, setLocationId] = useState<string>(initialLocationId)
   const [voucherType, setVoucherType] = useState<string>(initialVoucherType)
   const [selectedThirdPartyId, setSelectedThirdPartyId] = useState<string>(initialSelectedThirdPartyId)
   const [maxLevel, setMaxLevel] = useState<TrialBalanceLevelFilter>(initialMaxLevel)
   const [includeThirdParties, setIncludeThirdParties] = useState<boolean>(initialIncludeThirdParties)
   const [hideZeroBalances, setHideZeroBalances] = useState<boolean>(initialHideZeroBalances)
 
-  // Fechas del balance / reporte
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const defaultStartDate = initialStartDate || `${currentYear}-01-01`
-  const defaultEndDate =
-    initialEndDate ||
-    `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
-      now.getDate()
-    ).padStart(2, '0')}`
+  // Fechas del reporte (en el Balance General la fecha final es la fecha de corte)
+  const todayIso = todayBogotaIsoDate()
+  const [startDate, setStartDate] = useState<string>(initialStartDate || `${todayIso.slice(0, 4)}-01-01`)
+  const [endDate, setEndDate] = useState<string>(initialEndDate || todayIso)
 
-  const [startDate, setStartDate] = useState<string>(defaultStartDate)
-  const [endDate, setEndDate] = useState<string>(defaultEndDate)
+  // Momento de generación del documento (se fija al abrir y al cambiar filtros)
+  const [generatedAt, setGeneratedAt] = useState<string>('')
+
+  // Datos consultados en la base
+  const [tbTotals, setTbTotals] = useState<TrialBalanceTotals | null>(null)
+  const [tbState, setTbState] = useState<RemoteState>('idle')
+  const [balanceReport, setBalanceReport] = useState<BalanceSheetReport | null>(null)
+  const [balanceState, setBalanceState] = useState<RemoteState>('idle')
+  const [incomeReport, setIncomeReport] = useState<IncomeStatementReport | null>(null)
+  const [incomeState, setIncomeState] = useState<RemoteState>('idle')
+  const [remoteError, setRemoteError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -160,31 +226,27 @@ export function TrialBalancePdfModal({
 
   // Sincronizar props cuando se abre o cambia reportType
   useEffect(() => {
-    if (isOpen) {
-      if (reportType) setActiveReportType(reportType)
-      if (initialMainAccountCode) setMainAccountCode(initialMainAccountCode)
-      if (initialStartAccountCode) setStartAccountCode(initialStartAccountCode)
-      if (initialEndAccountCode) setEndAccountCode(initialEndAccountCode)
-      if (initialBranch) setBranch(initialBranch)
-      if (initialCostCenter) setCostCenter(initialCostCenter)
-      if (initialAdministrativeArea) setAdministrativeArea(initialAdministrativeArea)
-      if (initialVoucherType) setVoucherType(initialVoucherType)
-      if (initialSelectedThirdPartyId) setSelectedThirdPartyId(initialSelectedThirdPartyId)
-      if (initialMaxLevel) setMaxLevel(initialMaxLevel)
-      if (initialIncludeThirdParties !== undefined) setIncludeThirdParties(initialIncludeThirdParties)
-      if (initialHideZeroBalances !== undefined) setHideZeroBalances(initialHideZeroBalances)
-      if (initialStartDate) setStartDate(initialStartDate)
-      if (initialEndDate) setEndDate(initialEndDate)
-    }
+    if (!isOpen) return
+    setActiveReportType(reportType)
+    setMainAccountCode(initialMainAccountCode || 'ALL')
+    setStartAccountCode(initialStartAccountCode || '')
+    setEndAccountCode(initialEndAccountCode || '')
+    setLocationId(initialLocationId || 'ALL')
+    setVoucherType(initialVoucherType || 'TODOS')
+    setSelectedThirdPartyId(initialSelectedThirdPartyId || 'ALL')
+    setMaxLevel(initialMaxLevel || 'SUBACCOUNT')
+    setIncludeThirdParties(initialIncludeThirdParties !== undefined ? initialIncludeThirdParties : true)
+    setHideZeroBalances(initialHideZeroBalances !== undefined ? initialHideZeroBalances : true)
+    const today = todayBogotaIsoDate()
+    setStartDate(initialStartDate || `${today.slice(0, 4)}-01-01`)
+    setEndDate(initialEndDate || today)
   }, [
     isOpen,
     reportType,
     initialMainAccountCode,
     initialStartAccountCode,
     initialEndAccountCode,
-    initialBranch,
-    initialCostCenter,
-    initialAdministrativeArea,
+    initialLocationId,
     initialVoucherType,
     initialSelectedThirdPartyId,
     initialMaxLevel,
@@ -194,168 +256,264 @@ export function TrialBalancePdfModal({
     initialEndDate,
   ])
 
-  // Cuentas principales de nivel 1
-  const mainClasses = useMemo(() => {
-    return accounts
-      .filter((a) => a.code.length === 1)
-      .sort((a, b) => a.code.localeCompare(b.code))
-  }, [accounts])
+  const locationName = locations.find((l) => l.id === locationId)?.name
+  const sedeLabel = locationId !== 'ALL' ? locationName || 'Sede seleccionada' : 'Todas las sedes (consolidado)'
+  const accountRange = useMemo(() => ({ from: startAccountCode, to: endAccountCode }), [startAccountCode, endAccountCode])
+  const accountRangeLabel = formatPucRangeLabel(accountRange)
+
+  // Totales del Balance de Comprobación (saldo anterior y periodo) desde la base
+  useEffect(() => {
+    if (!isOpen || activeReportType !== 'trial_balance') return
+    let isActive = true
+    setTbState('loading')
+    setRemoteError(null)
+    accountingService
+      .getTrialBalanceTotals({
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        locationId,
+        accountFrom: startAccountCode || undefined,
+        accountTo: endAccountCode || undefined,
+      })
+      .then((totals) => {
+        if (!isActive) return
+        setTbTotals(totals)
+        setTbState('ready')
+      })
+      .catch((err: unknown) => {
+        if (!isActive) return
+        setTbTotals(null)
+        setTbState('error')
+        setRemoteError(err instanceof Error ? err.message : 'No se pudieron consultar los saldos.')
+      })
+    return () => {
+      isActive = false
+    }
+  }, [isOpen, activeReportType, startDate, endDate, locationId, startAccountCode, endAccountCode])
+
+  // Balance General desde la base (fecha de corte = fecha final)
+  useEffect(() => {
+    if (!isOpen || activeReportType !== 'balance') return
+    let isActive = true
+    setBalanceState('loading')
+    setRemoteError(null)
+    accountingService
+      .getBalanceSheet({
+        cutoffDate: endDate || todayBogotaIsoDate(),
+        locationId,
+        accountFrom: startAccountCode || undefined,
+        accountTo: endAccountCode || undefined,
+      })
+      .then((report) => {
+        if (!isActive) return
+        setBalanceReport(report)
+        setBalanceState('ready')
+      })
+      .catch((err: unknown) => {
+        if (!isActive) return
+        setBalanceReport(null)
+        setBalanceState('error')
+        setRemoteError(err instanceof Error ? err.message : 'No se pudo generar el Balance General.')
+      })
+    return () => {
+      isActive = false
+    }
+  }, [isOpen, activeReportType, endDate, locationId, startAccountCode, endAccountCode])
+
+  // Estado de Resultados del periodo [desde, hasta] desde la base
+  useEffect(() => {
+    if (!isOpen || activeReportType !== 'income_statement') return
+    let isActive = true
+    setIncomeState('loading')
+    setRemoteError(null)
+    accountingService
+      .getIncomeStatement({ dateFrom: startDate, dateTo: endDate, locationId })
+      .then((report) => {
+        if (!isActive) return
+        setIncomeReport(report)
+        setIncomeState('ready')
+      })
+      .catch((err: unknown) => {
+        if (!isActive) return
+        setIncomeReport(null)
+        setIncomeState('error')
+        setRemoteError(err instanceof Error ? err.message : 'No se pudo generar el Estado de Resultados.')
+      })
+    return () => {
+      isActive = false
+    }
+  }, [isOpen, activeReportType, startDate, endDate, locationId])
+
+  // Cuentas de nivel 1 para el selector de clase
+  const mainClasses = useMemo(
+    () => accounts.filter((a) => a.code.length === 1).sort((a, b) => comparePucCodes(a.code, b.code)),
+    [accounts]
+  )
 
   // Nombre del tercero seleccionado
   const resolvedThirdPartyName = useMemo(() => {
     if (selectedThirdPartyName) return selectedThirdPartyName
-    if (selectedThirdPartyId === 'ALL') return 'TODOS'
+    if (selectedThirdPartyId === 'ALL') return 'Todos'
     const found = thirdParties.find((tp) => tp.id === selectedThirdPartyId)
     return found ? `${found.documentNumber ? found.documentNumber + ' - ' : ''}${found.companyName}` : selectedThirdPartyId
   }, [selectedThirdPartyId, selectedThirdPartyName, thirdParties])
 
   // Opciones de filtro para el servicio de exportación
-  const filterOptions = useMemo(() => {
-    return {
+  const filterOptions: AccountingExportFilterOptions = useMemo(
+    () => ({
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       startAccountCode: startAccountCode || undefined,
       endAccountCode: endAccountCode || undefined,
       mainAccountCode: mainAccountCode !== 'ALL' ? mainAccountCode : undefined,
-      branch,
-      costCenter,
-      administrativeArea,
+      locationId,
+      locationName,
       voucherType,
       selectedThirdPartyId,
+      thirdPartyType: initialThirdPartyType as AccountingExportFilterOptions['thirdPartyType'],
+      legalNature: initialLegalNature as AccountingExportFilterOptions['legalNature'],
+      entryStatus: initialEntryStatus as AccountingExportFilterOptions['entryStatus'],
+      searchQuery: initialSearchQuery,
       maxLevel,
       includeThirdParties,
       hideZeroBalances,
-    }
-  }, [
-    startDate,
-    endDate,
-    startAccountCode,
-    endAccountCode,
-    mainAccountCode,
-    branch,
-    costCenter,
-    administrativeArea,
-    voucherType,
-    selectedThirdPartyId,
-    maxLevel,
-    includeThirdParties,
-    hideZeroBalances,
-  ])
+      companyHeader: company,
+    }),
+    [
+      startDate,
+      endDate,
+      startAccountCode,
+      endAccountCode,
+      mainAccountCode,
+      locationId,
+      locationName,
+      voucherType,
+      selectedThirdPartyId,
+      initialThirdPartyType,
+      initialLegalNature,
+      initialEntryStatus,
+      initialSearchQuery,
+      maxLevel,
+      includeThirdParties,
+      hideZeroBalances,
+      company,
+    ]
+  )
+
+  useEffect(() => {
+    if (isOpen) setGeneratedAt(formatNowBogota())
+  }, [isOpen, filterOptions, activeReportType])
 
   // =========================================================================
-  // 1. DATA: BALANCE DE COMPROBACIÓN
+  // 1. DATA: BALANCE DE COMPROBACIÓN (importes de la base cuando están disponibles)
   // =========================================================================
-  const trialBalanceData: TrialBalanceReportData = useMemo(() => {
-    return accountingExportService.buildTrialBalanceData({
-      accounts,
-      movements,
-      thirdParties,
-      options: filterOptions,
-    })
-  }, [accounts, movements, thirdParties, filterOptions])
+  const trialBalanceData: TrialBalanceReportData = useMemo(
+    () =>
+      accountingExportService.buildTrialBalanceData({
+        accounts,
+        movements,
+        thirdParties,
+        options: filterOptions,
+        totals: tbTotals,
+      }),
+    [accounts, movements, thirdParties, filterOptions, tbTotals]
+  )
 
   // =========================================================================
-  // 2. DATA: LIBRO AUXILIAR DE CUENTAS
+  // 2. DATA: LIBRO AUXILIAR (cuentas con movimientos propios dentro del rango)
   // =========================================================================
   const auxiliaryAccountsData = useMemo(() => {
-    const accMap = new Map<
-      string,
-      {
-        account: AccountingAccount
-        initialBalance: number
-        movements: Array<{
-          id: string
-          date: string
-          voucherNumber: string
-          description: string
-          thirdPartyName: string
-          thirdPartyDoc: string
-          debit: number
-          credit: number
-          runningBalance: number
-        }>
-        totalDebit: number
-        totalCredit: number
-        finalBalance: number
-      }
-    >()
-
-    const activeAccounts = accounts.filter((acc) => {
-      if (startAccountCode && acc.code < startAccountCode) return false
-      if (endAccountCode && acc.code > endAccountCode) return false
-      if (mainAccountCode !== 'ALL' && !acc.code.startsWith(mainAccountCode)) return false
+    const scopedMovements = movements.filter((m) => {
+      if (!isPucCodeInRange(m.accountCode, accountRange)) return false
+      if (mainAccountCode !== 'ALL' && !isPucDescendantOrSelf(m.accountCode, mainAccountCode)) return false
+      if (locationId !== 'ALL' && m.locationId !== locationId) return false
       return true
     })
+    const byAccount = new Map<string, AccountingMovement[]>()
+    for (const m of scopedMovements) {
+      const list = byAccount.get(m.accountId) || []
+      list.push(m)
+      byAccount.set(m.accountId, list)
+    }
 
-    for (const acc of activeAccounts) {
-      const accMovements = movements.filter(
-        (m) => m.accountCode === acc.code || m.accountCode.startsWith(acc.code)
-      )
-      const priorMovs = accMovements.filter(
-        (m) => startDate && m.date.slice(0, 10) < startDate
-      )
+    const result: Array<{
+      account: AccountingAccount
+      initialBalance: number
+      movements: Array<{
+        id: string
+        date: string
+        voucherNumber: string
+        description: string
+        thirdPartyName: string
+        thirdPartyDoc: string
+        debit: number
+        credit: number
+        runningBalance: number
+      }>
+      totalDebit: number
+      totalCredit: number
+      finalBalance: number
+    }> = []
+
+    for (const acc of accounts) {
+      const accMovements = byAccount.get(acc.id) || []
+      const priorMovs = accMovements.filter((m) => startDate && m.date.slice(0, 10) < startDate)
       const periodMovs = accMovements.filter((m) => {
         if (startDate && m.date.slice(0, 10) < startDate) return false
         if (endDate && m.date.slice(0, 10) > endDate) return false
         if (voucherType !== 'TODOS' && m.sourceType !== voucherType) return false
-        if (selectedThirdPartyId !== 'ALL' && m.thirdPartyId !== selectedThirdPartyId) return false
+        if (selectedThirdPartyId !== 'ALL') {
+          const tp = thirdParties.find((t) => t.id === selectedThirdPartyId)
+          if (m.thirdPartyId !== selectedThirdPartyId && (!tp || m.thirdPartyDoc !== tp.documentNumber)) return false
+        }
         return true
       })
 
       const priorDebit = priorMovs.reduce((s, m) => s + (m.debit || 0), 0)
       const priorCredit = priorMovs.reduce((s, m) => s + (m.credit || 0), 0)
-      const initialBal =
-        acc.nature === 'DEBIT' ? priorDebit - priorCredit : priorCredit - priorDebit
+      const initialBal = acc.nature === 'DEBIT' ? priorDebit - priorCredit : priorCredit - priorDebit
 
-      if (hideZeroBalances && initialBal === 0 && periodMovs.length === 0) {
-        continue
+      if (Math.abs(initialBal) < 0.005 && periodMovs.length === 0) {
+        if (hideZeroBalances || accMovements.length === 0) continue
       }
 
       let running = initialBal
       const sortedMovs = [...periodMovs].sort((a, b) => a.date.localeCompare(b.date))
       const movsWithRunning = sortedMovs.map((m) => {
-        const tp = thirdParties.find((t) => t.id === m.thirdPartyId)
-        if (acc.nature === 'DEBIT') {
-          running = running + (m.debit || 0) - (m.credit || 0)
-        } else {
-          running = running + (m.credit || 0) - (m.debit || 0)
-        }
+        running = acc.nature === 'DEBIT' ? running + (m.debit || 0) - (m.credit || 0) : running + (m.credit || 0) - (m.debit || 0)
         return {
           id: m.id,
           date: m.date,
-          voucherNumber: m.entryNumber || 'CD',
-          description: m.description || 'Movimiento de causación',
-          thirdPartyName: m.thirdPartyName || tp?.companyName || '—',
-          thirdPartyDoc: tp?.documentNumber || '',
+          voucherNumber: m.sourceDocumentNumber || m.entryNumber || '',
+          description: m.description || '',
+          thirdPartyName: m.thirdPartyName || '—',
+          thirdPartyDoc: m.thirdPartyDoc || '',
           debit: m.debit || 0,
           credit: m.credit || 0,
           runningBalance: running,
         }
       })
 
-      const totDebit = periodMovs.reduce((s, m) => s + (m.debit || 0), 0)
-      const totCredit = periodMovs.reduce((s, m) => s + (m.credit || 0), 0)
-
-      accMap.set(acc.code, {
+      result.push({
         account: acc,
         initialBalance: initialBal,
         movements: movsWithRunning,
-        totalDebit: totDebit,
-        totalCredit: totCredit,
+        totalDebit: periodMovs.reduce((s, m) => s + (m.debit || 0), 0),
+        totalCredit: periodMovs.reduce((s, m) => s + (m.credit || 0), 0),
         finalBalance: running,
       })
     }
 
-    return Array.from(accMap.values()).sort((a, b) => a.account.code.localeCompare(b.account.code))
+    return result.sort((a, b) => comparePucCodes(a.account.code, b.account.code))
   }, [
     accounts,
     movements,
     thirdParties,
     startDate,
     endDate,
-    startAccountCode,
-    endAccountCode,
+    accountRange,
     mainAccountCode,
+    locationId,
     voucherType,
     selectedThirdPartyId,
     hideZeroBalances,
@@ -365,63 +523,22 @@ export function TrialBalancePdfModal({
   // 3. DATA: COMPROBANTES DE DIARIO / ASIENTOS CONTABLES
   // =========================================================================
   const filteredEntriesList = useMemo(() => {
-    return (entries || [])
-      .filter((e) => {
-        if (startDate && e.date.slice(0, 10) < startDate) return false
-        if (endDate && e.date.slice(0, 10) > endDate) return false
-        if (voucherType !== 'TODOS' && e.sourceType !== voucherType) return false
-        if (initialEntryStatus && initialEntryStatus !== 'ALL' && e.status !== initialEntryStatus) return false
-        if (initialSearchQuery) {
-          const q = initialSearchQuery.toLowerCase()
-          const matchNum = e.entryNumber.toLowerCase().includes(q)
-          const matchDesc = e.description.toLowerCase().includes(q)
-          if (!matchNum && !matchDesc) return false
-        }
-        return true
-      })
+    return accountingExportService
+      .filterEntries(entries, filterOptions)
+      .filter((e) => voucherType === 'TODOS' || e.sourceType === voucherType)
       .sort((a, b) => b.date.localeCompare(a.date))
-  }, [entries, startDate, endDate, voucherType, initialEntryStatus, initialSearchQuery])
+  }, [entries, filterOptions, voucherType])
 
   // =========================================================================
-  // 4. DATA: LIBRO DIARIO GENERAL
+  // 4. DATA: LIBRO DIARIO GENERAL (líneas dentro del rango de cuentas)
   // =========================================================================
-  const journalRows = useMemo(() => {
-    const rows: Array<{
-      date: string
-      voucherNumber: string
-      voucherType: string
-      accountCode: string
-      accountName: string
-      thirdPartyName: string
-      description: string
-      debit: number
-      credit: number
-    }> = []
-
-    for (const e of filteredEntriesList) {
-      for (const line of e.lines) {
-        if (startAccountCode && line.accountCode < startAccountCode) continue
-        if (endAccountCode && line.accountCode > endAccountCode) continue
-        if (mainAccountCode !== 'ALL' && !line.accountCode.startsWith(mainAccountCode)) continue
-
-        rows.push({
-          date: e.date,
-          voucherNumber: e.entryNumber,
-          voucherType: e.sourceType || 'CD',
-          accountCode: line.accountCode,
-          accountName: line.accountName,
-          thirdPartyName: e.thirdPartyName || (e.thirdPartyId ? 'Tercero' : '—'),
-          description: line.description || e.description,
-          debit: line.debit,
-          credit: line.credit,
-        })
-      }
-    }
-
-    return rows.sort(
-      (a, b) => a.date.localeCompare(b.date) || a.voucherNumber.localeCompare(b.voucherNumber)
-    )
-  }, [filteredEntriesList, startAccountCode, endAccountCode, mainAccountCode])
+  const journalRows = useMemo(
+    () =>
+      accountingExportService
+        .journalLines(entries, filterOptions)
+        .filter((row) => voucherType === 'TODOS' || row.voucherType === voucherType),
+    [entries, filterOptions, voucherType]
+  )
 
   // =========================================================================
   // 5. DATA: TERCEROS (DIAN)
@@ -431,182 +548,70 @@ export function TrialBalancePdfModal({
       .filterThirdParties(thirdParties, {
         startDate,
         endDate,
-        thirdPartyType: initialThirdPartyType as any,
-        legalNature: initialLegalNature as any,
+        thirdPartyType: filterOptions.thirdPartyType,
+        legalNature: filterOptions.legalNature,
         searchQuery: initialSearchQuery,
       })
       .sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''))
-  }, [thirdParties, startDate, endDate, initialThirdPartyType, initialLegalNature, initialSearchQuery])
+  }, [thirdParties, startDate, endDate, filterOptions.thirdPartyType, filterOptions.legalNature, initialSearchQuery])
 
   // =========================================================================
   // 6. DATA: PLAN DE CUENTAS (PUC)
   // =========================================================================
-  const filteredAccountsList = useMemo(() => {
-    return accountingExportService
-      .filterAccounts(accounts, {
-        startAccountCode,
-        endAccountCode,
-        mainAccountCode: mainAccountCode !== 'ALL' ? mainAccountCode : undefined,
-        maxLevel,
-        searchQuery: initialSearchQuery,
-      })
-      .sort((a, b) => a.code.localeCompare(b.code))
-  }, [accounts, startAccountCode, endAccountCode, mainAccountCode, maxLevel, initialSearchQuery])
+  const filteredAccountsList = useMemo(
+    () => accountingExportService.filterAccounts(accounts, { ...filterOptions, startDate: undefined, endDate: undefined }),
+    [accounts, filterOptions]
+  )
 
   // =========================================================================
-  // 7. DATA: BALANCE GENERAL (SITUACIÓN FINANCIERA)
+  // 7. DATA: BALANCE GENERAL (árbol por niveles)
   // =========================================================================
-  const balanceSheetStructure = useMemo(() => {
-    const calcAccountBalance = (codePrefix: string) => {
-      const matchAccs = accounts.filter((a) => a.code.startsWith(codePrefix))
-      let total = 0
-      for (const a of matchAccs) {
-        const movs = movements.filter((m) => m.accountCode === a.code || m.accountCode.startsWith(a.code))
-        const debit = movs.reduce((s, m) => s + (m.debit || 0), 0)
-        const credit = movs.reduce((s, m) => s + (m.credit || 0), 0)
-        if (a.nature === 'DEBIT') {
-          total += debit - credit
-        } else {
-          total += credit - debit
-        }
-      }
-      return total
+  const balanceSections = useMemo(() => {
+    const maxLevelNumber = LEVEL_NUMBER_BY_FILTER[maxLevel] || 5
+    const rowsOf = (node: FinancialStatementNode | null) => {
+      if (!node) return []
+      const nodes = hideZeroBalances ? pruneZeroNodes([node]) : [node]
+      return flattenAccountTree(nodes, maxLevelNumber)
     }
-
-    // Activo (1)
-    const efectivo = calcAccountBalance('11')
-    const deudores = calcAccountBalance('13')
-    const inventarios = calcAccountBalance('14')
-    const activoCorriente = efectivo + deudores + inventarios
-
-    const propiedadPlantaEquipo = calcAccountBalance('15')
-    const otrosActivos = calcAccountBalance('17') + calcAccountBalance('18') + calcAccountBalance('19')
-    const activoNoCorriente = propiedadPlantaEquipo + otrosActivos
-    const totalActivo = activoCorriente + activoNoCorriente
-
-    // Pasivo (2)
-    const obligacionesFinancieras = calcAccountBalance('21')
-    const proveedores = calcAccountBalance('22')
-    const cuentasPorPagar = calcAccountBalance('23')
-    const impuestosPorPagar = calcAccountBalance('24')
-    const obligacionesLaborales = calcAccountBalance('25')
-    const pasivoCorriente = proveedores + cuentasPorPagar + impuestosPorPagar + obligacionesLaborales
-    const pasivoNoCorriente = obligacionesFinancieras
-    const totalPasivo = pasivoCorriente + pasivoNoCorriente
-
-    // Patrimonio (3)
-    const capitalSocial = calcAccountBalance('31')
-    const reservas = calcAccountBalance('33')
-    const resultadosAcumulados = calcAccountBalance('37')
-    const resultadoEjercicio = totalActivo - totalPasivo - (capitalSocial + reservas + resultadosAcumulados)
-    const totalPatrimonio = capitalSocial + reservas + resultadosAcumulados + resultadoEjercicio
-
-    const ecuacionDiferencia = totalActivo - (totalPasivo + totalPatrimonio)
-
     return {
-      activo: {
-        corriente: {
-          efectivo,
-          deudores,
-          inventarios,
-          total: activoCorriente,
-        },
-        noCorriente: {
-          propiedadPlantaEquipo,
-          otrosActivos,
-          total: activoNoCorriente,
-        },
-        total: totalActivo,
-      },
-      pasivo: {
-        corriente: {
-          proveedores,
-          cuentasPorPagar,
-          impuestosPorPagar,
-          obligacionesLaborales,
-          total: pasivoCorriente,
-        },
-        noCorriente: {
-          obligacionesFinancieras,
-          total: pasivoNoCorriente,
-        },
-        total: totalPasivo,
-      },
-      patrimonio: {
-        capitalSocial,
-        reservas,
-        resultadosAcumulados,
-        resultadoEjercicio,
-        total: totalPatrimonio,
-      },
-      ecuacionDiferencia,
+      assets: rowsOf(balanceReport?.assets ?? null),
+      liabilities: rowsOf(balanceReport?.liabilities ?? null),
+      equity: rowsOf(balanceReport?.equity ?? null),
     }
-  }, [accounts, movements])
+  }, [balanceReport, hideZeroBalances, maxLevel])
 
-  // Metadatos de títulos según el reporte activo
-  const reportConfig = useMemo(() => {
-    const map: Record<
-      AccountingExportType,
-      { title: string; subtitle: string; icon: LightIconName; badge: string }
-    > = {
-      trial_balance: {
-        title: 'BALANCE DE COMPROBACION',
-        subtitle: 'Informe Fiduciario Oficial de Sumas y Saldos por Cuenta y Subcuentas',
-        icon: 'receipt',
-        badge: 'Libro Oficial',
-      },
-      movements: {
-        title: 'LIBRO AUXILIAR DE CUENTAS CONTABLES',
-        subtitle: 'Detalle Cronológico de Movimientos, Débitos, Créditos y Saldos Acumulados',
-        icon: 'table',
-        badge: 'Libro Auxiliar',
-      },
-      entries: {
-        title: 'COMPROBANTES DE DIARIO Y CAUSACIONES',
-        subtitle: 'Registro Oficial de Asientos de Causación con Partida Doble Verificada',
-        icon: 'receipt',
-        badge: 'Comprobantes',
-      },
-      journal: {
-        title: 'LIBRO DIARIO GENERAL DE OPERACIONES',
-        subtitle: 'Histórico Cronológico Consolidado de Transacciones Contables',
-        icon: 'fileText',
-        badge: 'Diario General',
-      },
-      third_parties: {
-        title: 'DIRECTORIO FISCAL DE TERCEROS (DIAN)',
-        subtitle: 'Registro Tributario Oficial de Clientes, Proveedores, Empleados y Acreedores',
-        icon: 'users',
-        badge: 'Directorio DIAN',
-      },
-      accounts: {
-        title: 'PLAN UNICO DE CUENTAS (PUC MAESTRO)',
-        subtitle: 'Catálogo Maestro Jerárquico de Cuentas, Naturalezas y Niveles Contables',
-        icon: 'layers',
-        badge: 'Catálogo PUC',
-      },
-      balance: {
-        title: 'ESTADO DE SITUACION FINANCIERA (BALANCE GENERAL)',
-        subtitle: 'Estructura Clasificada de Activos, Pasivos y Patrimonio con Ecuación Patrimonial',
-        icon: 'wallet',
-        badge: 'Estado Financiero',
-      },
-    }
-    return map[activeReportType] || map.trial_balance
-  }, [activeReportType])
+  const incomeSections = useMemo(() => {
+    if (!incomeReport) return []
+    const maxLevelNumber = LEVEL_NUMBER_BY_FILTER[maxLevel] || 5
+    return incomeStatementSections(incomeReport).map((section) => {
+      const nodes = section.node ? (hideZeroBalances ? pruneZeroNodes([section.node]) : [section.node]) : []
+      return { ...section, rows: flattenAccountTree(nodes, maxLevelNumber) }
+    })
+  }, [incomeReport, hideZeroBalances, maxLevel])
 
-  // Formato legible de periodo
-  const formattedPeriod = useMemo(() => {
-    return `${startDate} a ${endDate}`
-  }, [startDate, endDate])
+  const reportConfig = REPORT_CONFIG[activeReportType] || REPORT_CONFIG.trial_balance
+  const isBalanceReport = activeReportType === 'balance'
+  const isIncomeReport = activeReportType === 'income_statement'
+  const formattedPeriod = isBalanceReport
+    ? `Corte al ${formatIsoDateEs(endDate)}`
+    : `${startDate ? formatIsoDateEs(startDate) : 'Inicio'} a ${endDate ? formatIsoDateEs(endDate) : 'Hoy'}`
 
-  // Impresión en ventana aislada para garantizar formato exacto al 100%
+  const companyName = company?.legalName || ''
+  const companyNit = formatCompanyNit(company?.taxId, company?.verificationDigit)
+  const companyRegime = taxRegimeLabel(company?.taxRegime)
+  const isRemoteLoading =
+    (activeReportType === 'trial_balance' && tbState === 'loading') ||
+    (activeReportType === 'balance' && balanceState === 'loading') ||
+    (isIncomeReport && incomeState === 'loading')
+  const remoteFailed =
+    (activeReportType === 'trial_balance' && tbState === 'error') ||
+    (activeReportType === 'balance' && balanceState === 'error') ||
+    (isIncomeReport && incomeState === 'error')
+
+  // Impresión en ventana aislada con los estilos de la aplicación, numeración de páginas y pie.
   const handlePrint = () => {
     const printElement = reportRef.current
-    if (!printElement) {
-      window.print()
-      return
-    }
+    if (!printElement) return
 
     const printWindow = window.open('', '_blank', 'width=1100,height=800')
     if (!printWindow) {
@@ -614,165 +619,44 @@ export function TrialBalancePdfModal({
       return
     }
 
-    const currentYearDynamic = new Date().getFullYear()
+    const appStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((node) => node.outerHTML)
+      .join('\n')
+    const footerLeft = cssString(
+      `Generado el ${generatedAt || formatNowBogota()}${generatedBy ? ` por ${generatedBy}` : ''}`
+    )
+    const docTitle = escapeHtml(`${reportConfig.title}${companyName ? ` - ${companyName}` : ''}`)
 
     printWindow.document.write(`<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>${reportConfig.title} - ${trialBalanceData.companyName}</title>
+  <base href="${window.location.origin}/" />
+  <title>${docTitle}</title>
+  ${appStyles}
   <style>
     @page {
       size: letter portrait;
-      margin: 8mm 10mm;
+      margin: 12mm 10mm 16mm 10mm;
+      @bottom-left { content: "${footerLeft}"; font-family: monospace; font-size: 8px; color: #333; }
+      @bottom-right { content: "Página " counter(page) " de " counter(pages); font-family: monospace; font-size: 8px; color: #333; }
     }
-    * {
-      box-sizing: border-box;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    body {
-      margin: 0;
-      padding: 0;
-      background: #ffffff;
-      color: #000000;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      font-size: 10.5px;
-      line-height: 1.25;
-    }
-    .print-doc {
-      width: 100%;
-      max-width: 100%;
-    }
-    .header-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      font-family: monospace;
-      font-size: 11px;
-      margin-bottom: 4px;
-    }
-    .header-title {
-      text-align: center;
-      font-weight: bold;
-      font-size: 13.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin: 4px 0;
-    }
-    .meta-box {
-      border-top: 1.5px solid #000;
-      border-bottom: 1.5px solid #000;
-      padding: 4px 2px;
-      margin: 4px 0 8px 0;
-      font-family: monospace;
-      font-size: 10px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      row-gap: 2px;
-      column-gap: 16px;
-    }
-    .meta-row {
-      display: flex;
-    }
-    .meta-label {
-      font-weight: bold;
-      min-width: 130px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-      font-family: monospace;
-      font-size: 9.5px;
-    }
-    thead {
-      display: table-header-group;
-    }
-    thead tr {
-      border-top: 1.5px solid #000;
-      border-bottom: 1.5px solid #000;
-      font-weight: bold;
-    }
-    th {
-      padding: 3px 2px;
-      text-transform: uppercase;
-      vertical-align: middle;
-    }
-    td {
-      padding: 2px 2px;
-      vertical-align: middle;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    tr {
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-    .t-right {
-      text-align: right;
-    }
-    .t-left {
-      text-align: left;
-    }
-    .font-bold {
-      font-weight: bold;
-    }
-    .totals-row {
-      border-top: 1.5px solid #000 !important;
-      border-bottom: 3px double #000 !important;
-      font-weight: bold;
-      font-size: 10px;
-    }
-    .signatures {
-      margin-top: 24px;
-      padding-top: 12px;
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      column-gap: 20px;
-      text-align: center;
-      font-family: monospace;
-      font-size: 9.5px;
-      page-break-inside: avoid;
-      break-inside: avoid;
-    }
-    .sig-line {
-      width: 150px;
-      border-bottom: 1px solid #000;
-      margin: 18px auto 4px auto;
-    }
-    .footer-bar {
-      margin-top: 20px;
-      padding-top: 6px;
-      border-top: 1px solid #ccc;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-family: sans-serif;
-      font-size: 9px;
-      color: #555;
-    }
-    .kyt-link {
-      color: #000;
-      text-decoration: none;
-      font-weight: bold;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-    }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    html, body { margin: 0; padding: 0; background: #ffffff !important; color: #000000; }
+    body { font-size: 10.5px; line-height: 1.25; }
+    #accounting-pdf-document { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: none !important; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { display: table-header-group; }
+    tfoot { display: table-footer-group; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
+    .print-avoid-break { page-break-inside: avoid; break-inside: avoid; }
   </style>
 </head>
 <body>
-  <div class="print-doc">
-    ${printElement.innerHTML}
-  </div>
+  ${printElement.outerHTML}
   <script>
-    window.addEventListener('load', function() {
-      setTimeout(function() {
-        window.print();
-        window.close();
-      }, 250);
+    window.addEventListener('load', function () {
+      setTimeout(function () { window.print(); window.close(); }, 300);
     });
   </script>
 </body>
@@ -780,80 +664,54 @@ export function TrialBalancePdfModal({
     printWindow.document.close()
   }
 
-  // Exportar Excel alternativo
-  const handleExportExcel = () => {
+  // Exportar Excel / CSV del reporte activo
+  const handleExportFile = (format: 'EXCEL' | 'CSV') => {
     switch (activeReportType) {
       case 'trial_balance':
-        accountingExportService.exportTrialBalanceExcel(trialBalanceData)
+        if (format === 'EXCEL') accountingExportService.exportTrialBalanceExcel(trialBalanceData)
+        else accountingExportService.exportTrialBalanceCSV(trialBalanceData)
         break
       case 'movements':
-        accountingExportService.exportAuxiliary(movements, 'EXCEL', filterOptions)
+        accountingExportService.exportAuxiliary(movements, format, filterOptions)
         break
       case 'entries':
-        accountingExportService.exportEntries(entries, 'EXCEL', filterOptions)
+        accountingExportService.exportEntries(filteredEntriesList, format, { ...filterOptions, voucherType: undefined })
         break
       case 'journal':
-        accountingExportService.exportJournal(entries, 'EXCEL', filterOptions)
+        accountingExportService.exportJournal(entries, format, filterOptions)
         break
       case 'third_parties':
-        accountingExportService.exportThirdParties(thirdParties, 'EXCEL', filterOptions)
+        accountingExportService.exportThirdParties(thirdParties, format, filterOptions)
         break
       case 'accounts':
-        accountingExportService.exportAccounts(accounts, 'EXCEL', filterOptions)
+        accountingExportService.exportAccounts(accounts, format, filterOptions)
         break
       case 'balance':
-        accountingExportService.exportBalance(accounts, 'EXCEL', filterOptions)
+        if (balanceReport) {
+          accountingExportService.exportBalanceSheet(balanceReport, format, {
+            hideZeroBalances,
+            maxLevel,
+            companyHeader: company,
+          })
+        }
         break
-    }
-  }
-
-  // Exportar CSV alternativo
-  const handleExportCSV = () => {
-    switch (activeReportType) {
-      case 'trial_balance':
-        accountingExportService.exportTrialBalanceCSV(trialBalanceData)
-        break
-      case 'movements':
-        accountingExportService.exportAuxiliary(movements, 'CSV', filterOptions)
-        break
-      case 'entries':
-        accountingExportService.exportEntries(entries, 'CSV', filterOptions)
-        break
-      case 'journal':
-        accountingExportService.exportJournal(entries, 'CSV', filterOptions)
-        break
-      case 'third_parties':
-        accountingExportService.exportThirdParties(thirdParties, 'CSV', filterOptions)
-        break
-      case 'accounts':
-        accountingExportService.exportAccounts(accounts, 'CSV', filterOptions)
-        break
-      case 'balance':
-        accountingExportService.exportBalance(accounts, 'CSV', filterOptions)
+      case 'income_statement':
+        if (incomeReport) {
+          accountingExportService.exportIncomeStatement(incomeReport, format, {
+            hideZeroBalances,
+            maxLevel,
+            companyHeader: company,
+          })
+        }
         break
     }
   }
 
   if (!isOpen || !mounted) return null
 
-  // Cálculo de totales netos para Balance de Comprobación
-  const netInitialDebit =
-    trialBalanceData.totalInitialDebit >= trialBalanceData.totalInitialCredit
-      ? trialBalanceData.totalInitialDebit - trialBalanceData.totalInitialCredit
-      : 0
-  const netInitialCredit =
-    trialBalanceData.totalInitialCredit > trialBalanceData.totalInitialDebit
-      ? trialBalanceData.totalInitialCredit - trialBalanceData.totalInitialCredit
-      : 0
-
-  const netFinalDebit =
-    trialBalanceData.totalFinalDebit >= trialBalanceData.totalFinalCredit
-      ? trialBalanceData.totalFinalDebit - trialBalanceData.totalFinalCredit
-      : 0
-  const netFinalCredit =
-    trialBalanceData.totalFinalCredit > trialBalanceData.totalFinalDebit
-      ? trialBalanceData.totalFinalCredit - trialBalanceData.totalFinalDebit
-      : 0
+  // Saldos netos (débito/crédito) de las sumas del Balance de Comprobación
+  const netInitial = roundCurrency(trialBalanceData.totalInitialDebit - trialBalanceData.totalInitialCredit)
+  const netFinal = roundCurrency(trialBalanceData.totalFinalDebit - trialBalanceData.totalFinalCredit)
 
   // Gran total del libro auxiliar
   const auxTotalDebit = auxiliaryAccountsData.reduce((s, a) => s + a.totalDebit, 0)
@@ -866,6 +724,22 @@ export function TrialBalancePdfModal({
   // Gran total del libro diario
   const journalTotalDebit = journalRows.reduce((s, r) => s + r.debit, 0)
   const journalTotalCredit = journalRows.reduce((s, r) => s + r.credit, 0)
+
+  const balanceRowsTable = (rows: ReturnType<typeof flattenAccountTree>) =>
+    rows.map(({ node, depth }) => {
+      const isMajor = node.levelNumber <= 2
+      return (
+        <tr key={node.id} className={`text-black ${isMajor ? 'font-bold' : node.levelNumber === 3 ? 'font-semibold' : ''}`}>
+          <td className="py-0.5 px-1 whitespace-nowrap">{node.code}</td>
+          <td className="py-0.5 px-1 overflow-hidden text-ellipsis whitespace-nowrap">
+            <span style={{ paddingLeft: depth * PRINT_INDENT_PX }}>
+              {node.levelNumber <= 3 ? node.name.toUpperCase() : node.name}
+            </span>
+          </td>
+          <td className="py-0.5 px-1 text-right whitespace-nowrap">{formatCop(node.balance)}</td>
+        </tr>
+      )
+    })
 
   return createPortal(
     <div
@@ -890,14 +764,14 @@ export function TrialBalancePdfModal({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Barra Superior de Herramientas y Filtros (Oculta al Imprimir) */}
-        <div className="px-5 py-3 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-900 text-white flex items-center justify-center font-bold shadow-2xs">
+        {/* Barra superior de herramientas (oculta al imprimir) */}
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3 shrink-0 print:hidden">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 shrink-0 rounded-lg bg-blue-900 text-white flex items-center justify-center font-bold shadow-2xs">
               <AppIcon name={reportConfig.icon} size={16} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 id="accounting-pdf-title" className="text-sm font-bold text-slate-900 m-0">
                   {reportConfig.title}
                 </h2>
@@ -909,28 +783,28 @@ export function TrialBalancePdfModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Selector Rápido de Formato de Reporte */}
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={activeReportType}
               onChange={(e) => setActiveReportType(e.target.value as AccountingExportType)}
               className="text-xs font-semibold py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white text-slate-800 shadow-2xs focus:ring-1 focus:ring-blue-900"
-              aria-label="Seleccionar formato contable"
+              aria-label="Seleccionar reporte contable"
             >
               <option value="trial_balance">Balance de Comprobación</option>
-              <option value="movements">Libro Auxiliar</option>
-              <option value="entries">Comprobantes de Diario</option>
-              <option value="journal">Libro Diario General</option>
-              <option value="third_parties">Directorio de Terceros (DIAN)</option>
-              <option value="accounts">Plan de Cuentas (PUC)</option>
               <option value="balance">Balance General</option>
+              <option value="income_statement">Estado de Resultados</option>
+              <option value="movements">Libro Auxiliar</option>
+              <option value="journal">Libro Diario General</option>
+              <option value="entries">Comprobantes de Diario</option>
+              <option value="accounts">Plan de Cuentas (PUC)</option>
+              <option value="third_parties">Directorio de Terceros (DIAN)</option>
             </select>
 
             <button
               type="button"
-              className="outline-button compact text-xs flex items-center gap-1.5"
-              onClick={handleExportExcel}
-              title="Descargar datos en Excel (.xls)"
+              className="outline-button compact text-xs flex items-center gap-1.5 active:scale-95 transition-transform"
+              onClick={() => handleExportFile('EXCEL')}
+              disabled={isRemoteLoading || remoteFailed}
             >
               <AppIcon name="invoices" size={13} color="#059669" />
               <span>Excel</span>
@@ -938,9 +812,9 @@ export function TrialBalancePdfModal({
 
             <button
               type="button"
-              className="outline-button compact text-xs flex items-center gap-1.5"
-              onClick={handleExportCSV}
-              title="Descargar datos en CSV"
+              className="outline-button compact text-xs flex items-center gap-1.5 active:scale-95 transition-transform"
+              onClick={() => handleExportFile('CSV')}
+              disabled={isRemoteLoading || remoteFailed}
             >
               <AppIcon name="table" size={13} />
               <span>CSV</span>
@@ -948,9 +822,10 @@ export function TrialBalancePdfModal({
 
             <button
               type="button"
-              className="primary-button compact text-xs flex items-center gap-1.5 font-bold"
+              className="primary-button compact text-xs flex items-center gap-1.5 font-bold active:scale-95 transition-transform"
               style={{ background: 'var(--navy)' }}
               onClick={handlePrint}
+              disabled={isRemoteLoading || remoteFailed}
             >
               <AppIcon name="printer" size={13} />
               <span>Imprimir / PDF</span>
@@ -967,282 +842,250 @@ export function TrialBalancePdfModal({
           </div>
         </div>
 
-        {/* Panel de Filtros Interactivos (Oculto al Imprimir) */}
-        <div className="px-5 py-2.5 border-b border-slate-200 bg-white grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 text-xs shrink-0 print:hidden">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-              Desde:
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="w-full text-xs py-1 px-2 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-              Hasta:
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="w-full text-xs py-1 px-2 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-              Cuenta Inicial:
-            </label>
-            <input
-              type="text"
-              placeholder="Ej: 1105"
-              value={startAccountCode}
-              onChange={(e) => setStartAccountCode(e.target.value)}
-              className="w-full text-xs py-1 px-2 font-mono border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-              Cuenta Final:
-            </label>
-            <input
-              type="text"
-              placeholder="Ej: 5999"
-              value={endAccountCode}
-              onChange={(e) => setEndAccountCode(e.target.value)}
-              className="w-full text-xs py-1 px-2 font-mono border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-            />
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">
-              Clase PUC:
-            </label>
-            <select
-              value={mainAccountCode}
-              onChange={(e) => setMainAccountCode(e.target.value)}
-              className="w-full text-xs py-1 px-2 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
-            >
-              <option value="ALL">Todas las Clases</option>
-              {mainClasses.map((cls) => (
-                <option key={cls.code} value={cls.code}>
-                  Clase {cls.code} - {cls.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex flex-col justify-end gap-1">
-            <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-slate-600 select-none">
+        {/* Filtros interactivos (ocultos al imprimir) */}
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-200 bg-white space-y-2.5 text-xs shrink-0 print:hidden max-h-[38vh] overflow-y-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+            {!isBalanceReport && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Desde</span>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                />
+              </label>
+            )}
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                {isBalanceReport ? 'Fecha de corte' : 'Hasta'}
+              </span>
               <input
-                type="checkbox"
-                checked={includeThirdParties}
-                onChange={(e) => setIncludeThirdParties(e.target.checked)}
-                className="rounded border-slate-300 text-blue-900 focus:ring-blue-900"
+                type="date"
+                value={endDate}
+                max={isBalanceReport ? todayIso : undefined}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
               />
-              <span>Terceros (NIT)</span>
             </label>
-            <label className="flex items-center gap-1.5 cursor-pointer text-[10.5px] text-slate-600 select-none">
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Sede</span>
+              <select
+                value={locationId}
+                onChange={(e) => setLocationId(e.target.value)}
+                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+              >
+                <option value="ALL">Todas las sedes</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {!isIncomeReport && (
+              <label className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Clase PUC</span>
+                <select
+                  value={mainAccountCode}
+                  onChange={(e) => setMainAccountCode(e.target.value)}
+                  className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+                >
+                  <option value="ALL">Todas las clases</option>
+                  {mainClasses.map((cls) => (
+                    <option key={cls.code} value={cls.code}>
+                      Clase {cls.code} - {cls.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hasta el nivel</span>
+              <select
+                value={maxLevel}
+                onChange={(e) => setMaxLevel(e.target.value as TrialBalanceLevelFilter)}
+                className="w-full text-xs py-1 px-2 h-8 border border-slate-300 rounded focus:ring-1 focus:ring-blue-900"
+              >
+                <option value="CLASS">Clase</option>
+                <option value="GROUP">Grupo</option>
+                <option value="ACCOUNT">Cuenta</option>
+                <option value="SUBACCOUNT">Subcuenta</option>
+                <option value="AUXILIARY">Auxiliar</option>
+              </select>
+            </label>
+          </div>
+
+          {!isIncomeReport && (
+            <AccountRangeFilter
+              accounts={accounts}
+              value={accountRange}
+              onChange={(range) => {
+                setStartAccountCode(range.from)
+                setEndAccountCode(range.to)
+              }}
+              disabled={catalog.state === 'loading' && accounts.length === 0}
+            />
+          )}
+
+          <div className="flex flex-wrap items-center gap-4">
+            {activeReportType === 'trial_balance' && (
+              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-600 select-none">
+                <input
+                  type="checkbox"
+                  checked={includeThirdParties}
+                  onChange={(e) => setIncludeThirdParties(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-900 focus:ring-blue-900"
+                />
+                <span>Desglose por tercero (NIT)</span>
+              </label>
+            )}
+            <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-600 select-none">
               <input
                 type="checkbox"
                 checked={hideZeroBalances}
                 onChange={(e) => setHideZeroBalances(e.target.checked)}
                 className="rounded border-slate-300 text-blue-900 focus:ring-blue-900"
               />
-              <span>Ocultar saldos $0</span>
+              <span>Ocultar cuentas en cero</span>
             </label>
           </div>
+
+          {(remoteError || companyError || catalog.error) && (
+            <p role="alert" className="text-[11px] text-rose-700 flex items-start gap-1.5">
+              <AppIcon name="warning" size={13} />
+              <span>{remoteError || companyError || catalog.error}</span>
+            </p>
+          )}
         </div>
 
-        {/* DOCUMENTO PDF IMPRIMIBLE (ÁREA OFICIAL DEL REPORTE) */}
-        <div className="overflow-y-auto flex-1 p-4 sm:p-6 bg-slate-100/60 print:bg-white print:p-0 print:overflow-visible">
+        {/* DOCUMENTO IMPRIMIBLE */}
+        <div className="overflow-y-auto flex-1 p-3 sm:p-6 bg-slate-100/60 print:bg-white print:p-0 print:overflow-visible">
           <div
             id="accounting-pdf-document"
             ref={reportRef}
-            className="bg-white rounded-none border border-slate-300 p-6 sm:p-8 max-w-4xl mx-auto shadow-sm print:shadow-none print:border-none print:p-0 print:max-w-none text-black"
+            aria-busy={isRemoteLoading}
+            className={`bg-white rounded-none border border-slate-300 p-4 sm:p-8 max-w-4xl mx-auto shadow-sm print:shadow-none print:border-none print:p-0 print:max-w-none text-black transition-opacity motion-reduce:transition-none ${
+              isRemoteLoading ? 'opacity-60' : 'opacity-100'
+            }`}
             style={{ width: '100%', boxSizing: 'border-box' }}
           >
-            {/* MEMBRETE SUPERIOR INSTITUCIONAL */}
-            <div className="pb-1 mb-2">
-              <div className="flex justify-between items-start text-xs font-mono">
+            {/* MEMBRETE */}
+            <header className="pb-1 mb-2">
+              <div className="flex flex-wrap justify-between items-start gap-2 text-xs font-mono">
                 <div>
-                  <div className="font-bold text-sm tracking-wide text-black uppercase">
-                    {trialBalanceData.companyName}
-                  </div>
+                  <div className="font-bold text-sm tracking-wide text-black uppercase">{companyName || '—'}</div>
                   <div className="text-black font-semibold">
-                    NIT: {trialBalanceData.companyNit} | Régimen Común IVA
+                    {companyNit ? `NIT: ${companyNit}` : 'NIT no registrado en la empresa'}
+                    {companyRegime ? ` | ${companyRegime}` : ''}
                   </div>
                 </div>
                 <div className="text-right text-[11px] font-mono text-black">
-                  <div>Página 1 de 1</div>
-                  <div>Fecha: {trialBalanceData.generatedAt}</div>
+                  <div>Generado: {generatedAt}</div>
+                  {generatedBy && <div>Usuario: {generatedBy}</div>}
                 </div>
               </div>
 
-              {/* TÍTULO PRINCIPAL DEL REPORTE */}
               <div className="text-center my-2">
-                <h1 className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-black m-0 font-mono">
+                <h3 className="text-sm sm:text-base font-extrabold uppercase tracking-wider text-black m-0 font-mono">
                   {reportConfig.title}
-                </h1>
+                </h3>
                 <div className="text-[11px] text-black font-mono mt-0.5">
-                  Periodo: {formattedPeriod} | Expresado en Pesos Colombianos (COP)
+                  {formattedPeriod} | Expresado en pesos colombianos (COP)
                 </div>
               </div>
 
-              {/* RECUADRO DE FILTROS Y SUCURSAL CON LÍNEAS HORIZONTALES SÓLIDAS */}
               <div
                 className="py-1.5 px-1 my-1 text-[11px] font-mono grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-0.5 text-black"
-                style={{
-                  borderTop: '1.5px solid #000000',
-                  borderBottom: '1.5px solid #000000',
-                }}
+                style={{ borderTop: '1.5px solid #000000', borderBottom: '1.5px solid #000000' }}
               >
                 <div className="flex">
-                  <span className="font-bold w-28 shrink-0">Sucursal:</span>
-                  <span className="truncate">{branch}</span>
+                  <span className="font-bold w-28 shrink-0">Sede:</span>
+                  <span className="truncate">{sedeLabel}</span>
                 </div>
                 <div className="flex">
-                  <span className="font-bold w-40 shrink-0">Área Administrativa:</span>
-                  <span className="truncate">{administrativeArea}</span>
+                  <span className="font-bold w-28 shrink-0">{isBalanceReport ? 'Fecha de corte:' : 'Periodo:'}</span>
+                  <span>{isBalanceReport ? formatIsoDateEs(endDate) : formattedPeriod}</span>
                 </div>
                 <div className="flex">
-                  <span className="font-bold w-28 shrink-0">Periodo:</span>
-                  <span>{formattedPeriod}</span>
+                  <span className="font-bold w-28 shrink-0">Rango:</span>
+                  <span>
+                    {isIncomeReport ? 'Clases 4, 5, 6 y 7' : accountRangeLabel}
+                    {!isIncomeReport && mainAccountCode !== 'ALL' ? ` (Clase ${mainAccountCode})` : ''}
+                  </span>
                 </div>
                 <div className="flex">
-                  <span className="font-bold w-40 shrink-0">Centro de Costos:</span>
-                  <span>{costCenter}</span>
+                  <span className="font-bold w-28 shrink-0">Nivel:</span>
+                  <span>Hasta {ACCOUNT_LEVEL_LABEL[maxLevel === 'ALL' ? 'AUXILIARY' : maxLevel].toLowerCase()}</span>
                 </div>
-                {(startAccountCode || endAccountCode || mainAccountCode !== 'ALL' || selectedThirdPartyId !== 'ALL') && (
-                  <>
-                    <div className="flex text-[10.5px]">
-                      <span className="font-bold w-28 shrink-0">Rango Cuentas:</span>
-                      <span>
-                        {startAccountCode || 'Inicio'} a {endAccountCode || 'Fin'}
-                        {mainAccountCode !== 'ALL' ? ` (Clase ${mainAccountCode})` : ''}
-                      </span>
-                    </div>
-                    <div className="flex text-[10.5px]">
-                      <span className="font-bold w-40 shrink-0">Tercero Específico:</span>
-                      <span className="truncate">{resolvedThirdPartyName}</span>
-                    </div>
-                  </>
+                {selectedThirdPartyId !== 'ALL' && (
+                  <div className="flex sm:col-span-2">
+                    <span className="font-bold w-28 shrink-0">Tercero:</span>
+                    <span className="truncate">{resolvedThirdPartyName}</span>
+                  </div>
                 )}
               </div>
-            </div>
+            </header>
 
-            {/* =============================================================== */}
+            {isRemoteLoading && (
+              <p className="py-6 text-center text-xs text-slate-500 font-mono print:hidden" role="status">
+                Consultando saldos contables...
+              </p>
+            )}
+
             {/* FORMATO 1: BALANCE DE COMPROBACIÓN */}
-            {/* =============================================================== */}
-            {activeReportType === 'trial_balance' && (
-              <div className="my-2" style={{ width: '100%', overflow: 'hidden' }}>
-                <table
-                  className="w-full border-collapse font-mono text-[10.5px] leading-tight"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
+            {activeReportType === 'trial_balance' && !isRemoteLoading && (
+              <div className="my-2 overflow-x-auto">
+                <table className="w-full border-collapse font-mono text-[10.5px] leading-tight min-w-[640px]" style={{ tableLayout: 'fixed' }}>
                   <thead>
-                    <tr
-                      className="font-bold uppercase text-black"
-                      style={{
-                        borderTop: '1.5px solid #000000',
-                        borderBottom: '1.5px solid #000000',
-                      }}
-                    >
-                      <th className="py-1 px-1 text-left" style={{ width: '14%' }}>
-                        CUENTA
-                      </th>
-                      <th className="py-1 px-1 text-left" style={{ width: '36%' }}>
-                        NOMBRE
-                      </th>
-                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>
-                        SALDO ANTERIOR
-                      </th>
-                      <th className="py-1 px-1 text-right" style={{ width: '12%' }}>
-                        DÉBITO
-                      </th>
-                      <th className="py-1 px-1 text-right" style={{ width: '12%' }}>
-                        CRÉDITO
-                      </th>
-                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>
-                        TOTAL
-                      </th>
+                    <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th className="py-1 px-1 text-left" style={{ width: '14%' }}>Cuenta</th>
+                      <th className="py-1 px-1 text-left" style={{ width: '34%' }}>Nombre</th>
+                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>Saldo anterior</th>
+                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>Débito</th>
+                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>Crédito</th>
+                      <th className="py-1 px-1 text-right" style={{ width: '13%' }}>Saldo final</th>
                     </tr>
                   </thead>
                   <tbody>
                     {trialBalanceData.rows.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center text-slate-500 font-medium">
-                          No se encontraron cuentas o movimientos con los criterios y fechas especificadas.
+                          No hay cuentas con saldo o movimientos para los filtros seleccionados.
                         </td>
                       </tr>
                     ) : (
                       trialBalanceData.rows.map((row) => {
-                        const isClass = row.code.length === 1
-                        const isGroup = row.code.length === 2
-                        const isAccount = row.code.length === 4
-                        const isSubaccount = row.code.length === 6
-
-                        const rowFontWeight =
-                          isClass || isGroup ? 'font-bold' : isAccount ? 'font-semibold' : 'font-normal'
-                        const indentPx = isClass ? 0 : isGroup ? 6 : isAccount ? 12 : isSubaccount ? 18 : 24
-
+                        const levelNumber = { CLASS: 1, GROUP: 2, ACCOUNT: 3, SUBACCOUNT: 4, AUXILIARY: 5 }[row.level] || 5
+                        const rowFontWeight = levelNumber <= 2 ? 'font-bold' : levelNumber === 3 ? 'font-semibold' : 'font-normal'
                         return (
                           <React.Fragment key={row.code}>
-                            <tr className={`text-black ${rowFontWeight} hover:bg-slate-50/50`}>
-                              <td className="py-0.5 px-1 whitespace-nowrap overflow-hidden text-ellipsis">
-                                {row.code}
-                              </td>
+                            <tr className={`text-black ${rowFontWeight}`}>
+                              <td className="py-0.5 px-1 whitespace-nowrap overflow-hidden text-ellipsis">{row.code}</td>
                               <td className="py-0.5 px-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                                <span style={{ paddingLeft: `${indentPx}px` }}>
-                                  {isClass || isGroup || isAccount ? row.name.toUpperCase() : row.name}
+                                <span style={{ paddingLeft: (levelNumber - 1) * PRINT_INDENT_PX }}>
+                                  {levelNumber <= 3 ? row.name.toUpperCase() : row.name}
                                 </span>
                               </td>
-                              <td className="py-0.5 px-1 text-right whitespace-nowrap">
-                                {formatAccountingBalance(row.initialBalance, row.nature)}
-                              </td>
-                              <td className="py-0.5 px-1 text-right whitespace-nowrap">
-                                {formatAccountingMovement(row.debit)}
-                              </td>
-                              <td className="py-0.5 px-1 text-right whitespace-nowrap">
-                                {formatAccountingMovement(row.credit)}
-                              </td>
-                              <td className="py-0.5 px-1 text-right whitespace-nowrap">
-                                {formatAccountingBalance(row.finalBalance, row.nature)}
-                              </td>
+                              <td className="py-0.5 px-1 text-right whitespace-nowrap">{formatAccountingBalance(row.initialBalance, row.nature)}</td>
+                              <td className="py-0.5 px-1 text-right whitespace-nowrap">{formatAccountingMovement(row.debit)}</td>
+                              <td className="py-0.5 px-1 text-right whitespace-nowrap">{formatAccountingMovement(row.credit)}</td>
+                              <td className="py-0.5 px-1 text-right whitespace-nowrap">{formatAccountingBalance(row.finalBalance, row.nature)}</td>
                             </tr>
-
                             {includeThirdParties &&
-                              row.thirdParties &&
-                              row.thirdParties.map((tp, tpIdx) => (
-                                <tr
-                                  key={`${row.code}-tp-${tpIdx}`}
-                                  className="text-slate-800 text-[10px] hover:bg-slate-50/40"
-                                >
-                                  <td className="py-0.5 px-1 text-slate-500 pl-4 whitespace-nowrap overflow-hidden text-ellipsis">
-                                    {row.code}
-                                  </td>
+                              row.thirdParties?.map((tp, tpIdx) => (
+                                <tr key={`${row.code}-tp-${tpIdx}`} className="text-slate-800 text-[10px]">
+                                  <td className="py-0.5 px-1 text-slate-500 whitespace-nowrap overflow-hidden text-ellipsis">{row.code}</td>
                                   <td className="py-0.5 px-1 overflow-hidden text-ellipsis whitespace-nowrap">
-                                    <span style={{ paddingLeft: '28px' }}>
-                                      ↳ {tp.docNumber ? `${tp.docNumber} - ` : ''}{tp.name}
+                                    <span style={{ paddingLeft: levelNumber * PRINT_INDENT_PX }}>
+                                      Tercero: {tp.docNumber ? `${tp.docNumber} - ` : ''}
+                                      {tp.name}
                                     </span>
                                   </td>
-                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">
-                                    {formatAccountingBalance(tp.initialBalance, row.nature)}
-                                  </td>
-                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">
-                                    {formatAccountingMovement(tp.debit)}
-                                  </td>
-                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">
-                                    {formatAccountingMovement(tp.credit)}
-                                  </td>
-                                  <td className="py-0.5 px-1 text-right whitespace-nowrap font-medium text-slate-900">
-                                    {formatAccountingBalance(tp.finalBalance, row.nature)}
-                                  </td>
+                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">{formatAccountingBalance(tp.initialBalance, row.nature)}</td>
+                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">{formatAccountingMovement(tp.debit)}</td>
+                                  <td className="py-0.5 px-1 text-right whitespace-nowrap text-slate-600">{formatAccountingMovement(tp.credit)}</td>
+                                  <td className="py-0.5 px-1 text-right whitespace-nowrap font-medium text-slate-900">{formatAccountingBalance(tp.finalBalance, row.nature)}</td>
                                 </tr>
                               ))}
                           </React.Fragment>
@@ -1251,179 +1094,129 @@ export function TrialBalancePdfModal({
                     )}
                   </tbody>
                   <tfoot>
-                    <tr
-                      className="font-bold text-black text-[10.5px]"
-                      style={{
-                        borderTop: '1.5px solid #000000',
-                        borderBottom: '3px double #000000',
-                      }}
-                    >
+                    <tr className="font-bold text-black text-[10.5px]" style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}>
                       <td className="py-2 px-1">TOTALES</td>
-                      <td className="py-2 px-1">SUMAS IGUALES DEL BALANCE DE COMPROBACIÓN</td>
-                      <td className="py-2 px-1 text-right whitespace-nowrap">
-                        {formatAccountingBalance(
-                          netInitialDebit || netInitialCredit,
-                          netInitialDebit >= netInitialCredit ? 'DEBIT' : 'CREDIT'
-                        )}
-                      </td>
-                      <td className="py-2 px-1 text-right whitespace-nowrap">
-                        {formatAccountingMovement(trialBalanceData.totalDebit)}
-                      </td>
-                      <td className="py-2 px-1 text-right whitespace-nowrap">
-                        {formatAccountingMovement(trialBalanceData.totalCredit)}
-                      </td>
-                      <td className="py-2 px-1 text-right whitespace-nowrap">
-                        {formatAccountingBalance(
-                          netFinalDebit || netFinalCredit,
-                          netFinalDebit >= netFinalCredit ? 'DEBIT' : 'CREDIT'
-                        )}
-                      </td>
+                      <td className="py-2 px-1">{trialBalanceData.isBalanced ? 'SUMAS IGUALES' : 'SUMAS DESCUADRADAS'}</td>
+                      <td className="py-2 px-1 text-right whitespace-nowrap">{formatAccountingBalance(netInitial, 'DEBIT')}</td>
+                      <td className="py-2 px-1 text-right whitespace-nowrap">{formatAccountingMovement(trialBalanceData.totalDebit)}</td>
+                      <td className="py-2 px-1 text-right whitespace-nowrap">{formatAccountingMovement(trialBalanceData.totalCredit)}</td>
+                      <td className="py-2 px-1 text-right whitespace-nowrap">{formatAccountingBalance(netFinal, 'DEBIT')}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             )}
 
-            {/* =============================================================== */}
-            {/* FORMATO 2: LIBRO AUXILIAR DE CUENTAS */}
-            {/* =============================================================== */}
+            {/* FORMATO 2: LIBRO AUXILIAR */}
             {activeReportType === 'movements' && (
-              <div className="my-2 space-y-4" style={{ width: '100%' }}>
+              <div className="my-2 space-y-4 overflow-x-auto">
                 {auxiliaryAccountsData.length === 0 ? (
                   <div className="py-12 text-center text-slate-500 font-mono text-xs">
-                    No se encontraron movimientos contables en las cuentas o fechas seleccionadas.
+                    No hay movimientos contables en las cuentas, sede o fechas seleccionadas.
                   </div>
                 ) : (
                   auxiliaryAccountsData.map((item) => (
-                    <div key={item.account.code} className="border-b border-slate-300 pb-3">
-                      {/* Cabecera de Cuenta Auxiliar */}
-                      <div className="bg-slate-100/90 py-1 px-2 font-mono text-xs font-bold flex justify-between items-center text-black border-t border-b border-black">
-                        <div>
-                          CUENTA: {item.account.code} - {item.account.name.toUpperCase()} (
-                          {item.account.nature === 'DEBIT' ? 'DÉBITO' : 'CRÉDITO'})
-                        </div>
-                        <div>
-                          SALDO INICIAL: {formatAccountingBalance(item.initialBalance, item.account.nature)}
-                        </div>
+                    <section key={item.account.id} className="border-b border-slate-300 pb-3 min-w-[600px]">
+                      <div className="bg-slate-100/90 py-1 px-2 font-mono text-xs font-bold flex flex-wrap justify-between gap-2 items-center text-black border-t border-b border-black">
+                        <h4 className="text-xs font-bold m-0">
+                          CUENTA: {item.account.code} - {item.account.name.toUpperCase()} ({item.account.nature === 'DEBIT' ? 'DÉBITO' : 'CRÉDITO'})
+                        </h4>
+                        <div>SALDO INICIAL: {formatAccountingBalance(item.initialBalance, item.account.nature)}</div>
                       </div>
-
-                      {/* Tabla de Movimientos de la Cuenta */}
                       <table className="w-full border-collapse font-mono text-[10px] my-1" style={{ tableLayout: 'fixed' }}>
                         <thead>
                           <tr className="font-bold border-b border-black text-black">
-                            <th className="py-1 text-left" style={{ width: '11%' }}>FECHA</th>
-                            <th className="py-1 text-left" style={{ width: '14%' }}>COMPROBANTE</th>
-                            <th className="py-1 text-left" style={{ width: '27%' }}>CONCEPTO / GLOSA</th>
-                            <th className="py-1 text-left" style={{ width: '22%' }}>TERCERO</th>
-                            <th className="py-1 text-right" style={{ width: '13%' }}>DÉBITO</th>
-                            <th className="py-1 text-right" style={{ width: '13%' }}>CRÉDITO</th>
+                            <th className="py-1 text-left" style={{ width: '10%' }}>FECHA</th>
+                            <th className="py-1 text-left" style={{ width: '13%' }}>COMPROBANTE</th>
+                            <th className="py-1 text-left" style={{ width: '25%' }}>CONCEPTO</th>
+                            <th className="py-1 text-left" style={{ width: '18%' }}>TERCERO</th>
+                            <th className="py-1 text-right" style={{ width: '11%' }}>DÉBITO</th>
+                            <th className="py-1 text-right" style={{ width: '11%' }}>CRÉDITO</th>
+                            <th className="py-1 text-right" style={{ width: '12%' }}>SALDO</th>
                           </tr>
                         </thead>
                         <tbody>
                           {item.movements.length === 0 ? (
                             <tr>
-                              <td colSpan={6} className="py-2 text-center text-slate-500 italic">
-                                Sin movimientos en el periodo seleccionado (Mantiene saldo inicial).
+                              <td colSpan={7} className="py-2 text-center text-slate-500 italic">
+                                Sin movimientos en el periodo (mantiene el saldo inicial).
                               </td>
                             </tr>
                           ) : (
                             item.movements.map((m) => (
-                              <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                                <td className="py-0.5 whitespace-nowrap">{m.date.slice(0, 10)}</td>
-                                <td className="py-0.5 whitespace-nowrap font-semibold">{m.voucherNumber}</td>
+                              <tr key={m.id} className="border-b border-slate-100">
+                                <td className="py-0.5 whitespace-nowrap">{formatIsoDateEs(m.date)}</td>
+                                <td className="py-0.5 whitespace-nowrap font-semibold overflow-hidden text-ellipsis">{m.voucherNumber}</td>
                                 <td className="py-0.5 truncate">{m.description}</td>
                                 <td className="py-0.5 truncate">
-                                  {m.thirdPartyDoc ? `${m.thirdPartyDoc} - ` : ''}{m.thirdPartyName}
+                                  {m.thirdPartyDoc ? `${m.thirdPartyDoc} - ` : ''}
+                                  {m.thirdPartyName}
                                 </td>
-                                <td className="py-0.5 text-right whitespace-nowrap">
-                                  {formatAccountingMovement(m.debit)}
-                                </td>
-                                <td className="py-0.5 text-right whitespace-nowrap">
-                                  {formatAccountingMovement(m.credit)}
-                                </td>
+                                <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(m.debit)}</td>
+                                <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(m.credit)}</td>
+                                <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingBalance(m.runningBalance, item.account.nature)}</td>
                               </tr>
                             ))
                           )}
                         </tbody>
                         <tfoot>
                           <tr className="font-bold border-t border-black text-black text-[10.5px]">
-                            <td colSpan={4} className="py-1 text-right pr-2">
-                              TOTALES CUENTA {item.account.code} | SALDO FINAL:
-                            </td>
-                            <td className="py-1 text-right whitespace-nowrap">
-                              {formatAccountingMovement(item.totalDebit)}
-                            </td>
-                            <td className="py-1 text-right whitespace-nowrap">
-                              {formatAccountingMovement(item.totalCredit)}
-                            </td>
-                          </tr>
-                          <tr className="font-bold text-black text-[10px]">
-                            <td colSpan={6} className="py-0.5 text-right text-blue-950">
-                              Saldo Final Acumulado: {formatAccountingBalance(item.finalBalance, item.account.nature)}
-                            </td>
+                            <td colSpan={4} className="py-1 text-right pr-2">TOTALES CUENTA {item.account.code}</td>
+                            <td className="py-1 text-right whitespace-nowrap">{formatAccountingMovement(item.totalDebit)}</td>
+                            <td className="py-1 text-right whitespace-nowrap">{formatAccountingMovement(item.totalCredit)}</td>
+                            <td className="py-1 text-right whitespace-nowrap">{formatAccountingBalance(item.finalBalance, item.account.nature)}</td>
                           </tr>
                         </tfoot>
                       </table>
-                    </div>
+                    </section>
                   ))
                 )}
 
-                {/* Resumen Final de Todos los Auxiliares */}
-                <div className="pt-2">
-                  <div
-                    className="p-2 font-mono text-xs font-bold flex justify-between items-center text-black"
-                    style={{ borderTop: '2px solid #000', borderBottom: '3px double #000' }}
-                  >
-                    <span>GRAN TOTAL LIBRO AUXILIAR:</span>
-                    <div className="space-x-6">
-                      <span>DÉBITOS: {formatAccountingMovement(auxTotalDebit)}</span>
-                      <span>CRÉDITOS: {formatAccountingMovement(auxTotalCredit)}</span>
-                      <span className="text-blue-900">
-                        {auxTotalDebit === auxTotalCredit ? 'SUMAS IGUALES' : 'DIFERENCIA'}
-                      </span>
-                    </div>
+                <div
+                  className="p-2 font-mono text-xs font-bold flex flex-wrap justify-between gap-2 items-center text-black print-avoid-break"
+                  style={{ borderTop: '2px solid #000', borderBottom: '3px double #000' }}
+                >
+                  <span>GRAN TOTAL LIBRO AUXILIAR</span>
+                  <div className="flex flex-wrap gap-x-6">
+                    <span>DÉBITOS: {formatAccountingMovement(auxTotalDebit)}</span>
+                    <span>CRÉDITOS: {formatAccountingMovement(auxTotalCredit)}</span>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* =============================================================== */}
-            {/* FORMATO 3: COMPROBANTES DE DIARIO / ASIENTOS CONTABLES */}
-            {/* =============================================================== */}
+            {/* FORMATO 3: COMPROBANTES DE DIARIO */}
             {activeReportType === 'entries' && (
-              <div className="my-2 space-y-4" style={{ width: '100%' }}>
+              <div className="my-2 space-y-4 overflow-x-auto">
                 {filteredEntriesList.length === 0 ? (
                   <div className="py-12 text-center text-slate-500 font-mono text-xs">
-                    No se encontraron comprobantes de diario en el rango de fechas seleccionado.
+                    No hay comprobantes para los filtros seleccionados.
                   </div>
                 ) : (
                   filteredEntriesList.map((entry) => (
-                    <div key={entry.id} className="border border-slate-300 rounded-none p-2 mb-3 bg-white">
-                      {/* Cabecera del Comprobante */}
-                      <div className="border-b border-black pb-1 mb-1.5 flex justify-between items-start font-mono text-xs">
+                    <section key={entry.id} className="border border-slate-300 p-2 mb-3 bg-white min-w-[560px] print-avoid-break">
+                      <div className="border-b border-black pb-1 mb-1.5 flex justify-between items-start gap-2 font-mono text-xs">
                         <div>
-                          <strong className="text-black text-sm">{entry.entryNumber}</strong>{' '}
-                          <span className="text-slate-600">({entry.sourceType || 'COMPROBANTE DIARIO'})</span>
+                          <h4 className="text-black text-sm font-bold m-0 inline">{entry.entryNumber}</h4>{' '}
+                          <span className="text-slate-600">({entry.sourceType})</span>
                           <div className="text-[11px] text-slate-800 font-sans mt-0.5">
                             <strong>Concepto:</strong> {entry.description}
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="font-bold">Fecha:</span> {entry.date.slice(0, 10)}
+                          <span className="font-bold">Fecha:</span> {formatIsoDateEs(entry.date)}
                           <div>
-                            <span className="text-[10px] font-bold px-1.5 py-0.2 bg-slate-100 border border-slate-300">
-                              {entry.status === 'POSTED' ? 'ASENTADO' : 'BORRADOR'}
+                            <span className="text-[10px] font-bold px-1.5 bg-slate-100 border border-slate-300">
+                              {entry.status === 'POSTED' ? 'CONTABILIZADO' : entry.status === 'REVERSED' ? 'REVERSADO' : 'BORRADOR'}
                             </span>
                           </div>
                         </div>
                       </div>
-
-                      {/* Tabla de Líneas del Asiento */}
                       <table className="w-full border-collapse font-mono text-[10px]" style={{ tableLayout: 'fixed' }}>
                         <thead>
                           <tr className="font-bold border-b border-black text-black">
                             <th className="py-0.5 text-left" style={{ width: '15%' }}>CÓDIGO PUC</th>
-                            <th className="py-0.5 text-left" style={{ width: '35%' }}>CUENTA CONTABLE</th>
+                            <th className="py-0.5 text-left" style={{ width: '35%' }}>CUENTA</th>
                             <th className="py-0.5 text-left" style={{ width: '24%' }}>TERCERO</th>
                             <th className="py-0.5 text-right" style={{ width: '13%' }}>DÉBITO</th>
                             <th className="py-0.5 text-right" style={{ width: '13%' }}>CRÉDITO</th>
@@ -1431,44 +1224,32 @@ export function TrialBalancePdfModal({
                         </thead>
                         <tbody>
                           {entry.lines.map((l, lIdx) => (
-                            <tr key={lIdx} className="border-b border-slate-100">
+                            <tr key={l.id || lIdx} className="border-b border-slate-100">
                               <td className="py-0.5 whitespace-nowrap font-semibold">{l.accountCode}</td>
                               <td className="py-0.5 truncate">{l.accountName}</td>
                               <td className="py-0.5 truncate">{entry.thirdPartyName || '—'}</td>
-                              <td className="py-0.5 text-right whitespace-nowrap">
-                                {formatAccountingMovement(l.debit)}
-                              </td>
-                              <td className="py-0.5 text-right whitespace-nowrap">
-                                {formatAccountingMovement(l.credit)}
-                              </td>
+                              <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(l.debit)}</td>
+                              <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(l.credit)}</td>
                             </tr>
                           ))}
                         </tbody>
                         <tfoot>
                           <tr className="font-bold border-t border-black text-black text-[10.5px]">
-                            <td colSpan={3} className="py-1 text-right pr-2">
-                              TOTAL COMPROBANTE (SUMAS IGUALES):
-                            </td>
-                            <td className="py-1 text-right whitespace-nowrap">
-                              {formatAccountingMovement(entry.totalDebit)}
-                            </td>
-                            <td className="py-1 text-right whitespace-nowrap">
-                              {formatAccountingMovement(entry.totalCredit)}
-                            </td>
+                            <td colSpan={3} className="py-1 text-right pr-2">TOTAL COMPROBANTE</td>
+                            <td className="py-1 text-right whitespace-nowrap">{formatAccountingMovement(entry.totalDebit)}</td>
+                            <td className="py-1 text-right whitespace-nowrap">{formatAccountingMovement(entry.totalCredit)}</td>
                           </tr>
                         </tfoot>
                       </table>
-                    </div>
+                    </section>
                   ))
                 )}
-
-                {/* Gran Total Asientos */}
                 <div
-                  className="p-2 font-mono text-xs font-bold flex justify-between items-center text-black"
+                  className="p-2 font-mono text-xs font-bold flex flex-wrap justify-between gap-2 items-center text-black print-avoid-break"
                   style={{ borderTop: '2px solid #000', borderBottom: '3px double #000' }}
                 >
-                  <span>TOTAL COMPROBANTES ({filteredEntriesList.length}):</span>
-                  <div className="space-x-6">
+                  <span>TOTAL COMPROBANTES ({filteredEntriesList.length})</span>
+                  <div className="flex flex-wrap gap-x-6">
                     <span>DÉBITO: {formatAccountingMovement(entriesTotalDebit)}</span>
                     <span>CRÉDITO: {formatAccountingMovement(entriesTotalCredit)}</span>
                   </div>
@@ -1476,395 +1257,330 @@ export function TrialBalancePdfModal({
               </div>
             )}
 
-            {/* =============================================================== */}
             {/* FORMATO 4: LIBRO DIARIO GENERAL */}
-            {/* =============================================================== */}
             {activeReportType === 'journal' && (
-              <div className="my-2" style={{ width: '100%', overflow: 'hidden' }}>
-                <table
-                  className="w-full border-collapse font-mono text-[10px] leading-tight"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
+              <div className="my-2 overflow-x-auto">
+                <table className="w-full border-collapse font-mono text-[10px] leading-tight min-w-[640px]" style={{ tableLayout: 'fixed' }}>
                   <thead>
-                    <tr
-                      className="font-bold uppercase text-black"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}
-                    >
-                      <th className="py-1 text-left" style={{ width: '10%' }}>FECHA</th>
-                      <th className="py-1 text-left" style={{ width: '13%' }}>COMPROBANTE</th>
-                      <th className="py-1 text-left" style={{ width: '13%' }}>CUENTA</th>
-                      <th className="py-1 text-left" style={{ width: '24%' }}>NOMBRE DE CUENTA</th>
-                      <th className="py-1 text-left" style={{ width: '18%' }}>TERCERO / DETALLE</th>
-                      <th className="py-1 text-right" style={{ width: '11%' }}>DÉBITO</th>
-                      <th className="py-1 text-right" style={{ width: '11%' }}>CRÉDITO</th>
+                    <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th className="py-1 text-left" style={{ width: '10%' }}>Fecha</th>
+                      <th className="py-1 text-left" style={{ width: '13%' }}>Comprobante</th>
+                      <th className="py-1 text-left" style={{ width: '13%' }}>Cuenta</th>
+                      <th className="py-1 text-left" style={{ width: '24%' }}>Nombre de cuenta</th>
+                      <th className="py-1 text-left" style={{ width: '18%' }}>Tercero / detalle</th>
+                      <th className="py-1 text-right" style={{ width: '11%' }}>Débito</th>
+                      <th className="py-1 text-right" style={{ width: '11%' }}>Crédito</th>
                     </tr>
                   </thead>
                   <tbody>
                     {journalRows.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="py-8 text-center text-slate-500 font-medium">
-                          No se registraron movimientos en el libro diario para este periodo.
+                          No hay líneas contables para los filtros seleccionados.
                         </td>
                       </tr>
                     ) : (
                       journalRows.map((row, rIdx) => (
-                        <tr key={rIdx} className="border-b border-slate-100 hover:bg-slate-50/50">
-                          <td className="py-0.5 whitespace-nowrap">{row.date.slice(0, 10)}</td>
-                          <td className="py-0.5 whitespace-nowrap font-semibold">{row.voucherNumber}</td>
-                          <td className="py-0.5 whitespace-nowrap font-mono">{row.accountCode}</td>
+                        <tr key={`${row.voucherNumber}-${rIdx}`} className="border-b border-slate-100">
+                          <td className="py-0.5 whitespace-nowrap">{formatIsoDateEs(row.date)}</td>
+                          <td className="py-0.5 whitespace-nowrap font-semibold overflow-hidden text-ellipsis">{row.voucherNumber}</td>
+                          <td className="py-0.5 whitespace-nowrap">{row.accountCode}</td>
                           <td className="py-0.5 truncate">{row.accountName}</td>
                           <td className="py-0.5 truncate" title={row.description}>
-                            {row.thirdPartyName !== '—' ? `${row.thirdPartyName}: ` : ''}{row.description}
+                            {row.thirdPartyName ? `${row.thirdPartyName}: ` : ''}
+                            {row.description}
                           </td>
-                          <td className="py-0.5 text-right whitespace-nowrap">
-                            {formatAccountingMovement(row.debit)}
-                          </td>
-                          <td className="py-0.5 text-right whitespace-nowrap">
-                            {formatAccountingMovement(row.credit)}
-                          </td>
+                          <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(row.debit)}</td>
+                          <td className="py-0.5 text-right whitespace-nowrap">{formatAccountingMovement(row.credit)}</td>
                         </tr>
                       ))
                     )}
                   </tbody>
                   <tfoot>
-                    <tr
-                      className="font-bold text-black text-[10.5px]"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}
-                    >
-                      <td colSpan={5} className="py-1.5 text-right pr-2">
-                        TOTALES GENERALES LIBRO DIARIO:
-                      </td>
-                      <td className="py-1.5 text-right whitespace-nowrap">
-                        {formatAccountingMovement(journalTotalDebit)}
-                      </td>
-                      <td className="py-1.5 text-right whitespace-nowrap">
-                        {formatAccountingMovement(journalTotalCredit)}
-                      </td>
+                    <tr className="font-bold text-black text-[10.5px]" style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}>
+                      <td colSpan={5} className="py-1.5 text-right pr-2">TOTALES LIBRO DIARIO</td>
+                      <td className="py-1.5 text-right whitespace-nowrap">{formatAccountingMovement(journalTotalDebit)}</td>
+                      <td className="py-1.5 text-right whitespace-nowrap">{formatAccountingMovement(journalTotalCredit)}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             )}
 
-            {/* =============================================================== */}
             {/* FORMATO 5: DIRECTORIO DE TERCEROS (DIAN) */}
-            {/* =============================================================== */}
             {activeReportType === 'third_parties' && (
-              <div className="my-2" style={{ width: '100%', overflow: 'hidden' }}>
-                <table
-                  className="w-full border-collapse font-mono text-[10px] leading-tight"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
+              <div className="my-2 overflow-x-auto">
+                <table className="w-full border-collapse font-mono text-[10px] leading-tight min-w-[640px]" style={{ tableLayout: 'fixed' }}>
                   <thead>
-                    <tr
-                      className="font-bold uppercase text-black"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}
-                    >
-                      <th className="py-1 text-left" style={{ width: '8%' }}>TIPO</th>
-                      <th className="py-1 text-left" style={{ width: '15%' }}>DOCUMENTO / NIT</th>
-                      <th className="py-1 text-left" style={{ width: '28%' }}>RAZÓN SOCIAL / NOMBRE</th>
-                      <th className="py-1 text-left" style={{ width: '17%' }}>NOMBRE COMERCIAL</th>
-                      <th className="py-1 text-left" style={{ width: '12%' }}>ROL / CALIDAD</th>
-                      <th className="py-1 text-left" style={{ width: '20%' }}>CONTACTO / CIUDAD</th>
+                    <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th className="py-1 text-left" style={{ width: '8%' }}>Tipo</th>
+                      <th className="py-1 text-left" style={{ width: '15%' }}>Documento / NIT</th>
+                      <th className="py-1 text-left" style={{ width: '28%' }}>Razón social / nombre</th>
+                      <th className="py-1 text-left" style={{ width: '17%' }}>Nombre comercial</th>
+                      <th className="py-1 text-left" style={{ width: '12%' }}>Rol</th>
+                      <th className="py-1 text-left" style={{ width: '20%' }}>Contacto / ciudad</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredThirdPartiesList.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center text-slate-500 font-medium">
-                          No se encontraron terceros registrados con los criterios seleccionados.
+                          No hay terceros registrados con los criterios seleccionados.
                         </td>
                       </tr>
                     ) : (
                       filteredThirdPartiesList.map((tp) => (
-                        <tr key={tp.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                          <td className="py-0.5 whitespace-nowrap">{tp.documentType || 'NIT'}</td>
+                        <tr key={tp.id} className="border-b border-slate-100">
+                          <td className="py-0.5 whitespace-nowrap">{tp.documentType}</td>
                           <td className="py-0.5 whitespace-nowrap font-bold">
                             {tp.documentNumber}
                             {tp.verificationDigit ? `-${tp.verificationDigit}` : ''}
                           </td>
                           <td className="py-0.5 truncate font-semibold">{tp.companyName}</td>
                           <td className="py-0.5 truncate text-slate-600">{tp.commercialName || '—'}</td>
-                          <td className="py-0.5 whitespace-nowrap">
-                            <span className="px-1 py-0.2 bg-slate-100 text-slate-800 border border-slate-300 text-[9px]">
-                              {tp.thirdPartyType}
-                            </span>
-                          </td>
+                          <td className="py-0.5 whitespace-nowrap text-[9px]">{tp.thirdPartyType}</td>
                           <td className="py-0.5 truncate text-slate-700">
-                            {tp.city || 'Medellín'} {tp.phone ? `| Tel: ${tp.phone}` : ''}
+                            {tp.city || '—'} {tp.phone ? `| Tel: ${tp.phone}` : ''}
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                   <tfoot>
-                    <tr
-                      className="font-bold text-black text-[10.5px]"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}
-                    >
-                      <td colSpan={3} className="py-1.5">
-                        TOTAL TERCEROS CERTIFICADOS: {filteredThirdPartiesList.length}
-                      </td>
-                      <td colSpan={3} className="py-1.5 text-right">
-                        REGISTRO FISCAL OFICIAL DIAN
-                      </td>
+                    <tr className="font-bold text-black text-[10.5px]" style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}>
+                      <td colSpan={6} className="py-1.5">TOTAL TERCEROS: {filteredThirdPartiesList.length}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             )}
 
-            {/* =============================================================== */}
-            {/* FORMATO 6: PLAN DE CUENTAS (PUC MAESTRO) */}
-            {/* =============================================================== */}
+            {/* FORMATO 6: PLAN DE CUENTAS */}
             {activeReportType === 'accounts' && (
-              <div className="my-2" style={{ width: '100%', overflow: 'hidden' }}>
-                <table
-                  className="w-full border-collapse font-mono text-[10px] leading-tight"
-                  style={{ width: '100%', tableLayout: 'fixed' }}
-                >
+              <div className="my-2 overflow-x-auto">
+                <table className="w-full border-collapse font-mono text-[10px] leading-tight min-w-[560px]" style={{ tableLayout: 'fixed' }}>
                   <thead>
-                    <tr
-                      className="font-bold uppercase text-black"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}
-                    >
-                      <th className="py-1 text-left" style={{ width: '16%' }}>CÓDIGO PUC</th>
-                      <th className="py-1 text-left" style={{ width: '42%' }}>DESCRIPCIÓN DE LA CUENTA</th>
-                      <th className="py-1 text-left" style={{ width: '14%' }}>NIVEL</th>
-                      <th className="py-1 text-left" style={{ width: '14%' }}>NATURALEZA</th>
-                      <th className="py-1 text-left" style={{ width: '14%' }}>TIPO</th>
+                    <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                      <th className="py-1 text-left" style={{ width: '18%' }}>Código PUC</th>
+                      <th className="py-1 text-left" style={{ width: '50%' }}>Descripción de la cuenta</th>
+                      <th className="py-1 text-left" style={{ width: '16%' }}>Nivel</th>
+                      <th className="py-1 text-left" style={{ width: '16%' }}>Naturaleza</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredAccountsList.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500 font-medium">
-                          No se encontraron cuentas contables según los criterios especificados.
+                        <td colSpan={4} className="py-8 text-center text-slate-500 font-medium">
+                          No hay cuentas contables con los criterios seleccionados.
                         </td>
                       </tr>
                     ) : (
                       filteredAccountsList.map((acc) => {
-                        const isMajor = acc.code.length <= 4
-                        const indent =
-                          acc.code.length === 1 ? 0 : acc.code.length === 2 ? 6 : acc.code.length === 4 ? 12 : 18
+                        const levelNumber = { CLASS: 1, GROUP: 2, ACCOUNT: 3, SUBACCOUNT: 4, AUXILIARY: 5 }[acc.level] || 5
                         return (
-                          <tr
-                            key={acc.id}
-                            className={`border-b border-slate-100 ${
-                              isMajor ? 'font-bold text-black' : 'text-slate-800'
-                            }`}
-                          >
+                          <tr key={acc.id} className={`border-b border-slate-100 ${levelNumber <= 3 ? 'font-bold text-black' : 'text-slate-800'}`}>
                             <td className="py-0.5 whitespace-nowrap">{acc.code}</td>
                             <td className="py-0.5 truncate">
-                              <span style={{ paddingLeft: `${indent}px` }}>{acc.name}</span>
+                              <span style={{ paddingLeft: (levelNumber - 1) * PRINT_INDENT_PX }}>{acc.name}</span>
                             </td>
-                            <td className="py-0.5 whitespace-nowrap text-slate-600">{acc.level}</td>
-                            <td className="py-0.5 whitespace-nowrap font-semibold">
-                              {acc.nature === 'DEBIT' ? 'DÉBITO' : 'CRÉDITO'}
-                            </td>
-                            <td className="py-0.5 whitespace-nowrap text-slate-600">{acc.type}</td>
+                            <td className="py-0.5 whitespace-nowrap text-slate-600">{ACCOUNT_LEVEL_LABEL[acc.level]}</td>
+                            <td className="py-0.5 whitespace-nowrap font-semibold">{acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}</td>
                           </tr>
                         )
                       })
                     )}
                   </tbody>
                   <tfoot>
-                    <tr
-                      className="font-bold text-black text-[10.5px]"
-                      style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}
-                    >
-                      <td colSpan={3} className="py-1.5">
-                        TOTAL CUENTAS CATALOGADAS: {filteredAccountsList.length}
-                      </td>
-                      <td colSpan={2} className="py-1.5 text-right">
-                        PLAN ÚNICO DE CUENTAS VIGENTE
-                      </td>
+                    <tr className="font-bold text-black text-[10.5px]" style={{ borderTop: '1.5px solid #000', borderBottom: '3px double #000' }}>
+                      <td colSpan={4} className="py-1.5">TOTAL CUENTAS: {filteredAccountsList.length}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
             )}
 
-            {/* =============================================================== */}
-            {/* FORMATO 7: BALANCE GENERAL (SITUACIÓN FINANCIERA) */}
-            {/* =============================================================== */}
-            {activeReportType === 'balance' && (
-              <div className="my-2 space-y-3 font-mono text-[11px]" style={{ width: '100%' }}>
-                {/* 1. ACTIVOS */}
-                <div className="border border-black">
-                  <div className="bg-black text-white px-2 py-1 font-bold text-xs uppercase flex justify-between">
-                    <span>1. ACTIVO</span>
-                    <span>{formatCurrency(balanceSheetStructure.activo.total)}</span>
-                  </div>
-                  <div className="p-2 space-y-2">
-                    <div>
-                      <div className="font-bold text-black border-b border-slate-300 pb-0.5 flex justify-between">
-                        <span>ACTIVO CORRIENTE</span>
-                        <span>{formatCurrency(balanceSheetStructure.activo.corriente.total)}</span>
-                      </div>
-                      <div className="pl-4 py-1 space-y-0.5 text-slate-800">
-                        <div className="flex justify-between">
-                          <span>11 - Efectivo y Equivalentes de Efectivo:</span>
-                          <span>{formatCurrency(balanceSheetStructure.activo.corriente.efectivo)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>13 - Deudores Comerciales y Cuentas por Cobrar:</span>
-                          <span>{formatCurrency(balanceSheetStructure.activo.corriente.deudores)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>14 - Inventarios y Mercancías en Existencia:</span>
-                          <span>{formatCurrency(balanceSheetStructure.activo.corriente.inventarios)}</span>
-                        </div>
-                      </div>
-                    </div>
+            {/* FORMATO 7: BALANCE GENERAL DESGLOSADO */}
+            {isBalanceReport && !isRemoteLoading && balanceReport && (
+              <div className="my-2 space-y-3 font-mono text-[10.5px] overflow-x-auto">
+                {(
+                  [
+                    { key: 'assets', title: '1. ACTIVO', rows: balanceSections.assets, total: balanceReport.totalAssets, totalLabel: 'TOTAL ACTIVO' },
+                    { key: 'liabilities', title: '2. PASIVO', rows: balanceSections.liabilities, total: balanceReport.totalLiabilities, totalLabel: 'TOTAL PASIVO' },
+                    { key: 'equity', title: '3. PATRIMONIO', rows: balanceSections.equity, total: balanceReport.totalEquityAccounts, totalLabel: 'SUBTOTAL CLASE 3' },
+                  ] as const
+                ).map((section) => (
+                  <section key={section.key} className="min-w-[520px]">
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                          <th className="py-1 px-1 text-left" style={{ width: '18%' }}>{section.title}</th>
+                          <th className="py-1 px-1 text-left" style={{ width: '57%' }}>Cuenta</th>
+                          <th className="py-1 px-1 text-right" style={{ width: '25%' }}>Saldo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.rows.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="py-2 px-1 text-slate-500">Sin saldos en esta clase para los filtros seleccionados.</td>
+                          </tr>
+                        ) : (
+                          balanceRowsTable(section.rows)
+                        )}
+                      </tbody>
+                      <tfoot>
+                        {section.key === 'equity' && (
+                          <>
+                            <tr className="text-black">
+                              <td className="py-0.5 px-1" />
+                              <td className="py-0.5 px-1 font-semibold">RESULTADO DEL EJERCICIO (4 − 5 − 6 − 7, SIN CIERRE)</td>
+                              <td className="py-0.5 px-1 text-right whitespace-nowrap font-semibold">{formatCop(balanceReport.currentYearResult)}</td>
+                            </tr>
+                            <tr className="text-slate-700 text-[10px]">
+                              <td className="px-1" />
+                              <td className="px-1" style={{ paddingLeft: PRINT_INDENT_PX * 2 }}>
+                                Ingresos {formatCop(balanceReport.resultBreakdown.revenues)} − Gastos {formatCop(balanceReport.resultBreakdown.expenses)} − Costos de ventas{' '}
+                                {formatCop(balanceReport.resultBreakdown.costOfSales)} − Costos de producción {formatCop(balanceReport.resultBreakdown.productionCosts)}
+                              </td>
+                              <td className="px-1" />
+                            </tr>
+                          </>
+                        )}
+                        <tr className="font-bold text-black" style={{ borderTop: '1px solid #000' }}>
+                          <td className="py-1 px-1" />
+                          <td className="py-1 px-1">{section.totalLabel}</td>
+                          <td className="py-1 px-1 text-right whitespace-nowrap">{formatCop(section.total)}</td>
+                        </tr>
+                        {section.key === 'equity' && (
+                          <tr className="font-bold text-black">
+                            <td className="py-1 px-1" />
+                            <td className="py-1 px-1">TOTAL PATRIMONIO</td>
+                            <td className="py-1 px-1 text-right whitespace-nowrap">{formatCop(balanceReport.totalEquity)}</td>
+                          </tr>
+                        )}
+                      </tfoot>
+                    </table>
+                  </section>
+                ))}
 
-                    <div>
-                      <div className="font-bold text-black border-b border-slate-300 pb-0.5 flex justify-between">
-                        <span>ACTIVO NO CORRIENTE</span>
-                        <span>{formatCurrency(balanceSheetStructure.activo.noCorriente.total)}</span>
-                      </div>
-                      <div className="pl-4 py-1 space-y-0.5 text-slate-800">
-                        <div className="flex justify-between">
-                          <span>15 - Propiedades, Planta y Equipo:</span>
-                          <span>{formatCurrency(balanceSheetStructure.activo.noCorriente.propiedadPlantaEquipo)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>17/18/19 - Otros Activos e Intangibles:</span>
-                          <span>{formatCurrency(balanceSheetStructure.activo.noCorriente.otrosActivos)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. PASIVOS */}
-                <div className="border border-black">
-                  <div className="bg-black text-white px-2 py-1 font-bold text-xs uppercase flex justify-between">
-                    <span>2. PASIVO</span>
-                    <span>{formatCurrency(balanceSheetStructure.pasivo.total)}</span>
-                  </div>
-                  <div className="p-2 space-y-2">
-                    <div>
-                      <div className="font-bold text-black border-b border-slate-300 pb-0.5 flex justify-between">
-                        <span>PASIVO CORRIENTE</span>
-                        <span>{formatCurrency(balanceSheetStructure.pasivo.corriente.total)}</span>
-                      </div>
-                      <div className="pl-4 py-1 space-y-0.5 text-slate-800">
-                        <div className="flex justify-between">
-                          <span>22 - Proveedores Nacionales:</span>
-                          <span>{formatCurrency(balanceSheetStructure.pasivo.corriente.proveedores)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>23 - Cuentas Comerciales por Pagar:</span>
-                          <span>{formatCurrency(balanceSheetStructure.pasivo.corriente.cuentasPorPagar)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>24 - Impuestos, Gravámenes y Tasas:</span>
-                          <span>{formatCurrency(balanceSheetStructure.pasivo.corriente.impuestosPorPagar)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>25 - Obligaciones Laborales y Nómina:</span>
-                          <span>{formatCurrency(balanceSheetStructure.pasivo.corriente.obligacionesLaborales)}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="font-bold text-black border-b border-slate-300 pb-0.5 flex justify-between">
-                        <span>PASIVO NO CORRIENTE</span>
-                        <span>{formatCurrency(balanceSheetStructure.pasivo.noCorriente.total)}</span>
-                      </div>
-                      <div className="pl-4 py-1 space-y-0.5 text-slate-800">
-                        <div className="flex justify-between">
-                          <span>21 - Obligaciones Financieras a Largo Plazo:</span>
-                          <span>{formatCurrency(balanceSheetStructure.pasivo.noCorriente.obligacionesFinancieras)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. PATRIMONIO */}
-                <div className="border border-black">
-                  <div className="bg-black text-white px-2 py-1 font-bold text-xs uppercase flex justify-between">
-                    <span>3. PATRIMONIO</span>
-                    <span>{formatCurrency(balanceSheetStructure.patrimonio.total)}</span>
-                  </div>
-                  <div className="p-2 space-y-1 pl-4 text-slate-800">
-                    <div className="flex justify-between">
-                      <span>31 - Capital Social:</span>
-                      <span>{formatCurrency(balanceSheetStructure.patrimonio.capitalSocial)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>33 - Reservas Estatutarias:</span>
-                      <span>{formatCurrency(balanceSheetStructure.patrimonio.reservas)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>37 - Resultados de Ejercicios Anteriores:</span>
-                      <span>{formatCurrency(balanceSheetStructure.patrimonio.resultadosAcumulados)}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-black">
-                      <span>36 - Utilidad / Resultado del Ejercicio:</span>
-                      <span>{formatCurrency(balanceSheetStructure.patrimonio.resultadoEjercicio)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* VERIFICACIÓN FORMAL DE LA ECUACIÓN PATRIMONIAL */}
                 <div
-                  className="p-2 font-mono text-xs font-bold bg-slate-50 flex justify-between items-center text-black"
+                  className="p-2 font-mono text-xs font-bold bg-slate-50 flex flex-wrap justify-between gap-2 items-center text-black print-avoid-break min-w-[520px]"
                   style={{ borderTop: '2px solid #000', borderBottom: '3px double #000' }}
                 >
                   <div>
                     ECUACIÓN PATRIMONIAL: ACTIVO = PASIVO + PATRIMONIO
-                    <div className="text-[10px] text-slate-600 font-normal">
-                      {formatCurrency(balanceSheetStructure.activo.total)} ={' '}
-                      {formatCurrency(balanceSheetStructure.pasivo.total)} +{' '}
-                      {formatCurrency(balanceSheetStructure.patrimonio.total)}
+                    <div className="text-[10px] text-slate-700 font-normal">
+                      {formatCop(balanceReport.totalAssets)} = {formatCop(balanceReport.totalLiabilities)} + {formatCop(balanceReport.totalEquity)}
+                      {' '}(Total pasivo + patrimonio: {formatCop(balanceReport.totalLiabilitiesAndEquity)})
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-blue-900 font-extrabold">
-                      {Math.abs(balanceSheetStructure.ecuacionDiferencia) < 0.01
-                        ? 'BALANCEADO (Diferencia: $0.00 COP)'
-                        : `DIFERENCIA: ${formatCurrency(balanceSheetStructure.ecuacionDiferencia)}`}
-                    </span>
-                  </div>
+                  <span className="font-extrabold">
+                    {balanceReport.accountFrom || balanceReport.accountTo
+                      ? 'RANGO PARCIAL DE CUENTAS'
+                      : balanceReport.isBalanced
+                      ? 'CUADRADO (DIFERENCIA $ 0,00)'
+                      : `DESCUADRE: ${formatCop(balanceReport.difference)}`}
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* SECCIÓN DE FIRMAS LEGALES Y CONTABLES */}
-            <div className="mt-8 pt-4 page-break-inside-avoid">
-              <div className="grid grid-cols-3 gap-6 text-center text-xs font-mono">
-                <div>
-                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8"></div>
-                  <strong className="block text-[11px] uppercase text-black">REPRESENTANTE LEGAL</strong>
-                  <span className="text-[10px] text-slate-600 block">C.C. ___________________</span>
-                  <span className="text-[9.5px] text-slate-500 block">Distribuidora Super Más S.A.S.</span>
-                </div>
+            {/* FORMATO 8: ESTADO DE RESULTADOS DESGLOSADO */}
+            {isIncomeReport && !isRemoteLoading && incomeReport && (
+              <div className="my-2 space-y-3 font-mono text-[10.5px] overflow-x-auto">
+                {incomeSections.map((section) => (
+                  <section key={section.key} className="min-w-[520px]">
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <thead>
+                        <tr className="font-bold uppercase text-black" style={{ borderTop: '1.5px solid #000', borderBottom: '1.5px solid #000' }}>
+                          <th className="py-1 px-1 text-left" style={{ width: '18%' }}>{section.title}</th>
+                          <th className="py-1 px-1 text-left" style={{ width: '57%' }}>Cuenta</th>
+                          <th className="py-1 px-1 text-right" style={{ width: '25%' }}>Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {section.rows.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="py-2 px-1 text-slate-500">Sin movimientos en esta clase durante el periodo.</td>
+                          </tr>
+                        ) : (
+                          balanceRowsTable(section.rows)
+                        )}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-bold text-black" style={{ borderTop: '1px solid #000' }}>
+                          <td className="py-1 px-1" />
+                          <td className="py-1 px-1 uppercase">{section.totalLabel}</td>
+                          <td className="py-1 px-1 text-right whitespace-nowrap">{formatCop(section.total)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </section>
+                ))}
 
-                <div>
-                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8"></div>
-                  <strong className="block text-[11px] uppercase text-black">CONTADOR PÚBLICO</strong>
-                  <span className="text-[10px] text-slate-600 block">T.P. No. ________________-T</span>
-                  <span className="text-[9.5px] text-slate-500 block">Responsable de Certificación</span>
-                </div>
+                <table className="w-full border-collapse min-w-[520px] print-avoid-break" style={{ tableLayout: 'fixed' }}>
+                  <caption className="text-left font-bold uppercase text-black py-1">Resumen del resultado</caption>
+                  <tbody>
+                    {incomeStatementLines(incomeReport).map((line) => (
+                      <tr
+                        key={line.key}
+                        className={`text-black ${line.kind === 'line' ? '' : 'font-bold'}`}
+                        style={
+                          line.kind === 'total'
+                            ? { borderTop: '2px solid #000', borderBottom: '3px double #000' }
+                            : line.kind === 'subtotal'
+                            ? { borderTop: '1px solid #000' }
+                            : undefined
+                        }
+                      >
+                        <td className="py-0.5 px-1" style={{ width: '75%', paddingLeft: line.kind === 'line' ? PRINT_INDENT_PX * 2 : undefined }}>
+                          {line.kind === 'line' ? line.label : line.label.toUpperCase()}
+                        </td>
+                        <td className="py-0.5 px-1 text-right whitespace-nowrap" style={{ width: '25%' }}>
+                          {formatCop(line.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="text-slate-700 text-[10px]">
+                      <td className="pt-1 px-1">
+                        Margen bruto {incomeReport.grossMarginPercent} % | Margen neto {incomeReport.netMarginPercent} %
+                      </td>
+                      <td className="px-1" />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
 
+            {/* FIRMAS */}
+            <div className="mt-8 pt-4 print-avoid-break">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs font-mono">
                 <div>
-                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8"></div>
-                  <strong className="block text-[11px] uppercase text-black">REVISOR FISCAL</strong>
+                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8" />
+                  <strong className="block text-[11px] uppercase text-black">Representante legal</strong>
+                  <span className="text-[10px] text-slate-700 block">{company?.legalRepresentative || 'C.C. ___________________'}</span>
+                  {companyName && <span className="text-[9.5px] text-slate-500 block">{companyName}</span>}
+                </div>
+                <div>
+                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8" />
+                  <strong className="block text-[11px] uppercase text-black">Contador público</strong>
                   <span className="text-[10px] text-slate-600 block">T.P. No. ________________-T</span>
-                  <span className="text-[9.5px] text-slate-500 block">Dictamen Fiduciario</span>
+                </div>
+                <div>
+                  <div className="w-40 border-b border-black mx-auto mb-1.5 mt-8" />
+                  <strong className="block text-[11px] uppercase text-black">Revisor fiscal</strong>
+                  <span className="text-[10px] text-slate-600 block">T.P. No. ________________-T</span>
                 </div>
               </div>
             </div>
 
-            {/* PIE DE PÁGINA OBLIGATORIO SEGÚN REGLAS 29-32 */}
-            <div className="mt-8 pt-3 border-t border-slate-300 text-center text-[10px] text-slate-600 flex flex-wrap items-center justify-between gap-2 font-sans">
-              <span>Documento contable oficial expedido el {trialBalanceData.generatedAt}.</span>
+            {/* PIE DEL DOCUMENTO */}
+            <footer className="mt-8 pt-3 border-t border-slate-300 text-[10px] text-slate-600 flex flex-wrap items-center justify-between gap-2 font-sans">
               <span>
-                © {new Date().getFullYear()} Super Más S.A.S. Todos los derechos reservados.
+                Generado el {generatedAt}
+                {generatedBy ? ` por ${generatedBy}` : ''}
+              </span>
+              <span>
+                © {new Date().getFullYear()} {company?.tradeName || companyName}. Todos los derechos reservados.
               </span>
               <a
                 href="https://www.kytcode.lat"
@@ -1874,31 +1590,27 @@ export function TrialBalancePdfModal({
                 style={{ textDecoration: 'none' }}
               >
                 <span>Desarrollado por K&T</span>
-                <Heart className="w-3 h-3 fill-black text-black inline-block" />
+                <Heart className="w-3 h-3 fill-black text-black inline-block" aria-hidden="true" />
               </a>
-            </div>
+            </footer>
           </div>
         </div>
 
-        {/* Pie del Modal con Acciones Rápidas (Oculto al Imprimir) */}
-        <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between shrink-0 print:hidden">
-          <span className="text-[11px] text-slate-500 hidden sm:inline">
-            Formato oficial fiduciario optimizado para impresión en hoja Carta / A4 sin cortes horizontales.
-          </span>
-          <div className="flex items-center gap-3 ml-auto">
-            <button type="button" className="outline-button compact text-xs" onClick={onClose}>
-              Cerrar
-            </button>
-            <button
-              type="button"
-              className="primary-button compact text-xs flex items-center gap-2 font-bold"
-              style={{ background: 'var(--navy)' }}
-              onClick={handlePrint}
-            >
-              <AppIcon name="printer" size={14} />
-              <span>Imprimir / Guardar en PDF</span>
-            </button>
-          </div>
+        {/* Pie del modal (oculto al imprimir) */}
+        <div className="px-4 sm:px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3 shrink-0 print:hidden">
+          <button type="button" className="outline-button compact text-xs" onClick={onClose}>
+            Cerrar
+          </button>
+          <button
+            type="button"
+            className="primary-button compact text-xs flex items-center gap-2 font-bold active:scale-95 transition-transform"
+            style={{ background: 'var(--navy)' }}
+            onClick={handlePrint}
+            disabled={isRemoteLoading || remoteFailed}
+          >
+            <AppIcon name="printer" size={14} />
+            <span>Imprimir / Guardar en PDF</span>
+          </button>
         </div>
       </div>
     </div>,

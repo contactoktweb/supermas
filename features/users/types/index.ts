@@ -40,6 +40,15 @@ export interface User {
   lastLoginAt: string | null
 }
 
+/**
+ * Resultado de crear un usuario. `temporaryPassword` solo existe cuando el servidor generó la
+ * contraseña (el administrador no escribió una): se muestra una sola vez y no se persiste.
+ */
+export interface CreatedUserResult {
+  user: User
+  temporaryPassword?: string
+}
+
 export interface RoleDefinition {
   code: UserRole
   name: string

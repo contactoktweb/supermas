@@ -119,14 +119,18 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
   }
 
   // Guardar usuario (Crear o Editar)
-  const handleSaveUser = async (data: CreateUserInput | UpdateUserInput) => {
+  /** Devuelve la contraseña temporal generada por el servidor (solo al crear sin contraseña). */
+  const handleSaveUser = async (data: CreateUserInput | UpdateUserInput): Promise<string | undefined> => {
+    let temporaryPassword: string | undefined
     if (editingUser) {
       await userService.update(editingUser.id, data as UpdateUserInput, actor, userRole)
     } else {
-      await userService.create(data as CreateUserInput, actor, userRole)
+      const result = await userService.create(data as CreateUserInput, actor, userRole)
+      temporaryPassword = result.temporaryPassword
     }
     await loadData()
     handleCloseForm()
+    return temporaryPassword
   }
 
   // Apertura de Detalle y carga bajo demanda de actividad

@@ -411,9 +411,13 @@ export function LoginForm({ onSuccess, redirectTo }: LoginFormProps) {
                   color: '#64748b',
                   marginBottom: '24px',
                   textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
                 }}
               >
-                ℹ️ Si no recibes el mensaje en unos minutos, revisa tu carpeta de correo no deseado (Spam) o solicita un nuevo enlace.
+                <AppIcon name="info" size={16} aria-hidden="true" />
+                Si no recibes el mensaje en unos minutos, revisa tu carpeta de correo no deseado (Spam) o solicita un nuevo enlace.
               </div>
 
               <button

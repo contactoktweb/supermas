@@ -99,12 +99,11 @@ export interface SaleFilterParams {
   sortDirection?: 'asc' | 'desc'
 }
 
+/** Línea que el navegador envía: el servidor calcula precio, IVA, costo y totales. */
 export interface CreateSaleItemDTO {
   productId: string
   quantity: number
-  unitPrice?: number
   discountPercent?: number
-  taxRatePercent?: number
   notes?: string
 }
 
@@ -113,9 +112,27 @@ export interface CreateSaleDTO {
   locationId: string
   items: CreateSaleItemDTO[]
   paymentMethod: PaymentMethod
+  /** Una por intento de venta: los reintentos con la misma clave no duplican la venta */
+  idempotencyKey: string
   documentTypeToGenerate?: 'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'
   notes?: string
   discountReason?: string
+  /** Cuenta bancaria que recibe el dinero (transferencia, tarjeta o parte bancaria del mixto) */
+  bankAccountId?: string
+  /** Pago mixto: parte en efectivo */
+  mixedCashAmount?: number
+  /** Pago mixto: medio del valor restante */
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+}
+
+/** Resultado de crear una venta: la venta grabada y su comprobante contable (FV-000123). */
+export interface CreateSaleResult {
+  sale: Sale
+  idempotentReplay: boolean
+  accountingEntryNumber: string | null
+  voucherTypeCode: string | null
+  /** La venta quedó registrada pero el documento solicitado (factura/remisión) no se emitió */
+  documentWarning?: string
 }
 
 export interface CancelSaleDTO {

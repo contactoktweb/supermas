@@ -5,7 +5,24 @@ import {
   TreasuryReceipt,
   BankMovement,
   TreasuryStats,
+  TreasuryPostingResult,
+  ReceiptCustomerOption,
 } from '../types'
+
+/** Comprobante contable embebido (accounting_entry_id → accounting_entries). */
+type EmbeddedEntry = { entry_number?: string; voucher_type_code?: string | null } | null
+
+function toPostingResult(data: any, idField: string, numberField: string): TreasuryPostingResult {
+  return {
+    documentId: data[idField],
+    documentNumber: data[numberField],
+    amount: Number(data.amount || 0),
+    accountingEntryId: data.accounting_entry_id || null,
+    accountingEntryNumber: data.accounting_entry_number || null,
+    voucherTypeCode: data.voucher_type_code || null,
+    idempotentReplay: Boolean(data.idempotent_replay),
+  }
+}
 
 export class TreasuryRepository {
   /**
@@ -54,8 +71,8 @@ export class TreasuryRepository {
       currency: row.currency || 'COP',
       currentBalance: Number(row.current_balance || 0),
       accountingAccountId: row.accounting_account_id || '',
-      accountingAccountCode: row.accounting_accounts?.code || '111005',
-      accountingAccountName: row.accounting_accounts?.name || 'Bancos Nacionales',
+      accountingAccountCode: row.accounting_accounts?.code || '',
+      accountingAccountName: row.accounting_accounts?.name || '',
       status: row.is_active ? 'ACTIVE' : 'INACTIVE',
       description: row.description || undefined,
       createdAt: row.created_at,
@@ -108,6 +125,10 @@ export class TreasuryRepository {
         id,
         purchase_number,
         supplier_invoice_number
+      ),
+      accounting_entry:accounting_entries (
+        entry_number,
+        voucher_type_code
       )
     `)
 
@@ -125,6 +146,7 @@ export class TreasuryRepository {
       const sup = row.suppliers || {}
       const bank = row.bank_accounts || {}
       const pur = row.purchases || {}
+      const entry = row.accounting_entry as EmbeddedEntry
       return {
         id: row.id,
         companyId: row.company_id,
@@ -148,10 +170,8 @@ export class TreasuryRepository {
         supportDocumentUrl: row.support_document_url,
         status: (row.status as any) || 'SCHEDULED',
         accountingEntryId: row.accounting_entry_id,
-        debitAccountCode: '220505',
-        debitAccountName: 'Proveedores Nacionales',
-        creditAccountCode: '111005',
-        creditAccountName: 'Bancos Nacionales',
+        accountingEntryNumber: entry?.entry_number || null,
+        voucherTypeCode: entry?.voucher_type_code || null,
         notes: row.notes,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -200,12 +220,16 @@ export class TreasuryRepository {
         company_name,
         first_name,
         last_name,
-        tax_id
+        tax_id:document_number
       ),
       bank_accounts (
         id,
         bank_name,
         account_number
+      ),
+      accounting_entry:accounting_entries (
+        entry_number,
+        voucher_type_code
       )
     `)
 
@@ -223,6 +247,7 @@ export class TreasuryRepository {
       const cust = row.customers || {}
       const bank = row.bank_accounts || {}
       const custName = cust.company_name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || 'Cliente'
+      const entry = row.accounting_entry as EmbeddedEntry
       return {
         id: row.id,
         companyId: row.company_id,
@@ -240,10 +265,8 @@ export class TreasuryRepository {
         referenceNumber: row.reference_number,
         status: (row.status as any) || 'COLLECTED',
         accountingEntryId: row.accounting_entry_id,
-        debitAccountCode: '111005',
-        debitAccountName: 'Bancos Nacionales',
-        creditAccountCode: '130505',
-        creditAccountName: 'Clientes Nacionales',
+        accountingEntryNumber: entry?.entry_number || null,
+        voucherTypeCode: entry?.voucher_type_code || null,
         notes: row.notes,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -269,16 +292,16 @@ export class TreasuryRepository {
     accountNumber: string
     accountType?: string
     currency?: string
-    initialBalance?: number
     locationId?: string
     description?: string
   }): Promise<any> {
+    // El saldo nace en 0 (077): se carga después con un recaudo o comprobante que cause su asiento.
     const { data: res, error } = await supabaseClient.rpc('fn_create_bank_account', {
       p_bank_name: data.bankName,
       p_account_number: data.accountNumber,
       p_account_type: data.accountType || 'CORRIENTE',
       p_currency: data.currency || 'COP',
-      p_initial_balance: data.initialBalance || 0.00,
+      p_initial_balance: 0,
       p_location_id: data.locationId || null,
       p_description: data.description || null,
     })
@@ -289,6 +312,28 @@ export class TreasuryRepository {
     }
 
     return res
+  }
+
+  /** Subcuentas PUC elegibles para cuentas bancarias: 1110xx (corrientes) y 1120xx (ahorros), 6+ dígitos, activas. */
+  async getBankLedgerOptions(): Promise<Array<{ id: string; code: string; name: string }>> {
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('id, code, name')
+      .or('code.like.1110%,code.like.1120%')
+      .eq('is_active', true)
+      .order('code', { ascending: true })
+    if (error || !data) return []
+    return data.filter((a: any) => String(a.code).length >= 6)
+  }
+
+  /** Asigna la subcuenta PUC exacta a una cuenta bancaria (valida tipo y que no se repita). */
+  async setBankAccountLedger(bankAccountId: string, accountingAccountId: string): Promise<any> {
+    const { data, error } = await supabaseClient.rpc('fn_set_bank_account_ledger', {
+      p_bank_account_id: bankAccountId,
+      p_accounting_account_id: accountingAccountId,
+    })
+    if (error) throw new Error(error.message)
+    return data
   }
 
   async createScheduledPayment(
@@ -320,76 +365,88 @@ export class TreasuryRepository {
     }
   }
 
-  async markPaymentAsPaid(
+  /**
+   * Ejecuta el pago (saldo, movimiento bancario, CxP) y causa su comprobante CE en la misma transacción.
+   * La fecha la pone el servidor (hoy en Bogotá) cuando no se indica.
+   */
+  async executePayment(
     paymentId: string,
-    updateData: {
-      paymentDate: string
-      bankAccountId: string
-      referenceNumber?: string
-      supportDocumentUrl?: string
-      accountingEntryId?: string
-      accountingEntryNumber?: string
-    }
-  ): Promise<TreasuryPayment> {
-    const { data, error } = await supabaseClient.rpc('fn_execute_treasury_payment', {
+    data: { bankAccountId: string; referenceNumber?: string; paymentDate?: string }
+  ): Promise<TreasuryPostingResult> {
+    const { data: res, error } = await supabaseClient.rpc('fn_execute_treasury_payment', {
       p_payment_id: paymentId,
-      p_bank_account_id: updateData.bankAccountId || null,
-      p_reference_number: updateData.referenceNumber || null,
-      p_support_document_url: updateData.supportDocumentUrl || null,
-      p_payment_date: updateData.paymentDate || null,
+      p_bank_account_id: data.bankAccountId || null,
+      p_reference_number: data.referenceNumber || null,
+      p_support_document_url: null,
+      p_payment_date: data.paymentDate || null,
     })
-
-    if (error || !data?.success) {
-      console.error('Error ejecutando desembolso en RPC:', error)
-      throw new Error(`Error ejecutando desembolso: ${error?.message || 'Error desconocido'}`)
+    if (error || !res?.success) {
+      throw new Error(error?.message || 'El servidor no confirmó el desembolso.')
     }
-
-    const { data: currentPay } = await supabaseClient
-      .from('treasury_payments')
-      .select('*')
-      .eq('id', paymentId)
-      .single()
-
-    return {
-      ...(currentPay || {}),
-      id: paymentId,
-      paymentNumber: data.payment_number,
-      status: 'PAID',
-      amount: data.amount,
-      paymentDate: updateData.paymentDate,
-      bankAccountId: updateData.bankAccountId,
-      referenceNumber: updateData.referenceNumber,
-      accountingEntryId: updateData.accountingEntryId || null,
-      accountingEntryNumber: updateData.accountingEntryNumber || null,
-    } as TreasuryPayment
+    return toPostingResult(res, 'payment_id', 'payment_number')
   }
 
-  async createReceipt(
-    receipt: Omit<TreasuryReceipt, 'id' | 'receiptNumber' | 'createdAt'>
-  ): Promise<TreasuryReceipt> {
-    const { data, error } = await supabaseClient.rpc('fn_register_treasury_receipt', {
-      p_customer_id: receipt.customerId,
-      p_bank_account_id: receipt.bankAccountId,
-      p_amount: receipt.amount,
-      p_receipt_date: receipt.receiptDate,
-      p_payment_method: receipt.paymentMethod || 'TRANSFERENCIA',
-      p_reference_number: receipt.referenceNumber || null,
-      p_invoice_id: receipt.invoiceId || null,
-      p_notes: receipt.notes || null,
+  /**
+   * Registra el recaudo (saldo, movimiento bancario, cartera) y causa su comprobante RC/CI en la misma
+   * transacción. Con la misma idempotencyKey un reintento devuelve el recaudo ya registrado.
+   */
+  async createReceipt(data: {
+    customerId: string
+    bankAccountId: string
+    amount: number
+    receiptDate?: string
+    paymentMethod: TreasuryReceipt['paymentMethod']
+    referenceNumber?: string
+    invoiceId?: string
+    notes?: string
+    idempotencyKey: string
+  }): Promise<TreasuryPostingResult> {
+    const { data: res, error } = await supabaseClient.rpc('fn_register_treasury_receipt', {
+      p_customer_id: data.customerId,
+      p_bank_account_id: data.bankAccountId,
+      p_amount: data.amount,
+      p_receipt_date: data.receiptDate || null,
+      p_payment_method: data.paymentMethod,
+      p_reference_number: data.referenceNumber || null,
+      p_invoice_id: data.invoiceId || null,
+      p_notes: data.notes || null,
+      p_idempotency_key: data.idempotencyKey,
     })
-
-    if (error || !data?.success) {
-      console.error('Error registrando recaudo en RPC:', error)
-      throw new Error(`Error registrando recaudo: ${error?.message || 'Error desconocido'}`)
+    if (error || !res?.success) {
+      throw new Error(error?.message || 'El servidor no confirmó el recaudo.')
     }
+    return toPostingResult(res, 'receipt_id', 'receipt_number')
+  }
 
-    return {
-      ...receipt,
-      id: data.receipt_id,
-      receiptNumber: data.receipt_number,
-      status: 'COLLECTED',
-      createdAt: new Date().toISOString(),
-    }
+  /** Causa el comprobante CE de un pago ya ejecutado que quedó sin asiento (registros anteriores a la causación automática). */
+  async causePaymentAccounting(paymentId: string): Promise<string | null> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_payment_accounting', { p_payment_id: paymentId })
+    if (error) throw new Error(error.message)
+    return (data as { entry_number?: string } | null)?.entry_number || null
+  }
+
+  /** Causa el comprobante RC/CI de un recaudo que quedó sin asiento (registros anteriores a la causación automática). */
+  async causeReceiptAccounting(receiptId: string): Promise<string | null> {
+    const { data, error } = await supabaseClient.rpc('fn_cause_receipt_accounting', { p_receipt_id: receiptId })
+    if (error) throw new Error(error.message)
+    return (data as { entry_number?: string } | null)?.entry_number || null
+  }
+
+  /** Clientes activos para registrar un recaudo, con su saldo de cartera. */
+  async getReceiptCustomers(): Promise<ReceiptCustomerOption[]> {
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .select('id, company_name, first_name, last_name, document_number, current_balance')
+      .eq('is_active', true)
+      .order('current_balance', { ascending: false })
+      .limit(500)
+    if (error) throw new Error(error.message)
+    return (data || []).map((c: any) => ({
+      id: c.id,
+      name: c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente',
+      documentNumber: c.document_number || '',
+      currentBalance: Number(c.current_balance || 0),
+    }))
   }
 
   async reconcileMovement(movementId: string, reconciled: boolean = true): Promise<any> {

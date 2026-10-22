@@ -204,9 +204,24 @@ export function CustomerStatementPage() {
               </div>
 
               <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
-                {statement.customer.phone && <div>📞 {statement.customer.phone}</div>}
-                {statement.customer.email && <div>✉️ {statement.customer.email}</div>}
-                {statement.customer.address && <div>📍 {statement.customer.address}, {statement.customer.city}</div>}
+                {statement.customer.phone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AppIcon name="phone" size={14} aria-hidden="true" />
+                    <span><span className="sr-only">Teléfono: </span>{statement.customer.phone}</span>
+                  </div>
+                )}
+                {statement.customer.email && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AppIcon name="mail" size={14} aria-hidden="true" />
+                    <span><span className="sr-only">Correo: </span>{statement.customer.email}</span>
+                  </div>
+                )}
+                {statement.customer.address && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <AppIcon icon="solar:map-point-linear" size={14} aria-hidden="true" />
+                    <span><span className="sr-only">Dirección: </span>{statement.customer.address}, {statement.customer.city}</span>
+                  </div>
+                )}
               </div>
             </div>
 

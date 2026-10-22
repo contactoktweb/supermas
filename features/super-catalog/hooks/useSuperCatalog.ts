@@ -7,6 +7,7 @@ import {
   SuperCatalogStats,
   ProductWebConfigUpdate,
   SuperBulkActionType,
+  SuperCatalogUpdateResult,
 } from '../types'
 import { superCatalogService } from '../services/super-catalog.service'
 
@@ -78,6 +79,23 @@ export function useSuperCatalog(userRole: string = 'SUPERADMIN') {
   const removeToast = useCallback((id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
+
+  /** Mensaje según el resultado del flujo de aprobación de precios (069). */
+  const notifyUpdateResult = useCallback(
+    ({ product, priceChange }: SuperCatalogUpdateResult, defaultMessage: string) => {
+      if (priceChange?.mode === 'PENDING') {
+        addToast(
+          'info',
+          `Cambio de precio de "${product.name}" enviado a aprobación. Se aplicará cuando un administrador lo apruebe.`
+        )
+      } else if (priceChange?.mode === 'APPLIED') {
+        addToast('success', `Nuevo precio de "${product.name}" aplicado y registrado en auditoría.`)
+      } else {
+        addToast('success', defaultMessage)
+      }
+    },
+    [addToast]
+  )
 
   // Cargar metadatos iniciales (categorías, marcas, impuestos)
   useEffect(() => {
@@ -197,31 +215,43 @@ export function useSuperCatalog(userRole: string = 'SUPERADMIN') {
   const updateProductConfig = useCallback(
     async (productId: string, config: ProductWebConfigUpdate) => {
       try {
-        const updated = await superCatalogService.updateProductConfig(productId, config)
-        addToast('success', 'Configuración web actualizada exitosamente.')
+        const result = await superCatalogService.updateProductConfig(productId, config)
+        notifyUpdateResult(result, 'Configuración web actualizada exitosamente.')
         await Promise.all([fetchProducts(), fetchStats()])
-        return updated
+        return result.product
       } catch (err: any) {
         addToast('error', err.message || 'Error al actualizar configuración.')
         throw err
       }
     },
-    [fetchProducts, fetchStats, addToast]
+    [fetchProducts, fetchStats, addToast, notifyUpdateResult]
   )
 
   const updatePrice = useCallback(
-    async (productId: string, price: number, showPrice: boolean, taxConfigId: string) => {
+    async (
+      productId: string,
+      price: number,
+      showPrice: boolean,
+      taxConfigId: string,
+      priceChangeReason?: string
+    ) => {
       try {
-        const updated = await superCatalogService.updatePrice(productId, price, showPrice, taxConfigId)
-        addToast('success', `Precio actualizado a $${price.toLocaleString('es-CO')}`)
+        const result = await superCatalogService.updatePrice(
+          productId,
+          price,
+          showPrice,
+          taxConfigId,
+          priceChangeReason
+        )
+        notifyUpdateResult(result, 'El precio no cambió.')
         await Promise.all([fetchProducts(), fetchStats()])
-        return updated
+        return result.product
       } catch (err: any) {
         addToast('error', err.message || 'Error al modificar precio.')
         throw err
       }
     },
-    [fetchProducts, fetchStats, addToast]
+    [fetchProducts, fetchStats, addToast, notifyUpdateResult]
   )
 
   const updateImages = useCallback(

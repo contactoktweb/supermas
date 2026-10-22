@@ -19,6 +19,7 @@ import { supabaseAdmin } from '../lib/supabase/admin'
 import { auditService } from '../features/audit/services/audit.service'
 import { auditRepository } from '../features/audit/repositories/audit.repository'
 import { AuditFilters } from '../features/audit/types'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -104,7 +105,7 @@ async function runPhase14AuditE2ETests() {
     const userEmailA = `auditor_${testSuffix.toLowerCase()}@supermas.local`
     const { data: userACreated, error: userAErr } = await supabaseAdmin.auth.admin.createUser({
       email: userEmailA,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: 'Carlos Auditor' },
     })

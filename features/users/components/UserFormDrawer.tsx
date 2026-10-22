@@ -5,7 +5,10 @@ import { AppIcon } from '@/components/ui/Icon'
 import { User, UserRole, UserStatus } from '../types'
 import { CreateUserInput, UpdateUserInput } from '../schemas/user.schema'
 import { SYSTEM_ROLES, DEFINITIVE_ROLES } from '../services/role-permissions'
+import { PROTECTED_ROLE } from '../services/role-assignment'
 import { userService } from '../services/user.service'
+import { evaluatePasswordStrength, newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
+import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -13,6 +16,8 @@ interface UserFormDrawerProps {
   onSave: (data: CreateUserInput | UpdateUserInput) => Promise<void>
   initialData: User | null
   locations: Array<{ id: string; code: string; name: string; type: string }>
+  /** Solo ADMIN/SUPERADMIN asignan o cambian roles (matriz de role-assignment). */
+  canAssignRoles: boolean
 }
 
 export function UserFormDrawer({
@@ -21,6 +26,7 @@ export function UserFormDrawer({
   onSave,
   initialData,
   locations,
+  canAssignRoles,
 }: UserFormDrawerProps) {
   const isEditing = Boolean(initialData)
 
@@ -34,6 +40,7 @@ export function UserFormDrawer({
   const [assignedCashRegisterId, setAssignedCashRegisterId] = useState<string>('')
   const [status, setStatus] = useState<UserStatus>('ACTIVE')
   const [password, setPassword] = useState('')
+  const trimmedPassword = password.trim()
 
   const [cashRegisters, setCashRegisters] = useState<Array<{ id: string; code: string; name: string; locationId: string; status: string }>>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -116,6 +123,14 @@ export function UserFormDrawer({
       return
     }
 
+    if (!isEditing && trimmedPassword) {
+      const passwordCheck = newPasswordSchema.safeParse(trimmedPassword)
+      if (!passwordCheck.success) {
+        setErrorMessage(passwordCheck.error.issues[0]?.message || 'La contraseña no cumple la política de seguridad.')
+        return
+      }
+    }
+
     if (!email.trim() || !email.includes('@')) {
       setErrorMessage('Ingresa un correo electrónico corporativo válido.')
       return
@@ -165,7 +180,7 @@ export function UserFormDrawer({
         locationIds: selectedLocations,
         assignedCashRegisterId: role === 'ENCARGADA_VENTA' ? assignedCashRegisterId : undefined,
         status,
-        password: password.trim() ? password.trim() : undefined,
+        password: trimmedPassword || undefined,
       }
 
       await onSave(payload)
@@ -177,6 +192,8 @@ export function UserFormDrawer({
   }
 
   const roleDef = SYSTEM_ROLES[role]
+  // SUPERADMIN no se asigna desde la aplicación: solo se muestra si ya es el rol del usuario editado.
+  const isRoleOptionVisible = (code: UserRole) => code !== PROTECTED_ROLE || initialData?.role === PROTECTED_ROLE
   const warehouseLocations = locations.filter((l) => l.type === 'WAREHOUSE')
   const availableWarehouses = warehouseLocations.length > 0 ? warehouseLocations : locations
 
@@ -390,14 +407,20 @@ export function UserFormDrawer({
           {/* Contraseña Inicial (Solo al registrar nuevo usuario) */}
           {!isEditing && (
             <div>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}>
+              <label
+                htmlFor="user-initial-password"
+                style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 6 }}
+              >
                 Contraseña Inicial (Opcional)
               </label>
               <input
+                id="user-initial-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Por defecto: SuperMas2026*"
+                placeholder="Déjela en blanco para generar una segura"
+                autoComplete="new-password"
+                aria-describedby="user-initial-password-help"
                 style={{
                   width: '100%',
                   padding: '9px 12px',
@@ -406,8 +429,31 @@ export function UserFormDrawer({
                   fontSize: 14,
                 }}
               />
-              <span style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block' }}>
-                Si se deja en blanco, el sistema asignará automáticamente <code>SuperMas{new Date().getFullYear()}*</code>.
+              <span id="user-initial-password-help" style={{ fontSize: 11, color: '#64748b', marginTop: 4, display: 'block', lineHeight: 1.5 }}>
+                Si se deja en blanco, el sistema generará una contraseña temporal aleatoria y se la mostrará una sola vez al guardar.
+              </span>
+              {trimmedPassword && (
+                <div style={{ marginTop: 8 }}>
+                  <PasswordStrengthMeter id="user-initial-password-strength" strength={evaluatePasswordStrength(trimmedPassword)} />
+                </div>
+              )}
+              <span
+                style={{
+                  marginTop: 8,
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 6,
+                  padding: '8px 10px',
+                  borderRadius: 6,
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  color: '#1e3a8a',
+                  fontSize: 12,
+                  lineHeight: 1.5,
+                }}
+              >
+                <AppIcon name="shield" size={15} aria-hidden="true" style={{ flexShrink: 0, marginTop: 1 }} />
+                Por seguridad, el colaborador deberá cambiar esta contraseña por una personal en su primer ingreso.
               </span>
             </div>
           )}
@@ -418,10 +464,14 @@ export function UserFormDrawer({
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
                 Rol del Colaborador (7 Roles Oficiales) *
               </label>
-              <span style={{ fontSize: 11, color: '#64748b' }}>Inmutable por UI</span>
+              {!canAssignRoles && (
+                <span style={{ fontSize: 11, color: '#64748b' }}>Solo un administrador puede cambiarlo</span>
+              )}
             </div>
             <select
               value={role}
+              disabled={!canAssignRoles}
+              aria-label="Rol del colaborador"
               onChange={(e) => {
                 const newRole = e.target.value as UserRole
                 setRole(newRole)
@@ -437,10 +487,12 @@ export function UserFormDrawer({
                 fontSize: 14,
                 background: 'var(--surface, #ffffff)',
                 fontWeight: 600,
+                opacity: canAssignRoles ? 1 : 0.7,
+                cursor: canAssignRoles ? 'pointer' : 'not-allowed',
               }}
             >
               <optgroup label="7 Roles Definitivos del ERP">
-                {DEFINITIVE_ROLES.map((roleCode) => {
+                {DEFINITIVE_ROLES.filter(isRoleOptionVisible).map((roleCode) => {
                   const r = SYSTEM_ROLES[roleCode]
                   return (
                     <option key={roleCode} value={roleCode}>
@@ -453,7 +505,7 @@ export function UserFormDrawer({
               {Object.keys(SYSTEM_ROLES).some((k) => !DEFINITIVE_ROLES.includes(k as UserRole)) && (
                 <optgroup label="Roles Legacy (Compatibilidad)">
                   {Object.keys(SYSTEM_ROLES)
-                    .filter((k) => !DEFINITIVE_ROLES.includes(k as UserRole))
+                    .filter((k) => !DEFINITIVE_ROLES.includes(k as UserRole) && isRoleOptionVisible(k as UserRole))
                     .map((legacyCode) => {
                       const r = SYSTEM_ROLES[legacyCode as UserRole]
                       return (

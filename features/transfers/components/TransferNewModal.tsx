@@ -302,7 +302,7 @@ export function TransferNewModal({
               gap: 6,
             }}
           >
-            <span>{step > 1 ? '✓' : '1.'}</span>
+            <span>{step > 1 ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '1.'}</span>
             <span>Origen & Destino</span>
           </button>
 
@@ -328,7 +328,7 @@ export function TransferNewModal({
               gap: 6,
             }}
           >
-            <span>{step > 2 ? '✓' : '2.'}</span>
+            <span>{step > 2 ? <AppIcon name="checkSimple" size={14} aria-hidden="true" /> : '2.'}</span>
             <span>Productos ({selectedItems.length})</span>
           </button>
 
@@ -674,7 +674,7 @@ export function TransferNewModal({
                               onClick={() => handleAddProduct(prod)}
                               style={{ fontSize: 11, padding: '6px 14px' }}
                             >
-                              {isSelected ? '✓ Añadido' : hasStock ? '+ Agregar' : 'Sin Stock'}
+                              {isSelected ? 'Añadido' : hasStock ? '+ Agregar' : 'Sin Stock'}
                             </button>
                           </div>
                         </div>
@@ -842,11 +842,11 @@ export function TransferNewModal({
                                 <tr>
                                   <td colSpan={6} style={{ padding: '6px 12px', background: isOriginDepleted ? '#fef2f2' : '#fffbeb' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: isOriginDepleted ? '#dc2626' : '#b45309' }}>
-                                      <AppIcon name="warning" size={12} />
+                                      <AppIcon name="warning" size={12} aria-hidden="true" />
                                       <span>
                                         {isOriginDepleted
-                                          ? `⚠️ Esta transferencia AGOTARÁ completamente las existencias de ${item.productName} en ${originLocation?.name}.`
-                                          : `⚠️ Advertencia: Esta transferencia dejará este producto por debajo del stock mínimo (${item.minStock} uds) en ${originLocation?.name}.`}
+                                          ? `Esta transferencia AGOTARÁ completamente las existencias de ${item.productName} en ${originLocation?.name}.`
+                                          : `Advertencia: Esta transferencia dejará este producto por debajo del stock mínimo (${item.minStock} uds) en ${originLocation?.name}.`}
                                       </span>
                                     </div>
                                   </td>

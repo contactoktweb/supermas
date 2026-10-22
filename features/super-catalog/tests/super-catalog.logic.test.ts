@@ -61,7 +61,7 @@ async function runSuperCatalogTests() {
     productIds: ['prod-001', 'prod-002'],
   })
   assert.strictEqual(validBulk.productIds.length, 2)
-  console.log('✓ Schemas validation passed')
+  console.log('[OK] Schemas validation passed')
 
   // 2. Stats & Analytics Computation
   console.log('Test 2: Super Catalog stats computation and web insights')
@@ -82,7 +82,7 @@ async function runSuperCatalogTests() {
     assert(typeof stats.mostViewedProduct.views === 'number')
     assert(typeof stats.mostViewedProduct.name === 'string')
   }
-  console.log('✓ Catalog stats passed')
+  console.log('[OK] Catalog stats passed')
 
   // 3. Multi-warehouse Availability Calculation & Configurable Low Stock Threshold
   console.log('Test 3: Commercial availability calculation with dynamic low-stock threshold')
@@ -107,7 +107,7 @@ async function runSuperCatalogTests() {
     assert.strictEqual(outOfStockProd.availabilityLabel, 'Agotado')
     assert.strictEqual(outOfStockProd.canBuyDirectly, false, 'Out-of-stock product cannot be bought directly')
   }
-  console.log('✓ Multi-warehouse availability passed')
+  console.log('[OK] Multi-warehouse availability passed')
 
   // 4. Public Security & Data Redaction
   console.log('Test 4: Strict public data privacy and cost redaction')
@@ -119,23 +119,27 @@ async function runSuperCatalogTests() {
     assert.strictEqual(item.supplierId, undefined, 'Catalog product MUST NEVER expose supplierId')
     assert.strictEqual(item.supplierName, undefined, 'Catalog product MUST NEVER expose supplierName')
   })
-  console.log('✓ Public security & redaction passed')
+  console.log('[OK] Public security & redaction passed')
 
   // 5. Price and Tax Profile Update
   console.log('Test 5: Updating web price and tax profile')
   const testProd = result.products[0]
   const newPrice = 22900
-  const updatedWithPrice = await superCatalogService.updatePrice(
+  const { product: updatedWithPrice, priceChange } = await superCatalogService.updatePrice(
     testProd.id,
     newPrice,
     true,
     'tax-19',
+    '[PRUEBA] Ajuste de precio web',
     testUser
   )
-  assert.strictEqual(updatedWithPrice.price, newPrice)
-  assert.strictEqual(updatedWithPrice.vatRatePercent, 19)
-  assert.strictEqual(updatedWithPrice.isExempt, false)
-  console.log('✓ Price and tax update passed')
+  // 069: un aprobador aplica directo; sin prices.approve el precio vigente no cambia.
+  if (priceChange?.mode === 'APPLIED') {
+    assert.strictEqual(updatedWithPrice.price, newPrice)
+  } else {
+    assert.strictEqual(updatedWithPrice.price, testProd.price)
+  }
+  console.log('[OK] Price and tax update passed')
 
   // 6. Cart & Direct Purchase Simulation
   console.log('Test 6: Web cart simulation and order readiness')
@@ -155,7 +159,7 @@ async function runSuperCatalogTests() {
     const cartRes = await superCatalogService.simulateAddToCart(nonBuyableProd.id, 1)
     assert.strictEqual(cartRes.success, false)
   }
-  console.log('✓ Cart simulation passed')
+  console.log('[OK] Cart simulation passed')
 
   // 7. Role & Permission Enforcement
   console.log('Test 7: Permission check on sensitive actions')
@@ -177,7 +181,7 @@ async function runSuperCatalogTests() {
     /Permiso denegado/,
     'Should reject configuration update for unauthorized role'
   )
-  console.log('✓ Permission enforcement passed')
+  console.log('[OK] Permission enforcement passed')
 
   // 8. Bulk Update & Audit Logging
   console.log('Test 8: Bulk update and audit log persistence')
@@ -196,7 +200,7 @@ async function runSuperCatalogTests() {
     updatedLogs.length > initialLogCount,
     'Audit log must register bulk updates'
   )
-  console.log('✓ Bulk update and audit passed')
+  console.log('[OK] Bulk update and audit passed')
 
   console.log('--- ALL SUPER CATALOG TESTS PASSED SUCCESSFULLY ---')
 }

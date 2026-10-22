@@ -1,13 +1,19 @@
 /**
  * SUPER MÁS ERP/POS - Servicio Especializado de Exportación Contable
  *
- * Soporta exportación completa con filtros opcionales de fechas, roles y clasificaciones para:
+ * Soporta exportación completa con filtros opcionales de fechas, rango de cuentas PUC, sede,
+ * roles y clasificaciones para:
  * 1. Terceros (DIAN) - Directorio de clientes, proveedores, empleados y acreedores
  * 2. Asientos Contables - Comprobantes con partida doble y estados fiduciarios
  * 3. Libro Auxiliar de Movimientos - Detalle de cuentas, débitos, créditos y saldos
  * 4. Plan Único de Cuentas (PUC) - Catálogo maestro de cuentas contables
- * 5. Libro Diario - Transacciones cronológicas
- * 6. Balance General - Sumas y saldos
+ * 5. Libro Diario - Líneas contables en orden cronológico
+ * 6. Balance General - Estado de situación financiera desglosado por niveles del PUC
+ * 7. Balance de Comprobación - Sumas y saldos por nivel, con terceros
+ * 8. Estado de Resultados - Ingresos, costos y gastos del periodo con cascada de utilidades
+ *
+ * El rango de cuentas usa el orden del PUC (utils/puc-code-range): la cuenta final incluye sus
+ * subcuentas y auxiliares. Cada archivo lleva en el encabezado empresa, filtros y "Cuentas de X a Y".
  *
  * Formatos admitidos:
  * - CSV (Compatible con Excel en español, UTF-8 con BOM y delimitador ;)
@@ -20,20 +26,56 @@ import {
   AccountingEntry,
   AccountingMovement,
   AccountingAccount,
-  AccountingExportType,
   AccountingExportFormat,
   AccountingExportFilterOptions,
+  AccountingCompanyHeader,
+  AccountMovementTotalsMap,
+  BalanceSheetReport,
+  IncomeStatementReport,
+  FinancialStatementNode,
   TrialBalanceReportData,
   TrialBalanceRow,
   TrialBalanceThirdPartyDetail,
   TrialBalanceLevelFilter,
+  TrialBalanceTotals,
 } from '../types'
+import {
+  ACCOUNT_LEVEL_LABEL,
+  ACCOUNT_LEVEL_NUMBER,
+  buildAccountTree,
+  flattenAccountTree,
+  isZeroAmount,
+  nodeHasActivity,
+  pruneZeroNodes,
+  roundCurrency,
+} from '../utils/account-tree'
+import {
+  comparePucCodes,
+  formatPucRangeLabel,
+  isPucCodeInRange,
+  isPucDescendantOrSelf,
+  normalizePucRange,
+} from '../utils/puc-code-range'
+import { formatCompanyNit, formatIsoDateEs, formatNowBogota, todayBogotaIsoDate } from '../utils/report-format'
+import { incomeStatementLines, incomeStatementSections } from '../utils/income-statement'
 
 interface ColumnDef {
   key: string
   header: string
   type?: 'string' | 'number' | 'date'
 }
+
+/** Nivel máximo del Balance de Comprobación → número de nivel del PUC (1 = clase … 5 = auxiliar). */
+const TRIAL_BALANCE_LEVEL_NUMBER: Record<TrialBalanceLevelFilter, number> = {
+  CLASS: 1,
+  GROUP: 2,
+  ACCOUNT: 3,
+  SUBACCOUNT: 4,
+  AUXILIARY: 5,
+  ALL: 5,
+}
+
+const SYSTEM_NAME = 'SUPER MÁS ERP/POS'
 
 export class AccountingExportService {
   /**
@@ -56,6 +98,45 @@ export class AccountingExportService {
       return itemDate <= endDate
     }
     return true
+  }
+
+  /** Rango de cuentas normalizado a partir de las opciones de exportación. */
+  private accountRangeOf(options?: AccountingExportFilterOptions) {
+    return normalizePucRange({ from: options?.startAccountCode, to: options?.endAccountCode })
+  }
+
+  /** true si la cuenta cumple el rango y la clase principal elegidos. */
+  private matchesAccountScope(code: string, options?: AccountingExportFilterOptions): boolean {
+    if (!isPucCodeInRange(code, this.accountRangeOf(options))) return false
+    const main = options?.mainAccountCode?.trim()
+    if (main && main !== 'ALL' && !isPucDescendantOrSelf(code, main)) return false
+    return true
+  }
+
+  /** Líneas de encabezado comunes: empresa, NIT, sede y rango de cuentas. */
+  private headerMetadata(options?: AccountingExportFilterOptions, includeAccountRange = true): string[] {
+    const meta: string[] = []
+    const company = options?.companyHeader
+    if (company?.legalName) meta.push(`EMPRESA: ${company.legalName}`)
+    const nit = formatCompanyNit(company?.taxId, company?.verificationDigit)
+    if (nit) meta.push(`NIT: ${nit}`)
+    if (options?.locationId && options.locationId !== 'ALL') {
+      meta.push(`SEDE: ${options.locationName || options.locationId}`)
+    }
+    if (includeAccountRange) {
+      meta.push(`RANGO DE CUENTAS: ${formatPucRangeLabel(this.accountRangeOf(options))}`)
+      if (options?.mainAccountCode && options.mainAccountCode !== 'ALL') {
+        meta.push(`CLASE PRINCIPAL: ${options.mainAccountCode}`)
+      }
+    }
+    if (options?.startDate || options?.endDate) {
+      meta.push(
+        `RANGO DE FECHAS: ${options.startDate ? formatIsoDateEs(options.startDate) : 'Inicio'} hasta ${
+          options.endDate ? formatIsoDateEs(options.endDate) : 'Hoy'
+        }`
+      )
+    }
+    return meta
   }
 
   /**
@@ -100,13 +181,16 @@ export class AccountingExportService {
   }
 
   /**
-   * Filtra asientos contables según fechas, estados y búsqueda
+   * Filtra asientos contables según fechas, estados, sede, rango de cuentas y búsqueda.
+   * Con rango de cuentas se conservan los comprobantes con al menos una línea dentro del rango.
    */
   filterEntries(
     entries: AccountingEntry[],
     options?: AccountingExportFilterOptions
   ): AccountingEntry[] {
     if (!options) return entries
+    const range = this.accountRangeOf(options)
+    const hasAccountScope = Boolean(range.from || range.to || (options.mainAccountCode && options.mainAccountCode !== 'ALL'))
 
     return entries.filter((e) => {
       // Filtro por estado
@@ -119,6 +203,14 @@ export class AccountingExportService {
         if (!this.isDateInRange(e.date, options.startDate, options.endDate)) {
           return false
         }
+      }
+
+      if (options.locationId && options.locationId !== 'ALL' && e.locationId !== options.locationId) {
+        return false
+      }
+
+      if (hasAccountScope && !e.lines.some((line) => this.matchesAccountScope(line.accountCode, options))) {
+        return false
       }
 
       // Filtro por término de búsqueda
@@ -135,8 +227,47 @@ export class AccountingExportService {
     })
   }
 
+  /** Líneas del Libro Diario (una fila por línea contable) dentro de fechas, sede y rango de cuentas. */
+  journalLines(entries: AccountingEntry[], options?: AccountingExportFilterOptions) {
+    const rows: Array<{
+      date: string
+      voucherNumber: string
+      voucherType: string
+      accountCode: string
+      accountName: string
+      thirdPartyName: string
+      description: string
+      debit: number
+      credit: number
+    }> = []
+
+    for (const e of this.filterEntries(entries, options)) {
+      for (const line of e.lines) {
+        if (!this.matchesAccountScope(line.accountCode, options)) continue
+        rows.push({
+          date: (e.date || '').slice(0, 10),
+          voucherNumber: e.entryNumber,
+          voucherType: e.sourceType || '',
+          accountCode: line.accountCode,
+          accountName: line.accountName,
+          thirdPartyName: e.thirdPartyName || '',
+          description: line.description || e.description,
+          debit: line.debit,
+          credit: line.credit,
+        })
+      }
+    }
+
+    return rows.sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        a.voucherNumber.localeCompare(b.voucherNumber) ||
+        comparePucCodes(a.accountCode, b.accountCode)
+    )
+  }
+
   /**
-   * Filtra movimientos del libro auxiliar según fechas y búsqueda
+   * Filtra movimientos del libro auxiliar según fechas, sede, rango de cuentas y búsqueda
    */
   filterMovements(
     movements: AccountingMovement[],
@@ -151,11 +282,11 @@ export class AccountingExportService {
         }
       }
 
-      if (options.startAccountCode && m.accountCode < options.startAccountCode) {
+      if (!this.matchesAccountScope(m.accountCode, options)) {
         return false
       }
 
-      if (options.endAccountCode && m.accountCode > options.endAccountCode + '\uffff') {
+      if (options.locationId && options.locationId !== 'ALL' && m.locationId !== options.locationId) {
         return false
       }
 
@@ -181,30 +312,31 @@ export class AccountingExportService {
   }
 
   /**
-   * Filtra cuentas del PUC según búsqueda y fechas opcionales
+   * Filtra cuentas del PUC según rango de cuentas, clase principal, nivel máximo y búsqueda.
+   * (El catálogo no se filtra por fecha de creación: el PUC vigente no depende del periodo.)
    */
   filterAccounts(
     accounts: AccountingAccount[],
     options?: AccountingExportFilterOptions
   ): AccountingAccount[] {
     if (!options) return accounts
+    const maxLevelNumber = TRIAL_BALANCE_LEVEL_NUMBER[options.maxLevel || 'ALL'] || 5
 
-    return accounts.filter((a) => {
-      if (options.startDate || options.endDate) {
-        if (!this.isDateInRange(a.createdAt, options.startDate, options.endDate)) {
-          return false
+    return accounts
+      .filter((a) => {
+        if (!this.matchesAccountScope(a.code, options)) return false
+        if ((ACCOUNT_LEVEL_NUMBER[a.level] || 5) > maxLevelNumber) return false
+
+        if (options.searchQuery?.trim()) {
+          const q = options.searchQuery.toLowerCase().trim()
+          const matchCode = (a.code || '').toLowerCase().includes(q)
+          const matchName = (a.name || '').toLowerCase().includes(q)
+          if (!matchCode && !matchName) return false
         }
-      }
 
-      if (options.searchQuery?.trim()) {
-        const q = options.searchQuery.toLowerCase().trim()
-        const matchCode = (a.code || '').toLowerCase().includes(q)
-        const matchName = (a.name || '').toLowerCase().includes(q)
-        if (!matchCode && !matchName) return false
-      }
-
-      return true
-    })
+        return true
+      })
+      .sort((a, b) => comparePucCodes(a.code, b.code))
   }
 
   /**
@@ -216,7 +348,7 @@ export class AccountingExportService {
     rows: Array<Record<string, any>>,
     metadataItems: string[] = []
   ): string {
-    const BOM = '\uFEFF'
+    const BOM = '﻿'
     const headerLine = columns.map((c) => `"${c.header.replace(/"/g, '""')}"`).join(';')
 
     const dataLines = rows.map((row) =>
@@ -232,10 +364,10 @@ export class AccountingExportService {
     )
 
     const metaBlock = [
-      `"SISTEMA: SUPER MÁS ERP/POS"`,
+      `"SISTEMA: ${SYSTEM_NAME}"`,
       `"REPORTE: ${title}"`,
-      `"FECHA DE GENERACIÓN: ${new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' })}"`,
       ...metadataItems.map((item) => `"${item.replace(/"/g, '""')}"`),
+      `"FECHA DE GENERACIÓN: ${formatNowBogota()}"`,
       `"TOTAL REGISTROS EXPORTADOS: ${rows.length}"`,
       '',
     ].join('\r\n')
@@ -244,12 +376,15 @@ export class AccountingExportService {
   }
 
   /**
-   * Genera el archivo XML para apertura nativa y formateada en Excel
+   * Genera el archivo XML para apertura nativa y formateada en Excel.
+   * Las líneas de metadatos (empresa, filtros, rango de cuentas) van encima de los encabezados.
    */
   private generateExcelXML(
+    sheetName: string,
     title: string,
     columns: ColumnDef[],
-    rows: Array<Record<string, any>>
+    rows: Array<Record<string, any>>,
+    metadataItems: string[] = []
   ): string {
     const headerCells = columns
       .map(
@@ -257,6 +392,17 @@ export class AccountingExportService {
           `<Cell ss:StyleID="Header"><Data ss:Type="String">${this.escapeXml(c.header)}</Data></Cell>`
       )
       .join('')
+
+    const metaRows = [
+      `<Row><Cell ss:StyleID="Title"><Data ss:Type="String">${this.escapeXml(title)}</Data></Cell></Row>`,
+      ...metadataItems.map(
+        (item) => `<Row><Cell ss:StyleID="Meta"><Data ss:Type="String">${this.escapeXml(item)}</Data></Cell></Row>`
+      ),
+      `<Row><Cell ss:StyleID="Meta"><Data ss:Type="String">${this.escapeXml(
+        `Fecha de generación: ${formatNowBogota()}`
+      )}</Data></Cell></Row>`,
+      '<Row></Row>',
+    ].join('\n')
 
     const dataRows = rows
       .map((row) => {
@@ -288,6 +434,12 @@ export class AccountingExportService {
    <Alignment ss:Vertical="Center"/>
    <Font ss:FontName="Calibri" ss:Size="11" ss:Color="#1e293b"/>
   </Style>
+  <Style ss:ID="Title">
+   <Font ss:FontName="Calibri" ss:Size="13" ss:Bold="1" ss:Color="#001B5C"/>
+  </Style>
+  <Style ss:ID="Meta">
+   <Font ss:FontName="Calibri" ss:Size="10" ss:Color="#334155"/>
+  </Style>
   <Style ss:ID="Header">
    <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
    <Borders>
@@ -301,8 +453,9 @@ export class AccountingExportService {
    <NumberFormat ss:Format="#,##0.00"/>
   </Style>
  </Styles>
- <Worksheet ss:Name="${this.escapeXml(title.slice(0, 30))}">
+ <Worksheet ss:Name="${this.escapeXml(sheetName.slice(0, 30))}">
   <Table>
+   ${metaRows}
    <Row ss:Height="24">${headerCells}</Row>
    ${dataRows}
   </Table>
@@ -336,6 +489,34 @@ export class AccountingExportService {
     URL.revokeObjectURL(url)
   }
 
+  /** Escribe el archivo en el formato pedido (CSV, Excel o JSON). */
+  private writeFile(params: {
+    format: AccountingExportFormat
+    title: string
+    sheetName: string
+    filenameBase: string
+    columns: ColumnDef[]
+    rows: Array<Record<string, any>>
+    meta: string[]
+    json: () => Record<string, unknown>
+  }): void {
+    const { format, title, sheetName, filenameBase, columns, rows, meta } = params
+    if (format === 'CSV') {
+      const csv = this.generateCSV(title, columns, rows, meta)
+      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
+    } else if (format === 'EXCEL') {
+      const xml = this.generateExcelXML(sheetName, title, columns, rows, meta)
+      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
+    } else {
+      const json = JSON.stringify(
+        { sistema: SYSTEM_NAME, fechaGeneracion: new Date().toISOString(), encabezado: meta, ...params.json() },
+        null,
+        2
+      )
+      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
+    }
+  }
+
   // =========================================================================
   // EXPORTACIONES ESPECÍFICAS
   // =========================================================================
@@ -349,8 +530,7 @@ export class AccountingExportService {
     options?: AccountingExportFilterOptions
   ): { count: number; filename: string } {
     const filtered = this.filterThirdParties(thirdParties, options)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const filenameBase = `terceros_dian_supermas_${dateStr}`
+    const filenameBase = `terceros_dian_${todayBogotaIsoDate()}`
 
     const columns: ColumnDef[] = [
       { key: 'tipoDocumento', header: 'Tipo Documento' },
@@ -370,7 +550,7 @@ export class AccountingExportService {
     ]
 
     const rows = filtered.map((tp) => ({
-      tipoDocumento: tp.documentType || 'CC',
+      tipoDocumento: tp.documentType || '',
       documento: tp.documentNumber,
       dv: tp.verificationDigit || '',
       naturaleza: tp.legalNature === 'JURIDICA' ? 'Persona Jurídica' : 'Persona Natural',
@@ -389,16 +569,13 @@ export class AccountingExportService {
       telefono: tp.phone || '',
       email: tp.email || '',
       direccion: tp.address || '',
-      ciudad: tp.city || 'Medellín',
-      departamento: tp.department || 'Antioquia',
+      ciudad: tp.city || '',
+      departamento: tp.department || '',
       estado: tp.isActive ? 'Activo' : 'Inactivo',
       fechaRegistro: tp.createdAt ? tp.createdAt.slice(0, 10) : '',
     }))
 
-    const meta: string[] = []
-    if (options?.startDate || options?.endDate) {
-      meta.push(`RANGO DE FECHAS: ${options.startDate || 'Inicio'} hasta ${options.endDate || 'Hoy'}`)
-    }
+    const meta = this.headerMetadata(options, false)
     if (options?.thirdPartyType && options.thirdPartyType !== 'ALL') {
       meta.push(`ROL FILTRADO: ${options.thirdPartyType}`)
     }
@@ -406,27 +583,16 @@ export class AccountingExportService {
       meta.push(`NATURALEZA FILTRADA: ${options.legalNature}`)
     }
 
-    if (format === 'CSV') {
-      const csv = this.generateCSV('DIRECTORIO DE TERCEROS (DIAN)', columns, rows, meta)
-      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
-    } else if (format === 'EXCEL') {
-      const xml = this.generateExcelXML('Terceros DIAN', columns, rows)
-      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-    } else {
-      const json = JSON.stringify(
-        {
-          sistema: 'SUPER MÁS ERP/POS',
-          modulo: 'Contabilidad - Terceros DIAN',
-          fechaGeneracion: new Date().toISOString(),
-          filtros: options || null,
-          total: filtered.length,
-          terceros: filtered,
-        },
-        null,
-        2
-      )
-      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
-    }
+    this.writeFile({
+      format,
+      title: 'DIRECTORIO DE TERCEROS (DIAN)',
+      sheetName: 'Terceros DIAN',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Terceros DIAN', total: filtered.length, terceros: filtered }),
+    })
 
     return { count: filtered.length, filename: filenameBase }
   }
@@ -440,8 +606,7 @@ export class AccountingExportService {
     options?: AccountingExportFilterOptions
   ): { count: number; filename: string } {
     const filtered = this.filterEntries(entries, options)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const filenameBase = `asientos_contables_supermas_${dateStr}`
+    const filenameBase = `asientos_contables_${todayBogotaIsoDate()}`
 
     const columns: ColumnDef[] = [
       { key: 'numero', header: 'Número Comprobante' },
@@ -469,35 +634,21 @@ export class AccountingExportService {
       estado: e.status,
     }))
 
-    const meta: string[] = []
-    if (options?.startDate || options?.endDate) {
-      meta.push(`RANGO DE FECHAS: ${options.startDate || 'Inicio'} hasta ${options.endDate || 'Hoy'}`)
-    }
+    const meta = this.headerMetadata(options)
     if (options?.entryStatus && options.entryStatus !== 'ALL') {
       meta.push(`ESTADO FILTRADO: ${options.entryStatus}`)
     }
 
-    if (format === 'CSV') {
-      const csv = this.generateCSV('COMPROBANTES Y ASIENTOS CONTABLES', columns, rows, meta)
-      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
-    } else if (format === 'EXCEL') {
-      const xml = this.generateExcelXML('Asientos Contables', columns, rows)
-      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-    } else {
-      const json = JSON.stringify(
-        {
-          sistema: 'SUPER MÁS ERP/POS',
-          modulo: 'Contabilidad - Asientos Contables',
-          fechaGeneracion: new Date().toISOString(),
-          filtros: options || null,
-          total: filtered.length,
-          asientos: filtered,
-        },
-        null,
-        2
-      )
-      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
-    }
+    this.writeFile({
+      format,
+      title: 'COMPROBANTES Y ASIENTOS CONTABLES',
+      sheetName: 'Asientos Contables',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Asientos Contables', total: filtered.length, asientos: filtered }),
+    })
 
     return { count: filtered.length, filename: filenameBase }
   }
@@ -510,9 +661,10 @@ export class AccountingExportService {
     format: AccountingExportFormat = 'CSV',
     options?: AccountingExportFilterOptions
   ): { count: number; filename: string } {
-    const filtered = this.filterMovements(movements, options)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const filenameBase = `libro_auxiliar_supermas_${dateStr}`
+    const filtered = this.filterMovements(movements, options).sort(
+      (a, b) => comparePucCodes(a.accountCode, b.accountCode) || (a.date || '').localeCompare(b.date || '')
+    )
+    const filenameBase = `libro_auxiliar_${todayBogotaIsoDate()}`
 
     const columns: ColumnDef[] = [
       { key: 'fecha', header: 'Fecha' },
@@ -521,14 +673,13 @@ export class AccountingExportService {
       { key: 'nombreCuenta', header: 'Nombre Cuenta' },
       { key: 'descripcion', header: 'Concepto Detalle' },
       { key: 'tercero', header: 'Tercero' },
-      { key: 'bodega', header: 'Centro de Costo / Bodega' },
+      { key: 'bodega', header: 'Sede / Bodega' },
       { key: 'debito', header: 'Débito (COP)', type: 'number' },
       { key: 'credito', header: 'Crédito (COP)', type: 'number' },
-      { key: 'saldo', header: 'Saldo Acumulado', type: 'number' },
     ]
 
     const rows = filtered.map((m: any) => ({
-      fecha: m.date.slice(0, 10),
+      fecha: (m.date || '').slice(0, 10),
       comprobante: m.sourceDocumentNumber || m.entryNumber,
       cuenta: m.accountCode,
       nombreCuenta: m.accountName,
@@ -537,35 +688,18 @@ export class AccountingExportService {
       bodega: m.costCenterName || m.locationName || '',
       debito: m.debit,
       credito: m.credit,
-      saldo: m.runningBalance ?? m.balanceAfter ?? 0,
     }))
 
-    const meta: string[] = []
-    if (options?.startDate || options?.endDate) {
-      meta.push(`RANGO DE FECHAS: ${options.startDate || 'Inicio'} hasta ${options.endDate || 'Hoy'}`)
-    }
-
-    if (format === 'CSV') {
-      const csv = this.generateCSV('LIBRO AUXILIAR CONTABLE', columns, rows, meta)
-      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
-    } else if (format === 'EXCEL') {
-      const xml = this.generateExcelXML('Libro Auxiliar', columns, rows)
-      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-    } else {
-      const json = JSON.stringify(
-        {
-          sistema: 'SUPER MÁS ERP/POS',
-          modulo: 'Contabilidad - Libro Auxiliar',
-          fechaGeneracion: new Date().toISOString(),
-          filtros: options || null,
-          total: filtered.length,
-          movimientos: filtered,
-        },
-        null,
-        2
-      )
-      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
-    }
+    this.writeFile({
+      format,
+      title: 'LIBRO AUXILIAR CONTABLE',
+      sheetName: 'Libro Auxiliar',
+      filenameBase,
+      columns,
+      rows,
+      meta: this.headerMetadata(options),
+      json: () => ({ modulo: 'Contabilidad - Libro Auxiliar', total: filtered.length, movimientos: filtered }),
+    })
 
     return { count: filtered.length, filename: filenameBase }
   }
@@ -579,14 +713,12 @@ export class AccountingExportService {
     options?: AccountingExportFilterOptions
   ): { count: number; filename: string } {
     const filtered = this.filterAccounts(accounts, options)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const filenameBase = `plan_cuentas_puc_${dateStr}`
+    const filenameBase = `plan_cuentas_puc_${todayBogotaIsoDate()}`
 
     const columns: ColumnDef[] = [
       { key: 'codigo', header: 'Código Cuenta PUC' },
       { key: 'nombre', header: 'Nombre Cuenta' },
       { key: 'clase', header: 'Clase PUC' },
-      { key: 'tipo', header: 'Tipo Contable' },
       { key: 'naturaleza', header: 'Naturaleza' },
       { key: 'nivel', header: 'Nivel' },
       { key: 'saldo', header: 'Saldo Actual (COP)', type: 'number' },
@@ -599,344 +731,413 @@ export class AccountingExportService {
       codigo: a.code,
       nombre: a.name,
       clase: `Clase ${a.accountClass}`,
-      tipo: a.type,
       naturaleza: a.nature === 'DEBIT' ? 'Débito' : 'Crédito',
-      nivel: a.level,
+      nivel: ACCOUNT_LEVEL_LABEL[a.level] || a.level,
       saldo: a.balance,
       exigeTercero: a.requiresThirdParty ? 'Sí' : 'No',
       exigeCentroCosto: a.requiresCostCenter ? 'Sí' : 'No',
       estado: a.status === 'ACTIVE' ? 'Activo' : 'Inactivo',
     }))
 
-    if (format === 'CSV') {
-      const csv = this.generateCSV('PLAN ÚNICO DE CUENTAS (PUC COLOMBIA)', columns, rows)
-      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
-    } else if (format === 'EXCEL') {
-      const xml = this.generateExcelXML('PUC Colombia', columns, rows)
-      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-    } else {
-      const json = JSON.stringify(
-        {
-          sistema: 'SUPER MÁS ERP/POS',
-          modulo: 'Contabilidad - Plan Único de Cuentas',
-          fechaGeneracion: new Date().toISOString(),
-          total: filtered.length,
-          cuentas: filtered,
-        },
-        null,
-        2
-      )
-      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
-    }
+    const meta = this.headerMetadata({ ...options, startDate: undefined, endDate: undefined })
+
+    this.writeFile({
+      format,
+      title: 'PLAN ÚNICO DE CUENTAS (PUC COLOMBIA)',
+      sheetName: 'PUC Colombia',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Plan Único de Cuentas', total: filtered.length, cuentas: filtered }),
+    })
 
     return { count: filtered.length, filename: filenameBase }
   }
 
   /**
-   * 5. Exportar Libro Diario
+   * 5. Exportar Libro Diario (una fila por línea contable)
    */
   exportJournal(
     entries: AccountingEntry[],
     format: AccountingExportFormat = 'CSV',
     options?: AccountingExportFilterOptions
   ): { count: number; filename: string } {
-    return this.exportEntries(entries, format, options)
+    const lines = this.journalLines(entries, options)
+    const filenameBase = `libro_diario_${todayBogotaIsoDate()}`
+
+    const columns: ColumnDef[] = [
+      { key: 'fecha', header: 'Fecha' },
+      { key: 'comprobante', header: 'Comprobante' },
+      { key: 'tipo', header: 'Tipo' },
+      { key: 'cuenta', header: 'Código Cuenta PUC' },
+      { key: 'nombreCuenta', header: 'Nombre Cuenta' },
+      { key: 'tercero', header: 'Tercero' },
+      { key: 'detalle', header: 'Detalle' },
+      { key: 'debito', header: 'Débito (COP)', type: 'number' },
+      { key: 'credito', header: 'Crédito (COP)', type: 'number' },
+    ]
+
+    const rows = lines.map((l) => ({
+      fecha: l.date,
+      comprobante: l.voucherNumber,
+      tipo: l.voucherType,
+      cuenta: l.accountCode,
+      nombreCuenta: l.accountName,
+      tercero: l.thirdPartyName,
+      detalle: l.description,
+      debito: l.debit,
+      credito: l.credit,
+    }))
+
+    const totalDebit = roundCurrency(lines.reduce((s, l) => s + l.debit, 0))
+    const totalCredit = roundCurrency(lines.reduce((s, l) => s + l.credit, 0))
+    if (rows.length > 0) {
+      rows.push({
+        fecha: '',
+        comprobante: 'TOTALES',
+        tipo: '',
+        cuenta: '',
+        nombreCuenta: '',
+        tercero: '',
+        detalle: '',
+        debito: totalDebit,
+        credito: totalCredit,
+      })
+    }
+
+    this.writeFile({
+      format,
+      title: 'LIBRO DIARIO',
+      sheetName: 'Libro Diario',
+      filenameBase,
+      columns,
+      rows,
+      meta: this.headerMetadata(options),
+      json: () => ({ modulo: 'Contabilidad - Libro Diario', total: lines.length, totalDebit, totalCredit, lineas: lines }),
+    })
+
+    return { count: lines.length, filename: filenameBase }
   }
 
   /**
-   * 6. Exportar Balance General
+   * 6. Exportar Balance General desglosado (árbol PUC con sangría, totales y ecuación).
    */
-  exportBalance(
-    accounts: AccountingAccount[],
+  exportBalanceSheet(
+    report: BalanceSheetReport,
     format: AccountingExportFormat = 'CSV',
-    options?: AccountingExportFilterOptions
+    options?: { hideZeroBalances?: boolean; maxLevel?: TrialBalanceLevelFilter; companyHeader?: AccountingCompanyHeader | null }
   ): { count: number; filename: string } {
-    const filtered = this.filterAccounts(accounts, options)
-    const dateStr = new Date().toISOString().slice(0, 10)
-    const filenameBase = `balance_general_supermas_${dateStr}`
+    const maxLevelNumber = TRIAL_BALANCE_LEVEL_NUMBER[options?.maxLevel || 'ALL'] || 5
+    const prepare = (node: FinancialStatementNode | null) =>
+      node ? (options?.hideZeroBalances ? pruneZeroNodes([node]) : [node]) : []
+    const sectionRows = (nodes: FinancialStatementNode[]) =>
+      flattenAccountTree(nodes, maxLevelNumber).map(({ node, depth }) => ({
+        codigo: node.code,
+        cuenta: `${'    '.repeat(depth)}${node.name}`,
+        nivel: ACCOUNT_LEVEL_LABEL[node.level],
+        naturaleza: node.nature === 'DEBIT' ? 'Débito' : 'Crédito',
+        saldo: node.balance,
+      }))
+    const totalRow = (label: string, value: number) => ({ codigo: '', cuenta: label, nivel: '', naturaleza: '', saldo: value })
+
+    const rows: Array<Record<string, any>> = [
+      ...sectionRows(prepare(report.assets)),
+      totalRow('TOTAL ACTIVO', report.totalAssets),
+      ...sectionRows(prepare(report.liabilities)),
+      totalRow('TOTAL PASIVO', report.totalLiabilities),
+      ...sectionRows(prepare(report.equity)),
+      totalRow('Resultado del ejercicio (4 − 5 − 6 − 7, sin cierre)', report.currentYearResult),
+      totalRow('TOTAL PATRIMONIO', report.totalEquity),
+      totalRow('TOTAL PASIVO + PATRIMONIO', report.totalLiabilitiesAndEquity),
+      totalRow('DIFERENCIA (ACTIVO − PASIVO − PATRIMONIO)', report.difference),
+    ]
 
     const columns: ColumnDef[] = [
-      { key: 'codigo', header: 'Código Cuenta' },
-      { key: 'nombre', header: 'Nombre Cuenta' },
-      { key: 'clase', header: 'Clase' },
+      { key: 'codigo', header: 'Código PUC' },
+      { key: 'cuenta', header: 'Cuenta' },
+      { key: 'nivel', header: 'Nivel' },
       { key: 'naturaleza', header: 'Naturaleza' },
       { key: 'saldo', header: 'Saldo (COP)', type: 'number' },
     ]
 
-    const rows = filtered.map((a) => ({
-      codigo: a.code,
-      nombre: a.name,
-      clase: `Clase ${a.accountClass}`,
-      naturaleza: a.nature === 'DEBIT' ? 'Débito' : 'Crédito',
-      saldo: a.balance,
-    }))
+    const meta = this.headerMetadata({
+      companyHeader: options?.companyHeader,
+      locationId: report.locationId,
+      locationName: report.locationName,
+      startAccountCode: report.accountFrom,
+      endAccountCode: report.accountTo,
+    })
+    meta.push(`FECHA DE CORTE: ${formatIsoDateEs(report.cutoffDate)}`)
+    if (!report.locationId) meta.push('SEDE: Consolidado de todas las sedes')
+    meta.push(
+      `ECUACIÓN PATRIMONIAL: ${report.isBalanced ? 'CUADRADA (Activo = Pasivo + Patrimonio)' : `DESCUADRE DE ${report.difference}`}`
+    )
 
-    if (format === 'CSV') {
-      const csv = this.generateCSV('BALANCE GENERAL Y SALDOS CONTABLES', columns, rows)
-      this.triggerDownload(csv, `${filenameBase}.csv`, 'text/csv;charset=utf-8;')
-    } else if (format === 'EXCEL') {
-      const xml = this.generateExcelXML('Balance General', columns, rows)
-      this.triggerDownload(xml, `${filenameBase}.xls`, 'application/vnd.ms-excel;charset=utf-8;')
-    } else {
-      const json = JSON.stringify(
-        {
-          sistema: 'SUPER MÁS ERP/POS',
-          modulo: 'Contabilidad - Balance General',
-          fechaGeneracion: new Date().toISOString(),
-          total: filtered.length,
-          cuentas: filtered,
-        },
-        null,
-        2
+    const filenameBase = `balance_general_${report.cutoffDate}`
+    this.writeFile({
+      format,
+      title: 'ESTADO DE SITUACIÓN FINANCIERA (BALANCE GENERAL)',
+      sheetName: 'Balance General',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Balance General', balance: report }),
+    })
+
+    return { count: rows.length, filename: filenameBase }
+  }
+
+  /**
+   * 6b. Exportar Estado de Resultados (árboles de las clases 4, 6, 7 y 5 y cascada de utilidades).
+   */
+  exportIncomeStatement(
+    report: IncomeStatementReport,
+    format: AccountingExportFormat = 'CSV',
+    options?: { hideZeroBalances?: boolean; maxLevel?: TrialBalanceLevelFilter; companyHeader?: AccountingCompanyHeader | null }
+  ): { count: number; filename: string } {
+    const maxLevelNumber = TRIAL_BALANCE_LEVEL_NUMBER[options?.maxLevel || 'ALL'] || 5
+    const prepare = (node: FinancialStatementNode | null) =>
+      node ? (options?.hideZeroBalances ? pruneZeroNodes([node]) : [node]) : []
+    const emptyColumns = { codigo: '', nivel: '', naturaleza: '' }
+
+    const rows: Array<Record<string, any>> = []
+    for (const section of incomeStatementSections(report)) {
+      rows.push(
+        ...flattenAccountTree(prepare(section.node), maxLevelNumber).map(({ node, depth }) => ({
+          codigo: node.code,
+          cuenta: `${'    '.repeat(depth)}${node.name}`,
+          nivel: ACCOUNT_LEVEL_LABEL[node.level],
+          naturaleza: node.nature === 'DEBIT' ? 'Débito' : 'Crédito',
+          saldo: node.balance,
+        })),
+        { ...emptyColumns, cuenta: section.totalLabel.toUpperCase(), saldo: section.total }
       )
-      this.triggerDownload(json, `${filenameBase}.json`, 'application/json;charset=utf-8;')
     }
+    rows.push(
+      { ...emptyColumns, cuenta: '', saldo: null },
+      ...incomeStatementLines(report).map((line) => ({
+        ...emptyColumns,
+        cuenta: line.kind === 'line' ? line.label : line.label.toUpperCase(),
+        saldo: line.amount,
+      }))
+    )
 
-    return { count: filtered.length, filename: filenameBase }
+    const columns: ColumnDef[] = [
+      { key: 'codigo', header: 'Código PUC' },
+      { key: 'cuenta', header: 'Cuenta' },
+      { key: 'nivel', header: 'Nivel' },
+      { key: 'naturaleza', header: 'Naturaleza' },
+      { key: 'saldo', header: 'Valor (COP)', type: 'number' },
+    ]
+
+    const meta = this.headerMetadata(
+      {
+        companyHeader: options?.companyHeader,
+        locationId: report.locationId,
+        locationName: report.locationName,
+        startDate: report.dateFrom,
+        endDate: report.dateTo,
+      },
+      false
+    )
+    if (!report.locationId) meta.push('SEDE: Consolidado de todas las sedes')
+    meta.push(`MARGEN BRUTO: ${report.grossMarginPercent} % | MARGEN NETO: ${report.netMarginPercent} %`)
+
+    const filenameBase = `estado_resultados_${report.dateFrom}_${report.dateTo}`
+    this.writeFile({
+      format,
+      title: 'ESTADO DE RESULTADOS INTEGRAL',
+      sheetName: 'Estado de Resultados',
+      filenameBase,
+      columns,
+      rows,
+      meta,
+      json: () => ({ modulo: 'Contabilidad - Estado de Resultados', estadoResultados: report }),
+    })
+
+    return { count: rows.length, filename: filenameBase }
   }
 
   // =========================================================================
   // 7. BALANCE DE COMPROBACIÓN (SUMAS Y SALDOS) - CONFIGURABLE CON TERCEROS
   // =========================================================================
 
+  /** Débitos/créditos por cuenta calculados en memoria (respaldo cuando no hay totales de la base). */
+  private totalsFromMovements(
+    movements: AccountingMovement[],
+    startDate: string,
+    endDate: string,
+    locationId?: string
+  ): TrialBalanceTotals {
+    const opening: AccountMovementTotalsMap = new Map()
+    const period: AccountMovementTotalsMap = new Map()
+    for (const m of movements) {
+      if (locationId && locationId !== 'ALL' && m.locationId !== locationId) continue
+      const date = (m.date || '').slice(0, 10)
+      if (date > endDate) continue
+      const target = date < startDate ? opening : period
+      const current = target.get(m.accountId) || { debit: 0, credit: 0 }
+      current.debit += Number(m.debit) || 0
+      current.credit += Number(m.credit) || 0
+      target.set(m.accountId, current)
+    }
+    return { opening, period }
+  }
+
+  /** Desglose por tercero de los movimientos de una cuenta y su subárbol. */
+  private thirdPartyBreakdown(
+    node: FinancialStatementNode,
+    movements: AccountingMovement[],
+    startDate: string,
+    endDate: string
+  ): TrialBalanceThirdPartyDetail[] | undefined {
+    const tpMap = new Map<
+      string,
+      { docNumber: string; name: string; priorDebits: number; priorCredits: number; periodDebit: number; periodCredit: number }
+    >()
+
+    for (const m of movements) {
+      if (!isPucDescendantOrSelf(m.accountCode, node.code)) continue
+      const mDate = (m.date || '').slice(0, 10)
+      if (mDate > endDate) continue
+      const docKey = m.thirdPartyDoc || m.thirdPartyId || m.thirdPartyName || 'SIN_TERCERO'
+      const existing = tpMap.get(docKey) || {
+        docNumber: m.thirdPartyDoc || '',
+        name: m.thirdPartyName || 'Sin tercero',
+        priorDebits: 0,
+        priorCredits: 0,
+        periodDebit: 0,
+        periodCredit: 0,
+      }
+      if (mDate < startDate) {
+        existing.priorDebits += Number(m.debit) || 0
+        existing.priorCredits += Number(m.credit) || 0
+      } else {
+        existing.periodDebit += Number(m.debit) || 0
+        existing.periodCredit += Number(m.credit) || 0
+      }
+      tpMap.set(docKey, existing)
+    }
+
+    const list: TrialBalanceThirdPartyDetail[] = []
+    for (const val of tpMap.values()) {
+      const init = node.nature === 'DEBIT' ? val.priorDebits - val.priorCredits : val.priorCredits - val.priorDebits
+      const final =
+        node.nature === 'DEBIT' ? init + val.periodDebit - val.periodCredit : init + val.periodCredit - val.periodDebit
+      if (isZeroAmount(init) && isZeroAmount(val.periodDebit) && isZeroAmount(val.periodCredit) && isZeroAmount(final)) {
+        continue
+      }
+      list.push({
+        docType: '',
+        docNumber: val.docNumber,
+        name: val.name,
+        initialBalance: roundCurrency(init),
+        debit: roundCurrency(val.periodDebit),
+        credit: roundCurrency(val.periodCredit),
+        finalBalance: roundCurrency(final),
+      })
+    }
+    list.sort((a, b) => a.name.localeCompare(b.name))
+    return list.length > 0 ? list : undefined
+  }
+
   /**
-   * Construye la estructura de datos del Balance de Comprobación filtrado
-   * por cuenta principal, nivel jerárquico hasta subcuenta, fechas y terceros.
+   * Construye el Balance de Comprobación por niveles del PUC.
+   * - Importes: `totals` (base de datos, fn_accounting_account_balances_range) si se entregan; si no,
+   *   se calculan con los movimientos cargados en memoria.
+   * - Cada nivel suma su subárbol (account-tree); el rango de cuentas se aplica a los importes.
+   * - Desglose por tercero (en memoria) solo en las filas cuyos hijos no se muestran.
    */
   buildTrialBalanceData(params: {
     accounts: AccountingAccount[]
     movements: AccountingMovement[]
     thirdParties: ThirdParty[]
     options?: AccountingExportFilterOptions
+    totals?: TrialBalanceTotals | null
   }): TrialBalanceReportData {
     const { accounts, movements, options } = params
 
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
-    const startDate = options?.startDate || `${currentYear}-01-01`
-    const endDate =
-      options?.endDate || `${currentYear}-${currentMonth}-${String(now.getDate()).padStart(2, '0')}`
+    const today = todayBogotaIsoDate()
+    const startDate = options?.startDate || `${today.slice(0, 4)}-01-01`
+    const endDate = options?.endDate || today
 
     const mainAccountCode =
-      options?.mainAccountCode && options.mainAccountCode !== 'ALL'
-        ? options.mainAccountCode.trim()
-        : 'ALL'
-
+      options?.mainAccountCode && options.mainAccountCode !== 'ALL' ? options.mainAccountCode.trim() : 'ALL'
     const maxLevel: TrialBalanceLevelFilter = options?.maxLevel || 'SUBACCOUNT'
+    const maxLevelNumber = TRIAL_BALANCE_LEVEL_NUMBER[maxLevel] || 4
     const includeThirdParties = options?.includeThirdParties ?? true
     const hideZeroBalances = options?.hideZeroBalances ?? true
+    const range = this.accountRangeOf(options)
 
-    // Longitud máxima de código según nivel jerárquico solicitado
-    let maxDigits = 6 // Subcuenta por defecto
-    if (maxLevel === 'CLASS') maxDigits = 1
-    else if (maxLevel === 'GROUP') maxDigits = 2
-    else if (maxLevel === 'ACCOUNT') maxDigits = 4
-    else if (maxLevel === 'SUBACCOUNT') maxDigits = 6
-    else if (maxLevel === 'AUXILIARY' || maxLevel === 'ALL') maxDigits = 12
+    const totals = params.totals || this.totalsFromMovements(movements, startDate, endDate, options?.locationId)
+    const classes = /^\d$/.test(mainAccountCode) ? [Number(mainAccountCode)] : undefined
 
-    const startAccountCode = options?.startAccountCode?.trim() || ''
-    const endAccountCode = options?.endAccountCode?.trim() || ''
+    let tree = buildAccountTree(accounts, totals.period, { classes, range, openingTotals: totals.opening })
+    if (hideZeroBalances) tree = pruneZeroNodes(tree)
 
-    // 1. Filtrar cuentas por cuenta principal, rango y nivel jerárquico
-    const targetAccounts = accounts.filter((acc) => {
-      if (mainAccountCode !== 'ALL' && !acc.code.startsWith(mainAccountCode)) {
-        return false
-      }
-      if (startAccountCode && acc.code < startAccountCode) {
-        return false
-      }
-      if (endAccountCode && acc.code > endAccountCode + '\uffff') {
-        return false
-      }
-      if (acc.code.length > maxDigits) {
-        return false
-      }
-      return true
-    })
+    const scopedMovements =
+      includeThirdParties
+        ? this.filterMovements(movements, {
+            startAccountCode: range.from || undefined,
+            endAccountCode: range.to || undefined,
+            locationId: options?.locationId,
+          })
+        : []
 
-    // Ordenar de menor a mayor código PUC
-    targetAccounts.sort((a, b) => a.code.localeCompare(b.code))
-
-    // 2. Calcular saldos para cada cuenta agregando sus movimientos hijos
-    const rows: TrialBalanceRow[] = []
-
-    for (const acc of targetAccounts) {
-      // Movimientos que pertenecen a esta cuenta o subcuentas dependientes
-      const matchingMovements = movements.filter((m) => m.accountCode.startsWith(acc.code))
-
-      // Saldo anterior a startDate
-      const priorMovements = matchingMovements.filter((m) => m.date.slice(0, 10) < startDate)
-      const priorDebits = priorMovements.reduce((sum, m) => sum + (Number(m.debit) || 0), 0)
-      const priorCredits = priorMovements.reduce((sum, m) => sum + (Number(m.credit) || 0), 0)
-
-      const initialBalance =
-        acc.nature === 'DEBIT'
-          ? priorDebits - priorCredits
-          : priorCredits - priorDebits
-
-      // Movimientos dentro del periodo [startDate, endDate]
-      const periodMovements = matchingMovements.filter(
-        (m) => m.date.slice(0, 10) >= startDate && m.date.slice(0, 10) <= endDate
-      )
-      const periodDebit = periodMovements.reduce((sum, m) => sum + (Number(m.debit) || 0), 0)
-      const periodCredit = periodMovements.reduce((sum, m) => sum + (Number(m.credit) || 0), 0)
-
-      const finalBalance =
-        acc.nature === 'DEBIT'
-          ? initialBalance + periodDebit - periodCredit
-          : initialBalance + periodCredit - periodDebit
-
-      const hasActivity =
-        Math.abs(initialBalance) > 0.001 ||
-        periodDebit > 0.001 ||
-        periodCredit > 0.001 ||
-        Math.abs(finalBalance) > 0.001
-
-      // 3. Desglose detallado por Terceros si está activado
-      let thirdPartyDetails: TrialBalanceThirdPartyDetail[] | undefined = undefined
-
-      if (includeThirdParties && matchingMovements.length > 0) {
-        const tpMap = new Map<
-          string,
-          {
-            docNumber: string
-            docType: string
-            name: string
-            priorDebits: number
-            priorCredits: number
-            periodDebit: number
-            periodCredit: number
-          }
-        >()
-
-        for (const m of matchingMovements) {
-          const docKey =
-            (m as any).thirdPartyDoc ||
-            (m as any).thirdPartyId ||
-            (m as any).thirdPartyName ||
-            'SIN_TERCERO'
-          const existing = tpMap.get(docKey) || {
-            docNumber: (m as any).thirdPartyDoc || '',
-            docType: 'NIT',
-            name: (m as any).thirdPartyName || 'Sin Tercero Especificado',
-            priorDebits: 0,
-            priorCredits: 0,
-            periodDebit: 0,
-            periodCredit: 0,
-          }
-
-          const mDate = m.date.slice(0, 10)
-          if (mDate < startDate) {
-            existing.priorDebits += Number(m.debit) || 0
-            existing.priorCredits += Number(m.credit) || 0
-          } else if (mDate <= endDate) {
-            existing.periodDebit += Number(m.debit) || 0
-            existing.periodCredit += Number(m.credit) || 0
-          }
-
-          tpMap.set(docKey, existing)
+    const rows: TrialBalanceRow[] = flattenAccountTree(tree, maxLevelNumber)
+      .filter(({ node }) => mainAccountCode === 'ALL' || classes || isPucDescendantOrSelf(node.code, mainAccountCode))
+      .map(({ node }) => {
+        const childrenHidden = node.children.length === 0 || node.levelNumber >= maxLevelNumber
+        return {
+          code: node.code,
+          name: node.name,
+          accountClass: node.accountClass,
+          level: node.level,
+          nature: node.nature,
+          initialBalance: node.openingBalance,
+          debit: node.debit,
+          credit: node.credit,
+          finalBalance: node.balance,
+          hasMovements: nodeHasActivity(node),
+          thirdParties:
+            includeThirdParties && childrenHidden
+              ? this.thirdPartyBreakdown(node, scopedMovements, startDate, endDate)
+              : undefined,
         }
+      })
 
-        const tpList: TrialBalanceThirdPartyDetail[] = []
-        for (const [, val] of tpMap.entries()) {
-          const tpInit =
-            acc.nature === 'DEBIT'
-              ? val.priorDebits - val.priorCredits
-              : val.priorCredits - val.priorDebits
-          const tpFinal =
-            acc.nature === 'DEBIT'
-              ? tpInit + val.periodDebit - val.periodCredit
-              : tpInit + val.periodCredit - val.periodDebit
-
-          if (
-            Math.abs(tpInit) > 0.001 ||
-            val.periodDebit > 0.001 ||
-            val.periodCredit > 0.001 ||
-            Math.abs(tpFinal) > 0.001
-          ) {
-            tpList.push({
-              docType: val.docType,
-              docNumber: val.docNumber,
-              name: val.name,
-              initialBalance: Math.round(tpInit * 100) / 100,
-              debit: Math.round(val.periodDebit * 100) / 100,
-              credit: Math.round(val.periodCredit * 100) / 100,
-              finalBalance: Math.round(tpFinal * 100) / 100,
-            })
-          }
-        }
-
-        tpList.sort((a, b) => a.name.localeCompare(b.name))
-        if (tpList.length > 0) {
-          thirdPartyDetails = tpList
-        }
-      }
-
-      if (!hideZeroBalances || hasActivity) {
-        rows.push({
-          code: acc.code,
-          name: acc.name,
-          accountClass: acc.accountClass,
-          level: acc.level,
-          nature: acc.nature,
-          initialBalance: Math.round(initialBalance * 100) / 100,
-          debit: Math.round(periodDebit * 100) / 100,
-          credit: Math.round(periodCredit * 100) / 100,
-          finalBalance: Math.round(finalBalance * 100) / 100,
-          hasMovements: hasActivity,
-          thirdParties: thirdPartyDetails,
-        })
-      }
-    }
-
-    // 4. Totales de movimientos y saldos del periodo
-    const scopeMovements = movements.filter((m) => {
-      if (mainAccountCode !== 'ALL' && !m.accountCode.startsWith(mainAccountCode)) {
-        return false
-      }
-      const mDate = m.date.slice(0, 10)
-      return mDate >= startDate && mDate <= endDate
-    })
-
-    const totalDebit = scopeMovements.reduce((sum, m) => sum + (Number(m.debit) || 0), 0)
-    const totalCredit = scopeMovements.reduce((sum, m) => sum + (Number(m.credit) || 0), 0)
-
-    // Totales de saldos de las cuentas de mayor jerarquía en el reporte para evitar duplicidad
-    const minLength = rows.length > 0 ? Math.min(...rows.map((r) => r.code.length)) : 1
-    const topRows = rows.filter((r) => r.code.length === minLength)
-
+    // Sumas iguales: débitos y créditos del periodo de las raíces (cada una incluye su subárbol).
+    const roots = tree.filter((root) => mainAccountCode === 'ALL' || classes || isPucDescendantOrSelf(root.code, mainAccountCode))
+    let totalDebit = 0
+    let totalCredit = 0
     let totalInitialDebit = 0
     let totalInitialCredit = 0
     let totalFinalDebit = 0
     let totalFinalCredit = 0
-
-    for (const tr of topRows) {
-      if (tr.nature === 'DEBIT') {
-        if (tr.initialBalance >= 0) totalInitialDebit += tr.initialBalance
-        else totalInitialCredit += Math.abs(tr.initialBalance)
-
-        if (tr.finalBalance >= 0) totalFinalDebit += tr.finalBalance
-        else totalFinalCredit += Math.abs(tr.finalBalance)
-      } else {
-        if (tr.initialBalance >= 0) totalInitialCredit += tr.initialBalance
-        else totalInitialDebit += Math.abs(tr.initialBalance)
-
-        if (tr.finalBalance >= 0) totalFinalCredit += tr.finalBalance
-        else totalFinalDebit += Math.abs(tr.finalBalance)
-      }
+    const addBySide = (value: number, nature: 'DEBIT' | 'CREDIT', side: 'initial' | 'final') => {
+      const isDebitSide = (nature === 'DEBIT') === value >= 0
+      if (side === 'initial') {
+        if (isDebitSide) totalInitialDebit += Math.abs(value)
+        else totalInitialCredit += Math.abs(value)
+      } else if (isDebitSide) totalFinalDebit += Math.abs(value)
+      else totalFinalCredit += Math.abs(value)
+    }
+    for (const root of roots) {
+      totalDebit += root.debit
+      totalCredit += root.credit
+      addBySide(root.openingBalance, root.nature, 'initial')
+      addBySide(root.balance, root.nature, 'final')
     }
 
     const mainAccountObj = accounts.find((a) => a.code === mainAccountCode)
     const mainAccountName = mainAccountObj
       ? `${mainAccountObj.code} - ${mainAccountObj.name}`
       : mainAccountCode === 'ALL'
-      ? 'Todas las Clases (1 a 7)'
+      ? 'Todas las clases'
       : mainAccountCode
 
-    const branch = options?.branch || '01 - SUPER MÁS PRINCIPAL'
-    const costCenter = options?.costCenter || 'TODOS'
-    const administrativeArea = options?.administrativeArea || 'TODAS'
     const voucherType = options?.voucherType || 'TODOS'
     const selectedThirdPartyName =
       options?.selectedThirdPartyId && options.selectedThirdPartyId !== 'ALL'
@@ -945,16 +1146,20 @@ export class AccountingExportService {
           )?.companyName || options.selectedThirdPartyId
         : undefined
 
+    const company = options?.companyHeader
+    const locationName =
+      options?.locationId && options.locationId !== 'ALL' ? options.locationName || options.locationId : undefined
+
     return {
-      companyName: 'DISTRIBUIDORA SUPER MÁS S.A.S.',
-      companyNit: '901.823.456-1',
+      companyName: company?.legalName || '',
+      companyNit: formatCompanyNit(company?.taxId, company?.verificationDigit),
       startDate,
       endDate,
-      branch,
-      costCenter,
-      administrativeArea,
-      startAccountCode: startAccountCode || undefined,
-      endAccountCode: endAccountCode || undefined,
+      branch: locationName || 'Todas las sedes',
+      locationName,
+      startAccountCode: range.from || undefined,
+      endAccountCode: range.to || undefined,
+      accountRangeLabel: formatPucRangeLabel(range),
       voucherType: voucherType !== 'TODOS' ? voucherType : undefined,
       selectedThirdPartyName,
       mainAccountCode,
@@ -962,135 +1167,52 @@ export class AccountingExportService {
       maxLevel,
       includeThirdParties,
       rows,
-      totalInitialDebit: Math.round(totalInitialDebit * 100) / 100,
-      totalInitialCredit: Math.round(totalInitialCredit * 100) / 100,
-      totalDebit: Math.round(totalDebit * 100) / 100,
-      totalCredit: Math.round(totalCredit * 100) / 100,
-      totalFinalDebit: Math.round(totalFinalDebit * 100) / 100,
-      totalFinalCredit: Math.round(totalFinalCredit * 100) / 100,
-      isBalanced: Math.abs(totalDebit - totalCredit) < 0.01,
-      generatedAt: new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota' }),
+      totalInitialDebit: roundCurrency(totalInitialDebit),
+      totalInitialCredit: roundCurrency(totalInitialCredit),
+      totalDebit: roundCurrency(totalDebit),
+      totalCredit: roundCurrency(totalCredit),
+      totalFinalDebit: roundCurrency(totalFinalDebit),
+      totalFinalCredit: roundCurrency(totalFinalCredit),
+      isBalanced: isZeroAmount(totalDebit - totalCredit),
+      generatedAt: formatNowBogota(),
     }
   }
 
-  /**
-   * Exporta el Balance de Comprobación a CSV con formato y soporte de terceros
-   */
-  exportTrialBalanceCSV(report: TrialBalanceReportData): { filename: string; count: number } {
-    const BOM = '\uFEFF'
-    const headers = [
-      'Código PUC',
-      'Cuenta / Subcuenta / Tercero',
-      'Nivel Jerárquico',
-      'Naturaleza',
-      'Saldo Anterior (COP)',
-      'Débito Periodo (COP)',
-      'Crédito Periodo (COP)',
-      'Saldo Final (COP)',
+  /** Metadatos del Balance de Comprobación (CSV y Excel). */
+  private trialBalanceMetadata(report: TrialBalanceReportData): string[] {
+    return [
+      ...(report.companyName ? [`EMPRESA: ${report.companyName}`] : []),
+      ...(report.companyNit ? [`NIT: ${report.companyNit}`] : []),
+      `PERIODO: ${formatIsoDateEs(report.startDate)} al ${formatIsoDateEs(report.endDate)}`,
+      `SEDE: ${report.branch || 'Todas las sedes'}`,
+      `RANGO DE CUENTAS: ${report.accountRangeLabel}`,
+      `CLASE PRINCIPAL: ${report.mainAccountName}`,
+      `NIVEL MÁXIMO: ${ACCOUNT_LEVEL_LABEL[report.maxLevel as keyof typeof ACCOUNT_LEVEL_LABEL] || 'Auxiliar'}`,
+      `INCLUYE TERCEROS: ${report.includeThirdParties ? 'SÍ' : 'NO'}`,
+      `SUMAS IGUALES: ${report.isBalanced ? 'SÍ (DÉBITOS = CRÉDITOS)' : 'NO (DESCUADRADO)'}`,
+      `FECHA DE GENERACIÓN: ${report.generatedAt}`,
     ]
-
-    const dataLines: string[] = []
-
-    for (const row of report.rows) {
-      dataLines.push(
-        [
-          `"${row.code}"`,
-          `"${row.name.replace(/"/g, '""')}"`,
-          `"${row.level}"`,
-          `"${row.nature}"`,
-          row.initialBalance,
-          row.debit,
-          row.credit,
-          row.finalBalance,
-        ].join(';')
-      )
-
-      if (report.includeThirdParties && row.thirdParties && row.thirdParties.length > 0) {
-        for (const tp of row.thirdParties) {
-          dataLines.push(
-            [
-              `"${row.code}-${tp.docNumber || 'SD'}"`,
-              `"  ↳ ${tp.name.replace(/"/g, '""')} (${tp.docType} ${tp.docNumber})"`,
-              `"TERCERO"`,
-              `"${row.nature}"`,
-              tp.initialBalance,
-              tp.debit,
-              tp.credit,
-              tp.finalBalance,
-            ].join(';')
-          )
-        }
-      }
-    }
-
-    // Fila de Sumas Iguales
-    dataLines.push(
-      [
-        `"TOTALES"`,
-        `"SUMAS IGUALES DEL BALANCE DE COMPROBACIÓN"`,
-        `"-"`,
-        `"-"`,
-        report.totalInitialDebit,
-        report.totalDebit,
-        report.totalCredit,
-        report.totalFinalDebit,
-      ].join(';')
-    )
-
-    const metaBlock = [
-      `"EMPRESA: ${report.companyName}"`,
-      `"NIT: ${report.companyNit}"`,
-      `"REPORTE: BALANCE DE COMPROBACIÓN (SUMAS Y SALDOS)"`,
-      `"PERIODO: ${report.startDate} al ${report.endDate}"`,
-      `"CUENTA PRINCIPAL: ${report.mainAccountName}"`,
-      `"NIVEL JERÁRQUICO: ${report.maxLevel}"`,
-      `"INCLUYE INFORMACIÓN DE TERCEROS: ${report.includeThirdParties ? 'SÍ' : 'NO'}"`,
-      `"ESTADO PARTIDA DOBLE: ${report.isBalanced ? 'CUADRADO (DÉBITO == CRÉDITO)' : 'DESCUADRADO'}"`,
-      `"FECHA GENERACIÓN: ${report.generatedAt}"`,
-      '',
-    ].join('\r\n')
-
-    const csvContent = `${BOM}${metaBlock}\r\n${headers.map((h) => `"${h}"`).join(';')}\r\n${dataLines.join('\r\n')}`
-    const filename = `balance_comprobacion_supermas_${report.startDate}_${report.endDate}.csv`
-    this.triggerDownload(csvContent, filename, 'text/csv;charset=utf-8;')
-
-    return { filename, count: report.rows.length }
   }
 
-  /**
-   * Exporta el Balance de Comprobación a formato Excel XML (.xls)
-   */
-  exportTrialBalanceExcel(report: TrialBalanceReportData): { filename: string; count: number } {
-    const columns: ColumnDef[] = [
-      { key: 'codigo', header: 'Código PUC' },
-      { key: 'concepto', header: 'Cuenta / Subcuenta / Tercero' },
-      { key: 'nivel', header: 'Nivel Jerárquico' },
-      { key: 'naturaleza', header: 'Naturaleza' },
-      { key: 'saldoInicial', header: 'Saldo Anterior (COP)', type: 'number' },
-      { key: 'debito', header: 'Débito Periodo (COP)', type: 'number' },
-      { key: 'credito', header: 'Crédito Periodo (COP)', type: 'number' },
-      { key: 'saldoFinal', header: 'Saldo Final (COP)', type: 'number' },
-    ]
-
+  /** Filas planas (cuentas + terceros + totales) del Balance de Comprobación. */
+  private trialBalanceFlatRows(report: TrialBalanceReportData): Array<Record<string, any>> {
     const flatRows: Array<Record<string, any>> = []
-
     for (const row of report.rows) {
       flatRows.push({
         codigo: row.code,
         concepto: row.name,
-        nivel: row.level,
+        nivel: ACCOUNT_LEVEL_LABEL[row.level] || row.level,
         naturaleza: row.nature === 'DEBIT' ? 'Débito' : 'Crédito',
         saldoInicial: row.initialBalance,
         debito: row.debit,
         credito: row.credit,
         saldoFinal: row.finalBalance,
       })
-
-      if (report.includeThirdParties && row.thirdParties && row.thirdParties.length > 0) {
+      if (report.includeThirdParties && row.thirdParties) {
         for (const tp of row.thirdParties) {
           flatRows.push({
-            codigo: `${row.code}-${tp.docNumber}`,
-            concepto: `  ↳ ${tp.name} (${tp.docType} ${tp.docNumber})`,
+            codigo: row.code,
+            concepto: `    Tercero: ${tp.docNumber ? `${tp.docNumber} - ` : ''}${tp.name}`,
             nivel: 'Tercero',
             naturaleza: row.nature === 'DEBIT' ? 'Débito' : 'Crédito',
             saldoInicial: tp.initialBalance,
@@ -1101,23 +1223,58 @@ export class AccountingExportService {
         }
       }
     }
-
-    // Totales
     flatRows.push({
       codigo: 'TOTALES',
-      concepto: 'SUMAS IGUALES DEL BALANCE',
-      nivel: 'Balance Cuadrado',
-      naturaleza: '-',
-      saldoInicial: report.totalInitialDebit,
+      concepto: 'SUMAS DEL PERIODO',
+      nivel: '',
+      naturaleza: '',
+      saldoInicial: roundCurrency(report.totalInitialDebit - report.totalInitialCredit),
       debito: report.totalDebit,
       credito: report.totalCredit,
-      saldoFinal: report.totalFinalDebit,
+      saldoFinal: roundCurrency(report.totalFinalDebit - report.totalFinalCredit),
     })
+    return flatRows
+  }
 
-    const xml = this.generateExcelXML('Balance Comprobación', columns, flatRows)
-    const filename = `balance_comprobacion_supermas_${report.startDate}_${report.endDate}.xls`
+  private readonly trialBalanceColumns: ColumnDef[] = [
+    { key: 'codigo', header: 'Código PUC' },
+    { key: 'concepto', header: 'Cuenta / Tercero' },
+    { key: 'nivel', header: 'Nivel' },
+    { key: 'naturaleza', header: 'Naturaleza' },
+    { key: 'saldoInicial', header: 'Saldo Anterior (COP)', type: 'number' },
+    { key: 'debito', header: 'Débito Periodo (COP)', type: 'number' },
+    { key: 'credito', header: 'Crédito Periodo (COP)', type: 'number' },
+    { key: 'saldoFinal', header: 'Saldo Final (COP)', type: 'number' },
+  ]
+
+  /**
+   * Exporta el Balance de Comprobación a CSV con formato y soporte de terceros
+   */
+  exportTrialBalanceCSV(report: TrialBalanceReportData): { filename: string; count: number } {
+    const csv = this.generateCSV(
+      'BALANCE DE COMPROBACIÓN (SUMAS Y SALDOS)',
+      this.trialBalanceColumns,
+      this.trialBalanceFlatRows(report),
+      this.trialBalanceMetadata(report)
+    )
+    const filename = `balance_comprobacion_${report.startDate}_${report.endDate}.csv`
+    this.triggerDownload(csv, filename, 'text/csv;charset=utf-8;')
+    return { filename, count: report.rows.length }
+  }
+
+  /**
+   * Exporta el Balance de Comprobación a formato Excel XML (.xls)
+   */
+  exportTrialBalanceExcel(report: TrialBalanceReportData): { filename: string; count: number } {
+    const xml = this.generateExcelXML(
+      'Balance Comprobación',
+      'BALANCE DE COMPROBACIÓN (SUMAS Y SALDOS)',
+      this.trialBalanceColumns,
+      this.trialBalanceFlatRows(report),
+      this.trialBalanceMetadata(report)
+    )
+    const filename = `balance_comprobacion_${report.startDate}_${report.endDate}.xls`
     this.triggerDownload(xml, filename, 'application/vnd.ms-excel;charset=utf-8;')
-
     return { filename, count: report.rows.length }
   }
 }

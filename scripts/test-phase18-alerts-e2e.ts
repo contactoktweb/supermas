@@ -23,6 +23,7 @@ import { alertService } from '../features/alerts/services/alert.service'
 import { alertRulesService } from '../features/alerts/services/alert-rules.service'
 import { supabaseAdmin } from '../lib/supabase/admin'
 import { UserAlertContext } from '../features/alerts/types'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -123,7 +124,7 @@ async function runPhase18AlertsE2ETests() {
     // 4. Usuario Admin para Empresa A
     const authUserRes = await supabaseAdmin.auth.admin.createUser({
       email: `admin_alerts_${testSuffix}@supermas.co`,
-      password: 'SuperAlertsSecret2026*',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       app_metadata: { company_id: companyAId, role: 'SUPERADMIN' },
     })

@@ -334,7 +334,8 @@ export function DistributorProductDetailDrawer({
                     className="px-3 py-2 rounded-lg bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 transition-colors flex items-center gap-1.5 shadow-xs"
                     onClick={(e) => e.preventDefault()}
                   >
-                    <span>💬 Contactar por WhatsApp</span>
+                    <AppIcon icon="solar:chat-round-line-linear" size={14} aria-hidden="true" />
+                    <span>Contactar por WhatsApp</span>
                   </a>
                 ) : (
                   <span className="text-slate-400 text-xs italic">WhatsApp inactivo</span>

@@ -145,7 +145,9 @@ export function WarehouseAdjustStockModal({
               <span>Existencia actual</span>
               <b>{currentStock} uds</b>
             </div>
-            <div className="arrow-sep">➔</div>
+            <div className="arrow-sep" aria-hidden="true">
+              <AppIcon name="arrowRight" size={18} />
+            </div>
             <div>
               <span>Saldo resultante</span>
               <b

@@ -15,8 +15,12 @@ import {
   TaxRateConfig,
   PriceTier,
 } from '../types'
-import { productFormSchema } from '../schemas/product.schema'
-import { productService } from '../services/product.service'
+import { productFormSchema, productEditFormSchema } from '../schemas/product.schema'
+import { productService, PRICE_CHANGE_REASON_MIN_LENGTH } from '../services/product.service'
+import { planPriceChanges } from '../utils/price-change-plan'
+import { canApprovePrices } from '../utils/price-permissions'
+import { useAuth } from '@/features/auth'
+import { PriceChangeNotice } from './PriceChangeNotice'
 import { categoryService } from '@/features/categories/services/category.service'
 import { brandService } from '@/features/brands/services/brand.service'
 import { extractErrorMessage } from '@/lib/utils'
@@ -66,6 +70,7 @@ export function ProductFormDrawer({
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
   const [accountingAccountId, setAccountingAccountId] = useState('')
   const [pucAccountOptions, setPucAccountOptions] = useState<SelectOption[]>([])
+  const [pucLoadError, setPucLoadError] = useState<string | null>(null)
   const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
   const [loadingCatalogs, setLoadingCatalogs] = useState(true)
   const [unitOfMeasure, setUnitOfMeasure] = useState<UnitOfMeasure>('UND')
@@ -106,6 +111,10 @@ export function ProductFormDrawer({
   const [minStockThreshold, setMinStockThreshold] = useState<number>(15)
   const [criticalStockThreshold, setCriticalStockThreshold] = useState<number>(5)
   const [auditReason, setAuditReason] = useState('')
+  const [priceChangeReason, setPriceChangeReason] = useState('')
+
+  const { user } = useAuth()
+  const userCanApprovePrices = canApprovePrices(user)
 
   useEffect(() => {
     setMounted(true)
@@ -115,20 +124,21 @@ export function ProductFormDrawer({
   useEffect(() => {
     let isMounted = true
     setLoadingCatalogs(true)
+    setPucLoadError(null)
 
     Promise.all([
       categoryService.listCategories({ status: 'ACTIVE', sortBy: 'SORT_ORDER_ASC' }),
       brandService.listBrands({ status: 'ACTIVE', sortBy: 'NAME_ASC' }),
       productService.getTaxConfigs(),
       supabaseClient.from('locations').select('id, code, name').eq('status', 'ACTIVE').order('name', { ascending: true }),
-      supabaseClient
-        .from('accounting_accounts')
-        .select('id, code, name, level')
-        .like('code', '14%')
-        .eq('is_active', true)
-        .order('code', { ascending: true }),
+      // Solo auxiliares de inventario: la cuenta del producto define su línea contable (migración 062).
+      productService.getInventoryPostingAccounts().catch((err) => {
+        console.error('Error cargando cuentas de inventario del PUC:', err)
+        if (isMounted) setPucLoadError(extractErrorMessage(err, 'No se pudieron cargar las cuentas de inventario del PUC.'))
+        return []
+      }),
     ])
-      .then(([catsRes, brandsRes, taxesRes, locsRes, pucsRes]) => {
+      .then(([catsRes, brandsRes, taxesRes, locsRes, inventoryAccounts]) => {
         if (!isMounted) return
 
         const cats: SelectOption[] = ((catsRes as any).data || []).map((c: any) => ({
@@ -141,20 +151,13 @@ export function ProductFormDrawer({
           label: b.name,
         }))
 
-        // Solo cuentas coherentes de inventarios (Clase 1, Grupo 14 del PUC)
-        const pucOptions: SelectOption[] = ((pucsRes as any).data || [])
-          .filter((acc: any) => typeof acc.code === 'string' && acc.code.startsWith('14'))
-          .sort((a: any, b: any) => {
-            // Priorizar exactamente 1435 en primer lugar
-            if (a.code === '1435') return -1
-            if (b.code === '1435') return 1
-            return a.code.localeCompare(b.code)
-          })
-          .map((acc: any) => ({
-            value: acc.id,
-            label: `${acc.code} — ${acc.name}`,
-            badge: acc.code === '1435' ? 'Comercialización' : 'Inventario',
-          }))
+        // Ordenadas por código: quedan agrupadas por su cuenta PUC (1405, 1435, ...).
+        const pucOptions: SelectOption[] = inventoryAccounts.map((acc) => ({
+          value: acc.id,
+          label: `${acc.code} — ${acc.name}`,
+          description: acc.groupName ? `${acc.groupCode} — ${acc.groupName}` : undefined,
+          badge: acc.groupCode,
+        }))
 
         setCategoryOptions(cats)
         setBrandOptions(brands)
@@ -167,16 +170,6 @@ export function ProductFormDrawer({
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
           if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
-          if (pucOptions.length > 0) {
-            // Por defecto preseleccionar cuenta 1435
-            const defaultAcc =
-              pucOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435') ||
-              pucOptions.find((p) => p.label.startsWith('1435')) ||
-              pucOptions[0]
-            if (defaultAcc) {
-              setAccountingAccountId((prev) => prev || defaultAcc.value)
-            }
-          }
         }
       })
       .catch((err) => {
@@ -244,14 +237,10 @@ export function ProductFormDrawer({
         setStatus(initialProduct.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
         setMinStockThreshold(initialProduct.minStockThreshold)
         setCriticalStockThreshold(initialProduct.criticalStockThreshold)
-        setAccountingAccountId(
-          initialProduct.accountingAccountId ||
-          initialProduct.accountingCategoryId ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
-          ''
-        )
+        // La cuenta real es la del vínculo (FK); los productos antiguos pueden no tenerla.
+        setAccountingAccountId(initialProduct.accountingAccount?.id || '')
         setAuditReason('')
+        setPriceChangeReason('')
       } else {
         // Reset defaults for Create
         setName('')
@@ -279,21 +268,24 @@ export function ProductFormDrawer({
         setStatus('ACTIVE')
         setMinStockThreshold(15)
         setCriticalStockThreshold(5)
-        const defaultPuc =
-          pucAccountOptions.find((p) => p.label.startsWith('1435 —') || p.label === '1435')?.value ||
-          pucAccountOptions.find((p) => p.label.startsWith('1435'))?.value ||
-          pucAccountOptions[0]?.value ||
-          ''
-        setAccountingAccountId(defaultPuc)
+        // Sin preselección: quien crea el producto elige su línea de inventario.
+        setAccountingAccountId('')
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions, pucAccountOptions])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
 
   if (!isOpen || !mounted) return null
 
   // Tax Profile change handler
   const handleTaxProfileChange = (selectedCode: string) => {
+    // Tratamientos DIAN fijos (el XML de la factura electrónica distingue exento de excluido)
+    const fixed: Record<string, number> = { IVA_19: 19, IVA_5: 5, EXENTO: 0, EXCLUIDO: 0 }
+    if (selectedCode in fixed) {
+      setTaxProfile(selectedCode as any)
+      setVatRatePercent(fixed[selectedCode])
+      return
+    }
     const found = taxRates.find((t) => t.code === selectedCode)
     if (found) {
       setTaxProfile(found.code as any)
@@ -303,6 +295,29 @@ export function ProductFormDrawer({
     }
   }
 
+  // Productos antiguos: con una cuenta de grupo (p. ej. '1435') se conserva hasta que elijan una
+  // auxiliar; sin cuenta se pueden guardar y la contabilidad usa la cuenta de inventario por defecto.
+  const legacyAccount =
+    mode === 'edit' &&
+    !loadingCatalogs &&
+    initialProduct?.accountingAccount &&
+    initialProduct.accountingAccount.id === accountingAccountId &&
+    !pucAccountOptions.some((opt) => opt.value === accountingAccountId)
+      ? initialProduct.accountingAccount
+      : null
+  const accountOptions: SelectOption[] = legacyAccount
+    ? [
+        {
+          value: legacyAccount.id,
+          label: `${legacyAccount.code} — ${legacyAccount.name}`,
+          description: 'Cuenta de grupo: selecciona una auxiliar',
+          badge: 'Revisar',
+        },
+        ...pucAccountOptions,
+      ]
+    : pucAccountOptions
+  const isLegacyWithoutAccount = mode === 'edit' && !loadingCatalogs && !accountingAccountId
+
   // Live calculation of estimated profit margin
   const liveMargin = productService.calculateProfitMargin(
     normalPrice,
@@ -310,10 +325,7 @@ export function ProductFormDrawer({
     estimatedCost
   )
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setErrors({})
-
+  const buildPricesPayload = (): PriceTier[] => {
     const pricesPayload: PriceTier[] = [
       {
         code: 'NORMAL',
@@ -357,6 +369,35 @@ export function ProductFormDrawer({
       })
     })
 
+    return pricesPayload
+  }
+
+  // Cambios de precio frente a lo vigente (solo edición). La base decide si se aplican o quedan pendientes.
+  const pendingPriceChanges =
+    mode === 'edit' && initialProduct
+      ? planPriceChanges({
+          existingTiers: initialProduct.prices || [],
+          currentNormalPrice: initialProduct.normalPrice,
+          currentWholesalePrice: initialProduct.wholesalePrice,
+          desiredTiers: buildPricesPayload(),
+        }).priceChanges
+      : []
+  const requiresPriceApproval = pendingPriceChanges.length > 0 && !userCanApprovePrices
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setErrors({})
+
+    const pricesPayload = buildPricesPayload()
+
+    if (requiresPriceApproval && priceChangeReason.trim().length < PRICE_CHANGE_REASON_MIN_LENGTH) {
+      setErrors({
+        priceChangeReason: `Indica el motivo del cambio de precio (mínimo ${PRICE_CHANGE_REASON_MIN_LENGTH} caracteres). El administrador lo verá al aprobar.`,
+      })
+      setActiveTab('prices')
+      return
+    }
+
     const initialStockPayload = activeWarehouses
       .map((w) => {
         const item = initialStockMap[w.id] || { quantity: 0, unitCost: estimatedCost }
@@ -370,10 +411,10 @@ export function ProductFormDrawer({
       })
       .filter((s) => s.quantity > 0)
 
-    if (!accountingAccountId) {
+    if (mode === 'create' && !accountingAccountId) {
       setErrors((prev) => ({
         ...prev,
-        accountingAccountId: 'Debes seleccionar la cuenta contable PUC a la cual estará enlazado el producto',
+        accountingAccountId: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
       }))
       setActiveTab('info')
       return
@@ -386,8 +427,9 @@ export function ProductFormDrawer({
       description: description.trim(),
       categoryId,
       brandId,
-      accountingAccountId,
-      accountingCategoryId: accountingAccountId,
+      // Vacío solo en productos antiguos sin cuenta: no se envía para no tocar su vínculo actual.
+      accountingAccountId: accountingAccountId || undefined,
+      accountingCategoryId: accountingAccountId || undefined,
       unitOfMeasure,
       imageUrl: imageUrl.trim(),
       status,
@@ -404,7 +446,8 @@ export function ProductFormDrawer({
 
     try {
       // Validate schema client side
-      productFormSchema.parse({
+      const formSchema = mode === 'create' ? productFormSchema : productEditFormSchema
+      formSchema.parse({
         ...payload,
         auditReason: auditReason.trim() || undefined,
       })
@@ -412,7 +455,11 @@ export function ProductFormDrawer({
       setIsSubmitting(true)
       await onSubmit(
         mode === 'edit'
-          ? { ...payload, auditReason: auditReason.trim() || 'Actualización de producto' }
+          ? {
+              ...payload,
+              auditReason: auditReason.trim() || 'Actualización de producto',
+              priceChangeReason: priceChangeReason.trim() || undefined,
+            }
           : payload
       )
       onClose()
@@ -690,29 +737,43 @@ export function ProductFormDrawer({
                 <div className="form-field">
                   <label className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
                     <AppIcon name="accounting" size={14} className="text-blue-900" />
-                    <span>Cuenta Contable PUC <em>*</em></span>
+                    <span>Cuenta Contable PUC {mode === 'create' && <em>*</em>}</span>
                   </label>
                   <CustomSelect
-                    options={pucAccountOptions}
+                    options={accountOptions}
                     value={accountingAccountId}
                     onChange={(val) => {
                       setAccountingAccountId(val)
                       setErrors((prev) => ({ ...prev, accountingAccountId: '' }))
                     }}
                     disabled={pucAccountOptions.length === 0}
-                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona una cuenta contable PUC'}
+                    error={errors.accountingAccountId || undefined}
+                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona la cuenta auxiliar de inventario'}
                   />
                   {errors.accountingAccountId && (
                     <span className="field-error-text">{errors.accountingAccountId}</span>
                   )}
-                  {pucAccountOptions.length === 0 && !loadingCatalogs && (
+                  {pucLoadError && !loadingCatalogs && (
+                    <small className="field-error-text">{pucLoadError}</small>
+                  )}
+                  {!pucLoadError && pucAccountOptions.length === 0 && !loadingCatalogs && (
                     <small className="field-hint" style={{ color: 'var(--amber)' }}>
-                      * No hay cuentas contables PUC activas en el sistema.
+                      * No hay cuentas auxiliares de inventario (grupo 14) activas en el PUC.
                     </small>
                   )}
-                  {pucAccountOptions.length > 0 && (
+                  {legacyAccount && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * La cuenta actual ({legacyAccount.code}) es de grupo. Selecciona una cuenta auxiliar de inventario.
+                    </small>
+                  )}
+                  {isLegacyWithoutAccount && (
+                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
+                      * Producto sin cuenta contable: sus ventas usan la cuenta de inventario por defecto. Selecciona su cuenta auxiliar.
+                    </small>
+                  )}
+                  {pucAccountOptions.length > 0 && !legacyAccount && !isLegacyWithoutAccount && (
                     <small className="field-hint text-[10.5px] text-slate-500">
-                      Cuenta del PUC vinculada para movimientos de inventario y compras.
+                      Cuenta auxiliar de inventario: define el inventario, el costo y el ingreso de sus ventas.
                     </small>
                   )}
                 </div>
@@ -746,6 +807,16 @@ export function ProductFormDrawer({
           {/* TAB 2: LISTAS DE PRECIOS EXTENSIBLES (public.product_prices) */}
           {activeTab === 'prices' && (
             <div className="form-tab-content page-enter">
+              {pendingPriceChanges.length > 0 && (
+                <PriceChangeNotice
+                  changes={pendingPriceChanges}
+                  requiresApproval={!userCanApprovePrices}
+                  reason={priceChangeReason}
+                  onReasonChange={setPriceChangeReason}
+                  error={errors.priceChangeReason}
+                />
+              )}
+
               <div className="info-banner-compact">
                 <AppIcon name="sales" size={16} />
                 <span>
@@ -773,7 +844,7 @@ export function ProductFormDrawer({
                       onChange={(e) => setNormalPrice(Number(e.target.value))}
                       placeholder="0"
                       min={0}
-                      step={100}
+                      step="any"
                       required
                     />
                   </div>
@@ -811,7 +882,7 @@ export function ProductFormDrawer({
                         onChange={(e) => setWholesalePrice(Number(e.target.value))}
                         placeholder="0"
                         min={0}
-                        step={100}
+                        step="any"
                         disabled={!isWholesaleActive}
                       />
                     </div>
@@ -862,7 +933,7 @@ export function ProductFormDrawer({
                         onChange={(e) => setDistributorPrice(Number(e.target.value))}
                         placeholder="0"
                         min={0}
-                        step={100}
+                        step="any"
                         disabled={!isDistributorActive}
                       />
                     </div>
@@ -1020,7 +1091,7 @@ export function ProductFormDrawer({
                             onChange={(e) => setNewTierPrice(Number(e.target.value))}
                             placeholder="0"
                             min={0}
-                            step={100}
+                            step="any"
                             required
                           />
                         </div>
@@ -1136,7 +1207,7 @@ export function ProductFormDrawer({
                     onChange={(e) => setEstimatedCost(Number(e.target.value))}
                     placeholder="0"
                     min={0}
-                    step={100}
+                    step="any"
                   />
                 </div>
                 <small className="field-hint">
@@ -1309,7 +1380,7 @@ export function ProductFormDrawer({
                                 <input
                                   type="number"
                                   min={0}
-                                  step={100}
+                                  step="any"
                                   value={currentItem.unitCost || ''}
                                   onChange={(e) => {
                                     const val = Math.max(0, Number(e.target.value) || 0)
@@ -1350,22 +1421,29 @@ export function ProductFormDrawer({
               <div className="form-field">
                 <label>Perfil Tributario DIAN</label>
                 <CustomSelect
-                  options={
-                    taxRates.length > 0
-                      ? taxRates.map((t) => ({
-                          value: t.code,
-                          label: `${t.name} (${t.ratePercent}%)`,
-                        }))
-                      : [{ value: 'IVA_19', label: 'IVA General 19%' }]
-                  }
+                  options={[
+                    { value: 'IVA_19', label: 'Gravado — IVA general 19%' },
+                    { value: 'IVA_5', label: 'Gravado — IVA 5%' },
+                    { value: 'EXENTO', label: 'Exento de IVA (0%, Art. 477 E.T.)' },
+                    { value: 'EXCLUIDO', label: 'Excluido de IVA (no causa, Art. 424 E.T.)' },
+                    ...(taxProfile === 'IVA_0'
+                      ? [{ value: 'IVA_0', label: '0% sin clasificar — elija exento o excluido para facturar' }]
+                      : []),
+                    ...taxRates
+                      .filter((t) => (t.type === 'IVA' || !t.type) && !['IVA_19', 'IVA_5', 'EXENTO', 'EXCLUIDO', 'IVA_0'].includes(t.code))
+                      .map((t) => ({ value: t.code, label: `${t.name} (${t.ratePercent}%)` })),
+                  ]}
                   value={taxProfile}
                   onChange={handleTaxProfileChange}
                 />
+                {errors.taxProfile && (
+                  <span className="field-error-text">{errors.taxProfile}</span>
+                )}
               </div>
 
               <div className="form-field">
                 <label>Tarifa de IVA aplicable (%)</label>
-                <div className="input-wrap">
+                <div className={`input-wrap ${errors.vatRatePercent ? 'is-invalid' : ''}`}>
                   <input
                     type="number"
                     value={vatRatePercent}
@@ -1373,10 +1451,15 @@ export function ProductFormDrawer({
                     min={0}
                     max={100}
                     step={0.5}
+                    // Exento y excluido no causan IVA: la tarifa queda fija en 0 %.
+                    disabled={taxProfile === 'EXENTO' || taxProfile === 'EXCLUIDO'}
                     required
                   />
                   <span className="input-suffix">%</span>
                 </div>
+                {errors.vatRatePercent && (
+                  <span className="field-error-text">{errors.vatRatePercent}</span>
+                )}
               </div>
 
               <div className="tax-summary-box">
@@ -1387,6 +1470,8 @@ export function ProductFormDrawer({
                       ? 'Bien Exento (Art. 477 ET)'
                       : taxProfile === 'EXCLUIDO'
                       ? 'Bien Excluido (No causa IVA)'
+                      : taxProfile === 'IVA_0' || Number(vatRatePercent) === 0
+                      ? '0 % sin clasificar — elija Exento o Excluido'
                       : `Gravado a tarifa general del ${vatRatePercent}%`}
                   </strong>
                 </div>
@@ -1566,6 +1651,8 @@ export function ProductFormDrawer({
                   ? 'Guardando...'
                   : mode === 'create'
                   ? 'Crear producto'
+                  : requiresPriceApproval
+                  ? 'Guardar y enviar precio a aprobación'
                   : 'Guardar cambios'}
               </span>
             </button>

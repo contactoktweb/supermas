@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { useUsers } from '../hooks/useUsers'
 import { useUserPermissions } from '../hooks/useUserPermissions'
 import { UsersHeader } from './UsersHeader'
@@ -13,6 +13,7 @@ import { UserDeactivateDialog } from './UserDeactivateDialog'
 import { UsersSkeleton } from './UsersSkeleton'
 import { UsersErrorState } from './UsersErrorState'
 import { UserToastContainer, UserToastMessage } from './UsersToast'
+import { TemporaryPasswordDialog } from './TemporaryPasswordDialog'
 import { UserRole } from '../types'
 
 interface UsersPageProps {
@@ -64,9 +65,16 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
   }
 
   // Envoltorios con feedback visual
+  // Contraseña temporal generada por el servidor: vive solo en memoria hasta cerrar el diálogo.
+  const [issuedPassword, setIssuedPassword] = useState<{ password: string; userName: string } | null>(null)
+  const closeIssuedPassword = useCallback(() => setIssuedPassword(null), [])
+
   const onSaveUserWithToast = async (data: any) => {
     try {
-      await handleSaveUser(data)
+      const temporaryPassword = await handleSaveUser(data)
+      if (temporaryPassword) {
+        setIssuedPassword({ password: temporaryPassword, userName: `${data.firstName} ${data.lastName}` })
+      }
       showToast(
         editingUser ? 'Colaborador actualizado' : 'Colaborador registrado',
         `Los datos de ${data.firstName} ${data.lastName} se guardaron exitosamente.`,
@@ -161,6 +169,7 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
         onSave={onSaveUserWithToast}
         initialData={editingUser}
         locations={locations}
+        canAssignRoles={permissions.canAssignRoles}
       />
 
       {/* Drawer para Detalle y Permisos */}
@@ -182,6 +191,12 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
         onClose={handleCloseDeactivateDialog}
         onConfirm={onConfirmToggleStatusWithToast}
         user={userToToggleStatus}
+      />
+
+      <TemporaryPasswordDialog
+        password={issuedPassword?.password ?? null}
+        userName={issuedPassword?.userName ?? ''}
+        onClose={closeIssuedPassword}
       />
 
       {/* Contenedor de Alertas Toast */}

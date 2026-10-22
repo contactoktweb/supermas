@@ -1,13 +1,14 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useAuth } from '@/features/auth/hooks/useAuth'
+import { DianNoteRequest } from '../services/dian-api.client'
 import { invoiceService } from '../services/invoice.service'
 import {
   Invoice,
   InvoiceFilters,
   InvoiceStats,
   GenerateInvoicePayload,
-  CreditNotePayload,
   InvoiceUserContext,
   InvoiceType,
   DIANStatus,
@@ -15,20 +16,27 @@ import {
 } from '../types'
 
 export function useInvoices() {
-  const [userContext] = useState<InvoiceUserContext>({
-    userId: '',
-    userName: 'Admin Mauricio',
-    userRole: 'Administrador',
-    permissions: [
-      'invoice.read',
-      'invoice.create',
-      'invoice.send_dian',
-      'invoice.download',
-      'invoice.cancel',
-      'invoice.credit_note',
-      'invoice.export',
-    ],
-  })
+  // Contexto real del usuario autenticado (permisos desde PostgreSQL). La seguridad efectiva
+  // la aplican el servidor (/api/dian) y las funciones SQL; esto solo ajusta la interfaz.
+  const { user: authUser } = useAuth()
+  const userContext = useMemo<InvoiceUserContext>(() => {
+    const dbPerms = new Set(authUser?.permissions || [])
+    const isAdmin = authUser?.roleCode === 'ADMIN' || authUser?.roleCode === 'SUPERADMIN'
+    const has = (p: string) => isAdmin || dbPerms.has(p)
+    const permissions: string[] = []
+    if (has('invoices.read')) permissions.push('invoice.read', 'invoice.download', 'invoice.export')
+    if (has('invoices.create')) permissions.push('invoice.create')
+    // Notas crédito/débito: permiso invoices.cancel ("Emitir notas crédito y cancelaciones DIAN")
+    if (has('invoices.cancel')) permissions.push('invoice.credit_note')
+    if (has('invoices.create') || has('dian.manage')) permissions.push('invoice.send_dian')
+    if (has('invoices.cancel')) permissions.push('invoice.cancel')
+    return {
+      userId: authUser?.id || '',
+      userName: authUser?.fullName || 'Usuario',
+      userRole: authUser?.roleCode || '',
+      permissions,
+    }
+  }, [authUser])
 
   // List & Filter States
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -213,20 +221,36 @@ export function useInvoices() {
     }
   }
 
-  // 6. Create Credit Note
-  const handleCreateCreditNote = async (payload: CreditNotePayload) => {
+  // 5b. Consultar estado del envío en la DIAN (TrackId)
+  const handleCheckDianStatus = async (invoiceId: string) => {
     try {
       setActionLoading(true)
-      const nc = await invoiceService.createCreditNote(payload, userContext)
-      setIsCreditNoteModalOpen(false)
-      setInvoiceForCreditNote(null)
+      const res = await invoiceService.checkDianStatus(invoiceId, userContext)
       await fetchInvoices()
       await fetchStats()
-      setSelectedInvoice(nc)
-      setIsDrawerOpen(true)
-      return nc
+      if (selectedInvoice && selectedInvoice.id === invoiceId) {
+        setSelectedInvoice(res.invoice)
+      }
+      return res
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al crear Nota Crédito'
+      const msg = err instanceof Error ? err.message : 'Error al consultar el estado en la DIAN'
+      throw new Error(msg)
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  // 6. Nota crédito / débito electrónica (la emite el servidor)
+  const handleCreateNote = async (note: DianNoteRequest, idempotencyKey: string) => {
+    try {
+      setActionLoading(true)
+      const res = await invoiceService.createNote(note, idempotencyKey, userContext)
+      await fetchInvoices()
+      await fetchStats()
+      const errors = res.errors?.length ? ` ${res.errors.join(' | ')}` : ''
+      return { message: `${res.message}${errors}`, documentNumber: res.documentNumber }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al emitir la nota'
       throw new Error(msg)
     } finally {
       setActionLoading(false)
@@ -258,11 +282,22 @@ export function useInvoices() {
   const openDetailDrawer = (invoice: Invoice) => {
     setSelectedInvoice(invoice)
     setIsDrawerOpen(true)
+    // Detalle completo (líneas reales, resolución, eventos DIAN)
+    invoiceService
+      .getById(invoice.id, userContext)
+      .then((full) => setSelectedInvoice((cur) => (cur && cur.id === full.id ? full : cur)))
+      .catch(() => undefined)
   }
+
 
   const openCreditNoteModal = (invoice: Invoice) => {
     setInvoiceForCreditNote(invoice)
     setIsCreditNoteModalOpen(true)
+    // La nota necesita las líneas reales de la venta y las notas ya emitidas
+    invoiceService
+      .getById(invoice.id, userContext)
+      .then((full) => setInvoiceForCreditNote((cur) => (cur && cur.id === full.id ? full : cur)))
+      .catch(() => undefined)
   }
 
   const openCancelModal = (invoice: Invoice) => {
@@ -277,6 +312,7 @@ export function useInvoices() {
 
   return {
     userContext,
+    canIssueNotes: userContext.permissions.includes('invoice.credit_note'),
     // Data & stats
     invoices,
     total,
@@ -347,7 +383,7 @@ export function useInvoices() {
       setIsCreditNoteModalOpen(false)
       setInvoiceForCreditNote(null)
     },
-    handleCreateCreditNote,
+    handleCreateNote,
     // Cancel Modal
     invoiceForCancel,
     isCancelModalOpen,
@@ -367,6 +403,7 @@ export function useInvoices() {
     },
     // DIAN Actions
     handleSendToDIAN,
+    handleCheckDianStatus,
     actionLoading,
   }
 }

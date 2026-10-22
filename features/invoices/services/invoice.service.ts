@@ -2,7 +2,6 @@ import { invoiceRepository, InvoiceRepository } from '../repositories/invoice.re
 import { invoiceCalculationService, InvoiceCalculationService } from './invoice-calculation.service'
 import {
   generateInvoiceSchema,
-  creditNoteSchema,
   cancelInvoiceSchema,
 } from '../schemas/invoice.schema'
 import {
@@ -10,13 +9,12 @@ import {
   InvoiceFilters,
   InvoiceStats,
   GenerateInvoicePayload,
-  CreditNotePayload,
   CancelInvoicePayload,
   InvoiceUserContext,
   DIANStatus,
   DIANTransmissionLog,
 } from '../types'
-import { salesRepository } from '@/features/sales/repositories/sales.repository'
+import { dianApiClient, DianNoteRequest } from './dian-api.client'
 
 const DEFAULT_ADMIN_USER: InvoiceUserContext = {
   userId: '',
@@ -90,7 +88,8 @@ export class InvoiceService {
   }
 
   /**
-   * Genera una factura formal a partir de una venta comercial existente
+   * Emite la Factura Electrónica de Venta de una venta existente.
+   * Todo el proceso fiscal (consecutivo, XML, CUFE, QR, firma, transmisión) ocurre en el servidor.
    */
   async generateFromSale(
     payload: GenerateInvoicePayload,
@@ -98,359 +97,54 @@ export class InvoiceService {
   ): Promise<Invoice> {
     this.checkPermission(user, 'invoice.create')
     const validated = generateInvoiceSchema.parse(payload)
-
-    // 1. Obtener la venta desde PostgreSQL
-    const sale = await salesRepository.findById(validated.saleId)
-    if (!sale) {
-      throw new Error(`No se encontró la venta con ID "${validated.saleId}".`)
+    if (validated.type !== 'ELECTRONICA') {
+      throw new Error('Desde Facturación solo se emite Factura Electrónica de Venta. Los tickets POS se generan en el módulo POS.')
     }
-
-    // 2. Validar que no tenga factura previa
-    const existingInvoice = await this.repo.findBySaleId(sale.id)
-    if (existingInvoice && existingInvoice.status !== 'CANCELLED') {
-      throw new Error(
-        `La venta ${sale.saleNumber} ya cuenta con la factura ${existingInvoice.invoiceNumber} emitida.`
-      )
-    }
-
-    // 3. Validar datos mínimos del cliente
-    if (!sale.customerName || !sale.customerDoc) {
-      throw new Error('La venta no tiene información fiscal válida del cliente.')
-    }
-
-    // 4. Calcular impuestos y totales
-    const rawItems = (sale.items || []).map((item: any) => ({
-      unitPrice: item.unitPrice,
-      quantity: item.quantity,
-      discountPercent: item.discountPercent || 0,
-      discountAmount: item.discountAmount || 0,
-      taxRatePercent: item.taxRatePercent !== undefined ? item.taxRatePercent : 19,
-      taxCode: item.taxRatePercent === 0 ? 'EXENTO' : 'IVA_19',
-    }))
-
-    const totals = this.calc.calculateInvoiceTotals(rawItems)
-
-    // 1. Numeración Interna ERP (Identificación administrativa interna)
-    const allInvoices = (await this.repo.findAll({ pageSize: 1000 })).data
-    const internalSeq = allInvoices.length + 1
-    const internalNumber = `FAC-${String(internalSeq).padStart(5, '0')}`
-
-    // 2. Rango por defecto (simulación interna controlada)
-    const matchingRes = {
-      dianPrefix: validated.type === 'POS' ? 'POS' : 'FE',
-      resolutionNumber: '18764000001',
-      resolutionDate: '2026-01-15',
-      validFrom: '2026-01-15',
-      validTo: '2027-01-15',
-      initialRange: 1000,
-      finalRange: 50000,
-      currentNumber: 1250 + internalSeq,
-    }
-
-    const dianPrefix = matchingRes.dianPrefix
-    const dianNumber = matchingRes.currentNumber ? matchingRes.currentNumber + 1 : 1250 + internalSeq
-    const dianResolution = matchingRes.resolutionNumber
-    const dianRange = `${matchingRes.initialRange} - ${matchingRes.finalRange}`
-    const invoiceNumber = `${dianPrefix}-${dianNumber}`
-    const dateIso = new Date().toISOString()
-    const cufe = this.calc.generateCUFE(invoiceNumber, totals.total, dateIso, sale.customerDoc)
-
-    const mappedItems = (sale.items || []).map((item: any, idx: number) => {
-      const taxRate = item.taxRatePercent !== undefined ? item.taxRatePercent : 19
-      const gross = item.quantity * item.unitPrice
-      const disc = item.discountAmount || 0
-      const net = gross - disc
-      const taxAmount = Math.round(net * (taxRate / 100))
-      return {
-        id: `inv-item-${Date.now()}-${idx}`,
-        productId: item.productId,
-        productName: item.productName,
-        sku: item.sku,
-        barcode: item.barcode,
-        unitOfMeasure: item.unitOfMeasure || 'UND',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        unitCost: item.unitCost,
-        discountPercent: item.discountPercent || 0,
-        discountAmount: disc,
-        taxCode: taxRate === 0 ? 'EXENTO' : 'IVA_19',
-        taxRatePercent: taxRate,
-        taxAmount,
-        subtotal: net,
-        total: net + taxAmount,
-        notes: item.notes,
-      }
-    })
-
-    const initialDianStatus: DIANStatus =
-      validated.type === 'ELECTRONICA'
-        ? validated.sendToDianImmediately
-          ? 'ACEPTADA'
-          : 'PENDIENTE'
-        : 'NO_APLICA'
-
-    const initialLog: DIANTransmissionLog = {
-      id: `log-${Date.now()}`,
-      timestamp: dateIso,
-      user: user.userName,
-      action: 'ENVIO_INICIAL',
-      status: initialDianStatus === 'ACEPTADA' ? 'EXITOSO' : 'EXITOSO',
-      dianStatus: initialDianStatus,
-      message:
-        initialDianStatus === 'ACEPTADA'
-          ? 'Factura electrónica transmitida y validada por la DIAN (Regla DIAN-V2.1).'
-          : 'Factura creada en cola de transmisión electrónica.',
-      cufe,
-    }
-
-    const newInvoice: Invoice = {
-      id: `inv-${Date.now().toString().slice(-6)}`,
-      internalNumber,
-      dianPrefix,
-      dianNumber,
-      dianResolution,
-      dianResolutionDate: matchingRes.resolutionDate,
-      dianRange,
-      invoiceNumber,
-      prefix: dianPrefix,
-      resolutionNumber: dianResolution,
-      resolutionDate: matchingRes.resolutionDate,
-      type: validated.type,
-      status: sale.status === 'CONFIRMED' ? 'PAID' : 'PAYMENT_PENDING',
-      dianStatus: initialDianStatus,
-      dianCufe: cufe,
-      dianQrCode: `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${cufe}`,
-      dianXmlUrl: `/api/invoices/${invoiceNumber}/xml`,
-      dianPdfUrl: `/api/invoices/${invoiceNumber}/pdf`,
-
-      saleId: sale.id,
-      saleNumber: sale.saleNumber,
-
-      customerId: sale.customerId,
-      customerName: sale.customerName,
-      customerDoc: sale.customerDoc,
-      customerDocType: sale.customerType === 'COMPANY' ? 'NIT' : 'CC',
-      customerEmail: 'facturacion@supermas.com.co',
-      customerPhone: '',
-      customerAddress: '',
-      customerCity: 'Bogotá, D.C.',
-
-      locationId: sale.locationId,
-      locationName: sale.locationName,
-
-      sellerId: sale.sellerId || user.userId,
-      sellerName: sale.sellerName || user.userName,
-
-      date: dateIso,
-      dueDate: validated.dueDate || dateIso,
-      issuedAtBogota: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-
-      items: mappedItems,
-      itemsCount: mappedItems.length,
-      totalUnits: totals.totalUnits,
-
-      subtotal: totals.subtotal,
-      discountTotal: totals.discountTotal,
-      taxTotal: totals.taxTotal,
-      taxesBreakdown: totals.taxesBreakdown,
-      total: totals.total,
-      pendingBalance: sale.paymentMethod === 'CREDITO' ? totals.total : 0,
-
-      paymentMethod: validated.paymentMethod || sale.paymentMethod || 'EFECTIVO',
-      paymentTerms: validated.paymentTerms || (sale.paymentMethod === 'CREDITO' ? 'Crédito 30 días' : 'Contado'),
-      notes: validated.notes || `Factura generada desde venta ${sale.saleNumber}`,
-
-      transmissionHistory: [initialLog],
-      createdAt: dateIso,
-      updatedAt: dateIso,
-    }
-
-    return this.repo.create(newInvoice, user.userName)
+    const result = await dianApiClient.emitFromSale(validated.saleId)
+    const invoice = await this.repo.findById(result.invoiceId)
+    if (!invoice) throw new Error('La factura fue emitida pero no se pudo consultar. Recargue la lista.')
+    return invoice
   }
 
   /**
-   * Transmite o reintenta el envío de la factura ante la DIAN
+   * Genera / firma / transmite (o reintenta) la factura en el servidor y devuelve el estado REAL.
    */
   async sendToDIAN(
     invoiceId: string,
     user: InvoiceUserContext = DEFAULT_ADMIN_USER
-  ): Promise<{ invoice: Invoice; success: boolean; message: string }> {
+  ): Promise<{ invoice: Invoice; success: boolean; message: string; errors: string[] }> {
     this.checkPermission(user, 'invoice.send_dian')
+    const res = await dianApiClient.send(invoiceId)
     const invoice = await this.repo.findById(invoiceId)
-    if (!invoice) {
-      throw new Error(`La factura con ID "${invoiceId}" no existe.`)
-    }
+    if (!invoice) throw new Error(`La factura con ID "${invoiceId}" no existe.`)
+    return { invoice, success: res.transmissionState === 'ACCEPTED' || res.transmissionState === 'SENT', message: res.message, errors: res.dianErrors }
+  }
 
-    if (invoice.status === 'CANCELLED') {
-      throw new Error('No se puede transmitir una factura anulada a la DIAN.')
-    }
-
-    // Simulación de prueba local interna (pendiente conexión a WebService/proveedor tecnológico DIAN)
-    const dateIso = new Date().toISOString()
-    const cufe = invoice.dianCufe || this.calc.generateCUFE(invoice.invoiceNumber, invoice.total, dateIso, invoice.customerDoc)
-
-    const log: DIANTransmissionLog = {
-      id: `log-${Date.now()}`,
-      timestamp: dateIso,
-      user: user.userName,
-      action: invoice.transmissionHistory.length > 0 ? 'REINTENTO' : 'ENVIO_INICIAL',
-      status: 'EXITOSO',
-      dianStatus: 'ACEPTADA',
-      statusCode: '200',
-      message: '[SIMULACIÓN INTERNA LOCAL] Documento procesado en ambiente de pruebas interno. Sin transmisión oficial externa DIAN.',
-      cufe,
-      responseTimeMs: Math.floor(180 + Math.random() * 220),
-    }
-
-    const updated = await this.repo.recordDIANAttempt(invoice.id, log, 'ACEPTADA', cufe)
-
-    return {
-      invoice: updated,
-      success: true,
-      message: '[Simulación Local] Factura validada internamente en modo de pruebas (pendiente proveedor tecnológico DIAN).',
-    }
+  /** Consulta en la DIAN el resultado de un envío asíncrono (TrackId). */
+  async checkDianStatus(
+    invoiceId: string,
+    user: InvoiceUserContext = DEFAULT_ADMIN_USER
+  ): Promise<{ invoice: Invoice; message: string; errors: string[] }> {
+    this.checkPermission(user, 'invoice.read')
+    const res = await dianApiClient.checkStatus(invoiceId)
+    const invoice = await this.repo.findById(invoiceId)
+    if (!invoice) throw new Error(`La factura con ID "${invoiceId}" no existe.`)
+    return { invoice, message: res.message, errors: res.dianErrors }
   }
 
   /**
-   * Crea una Nota Crédito (parcial o total) para una factura emitida
+   * Emite una Nota Crédito o Débito electrónica (servidor: numeración, validación contra la factura,
+   * contabilidad, CUDE, firma y envío a la DIAN).
    */
-  async createCreditNote(
-    payload: CreditNotePayload,
+  async createNote(
+    note: DianNoteRequest,
+    idempotencyKey: string,
     user: InvoiceUserContext = DEFAULT_ADMIN_USER
-  ): Promise<Invoice> {
+  ): Promise<{ invoice: Invoice | null; message: string; documentNumber: string; errors: string[] }> {
     this.checkPermission(user, 'invoice.credit_note')
-    const validated = creditNoteSchema.parse(payload)
-
-    const originalInvoice = await this.repo.findById(validated.invoiceId)
-    if (!originalInvoice) {
-      throw new Error(`La factura original con ID "${validated.invoiceId}" no fue encontrada.`)
-    }
-
-    if (originalInvoice.status === 'CANCELLED') {
-      throw new Error('No se puede emitir una Nota Crédito sobre una factura anulada.')
-    }
-
-    // Calcular montos de la nota crédito
-    const rawItems = validated.items.map((i) => ({
-      unitPrice: i.unitPrice,
-      quantity: i.quantity,
-      discountPercent: 0,
-      discountAmount: 0,
-      taxRatePercent: i.taxRatePercent || 19,
-      taxCode: i.taxRatePercent === 0 ? 'EXENTO' : 'IVA_19',
-    }))
-
-    const totals = this.calc.calculateInvoiceTotals(rawItems)
-    const dateIso = new Date().toISOString()
-    const nextNum = Math.floor(100 + Math.random() * 900)
-    const ncNumber = `NC-${new Date().getFullYear()}-${nextNum}`
-    const cufe = this.calc.generateCUFE(ncNumber, totals.total, dateIso, originalInvoice.customerDoc)
-
-    const mappedItems = validated.items.map((item, idx) => {
-      const origItem = originalInvoice.items.find((oi) => oi.productId === item.productId)
-      const taxRate = item.taxRatePercent || 19
-      const gross = item.quantity * item.unitPrice
-      const taxAmount = Math.round(gross * (taxRate / 100))
-      return {
-        id: `nc-item-${Date.now()}-${idx}`,
-        productId: item.productId,
-        productName: origItem?.productName || 'Producto Devuelto / Ajustado',
-        sku: origItem?.sku || 'SKU-NC',
-        barcode: origItem?.barcode || '',
-        unitOfMeasure: origItem?.unitOfMeasure || 'UND',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        unitCost: origItem?.unitCost,
-        discountPercent: 0,
-        discountAmount: 0,
-        taxCode: taxRate === 0 ? 'EXENTO' : 'IVA_19',
-        taxRatePercent: taxRate,
-        taxAmount,
-        subtotal: gross,
-        total: gross + taxAmount,
-        notes: validated.notes,
-      }
-    })
-
-    const creditNote: Invoice = {
-      id: `nc-${Date.now().toString().slice(-6)}`,
-      invoiceNumber: ncNumber,
-      internalNumber: `NC-${nextNum.toString().padStart(6, '0')}`,
-      dianPrefix: 'NC',
-      dianNumber: nextNum,
-      dianResolution: '18764000003',
-      dianRange: '1 - 5000',
-      prefix: 'NC',
-      resolutionNumber: '18764000003',
-      resolutionDate: '2026-01-01',
-      type: 'NOTA_CREDITO',
-      status: 'ISSUED',
-      dianStatus: validated.sendToDianImmediately ? 'ACEPTADA' : 'PENDIENTE',
-      dianCufe: cufe,
-      dianQrCode: `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${cufe}`,
-      dianXmlUrl: `/api/invoices/${ncNumber}/xml`,
-      dianPdfUrl: `/api/invoices/${ncNumber}/pdf`,
-
-      saleId: originalInvoice.saleId,
-      saleNumber: originalInvoice.saleNumber,
-      originalInvoiceId: originalInvoice.id,
-      originalInvoiceNumber: originalInvoice.invoiceNumber,
-
-      customerId: originalInvoice.customerId,
-      customerName: originalInvoice.customerName,
-      customerDoc: originalInvoice.customerDoc,
-      customerDocType: originalInvoice.customerDocType,
-      customerEmail: originalInvoice.customerEmail,
-      customerPhone: originalInvoice.customerPhone,
-      customerAddress: originalInvoice.customerAddress,
-      customerCity: originalInvoice.customerCity,
-
-      locationId: originalInvoice.locationId,
-      locationName: originalInvoice.locationName,
-
-      sellerId: user.userId,
-      sellerName: user.userName,
-
-      date: dateIso,
-      dueDate: dateIso,
-      issuedAtBogota: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-
-      items: mappedItems,
-      itemsCount: mappedItems.length,
-      totalUnits: totals.totalUnits,
-
-      subtotal: totals.subtotal,
-      discountTotal: 0,
-      taxTotal: totals.taxTotal,
-      taxesBreakdown: totals.taxesBreakdown,
-      total: totals.total,
-      pendingBalance: 0,
-
-      paymentMethod: originalInvoice.paymentMethod,
-      notes: `Nota Crédito por motivo: ${validated.reason}. Detalle: ${validated.notes}`,
-
-      transmissionHistory: [
-        {
-          id: `log-nc-${Date.now()}`,
-          timestamp: dateIso,
-          user: user.userName,
-          action: 'ENVIO_INICIAL',
-          status: 'EXITOSO',
-          dianStatus: validated.sendToDianImmediately ? 'ACEPTADA' : 'PENDIENTE',
-          message: 'Nota Crédito electrónica transmitida y validada por la DIAN.',
-          cufe,
-        },
-      ],
-      createdAt: dateIso,
-      updatedAt: dateIso,
-    }
-
-    return this.repo.createCreditNote(
-      creditNote,
-      originalInvoice.id,
-      validated.adjustInventory,
-      user.userName
-    )
+    const res = await dianApiClient.emitNote(note, idempotencyKey)
+    const invoice = await this.repo.findById(res.invoiceId)
+    return { invoice, message: res.message, documentNumber: res.documentNumber, errors: res.dianErrors }
   }
 
   /**
@@ -466,17 +160,9 @@ export class InvoiceService {
     return this.repo.cancelInvoice(validated.invoiceId, validated.reason, user.userName)
   }
 
-  /**
-   * Genera el XML UBL 2.1 estándar de la factura
-   */
-  getInvoiceXml(invoice: Invoice): string {
-    return this.calc.generateDIANXml(
-      invoice.invoiceNumber,
-      invoice.customerName,
-      invoice.customerDoc,
-      invoice.total,
-      invoice.dianCufe || 'CUFE-PENDIENTE'
-    )
+  /** XML real guardado en el servidor (firmado si ya se firmó). */
+  async getInvoiceXml(invoice: Invoice, kind: 'signed' | 'unsigned' | 'response' = 'signed'): Promise<{ xml: string; fileName: string }> {
+    return dianApiClient.fetchXml(invoice.id, kind)
   }
 }
 

@@ -10,6 +10,7 @@ import {
   POSTicketReceipt,
   POSDailySaleSummary,
   POSUserContext,
+  POSBankAccountOption,
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 
@@ -54,7 +55,22 @@ export function usePOS() {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<POSPaymentMethod>('EFECTIVO')
   const [amountPaid, setAmountPaid] = useState<number>(0)
+  // Cuenta bancaria que recibe el dinero (tarjeta / transferencia / parte bancaria del mixto)
+  const [bankAccounts, setBankAccounts] = useState<POSBankAccountOption[]>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
+  const [mixedCashAmount, setMixedCashAmount] = useState<number>(0)
+  const [mixedRestMethod, setMixedRestMethod] = useState<'TARJETA' | 'TRANSFERENCIA'>('TRANSFERENCIA')
+
+  useEffect(() => {
+    posService
+      .listPaymentBankAccounts()
+      .then((list) => setBankAccounts(list))
+      .catch(() => setBankAccounts([]))
+  }, [])
   const [paymentLoading, setPaymentLoading] = useState(false)
+  // Clave de idempotencia del cobro en curso y bloqueo inmediato contra doble envío
+  const checkoutKeyRef = useRef<string | null>(null)
+  const checkoutInFlightRef = useRef(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
 
   // Receipt Modal State
@@ -87,7 +103,7 @@ export function usePOS() {
           supabaseClient
             .from('categories')
             .select('name')
-            .eq('status', 'ACTIVE')
+            .eq('is_active', true)
             .order('name', { ascending: true }),
         ])
 
@@ -364,6 +380,7 @@ export function usePOS() {
 
   const clearCart = useCallback(() => {
     setCart([])
+    checkoutKeyRef.current = null
   }, [])
 
   // 5. Scan Barcode directly
@@ -397,6 +414,8 @@ export function usePOS() {
 
   // 7. Process Payment / Complete Sale
   const handleProcessSale = async () => {
+    // Doble clic: el estado de carga llega en el siguiente render, la referencia bloquea de inmediato.
+    if (checkoutInFlightRef.current) return
     if (!currentCustomer) {
       setPaymentError('Debe haber un cliente seleccionado.')
       return
@@ -406,7 +425,14 @@ export function usePOS() {
       return
     }
 
+    // Una clave por intento de cobro: se reutiliza en los reintentos (error de red, timeout) hasta que
+    // la venta se confirme, para que el servidor devuelva la misma venta en vez de crear otra.
+    if (!checkoutKeyRef.current) {
+      checkoutKeyRef.current = crypto.randomUUID()
+    }
+
     try {
+      checkoutInFlightRef.current = true
       setPaymentLoading(true)
       setPaymentError(null)
 
@@ -416,6 +442,10 @@ export function usePOS() {
           locationId: userContext.locationId,
           paymentMethod,
           amountPaid,
+          bankAccountId: bankAccountId || undefined,
+          mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
+          mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
+          idempotencyKey: checkoutKeyRef.current,
           items: cart.map((i) => ({
             productId: i.productId,
             quantity: i.quantity,
@@ -426,15 +456,18 @@ export function usePOS() {
         userContext
       )
 
+      checkoutKeyRef.current = null
       setTicketReceipt(receipt)
       setIsPaymentModalOpen(false)
       setIsReceiptModalOpen(true)
       clearCart()
+      setMixedCashAmount(0)
       await fetchProducts() // Refresh stocks
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al procesar la venta POS'
       setPaymentError(msg)
     } finally {
+      checkoutInFlightRef.current = false
       setPaymentLoading(false)
     }
   }
@@ -506,6 +539,13 @@ export function usePOS() {
     setPaymentMethod,
     amountPaid,
     setAmountPaid,
+    bankAccounts,
+    bankAccountId,
+    setBankAccountId,
+    mixedCashAmount,
+    setMixedCashAmount,
+    mixedRestMethod,
+    setMixedRestMethod,
     paymentLoading,
     paymentError,
     handleProcessSale,

@@ -15,8 +15,15 @@ import {
   AccountingEntryStatus,
   TrialBalanceLevelFilter,
   AccountingExportPdfParams,
+  AccountingExportFilterOptions,
 } from '../../types'
 import { accountingExportService } from '../../services/accounting-export.service'
+import { accountingService } from '../../services/accounting.service'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
+import { useAccountingCatalog, useAccountingCompanyHeader } from '../../hooks/useAccountingReportContext'
+import { formatPucRangeLabel } from '../../utils/puc-code-range'
+import { todayBogotaIsoDate } from '../../utils/report-format'
+import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 
 interface AccountingExportModalProps {
   isOpen: boolean
@@ -32,9 +39,7 @@ interface AccountingExportModalProps {
     mainAccountCode: string
     startAccountCode?: string
     endAccountCode?: string
-    branch?: string
-    costCenter?: string
-    administrativeArea?: string
+    locationId?: string
     voucherType?: string
     selectedThirdPartyId?: string
     maxLevel: TrialBalanceLevelFilter
@@ -62,7 +67,7 @@ export function AccountingExportModal({
   thirdParties,
   entries,
   movements,
-  accounts,
+  accounts: pageAccounts,
   onSuccessToast,
   onOpenPdfReport,
   onOpenTrialBalancePdf,
@@ -71,6 +76,13 @@ export function AccountingExportModal({
   const [selectedType, setSelectedType] = useState<AccountingExportType>(initialType)
   const [format, setFormat] = useState<AccountingExportFormat>('PDF')
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
+
+  // Catálogo PUC completo (la prop `accounts` es solo la página visible del Plan de Cuentas).
+  const catalog = useAccountingCatalog(isOpen)
+  const accounts = catalog.accounts.length > 0 ? catalog.accounts : pageAccounts
+  const { company } = useAccountingCompanyHeader(isOpen)
+  const locations = useAccountingLocations()
 
   // 1. Rango de Cuentas PUC
   const [startAccountCode, setStartAccountCode] = useState<string>('')
@@ -80,18 +92,15 @@ export function AccountingExportModal({
 
   // 2. Rango de Fechas
   const now = new Date()
-  const currentYear = now.getFullYear()
-  const currentMonth = String(now.getMonth() + 1).padStart(2, '0')
-  const defaultStartDate = `${currentYear}-01-01`
-  const defaultEndDate = `${currentYear}-${currentMonth}-${String(now.getDate()).padStart(2, '0')}`
+  const todayIso = todayBogotaIsoDate()
+  const defaultStartDate = `${todayIso.slice(0, 4)}-01-01`
+  const defaultEndDate = todayIso
 
   const [startDate, setStartDate] = useState<string>(defaultStartDate)
   const [endDate, setEndDate] = useState<string>(defaultEndDate)
 
-  // 3. Estructura Organizacional y Comprobantes
-  const [branch, setBranch] = useState<string>('01 - SUPER MÁS PRINCIPAL')
-  const [costCenter, setCostCenter] = useState<string>('TODOS')
-  const [administrativeArea, setAdministrativeArea] = useState<string>('TODAS')
+  // 3. Sede y Comprobantes
+  const [locationId, setLocationId] = useState<string>('ALL')
   const [voucherType, setVoucherType] = useState<string>('TODOS')
   const [prefix, setPrefix] = useState<string>('')
 
@@ -103,7 +112,6 @@ export function AccountingExportModal({
 
   // 5. Casillas Contables
   const [hideZeroBalances, setHideZeroBalances] = useState<boolean>(true)
-  const [printDetail, setPrintDetail] = useState<boolean>(true)
   const [entryStatus, setEntryStatus] = useState<'ALL' | AccountingEntryStatus>('ALL')
   const [searchQuery, setSearchQuery] = useState<string>('')
 
@@ -114,6 +122,7 @@ export function AccountingExportModal({
   // Sincronizar tipo inicial cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
+      setExportError(null)
       setSelectedType(initialType)
       if (initialType === 'trial_balance' || initialType === 'movements') {
         setFormat('PDF')
@@ -210,17 +219,20 @@ export function AccountingExportModal({
   }, [accounts])
 
   // Cálculo en vivo de registros filtrados según las opciones solicitadas
-  const filteredCount = useMemo(() => {
-    const filterOpts = {
+  const locationName = locations.find((l) => l.id === locationId)?.name
+
+  // Opciones comunes de filtro: las usan el conteo en vivo y la exportación.
+  const filterOpts: AccountingExportFilterOptions = useMemo(
+    () => ({
       startDate: startDate || undefined,
       endDate: endDate || undefined,
       startAccountCode: startAccountCode || undefined,
       endAccountCode: endAccountCode || undefined,
       mainAccountCode: mainAccountCode !== 'ALL' ? mainAccountCode : undefined,
-      branch,
-      costCenter,
-      administrativeArea,
+      locationId,
+      locationName,
       voucherType,
+      prefix: prefix || undefined,
       selectedThirdPartyId,
       thirdPartyType,
       legalNature,
@@ -229,7 +241,31 @@ export function AccountingExportModal({
       maxLevel,
       includeThirdParties,
       hideZeroBalances,
-    }
+      companyHeader: company,
+    }),
+    [
+      startDate,
+      endDate,
+      startAccountCode,
+      endAccountCode,
+      mainAccountCode,
+      locationId,
+      locationName,
+      voucherType,
+      prefix,
+      selectedThirdPartyId,
+      thirdPartyType,
+      legalNature,
+      entryStatus,
+      searchQuery,
+      maxLevel,
+      includeThirdParties,
+      hideZeroBalances,
+      company,
+    ]
+  )
+
+  const filteredCount = useMemo(() => {
 
     switch (selectedType) {
       case 'trial_balance':
@@ -248,36 +284,13 @@ export function AccountingExportModal({
       case 'accounts':
         return accountingExportService.filterAccounts(accounts, filterOpts).length
       case 'journal':
-        return accountingExportService.filterEntries(entries, filterOpts).length
+        return accountingExportService.journalLines(entries, filterOpts).length
       case 'balance':
-        return accountingExportService.filterAccounts(accounts, filterOpts).length
+        return accountingExportService.filterAccounts(accounts, { ...filterOpts, startDate: undefined, endDate: undefined }).length
       default:
         return 0
     }
-  }, [
-    selectedType,
-    thirdParties,
-    entries,
-    movements,
-    accounts,
-    startDate,
-    endDate,
-    startAccountCode,
-    endAccountCode,
-    mainAccountCode,
-    branch,
-    costCenter,
-    administrativeArea,
-    voucherType,
-    selectedThirdPartyId,
-    thirdPartyType,
-    legalNature,
-    entryStatus,
-    searchQuery,
-    maxLevel,
-    includeThirdParties,
-    hideZeroBalances,
-  ])
+  }, [selectedType, thirdParties, entries, movements, accounts, filterOpts])
 
   // Presets rápidos de fechas
   const handleSetDatePreset = (preset: 'ALL' | 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_YEAR') => {
@@ -314,132 +327,123 @@ export function AccountingExportModal({
     }
   }
 
-  // Ejecución de la exportación
-  const handleExport = () => {
+  // Ejecución de la exportación (los saldos del balance y del balance de comprobación salen de la base)
+  const handleExport = async () => {
     setIsExporting(true)
+    setExportError(null)
 
-    setTimeout(() => {
-      try {
-        const filterOpts = {
-          startDate: startDate || undefined,
-          endDate: endDate || undefined,
+    try {
+      let result: { count: number; filename: string } = { count: 0, filename: '' }
+
+      // Si se solicita PDF en cualquier módulo contable oficial
+      if (format === 'PDF') {
+        const pdfParams: AccountingExportPdfParams = {
+          reportType: selectedType,
+          mainAccountCode,
           startAccountCode: startAccountCode || undefined,
           endAccountCode: endAccountCode || undefined,
-          mainAccountCode: mainAccountCode !== 'ALL' ? mainAccountCode : undefined,
-          branch,
-          costCenter,
-          administrativeArea,
+          locationId,
           voucherType,
-          prefix: prefix || undefined,
           selectedThirdPartyId,
           thirdPartyType,
           legalNature,
           entryStatus,
           searchQuery,
-          maxLevel,
+          maxLevel: selectedType === 'movements' ? 'AUXILIARY' : maxLevel,
           includeThirdParties,
           hideZeroBalances,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
         }
 
-        let result: { count: number; filename: string } = { count: 0, filename: '' }
-
-        // Si se solicita PDF en cualquier módulo contable oficial
-        if (format === 'PDF') {
-          const pdfParams: AccountingExportPdfParams = {
-            reportType: selectedType,
+        if (onOpenPdfReport) {
+          onOpenPdfReport(selectedType, pdfParams)
+        } else if (onOpenTrialBalancePdf) {
+          onOpenTrialBalancePdf({
             mainAccountCode,
             startAccountCode: startAccountCode || undefined,
             endAccountCode: endAccountCode || undefined,
-            branch,
-            costCenter,
-            administrativeArea,
+            locationId,
             voucherType,
             selectedThirdPartyId,
-            thirdPartyType,
-            legalNature,
-            entryStatus,
-            searchQuery,
             maxLevel: selectedType === 'movements' ? 'AUXILIARY' : maxLevel,
             includeThirdParties,
-            hideZeroBalances,
             startDate: startDate || undefined,
             endDate: endDate || undefined,
-          }
-
-          if (onOpenPdfReport) {
-            onOpenPdfReport(selectedType, pdfParams)
-          } else if (onOpenTrialBalancePdf) {
-            onOpenTrialBalancePdf({
-              mainAccountCode,
-              startAccountCode: startAccountCode || undefined,
-              endAccountCode: endAccountCode || undefined,
-              branch,
-              costCenter,
-              administrativeArea,
-              voucherType,
-              selectedThirdPartyId,
-              maxLevel: selectedType === 'movements' ? 'AUXILIARY' : maxLevel,
-              includeThirdParties,
-              startDate: startDate || undefined,
-              endDate: endDate || undefined,
-            })
-          }
-          onClose()
-          setIsExporting(false)
-          return
+          })
         }
-
-        switch (selectedType) {
-          case 'trial_balance': {
-            const tbData = accountingExportService.buildTrialBalanceData({
-              accounts,
-              movements,
-              thirdParties,
-              options: filterOpts,
-            })
-            if (format === 'EXCEL') {
-              result = accountingExportService.exportTrialBalanceExcel(tbData)
-            } else {
-              result = accountingExportService.exportTrialBalanceCSV(tbData)
-            }
-            break
-          }
-          case 'movements':
-            result = accountingExportService.exportAuxiliary(movements, format, filterOpts)
-            break
-          case 'entries':
-            result = accountingExportService.exportEntries(entries, format, filterOpts)
-            break
-          case 'third_parties':
-            result = accountingExportService.exportThirdParties(thirdParties, format, filterOpts)
-            break
-          case 'accounts':
-            result = accountingExportService.exportAccounts(accounts, format, filterOpts)
-            break
-          case 'journal':
-            result = accountingExportService.exportJournal(entries, format, filterOpts)
-            break
-          case 'balance':
-            result = accountingExportService.exportBalance(accounts, format, filterOpts)
-            break
-        }
-
-        if (onSuccessToast) {
-          const typeName =
-            exportTypes.find((t) => t.id === selectedType)?.title || 'Información Contable'
-          onSuccessToast(
-            'Exportación Completada',
-            `Se han exportado ${result.count} registros de ${typeName} en formato ${format}.`
-          )
-        }
-
         onClose()
-      } catch (err: any) {
-        console.error('Error al exportar información contable:', err)
-      } finally {
-        setIsExporting(false)
+        return
       }
-    }, 200)
+
+      switch (selectedType) {
+        case 'trial_balance': {
+          const totals = await accountingService.getTrialBalanceTotals({
+            startDate: filterOpts.startDate,
+            endDate: filterOpts.endDate,
+            locationId,
+            accountFrom: startAccountCode || undefined,
+            accountTo: endAccountCode || undefined,
+          })
+          const tbData = accountingExportService.buildTrialBalanceData({
+            accounts,
+            movements,
+            thirdParties,
+            options: filterOpts,
+            totals,
+          })
+          result =
+            format === 'EXCEL'
+              ? accountingExportService.exportTrialBalanceExcel(tbData)
+              : accountingExportService.exportTrialBalanceCSV(tbData)
+          break
+        }
+        case 'movements':
+          result = accountingExportService.exportAuxiliary(movements, format, filterOpts)
+          break
+        case 'entries':
+          result = accountingExportService.exportEntries(entries, format, filterOpts)
+          break
+        case 'third_parties':
+          result = accountingExportService.exportThirdParties(thirdParties, format, filterOpts)
+          break
+        case 'accounts':
+          result = accountingExportService.exportAccounts(accounts, format, filterOpts)
+          break
+        case 'journal':
+          result = accountingExportService.exportJournal(entries, format, filterOpts)
+          break
+        case 'balance': {
+          const report = await accountingService.getBalanceSheet({
+            cutoffDate: filterOpts.endDate || todayIso,
+            locationId,
+            accountFrom: startAccountCode || undefined,
+            accountTo: endAccountCode || undefined,
+          })
+          result = accountingExportService.exportBalanceSheet(report, format, {
+            hideZeroBalances,
+            maxLevel,
+            companyHeader: company,
+          })
+          break
+        }
+      }
+
+      if (onSuccessToast) {
+        const typeName =
+          exportTypes.find((t) => t.id === selectedType)?.title || 'Información Contable'
+        onSuccessToast(
+          'Exportación Completada',
+          `Se han exportado ${result.count} registros de ${typeName} en formato ${format}.`
+        )
+      }
+
+      onClose()
+    } catch (err: unknown) {
+      setExportError(err instanceof Error ? err.message : 'No se pudo generar el archivo de exportación.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   if (!isOpen || !mounted) return null
@@ -563,34 +567,23 @@ export function AccountingExportModal({
               </span>
             </div>
 
-            {/* Fila 1: Cuentas y Nivel PUC */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-              <div>
-                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Cuenta Inicial:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: 1105 (Inicio)"
-                  className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  value={startAccountCode}
-                  onChange={(e) => setStartAccountCode(e.target.value)}
-                />
-              </div>
+            {/* Fila 1: Rango de cuentas PUC, clase y nivel */}
+            <AccountRangeFilter
+              accounts={accounts}
+              value={{ from: startAccountCode, to: endAccountCode }}
+              onChange={(range) => {
+                setStartAccountCode(range.from)
+                setEndAccountCode(range.to)
+              }}
+              disabled={catalog.state === 'loading' && accounts.length === 0}
+            />
+            {catalog.state === 'error' && (
+              <p role="alert" className="text-[11px] text-rose-700">
+                {catalog.error}
+              </p>
+            )}
 
-              <div>
-                <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Cuenta Final:
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: 1305 (Fin)"
-                  className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  value={endAccountCode}
-                  onChange={(e) => setEndAccountCode(e.target.value)}
-                />
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Clase Principal PUC:
@@ -624,7 +617,7 @@ export function AccountingExportModal({
                   <option value="GROUP">Hasta Grupo (2 dígitos)</option>
                   <option value="ACCOUNT">Hasta Cuenta (4 dígitos)</option>
                   <option value="SUBACCOUNT">Hasta Subcuenta (6 dígitos) (Recomendado)</option>
-                  <option value="AUXILIARY">Hasta Auxiliar (8 dígitos)</option>
+                  <option value="AUXILIARY">Hasta Auxiliar (ej. 110505.01)</option>
                   <option value="ALL">Sin límite (Todo)</option>
                 </select>
               </div>
@@ -718,60 +711,40 @@ export function AccountingExportModal({
               </div>
             </div>
 
-            {/* Fila 3: Centro de Costo, Área Administrativa, Sucursal y Tercero */}
+            {/* Fila 3: Sede y Tercero */}
             <div className="pt-1 border-t border-slate-200/80">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Sucursal:
+                  <label
+                    htmlFor="accounting-export-location"
+                    className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1"
+                  >
+                    Sede:
                   </label>
                   <select
+                    id="accounting-export-location"
                     className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
+                    value={locationId}
+                    onChange={(e) => setLocationId(e.target.value)}
                   >
-                    <option value="01 - SUPER MÁS PRINCIPAL">01 - SUPER MÁS PRINCIPAL</option>
-                    <option value="00 - TODAS LAS SUCURSALES">00 - TODAS LAS SUCURSALES</option>
+                    <option value="ALL">Todas las sedes (consolidado)</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.name}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Centro de Costo:
-                  </label>
-                  <select
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={costCenter}
-                    onChange={(e) => setCostCenter(e.target.value)}
+                  <label
+                    htmlFor="accounting-export-third-party"
+                    className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1"
                   >
-                    <option value="TODOS">TODOS los Centros</option>
-                    <option value="01 - ADMINISTRACION">01 - Administración</option>
-                    <option value="02 - VENTAS Y PUNTOS">02 - Ventas y Puntos</option>
-                    <option value="03 - LOGISTICA Y BODEGA">03 - Logística y Bodega</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Área Administrativa:
-                  </label>
-                  <select
-                    className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    value={administrativeArea}
-                    onChange={(e) => setAdministrativeArea(e.target.value)}
-                  >
-                    <option value="TODAS">TODAS las Áreas</option>
-                    <option value="FINANCIERA Y CONTABLE">Financiera y Contable</option>
-                    <option value="COMERCIAL">Comercial</option>
-                    <option value="OPERACIONES">Operaciones</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10.5px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Identificación Tercero:
                   </label>
                   <select
+                    id="accounting-export-third-party"
                     className="w-full h-8 px-2 text-xs bg-white border border-slate-300 rounded-md text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 truncate"
                     value={selectedThirdPartyId}
                     onChange={(e) => setSelectedThirdPartyId(e.target.value)}
@@ -811,15 +784,6 @@ export function AccountingExportModal({
                 <span>Ocultar cuentas y saldos en cero ($0)</span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer select-none text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={printDetail}
-                  onChange={(e) => setPrintDetail(e.target.checked)}
-                  className="rounded border-slate-300 text-blue-900 focus:ring-blue-900"
-                />
-                <span>Imprimir / detallar comprobantes</span>
-              </label>
             </div>
           </div>
 
@@ -889,6 +853,13 @@ export function AccountingExportModal({
             </div>
           </div>
 
+          {exportError && (
+            <div role="alert" className="p-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-800 text-xs flex items-start gap-2">
+              <AppIcon name="warning" size={15} />
+              <span>{exportError}</span>
+            </div>
+          )}
+
           {/* BANNER DE RESUMEN Y CONTEO EN VIVO */}
           <div
             className={`p-2.5 rounded-lg border flex items-center justify-between text-xs ${
@@ -911,8 +882,8 @@ export function AccountingExportModal({
                   Módulo: {currentTypeConfig?.title} | Formato: {format}
                   {(startDate || endDate) &&
                     ` | Periodo: ${startDate || 'Inicio'} a ${endDate || 'Hoy'}`}
-                  {startAccountCode && ` | Cta Inicial: ${startAccountCode}`}
-                  {endAccountCode && ` | Cta Final: ${endAccountCode}`}
+                  {` | ${formatPucRangeLabel({ from: startAccountCode, to: endAccountCode })}`}
+                  {locationName ? ` | Sede: ${locationName}` : ''}
                 </span>
               </div>
             </div>

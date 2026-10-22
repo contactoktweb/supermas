@@ -7,6 +7,7 @@ import {
   SaleFilterParams,
   SaleStats,
   CreateSaleDTO,
+  CreateSaleResult,
   CancelSaleDTO,
   CreateInvoiceFromSaleDTO,
   CreateRemissionFromSaleDTO,
@@ -104,7 +105,7 @@ export function useSales(initialFilters: SaleFilterParams = {}) {
     })
   }
 
-  const createSale = async (dto: CreateSaleDTO): Promise<Sale> => {
+  const createSale = async (dto: CreateSaleDTO): Promise<CreateSaleResult> => {
     const created = await salesService.create(dto)
     await fetchSales()
     await fetchStats()

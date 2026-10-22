@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { ALERT_PRIORITY_SELECT_OPTIONS } from '../alertPriorityOptions'
 import { AlertRule, AlertPriority, AlertModule } from '../../types'
 import { AlertRuleConfigInput } from '../../schemas/alert.schema'
 
@@ -24,13 +25,6 @@ const MODULE_ICONS: Record<AlertModule, LightIconName> = {
   TRANSFERS: 'transfers',
   ACCOUNTING: 'accounting',
 }
-
-const PRIORITY_SELECT_OPTIONS = [
-  { value: 'CRITICA', label: '🔴 Crítica' },
-  { value: 'ALTA', label: '🟠 Alta' },
-  { value: 'MEDIA', label: '🟡 Media' },
-  { value: 'BAJA', label: '🟢 Baja' },
-]
 
 export function AlertRulesModal({
   rules,
@@ -178,7 +172,7 @@ export function AlertRulesModal({
                     Prioridad por Defecto
                   </label>
                   <CustomSelect
-                    options={PRIORITY_SELECT_OPTIONS}
+                    options={ALERT_PRIORITY_SELECT_OPTIONS}
                     value={priority}
                     onChange={(val) => setPriority(val as AlertPriority)}
                     placeholder="Prioridad"

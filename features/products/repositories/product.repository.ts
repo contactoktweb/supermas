@@ -20,7 +20,17 @@ import {
   PriceTier,
   ProductPrice,
   PriceChangeRequest,
+  PriceChangeRequestFilters,
+  PriceChangeStatus,
+  PriceChangeInput,
+  PriceChangeSubmissionResult,
 } from '../types'
+import {
+  PostingAccountOption,
+  PucAccountRow,
+  isInventoryAccountCode,
+  selectPostingAccounts,
+} from '@/features/accounting/utils/posting-accounts'
 
 function mapDbToDomain(row: any): Product {
   const categoryRel = row.categories || row.category || null
@@ -30,8 +40,13 @@ function mapDbToDomain(row: any): Product {
   const costPrice = Number(row.cost_price ?? 0)
   const publicSalePrice = Number(row.public_sale_price ?? 0)
   const wholesalePrice = Number(row.wholesale_price ?? 0)
-  const taxRatePercent = Number(row.tax_rate_percent ?? 19)
   const isTaxExempt = Boolean(row.is_tax_exempt)
+  // Un producto exento/excluido no causa IVA aunque la columna conserve el default (19):
+  // la tarifa efectiva es 0 para que el formulario y los cálculos no la reactiven.
+  const taxRatePercent =
+    isTaxExempt || row.iva_treatment === 'EXENTO' || row.iva_treatment === 'EXCLUIDO'
+      ? 0
+      : Number(row.tax_rate_percent ?? 19)
 
   // Margen de utilidad sobre precio antes de impuestos
   const basePrice = taxRatePercent > 0 ? publicSalePrice / (1 + taxRatePercent / 100) : publicSalePrice
@@ -184,13 +199,18 @@ function mapDbToDomain(row: any): Product {
       images: Array.isArray(row.secondary_images) ? row.secondary_images : [],
       description,
       status: row.is_active ? 'ACTIVE' : 'INACTIVE',
-      taxProfile: isTaxExempt
-        ? 'EXENTO'
-        : taxRatePercent === 5
-        ? 'IVA_5'
-        : taxRatePercent === 0
-        ? 'IVA_0'
-        : 'IVA_19',
+      // Tratamiento DIAN: EXENTO y EXCLUIDO se reportan distinto en la factura electrónica.
+      // 'IVA_0' = producto al 0 % sin clasificar (no se puede facturar electrónicamente hasta clasificarlo).
+      taxProfile:
+        row.iva_treatment === 'EXCLUIDO'
+          ? 'EXCLUIDO'
+          : row.iva_treatment === 'EXENTO'
+          ? 'EXENTO'
+          : isTaxExempt || taxRatePercent === 0
+          ? 'IVA_0'
+          : taxRatePercent === 5
+          ? 'IVA_5'
+          : 'IVA_19',
       vatRatePercent: taxRatePercent,
       isExempt: isTaxExempt,
 
@@ -209,6 +229,41 @@ function mapDbToDomain(row: any): Product {
       webAvailability,
       warehouseStock,
     }
+}
+
+/**
+ * Tratamiento de IVA para la DIAN a partir del perfil tributario del formulario.
+ * GRAVADO: tarifa > 0. EXENTO (Art. 477 E.T.) y EXCLUIDO (Art. 424 E.T.): tarifa 0, se reportan distinto.
+ * null: producto al 0 % sin clasificar (la factura electrónica lo bloquea hasta clasificarlo).
+ */
+export function productIvaTreatment(taxProfile: string | undefined, ratePercent: number): 'GRAVADO' | 'EXENTO' | 'EXCLUIDO' | null {
+  if (taxProfile === 'EXENTO') return 'EXENTO'
+  if (taxProfile === 'EXCLUIDO') return 'EXCLUIDO'
+  // 'IVA_0' es explícitamente "0 % sin clasificar": nunca debe convertirse en GRAVADO
+  // aunque llegue una tarifa residual (p. ej. el default 19 de la columna).
+  if (taxProfile === 'IVA_0') return null
+  return ratePercent > 0 ? 'GRAVADO' : null
+}
+
+/**
+ * Resuelve las columnas tributarias (iva_treatment, tax_rate_percent, is_tax_exempt) de forma coherente.
+ * - EXENTO / EXCLUIDO: tarifa 0 e is_tax_exempt = true.
+ * - GRAVADO: tarifa indicada e is_tax_exempt = false.
+ * - Sin clasificar (null): tarifa 0; is_tax_exempt se conserva (undefined = no modificar).
+ */
+export function resolveProductIvaColumns(
+  taxProfile: string | undefined,
+  ratePercent: number,
+  isTaxExempt?: boolean
+): { iva_treatment: 'GRAVADO' | 'EXENTO' | 'EXCLUIDO' | null; tax_rate_percent: number; is_tax_exempt?: boolean } {
+  const treatment = productIvaTreatment(taxProfile, ratePercent)
+  if (treatment === 'EXENTO' || treatment === 'EXCLUIDO') {
+    return { iva_treatment: treatment, tax_rate_percent: 0, is_tax_exempt: true }
+  }
+  if (treatment === 'GRAVADO') {
+    return { iva_treatment: treatment, tax_rate_percent: ratePercent, is_tax_exempt: false }
+  }
+  return { iva_treatment: null, tax_rate_percent: 0, is_tax_exempt: isTaxExempt }
 }
 
 export class ProductRepository {
@@ -422,10 +477,11 @@ export class ProductRepository {
     const taxRatePercent =
       (data as any).taxRatePercent ?? (data as any).vatRatePercent ?? 19
 
-    const isTaxExempt =
-      (data as any).isTaxExempt ??
-      ((data as any).taxProfile === 'EXENTO' || (data as any).taxProfile === 'EXCLUIDO') ??
-      false
+    const ivaColumns = resolveProductIvaColumns(
+      (data as any).taxProfile,
+      Number(taxRatePercent),
+      Boolean((data as any).isTaxExempt)
+    )
 
     const rawSlug = (data as any).slug ? (data as any).slug.trim() : this.slugify(data.name)
 
@@ -446,8 +502,9 @@ export class ProductRepository {
       public_sale_price: normalPrice,
       wholesale_price: wholesalePrice,
       min_wholesale_quantity: (data as any).minWholesaleQuantity ?? 12,
-      tax_rate_percent: taxRatePercent,
-      is_tax_exempt: isTaxExempt,
+      tax_rate_percent: ivaColumns.tax_rate_percent,
+      is_tax_exempt: Boolean(ivaColumns.is_tax_exempt),
+      iva_treatment: ivaColumns.iva_treatment,
       primary_image_url:
         (data as any).primaryImageUrl?.trim() || (data as any).imageUrl?.trim() || null,
       secondary_images: (data as any).secondaryImages || (data as any).images || [],
@@ -619,13 +676,14 @@ export class ProductRepository {
     if (u.minWholesaleQuantity !== undefined)
       updatePayload.min_wholesale_quantity = u.minWholesaleQuantity
 
-    if (u.taxRatePercent !== undefined) updatePayload.tax_rate_percent = u.taxRatePercent
-    else if (u.vatRatePercent !== undefined) updatePayload.tax_rate_percent = u.vatRatePercent
-
-    if (u.isTaxExempt !== undefined) updatePayload.is_tax_exempt = u.isTaxExempt
-    else if (u.taxProfile !== undefined) {
-      updatePayload.is_tax_exempt =
-        u.taxProfile === 'EXENTO' || u.taxProfile === 'EXCLUIDO'
+    if (u.taxProfile !== undefined || u.taxRatePercent !== undefined || u.vatRatePercent !== undefined) {
+      const rate = Number(u.taxRatePercent ?? u.vatRatePercent ?? 0)
+      const ivaColumns = resolveProductIvaColumns(u.taxProfile, rate, u.isTaxExempt)
+      updatePayload.iva_treatment = ivaColumns.iva_treatment
+      updatePayload.tax_rate_percent = ivaColumns.tax_rate_percent
+      if (ivaColumns.is_tax_exempt !== undefined) updatePayload.is_tax_exempt = ivaColumns.is_tax_exempt
+    } else if (u.isTaxExempt !== undefined) {
+      updatePayload.is_tax_exempt = u.isTaxExempt
     }
 
     if (u.primaryImageUrl !== undefined)
@@ -883,6 +941,24 @@ export class ProductRepository {
   }
 
   /**
+   * Cuentas auxiliares activas de inventario (grupo 14 del PUC) que admite un producto.
+   * Se leen también las inactivas para saber qué cuentas tienen subcuentas.
+   */
+  async getInventoryPostingAccounts(): Promise<PostingAccountOption[]> {
+    const { data, error } = await supabaseClient
+      .from('accounting_accounts')
+      .select('id, code, name, parent_id, is_active')
+      .like('code', '14%')
+      .order('code', { ascending: true })
+
+    if (error) {
+      throw new Error(`No se pudieron consultar las cuentas de inventario del PUC: ${error.message}`)
+    }
+
+    return selectPostingAccounts((data || []) as PucAccountRow[], isInventoryAccountCode)
+  }
+
+  /**
    * Consulta los movimientos de Kardex históricos del producto desde public.inventory_movements.
    */
   async getProductMovements(productId: string): Promise<ProductMovementSummary[]> {
@@ -969,38 +1045,49 @@ export class ProductRepository {
   }
 
   /**
-   * Registra una solicitud de cambio de precio en public.price_change_requests (estado PENDING).
-   * Invocado por roles con permiso 'prices.request' (ej. JEFE_INGRESOS_SALIDAS).
+   * Envía cambios de precio a fn_submit_price_changes (069). La base decide:
+   * - aprobador (prices.approve): aplica el precio de forma atómica y lo audita (APPLIED);
+   * - solicitante (prices.request): crea solicitudes PENDING y notifica a los administradores (PENDING).
    */
-  async requestPriceChange(
+  async submitPriceChanges(
     productId: string,
-    priceListCode: string,
-    proposedPrice: number,
+    changes: PriceChangeInput[],
     reason?: string
-  ): Promise<{ success: boolean; requestId: string; message: string }> {
-    const { data, error } = await supabaseClient.rpc('fn_request_price_change', {
+  ): Promise<PriceChangeSubmissionResult> {
+    const { data, error } = await supabaseClient.rpc('fn_submit_price_changes', {
       p_product_id: productId,
-      p_price_list_code: priceListCode.trim().toUpperCase(),
-      p_proposed_price: proposedPrice,
-      p_reason: reason || null,
+      p_changes: changes.map((change) => ({
+        price_list_code: change.priceListCode.trim().toUpperCase(),
+        price_list_name: change.priceListName.trim(),
+        proposed_price: change.proposedPrice,
+        min_quantity: change.minQuantity ?? 1,
+        is_active: change.isActive ?? true,
+        start_date: change.startDate || null,
+        end_date: change.endDate || null,
+      })),
+      p_reason: reason?.trim() || null,
     })
 
     if (error) {
-      console.error('Error al solicitar cambio de precio:', error)
-      throw new Error(error.message || 'Error al registrar solicitud de cambio de precio.')
+      console.error('Error al enviar cambios de precio:', error)
+      throw new Error(error.message || 'No se pudo registrar el cambio de precio.')
     }
 
+    const result = (data || {}) as Record<string, unknown>
+    const mode = result.mode === 'APPLIED' || result.mode === 'PENDING' ? result.mode : 'NO_CHANGES'
+    const requestIds = Array.isArray(result.request_ids) ? (result.request_ids as string[]) : []
+
     return {
-      success: data?.success ?? true,
-      requestId: data?.request_id,
-      message: data?.message || 'Solicitud de precio registrada exitosamente.',
+      mode,
+      requestIds,
+      notifiedApprovers: Number(result.notified_approvers ?? 0),
+      message: typeof result.message === 'string' ? result.message : 'Cambio de precio registrado.',
     }
   }
 
   /**
-   * Aprueba o rechaza una solicitud de cambio de precio.
-   * Exclusivo para rol ADMIN con permiso 'prices.approve'.
-   * Regla de negocio crítica: requested_by != reviewed_by (sin autoaprobación).
+   * Aprueba o rechaza una solicitud de cambio de precio (fn_review_price_change, 069).
+   * La base exige prices.approve, misma empresa, sin autoaprobación y motivo al rechazar.
    */
   async reviewPriceChange(
     requestId: string,
@@ -1010,7 +1097,7 @@ export class ProductRepository {
     const { data, error } = await supabaseClient.rpc('fn_review_price_change', {
       p_request_id: requestId,
       p_approved: approved,
-      p_review_notes: reviewNotes || null,
+      p_review_notes: reviewNotes?.trim() || null,
     })
 
     if (error) {
@@ -1026,12 +1113,25 @@ export class ProductRepository {
   }
 
   /**
-   * Consulta las solicitudes de cambio de precio filtradas por estado o producto.
+   * Cuenta solicitudes de cambio de precio visibles para el usuario (RLS) en un estado.
    */
-  async getPriceChangeRequests(filters: {
-    status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'
-    productId?: string
-  } = {}): Promise<PriceChangeRequest[]> {
+  async countPriceChangeRequests(status: PriceChangeStatus): Promise<number> {
+    const { count, error } = await supabaseClient
+      .from('price_change_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', status)
+
+    if (error) {
+      throw new Error('No se pudo consultar el número de solicitudes de precio.')
+    }
+    return count ?? 0
+  }
+
+  /**
+   * Consulta solicitudes de cambio de precio bajo RLS: el solicitante ve las suyas y
+   * el aprobador todas las de su empresa.
+   */
+  async getPriceChangeRequests(filters: PriceChangeRequestFilters = {}): Promise<PriceChangeRequest[]> {
     let query = supabaseClient
       .from('price_change_requests')
       .select(`
@@ -1042,58 +1142,77 @@ export class ProductRepository {
         price_list_name,
         previous_price,
         proposed_price,
+        variation_percent,
+        cost_at_request,
         status,
+        request_group_id,
         requested_by,
+        requested_by_name,
         requested_at,
         reason,
         reviewed_by,
+        reviewed_by_name,
         reviewed_at,
         review_notes,
+        price_at_review,
         created_at,
         updated_at,
-        products:product_id ( id, name, sku ),
-        requester:requested_by ( id, full_name, email ),
-        reviewer:reviewed_by ( id, full_name, email )
+        products:product_id ( id, name, sku, cost_price, tax_rate_percent )
       `)
-      .order('created_at', { ascending: false })
+      .order('requested_at', { ascending: false })
+      .limit(filters.limit ?? 200)
 
     if (filters.status && filters.status !== 'ALL') {
       query = query.eq('status', filters.status)
     }
-
     if (filters.productId) {
       query = query.eq('product_id', filters.productId)
+    }
+    if (filters.requestedBy) {
+      query = query.eq('requested_by', filters.requestedBy)
     }
 
     const { data, error } = await query
 
     if (error) {
       console.error('Error al consultar price_change_requests:', error)
-      return []
+      throw new Error('No se pudieron consultar las solicitudes de cambio de precio.')
     }
 
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      companyId: row.company_id,
-      productId: row.product_id,
-      productName: row.products?.name || 'Producto',
-      productSku: row.products?.sku || '',
-      priceListCode: row.price_list_code,
-      priceListName: row.price_list_name,
-      previousPrice: Number(row.previous_price ?? 0),
-      proposedPrice: Number(row.proposed_price ?? 0),
-      status: row.status,
-      requestedBy: row.requested_by,
-      requestedByName: row.requester?.full_name || row.requester?.email || 'Colaborador',
-      requestedAt: row.requested_at,
-      reason: row.reason,
-      reviewedBy: row.reviewed_by,
-      reviewedByName: row.reviewer?.full_name || row.reviewer?.email || null,
-      reviewedAt: row.reviewed_at,
-      reviewNotes: row.review_notes,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-    }))
+    return (data || []).map((row: any) => {
+      const product = Array.isArray(row.products) ? row.products[0] : row.products
+      const toNumberOrNull = (value: unknown) =>
+        value === null || value === undefined ? null : Number(value)
+
+      return {
+        id: row.id,
+        companyId: row.company_id,
+        productId: row.product_id,
+        productName: product?.name || 'Producto',
+        productSku: product?.sku || '',
+        priceListCode: row.price_list_code,
+        priceListName: row.price_list_name,
+        previousPrice: Number(row.previous_price ?? 0),
+        proposedPrice: Number(row.proposed_price ?? 0),
+        variationPercent: toNumberOrNull(row.variation_percent),
+        costAtRequest: toNumberOrNull(row.cost_at_request),
+        currentCost: toNumberOrNull(product?.cost_price),
+        taxRatePercent: Number(product?.tax_rate_percent ?? 0),
+        status: row.status,
+        requestGroupId: row.request_group_id ?? null,
+        requestedBy: row.requested_by,
+        requestedByName: row.requested_by_name || 'Colaborador',
+        requestedAt: row.requested_at,
+        reason: row.reason,
+        reviewedBy: row.reviewed_by,
+        reviewedByName: row.reviewed_by_name || (row.reviewed_by ? 'Administrador' : null),
+        reviewedAt: row.reviewed_at,
+        reviewNotes: row.review_notes,
+        priceAtReview: toNumberOrNull(row.price_at_review),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    })
   }
 
   private slugify(name: string): string {

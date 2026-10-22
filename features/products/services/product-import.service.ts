@@ -9,6 +9,7 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getSessionUserId } from '@/lib/supabase/session-context'
 import {
   parseCsvContent,
   parseCleanNumber,
@@ -371,7 +372,7 @@ export class ProductImportService {
   ): Promise<ProductImportExecutionResult> {
     const client = getDbClient()
     const companyId = await this.getCompanyId(preferredCompanyId)
-    const userId = userContext?.userId || null
+    const userId = userContext?.userId || (await getSessionUserId(client))
     const userName = userContext?.userName || 'Sistema'
 
     // 1. Cargar datos maestros para resolver referencias en memoria

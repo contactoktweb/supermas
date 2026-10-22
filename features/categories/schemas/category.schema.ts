@@ -22,6 +22,7 @@ export const categoryFormSchema = z.object({
     .string()
     .trim()
     .max(30, 'El código no puede exceder 30 caracteres')
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((val) => (val ? val.toUpperCase().replace(/\s+/g, '-') : null)),
@@ -35,6 +36,7 @@ export const categoryFormSchema = z.object({
     .string()
     .trim()
     .max(500, 'La descripción no puede exceder 500 caracteres')
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((val) => val || null),

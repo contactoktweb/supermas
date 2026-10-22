@@ -19,6 +19,7 @@ export const brandFormSchema = z.object({
     .string()
     .trim()
     .url('Debe ser una URL válida')
+    .nullable()
     .optional()
     .or(z.literal(''))
     .transform((val) => val || null),

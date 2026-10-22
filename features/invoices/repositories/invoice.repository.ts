@@ -1,5 +1,7 @@
+import { CREDIT_NOTE_CONCEPTS, DEBIT_NOTE_CONCEPTS } from '../services/dian/dian-concepts'
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { returnRepository } from '@/features/returns/repositories/return.repository'
 import {
   Invoice,
   InvoiceItem,
@@ -9,6 +11,19 @@ import {
   DIANStatus,
   InvoicePaymentMethod,
 } from '../types'
+
+/** Columnas de factura + relaciones. Incluye el snapshot de resolución y el estado real de transmisión DIAN. */
+const INVOICE_SELECT = `
+  id, prefix, number, full_number, document_type, cufe, qr_code_data, xml_signed_url, pdf_url,
+  subtotal_amount, tax_amount, total_amount, dian_status, dian_status_code, dian_response_message, dian_response_date,
+  dian_validation_errors, dian_track_id, transmission_state, last_error, environment,
+  internal_number, dian_resolution, resolution_date, resolution_valid_from, resolution_valid_to,
+  resolution_range_from, resolution_range_to, issue_date, issue_time, xml_file_name,
+  original_invoice_id, note_concept_code, note_reason, return_id, created_at, updated_at, sale_id, customer_id, location_id,
+  customers ( id, first_name, last_name, company_name, document_type, document_number, email, phone, address, city ),
+  locations ( id, name, code ),
+  sales ( id, sale_number, payment_method, status, seller_user_id, users ( full_name ) )
+`
 
 function mapDbDianStatusToDomain(status?: string): DIANStatus {
   switch (status) {
@@ -38,6 +53,27 @@ function mapDomainDianStatusToDb(status: DIANStatus): string {
   }
 }
 
+const EVENT_LABELS: Record<string, string> = {
+  NUMBER_ASSIGNED: 'Consecutivo DIAN asignado',
+  XML_BUILT: 'XML UBL 2.1, CUFE y QR generados',
+  DIGITAL_SIGNATURE_APPLIED: 'Firma digital XAdES aplicada',
+  DIAN_TRANSMISSION_ATTEMPT: 'Envío a la DIAN',
+  DIAN_STATUS_QUERY: 'Consulta de estado en la DIAN',
+  DIAN_RESPONSE_ACCEPTED: 'DIAN: documento aceptado',
+  DIAN_RESPONSE_REJECTED: 'DIAN: documento rechazado',
+  CONFIG_MISSING: 'Falta configuración DIAN en el servidor',
+  CERTIFICATE_ERROR: 'Error con el certificado digital',
+  VALIDATION_FAILED: 'Datos fiscales incompletos',
+}
+
+function describeEvent(e: any): string {
+  const base = EVENT_LABELS[e.event_type] || e.event_type
+  const r = e.response_received || {}
+  const detail = r.statusMessage || r.message || r.fault || (Array.isArray(r.errors) && r.errors.length ? r.errors.join(' | ') : '') ||
+    (Array.isArray(r.problems) ? r.problems.join(' | ') : '')
+  return detail ? `${base}: ${detail}` : base
+}
+
 export class InvoiceRepository {
   /**
    * Resuelve el company_id del usuario autenticado actual bajo RLS de forma estricta
@@ -49,7 +85,7 @@ export class InvoiceRepository {
   /**
    * Mapea un registro de public.electronic_invoices a la entidad de dominio Invoice
    */
-  private mapDbRowToInvoice(raw: any): Invoice {
+  private mapDbRowToInvoice(raw: any, items: InvoiceItem[] = []): Invoice {
     const cust = raw.customers || {}
     const loc = raw.locations || {}
     const sale = raw.sales || {}
@@ -59,35 +95,81 @@ export class InvoiceRepository {
     const total = Number(raw.total_amount || subtotal + taxTotal)
 
     const dianStatus = mapDbDianStatusToDomain(raw.dian_status)
-    const prefix = raw.prefix || 'FE'
-    const num = raw.number || 1
-    const invoiceNumber = raw.full_number || `${prefix}-${num}`
-    const internalNumber = `FAC-${String(num).padStart(5, '0')}`
+    const prefix = raw.prefix || ''
+    const num = Number(raw.number || 0)
+    // Número fiscal DIAN: prefijo + consecutivo sin separador (así va en el XML y en el CUFE)
+    const invoiceNumber = `${prefix}${num}`
 
     const customerName = cust.company_name || `${cust.first_name || ''} ${cust.last_name || ''}`.trim() || 'Consumidor Final'
     const customerDoc = cust.document_number || '222222222222'
+    const rangeFrom = raw.resolution_range_from != null ? Number(raw.resolution_range_from) : undefined
+    const rangeTo = raw.resolution_range_to != null ? Number(raw.resolution_range_to) : undefined
+
+    // Desglose de IVA real por tarifa / tratamiento (gravado, exento, excluido)
+    const byCode = new Map<string, { rate: number; base: number; tax: number }>()
+    for (const it of items) {
+      const code = it.taxRatePercent > 0 ? `IVA_${it.taxRatePercent}` : it.taxCode || 'IVA_0'
+      const cur = byCode.get(code) || { rate: it.taxRatePercent, base: 0, tax: 0 }
+      cur.base += it.subtotal
+      cur.tax += it.taxAmount
+      byCode.set(code, cur)
+    }
+    const labelFor = (code: string, rate: number) =>
+      code === 'EXCLUIDO' ? 'Excluido de IVA' : code === 'EXENTO' ? 'Exento de IVA (0%)' : `IVA ${rate}%`
+    const taxesBreakdown = items.length
+      ? [...byCode.entries()].sort((a, b) => b[1].rate - a[1].rate).map(([code, v]) => ({
+          taxCode: code,
+          taxName: labelFor(code, v.rate),
+          ratePercent: v.rate,
+          taxableBase: Math.round(v.base * 100) / 100,
+          taxAmount: Math.round(v.tax * 100) / 100,
+        }))
+      : [{ taxCode: 'IVA', taxName: 'IVA', ratePercent: subtotal > 0 ? Math.round((taxTotal / subtotal) * 10000) / 100 : 0, taxableBase: subtotal, taxAmount: taxTotal }]
+
+    const errors: string[] = Array.isArray(raw.dian_validation_errors) ? raw.dian_validation_errors.map(String) : []
 
     return {
       id: raw.id,
-      internalNumber,
+      internalNumber: raw.internal_number || sale.sale_number || '',
       dianPrefix: prefix,
-      dianNumber: Number(num),
-      dianResolution: '18764000001',
-      dianResolutionDate: '2026-01-15',
-      dianRange: '1 - 100000',
+      dianNumber: num,
+      dianResolution: raw.dian_resolution || '',
+      dianResolutionDate: raw.resolution_date || undefined,
+      dianRange: rangeFrom !== undefined && rangeTo !== undefined ? `${rangeFrom} - ${rangeTo}` : undefined,
       invoiceNumber,
       prefix,
-      resolutionNumber: '18764000001',
-      resolutionDate: '2026-01-15',
+      resolutionNumber: raw.dian_resolution || undefined,
+      resolutionDate: raw.resolution_date || undefined,
+      resolutionValidFrom: raw.resolution_valid_from || undefined,
+      resolutionValidTo: raw.resolution_valid_to || undefined,
+      resolutionRangeFrom: rangeFrom,
+      resolutionRangeTo: rangeTo,
       type: raw.document_type === 'CREDIT_NOTE' ? 'NOTA_CREDITO' : raw.document_type === 'DEBIT_NOTE' ? 'NOTA_DEBITO' : 'ELECTRONICA',
-      status: 'PAID',
+      status: 'ISSUED',
       dianStatus,
       dianCufe: raw.cufe || undefined,
-      dianQrCode: raw.qr_code_data || (raw.cufe ? `https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey=${raw.cufe}` : undefined),
-      dianXmlUrl: raw.xml_signed_url || undefined,
-      dianPdfUrl: raw.pdf_url || undefined,
+      dianQrCode: raw.qr_code_data || undefined,
+      dianXmlUrl: raw.xml_file_name ? `/api/dian/invoices/${raw.id}/xml` : undefined,
+      dianPdfUrl: `/facturacion/representacion/${raw.id}`,
+      environment: raw.environment || undefined,
+      transmissionState: raw.transmission_state || 'PENDING',
+      lastError: raw.last_error || undefined,
+      dianValidationErrors: errors,
+      dianTrackId: raw.dian_track_id || undefined,
+      dianResponseMessage: raw.dian_response_message || undefined,
+      dianResponseDate: raw.dian_response_date || undefined,
+      hasXml: Boolean(raw.xml_file_name),
+      issueDate: raw.issue_date || undefined,
+      issueTime: raw.issue_time || undefined,
       saleId: raw.sale_id,
       saleNumber: sale.sale_number,
+      originalInvoiceId: raw.original_invoice_id || undefined,
+      noteConceptCode: raw.note_concept_code || undefined,
+      noteConceptLabel: raw.note_concept_code
+        ? (raw.document_type === 'CREDIT_NOTE' ? CREDIT_NOTE_CONCEPTS : DEBIT_NOTE_CONCEPTS)[String(raw.note_concept_code)]
+        : undefined,
+      noteReason: raw.note_reason || undefined,
+      returnId: raw.return_id || undefined,
       customerId: raw.customer_id,
       customerName,
       customerDoc,
@@ -95,48 +177,135 @@ export class InvoiceRepository {
       customerEmail: cust.email || undefined,
       customerPhone: cust.phone || undefined,
       customerAddress: cust.address || undefined,
-      customerCity: cust.city || 'Medellín',
+      customerCity: cust.city || undefined,
       locationId: raw.location_id,
-      locationName: loc.name || 'Bodega Principal',
+      locationName: loc.name || '',
       sellerId: sale.seller_user_id || '',
-      sellerName: 'Vendedor',
-      date: raw.created_at,
+      sellerName: sale.users?.full_name || '',
+      date: raw.issue_date ? `${raw.issue_date}T${String(raw.issue_time || '00:00:00-05:00')}` : raw.created_at,
       dueDate: raw.created_at,
-      issuedAtBogota: new Date(raw.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
-      items: [],
-      itemsCount: 1,
-      totalUnits: 1,
+      issuedAtBogota: raw.issue_time ? String(raw.issue_time).slice(0, 5) : new Date(raw.created_at).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' }),
+      items,
+      itemsCount: items.length,
+      totalUnits: items.reduce((s, it) => s + it.quantity, 0),
       subtotal,
-      discountTotal: 0,
+      discountTotal: items.reduce((s, it) => s + it.discountAmount, 0),
       taxTotal,
-      taxesBreakdown: [
-        {
-          taxCode: 'IVA_19',
-          taxName: 'IVA General 19%',
-          ratePercent: 19,
-          taxableBase: subtotal,
-          taxAmount: taxTotal,
-        },
-      ],
+      taxesBreakdown,
       total,
       pendingBalance: 0,
-      paymentMethod: (sale.payment_method === 'CASH' ? 'EFECTIVO' : sale.payment_method === 'CREDIT' ? 'CREDITO' : 'TRANSFERENCIA') as InvoicePaymentMethod,
-      paymentTerms: 'Contado',
-      transmissionHistory: [
-        {
-          id: `log-${raw.id.slice(0, 6)}`,
-          timestamp: raw.created_at,
-          user: 'Sistema DIAN',
-          action: 'ENVIO_INICIAL',
-          status: dianStatus === 'ACEPTADA' ? 'EXITOSO' : dianStatus === 'RECHAZADA' ? 'RECHAZADO' : 'EXITOSO',
-          dianStatus,
-          message: raw.dian_response_message || 'Documento registrado para validación DIAN.',
-          cufe: raw.cufe || undefined,
-        },
-      ],
+      paymentMethod: (sale.payment_method === 'CASH' ? 'EFECTIVO' : sale.payment_method === 'CREDIT' ? 'CREDITO' : sale.payment_method === 'MIXED' ? 'MIXTO' : sale.payment_method === 'BANK_TRANSFER' ? 'TRANSFERENCIA' : 'TARJETA') as InvoicePaymentMethod,
+      paymentTerms: sale.payment_method === 'CREDIT' ? 'Crédito' : 'Contado',
+      transmissionHistory: [],
       createdAt: raw.created_at,
       updatedAt: raw.updated_at || raw.created_at,
     }
+  }
+
+  /** Líneas reales de la venta asociada (para detalle y representación gráfica). */
+  private async loadItems(saleId?: string): Promise<InvoiceItem[]> {
+    if (!saleId) return []
+    const { data } = await supabaseClient
+      .from('sale_items')
+      .select('id, product_id, quantity, unit_price, discount_percent, tax_rate_percent, tax_amount, subtotal, total, iva_treatment, created_at, products ( name, sku, barcode, unit_of_measure, iva_treatment )')
+      .eq('sale_id', saleId)
+      .order('created_at', { ascending: true })
+    return (data || []).map((it: any) => {
+      const gross = Number(it.quantity || 0) * Number(it.unit_price || 0)
+      const net = Number(it.subtotal || 0)
+      const rate = Number(it.tax_rate_percent || 0)
+      return {
+        id: it.id,
+        productId: it.product_id,
+        productName: it.products?.name || 'Producto',
+        sku: it.products?.sku || '',
+        barcode: it.products?.barcode || undefined,
+        unitOfMeasure: it.products?.unit_of_measure || 'UND',
+        quantity: Number(it.quantity || 0),
+        unitPrice: Number(it.unit_price || 0),
+        discountPercent: Number(it.discount_percent || 0),
+        discountAmount: Math.max(0, Math.round((gross - net) * 100) / 100),
+        taxCode: rate > 0 ? `IVA_${rate}` : (it.iva_treatment || it.products?.iva_treatment) === 'EXCLUIDO' ? 'EXCLUIDO' : (it.iva_treatment || it.products?.iva_treatment) === 'EXENTO' ? 'EXENTO' : 'IVA_0',
+        taxRatePercent: rate,
+        taxAmount: Number(it.tax_amount || 0),
+        subtotal: net,
+        total: Number(it.total || 0),
+      }
+    })
+  }
+
+  /** Devoluciones de clientes registradas sobre una venta (para ligarlas a una nota crédito). */
+  async listReturnsForSale(saleId: string): Promise<Array<{ id: string; code: string; date: string; total: number; linked: boolean; status: string }>> {
+    // Reutiliza el repositorio de Devoluciones (aislamiento por empresa y manejo de errores).
+    const saleReturns = (await returnRepository.findBySourceDocument(saleId)).filter(
+      (r) => r.returnType === 'CUSTOMER_RETURN' && r.sourceDocumentType === 'SALE'
+    )
+    const ids = saleReturns.map((r) => r.id)
+    let linked = new Set<string>()
+    if (ids.length) {
+      const { data: notes, error } = await supabaseClient.from('electronic_invoices').select('return_id').in('return_id', ids)
+      if (error) throw new Error(`No se pudieron consultar las notas crédito de las devoluciones: ${error.message}`)
+      linked = new Set((notes || []).map((n: any) => n.return_id))
+    }
+    return saleReturns.map((r) => ({
+      id: r.id,
+      code: r.code,
+      date: r.createdAt,
+      total: Number(r.totalAmount || 0),
+      linked: linked.has(r.id),
+      status: r.status || '',
+    }))
+  }
+
+  /** Líneas propias de una nota crédito/débito. */
+  private async loadNoteLines(documentId: string): Promise<InvoiceItem[]> {
+    const { data } = await supabaseClient
+      .from('electronic_document_lines')
+      .select('id, line_number, product_id, sku, description, quantity, unit_price, discount_percent, net_amount, iva_treatment, tax_rate_percent, tax_amount, total_amount, products ( barcode, unit_of_measure )')
+      .eq('document_id', documentId)
+      .order('line_number', { ascending: true })
+    return (data || []).map((l: any) => {
+      const gross = Number(l.quantity || 0) * Number(l.unit_price || 0)
+      const net = Number(l.net_amount || 0)
+      const rate = Number(l.tax_rate_percent || 0)
+      return {
+        id: l.id,
+        productId: l.product_id || '',
+        productName: l.description,
+        sku: l.sku || '',
+        barcode: l.products?.barcode || undefined,
+        unitOfMeasure: l.products?.unit_of_measure || 'UND',
+        quantity: Number(l.quantity || 0),
+        unitPrice: Number(l.unit_price || 0),
+        discountPercent: Number(l.discount_percent || 0),
+        discountAmount: Math.max(0, Math.round((gross - net) * 100) / 100),
+        taxCode: rate > 0 ? `IVA_${rate}` : l.iva_treatment === 'EXCLUIDO' ? 'EXCLUIDO' : 'EXENTO',
+        taxRatePercent: rate,
+        taxAmount: Number(l.tax_amount || 0),
+        subtotal: net,
+        total: Number(l.total_amount || 0),
+      }
+    })
+  }
+
+  /** Eventos DIAN reales (dian_events) como historial de transmisión. */
+  private async loadEvents(invoiceId: string): Promise<DIANTransmissionLog[]> {
+    const { data } = await supabaseClient
+      .from('dian_events')
+      .select('id, event_type, status, response_received, payload_sent, created_at')
+      .eq('invoice_id', invoiceId)
+      .order('created_at', { ascending: false })
+    return (data || []).map((e: any) => ({
+      id: e.id,
+      timestamp: e.created_at,
+      user: 'Servidor DIAN',
+      action: e.event_type === 'DIAN_STATUS_QUERY' ? 'CONSULTA_ESTADO' : e.event_type === 'DIAN_TRANSMISSION_ATTEMPT' ? 'ENVIO_INICIAL' : 'ENVIO_INICIAL',
+      status: e.status === 'SUCCESS' ? 'EXITOSO' : e.event_type === 'DIAN_RESPONSE_REJECTED' ? 'RECHAZADO' : e.status === 'ERROR' ? 'ERROR_TECNICO' : 'EXITOSO',
+      dianStatus: e.event_type === 'DIAN_RESPONSE_ACCEPTED' ? 'ACEPTADA' : e.event_type === 'DIAN_RESPONSE_REJECTED' ? 'RECHAZADA' : 'PENDIENTE',
+      statusCode: e.response_received?.statusCode || undefined,
+      message: describeEvent(e),
+      trackId: e.response_received?.zipKey || undefined,
+    }))
   }
 
   /**
@@ -150,51 +319,7 @@ export class InvoiceRepository {
   }> {
     let query = supabaseClient
       .from('electronic_invoices')
-      .select(`
-        id,
-        prefix,
-        number,
-        full_number,
-        document_type,
-        cufe,
-        qr_code_data,
-        xml_signed_url,
-        pdf_url,
-        subtotal_amount,
-        tax_amount,
-        total_amount,
-        dian_status,
-        dian_response_message,
-        created_at,
-        updated_at,
-        sale_id,
-        customer_id,
-        location_id,
-        customers (
-          id,
-          first_name,
-          last_name,
-          company_name,
-          document_type,
-          document_number,
-          email,
-          phone,
-          address,
-          city
-        ),
-        locations (
-          id,
-          name,
-          code
-        ),
-        sales (
-          id,
-          sale_number,
-          payment_method,
-          status,
-          seller_user_id
-        )
-      `, { count: 'exact' })
+      .select(INVOICE_SELECT, { count: 'exact' })
 
     if (filters.locationId && filters.locationId !== 'ALL') {
       query = query.eq('location_id', filters.locationId)
@@ -258,56 +383,48 @@ export class InvoiceRepository {
   async findById(id: string): Promise<Invoice | null> {
     const { data, error } = await supabaseClient
       .from('electronic_invoices')
-      .select(`
-        id,
-        prefix,
-        number,
-        full_number,
-        document_type,
-        cufe,
-        qr_code_data,
-        xml_signed_url,
-        pdf_url,
-        subtotal_amount,
-        tax_amount,
-        total_amount,
-        dian_status,
-        dian_response_message,
-        created_at,
-        updated_at,
-        sale_id,
-        customer_id,
-        location_id,
-        customers (
-          id,
-          first_name,
-          last_name,
-          company_name,
-          document_type,
-          document_number,
-          email,
-          phone,
-          address,
-          city
-        ),
-        locations (
-          id,
-          name,
-          code
-        ),
-        sales (
-          id,
-          sale_number,
-          payment_method,
-          status,
-          seller_user_id
-        )
-      `)
+      .select(INVOICE_SELECT)
       .eq('id', id)
       .maybeSingle()
 
     if (error || !data) return null
-    return this.mapDbRowToInvoice(data)
+    const isNote = data.document_type === 'CREDIT_NOTE' || data.document_type === 'DEBIT_NOTE'
+    const [items, events] = await Promise.all([
+      isNote ? this.loadNoteLines(data.id) : this.loadItems(data.sale_id),
+      this.loadEvents(data.id),
+    ])
+    const invoice = this.mapDbRowToInvoice(data, items)
+    invoice.transmissionHistory = events
+
+    if (isNote && data.original_invoice_id) {
+      const { data: orig } = await supabaseClient
+        .from('electronic_invoices')
+        .select('prefix, number, cufe, issue_date')
+        .eq('id', data.original_invoice_id)
+        .maybeSingle()
+      if (orig) {
+        invoice.originalInvoiceNumber = `${orig.prefix}${orig.number}`
+        invoice.originalInvoiceCufe = orig.cufe || undefined
+        invoice.originalInvoiceDate = orig.issue_date || undefined
+      }
+    } else if (!isNote) {
+      const { data: notes } = await supabaseClient
+        .from('electronic_invoices')
+        .select('id, prefix, number, document_type, total_amount, transmission_state, note_concept_code')
+        .eq('original_invoice_id', data.id)
+        .order('created_at', { ascending: true })
+      invoice.relatedNotes = (notes || []).map((n: any) => ({
+        id: n.id,
+        number: `${n.prefix}${n.number}`,
+        type: n.document_type === 'DEBIT_NOTE' ? 'NOTA_DEBITO' : 'NOTA_CREDITO',
+        total: Number(n.total_amount || 0),
+        transmissionState: n.transmission_state || 'PENDING',
+        conceptLabel: n.note_concept_code
+          ? (n.document_type === 'DEBIT_NOTE' ? DEBIT_NOTE_CONCEPTS : CREDIT_NOTE_CONCEPTS)[String(n.note_concept_code)]
+          : undefined,
+      }))
+    }
+    return invoice
   }
 
   /**
@@ -316,52 +433,9 @@ export class InvoiceRepository {
   async findBySaleId(saleId: string): Promise<Invoice | null> {
     const { data, error } = await supabaseClient
       .from('electronic_invoices')
-      .select(`
-        id,
-        prefix,
-        number,
-        full_number,
-        document_type,
-        cufe,
-        qr_code_data,
-        xml_signed_url,
-        pdf_url,
-        subtotal_amount,
-        tax_amount,
-        total_amount,
-        dian_status,
-        dian_response_message,
-        created_at,
-        updated_at,
-        sale_id,
-        customer_id,
-        location_id,
-        customers (
-          id,
-          first_name,
-          last_name,
-          company_name,
-          document_type,
-          document_number,
-          email,
-          phone,
-          address,
-          city
-        ),
-        locations (
-          id,
-          name,
-          code
-        ),
-        sales (
-          id,
-          sale_number,
-          payment_method,
-          status,
-          seller_user_id
-        )
-      `)
+      .select(INVOICE_SELECT)
       .eq('sale_id', saleId)
+      .eq('document_type', 'INVOICE') // las notas comparten sale_id con su factura
       .maybeSingle()
 
     if (error || !data) return null
@@ -414,7 +488,7 @@ export class InvoiceRepository {
         electronicSent++
       } else if (inv.dian_status === 'PENDING') {
         pendingDIAN++
-      } else if (inv.dian_status === 'RECHAZADA') {
+      } else if (inv.dian_status === 'REJECTED') {
         rejectedDIAN++
       }
     }
@@ -464,6 +538,7 @@ export class InvoiceRepository {
     const { data: existingInvoices } = await supabaseClient
       .from('electronic_invoices')
       .select('sale_id')
+      .eq('document_type', 'INVOICE')
 
     const invoicedSet = new Set((existingInvoices || []).map((i: any) => i.sale_id).filter(Boolean))
 
@@ -508,184 +583,27 @@ export class InvoiceRepository {
   }
 
   /**
-   * Crea una nueva factura electrónica en public.electronic_invoices
+   * La factura electrónica de venta ya NO se crea desde el navegador.
+   * La numera y la procesa el servidor (/api/dian/invoices → fn_create_electronic_invoice_from_sale).
    */
-  async create(invoice: Invoice, _user: string = 'Administrador'): Promise<Invoice> {
-    const companyId = await this.resolveCompanyId()
-    const prefix = invoice.dianPrefix || 'FE'
-
-    const { data: lastInv } = await supabaseClient
-      .from('electronic_invoices')
-      .select('number')
-      .eq('prefix', prefix)
-      .order('number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const nextNumber = lastInv ? Number(lastInv.number) + 1 : 1
-    const cufe = invoice.dianCufe || Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-
-    const { data, error } = await supabaseClient
-      .from('electronic_invoices')
-      .insert({
-        company_id: companyId,
-        location_id: invoice.locationId,
-        sale_id: invoice.saleId,
-        customer_id: invoice.customerId,
-        prefix,
-        number: nextNumber,
-        document_type: invoice.type === 'NOTA_CREDITO' ? 'CREDIT_NOTE' : invoice.type === 'NOTA_DEBITO' ? 'DEBIT_NOTE' : 'INVOICE',
-        cufe,
-        subtotal_amount: invoice.subtotal,
-        tax_amount: invoice.taxTotal,
-        total_amount: invoice.total,
-        dian_status: mapDomainDianStatusToDb(invoice.dianStatus),
-      })
-      .select()
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Error creando factura electrónica: ${error?.message}`)
-    }
-
-    return (await this.findById(data.id))!
+  async create(_invoice: Invoice, _user: string = 'Administrador'): Promise<Invoice> {
+    throw new Error('La factura electrónica se emite desde el servidor de facturación (/api/dian/invoices).')
   }
 
   /**
-   * Crea una Nota Crédito afectando factura e inventario si aplica
+   * Las notas crédito/débito ya NO se crean desde el navegador: las numera, valida, contabiliza
+   * y transmite el servidor (/api/dian/notes → fn_create_electronic_note).
    */
-  async createCreditNote(
-    creditNote: Invoice,
-    originalInvoiceId: string,
-    adjustInventory: boolean = true,
-    user: string = 'Administrador'
-  ): Promise<Invoice> {
-    const companyId = await this.resolveCompanyId()
-    const prefix = 'NC'
-
-    const { data: lastInv } = await supabaseClient
-      .from('electronic_invoices')
-      .select('number')
-      .eq('prefix', prefix)
-      .order('number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    const nextNumber = lastInv ? Number(lastInv.number) + 1 : 1
-    const cufe = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-
-    const { data, error } = await supabaseClient
-      .from('electronic_invoices')
-      .insert({
-        company_id: companyId,
-        location_id: creditNote.locationId,
-        sale_id: creditNote.saleId,
-        customer_id: creditNote.customerId,
-        prefix,
-        number: nextNumber,
-        document_type: 'CREDIT_NOTE',
-        cufe,
-        subtotal_amount: creditNote.subtotal,
-        tax_amount: creditNote.taxTotal,
-        total_amount: creditNote.total,
-        dian_status: 'PENDING',
-      })
-      .select()
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Error creando nota crédito: ${error?.message}`)
-    }
-
-    // Si se ajusta inventario, registrar reingreso en inventory_movements
-    if (adjustInventory && creditNote.items && creditNote.items.length > 0) {
-      for (const item of creditNote.items) {
-        const { data: stockRow } = await supabaseClient
-          .from('stock_levels')
-          .select('quantity, average_cost')
-          .eq('product_id', item.productId)
-          .eq('location_id', creditNote.locationId)
-          .maybeSingle()
-
-        const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-        const newStock = prevStock + Number(item.quantity || 0)
-        const unitCost = stockRow ? Number(stockRow.average_cost || 0) : (item.unitCost || item.unitPrice * 0.7)
-
-        await supabaseClient.from('inventory_movements').insert({
-          company_id: companyId,
-          product_id: item.productId,
-          location_id: creditNote.locationId,
-          movement_type: 'CUSTOMER_RETURN',
-          quantity_in: item.quantity,
-          quantity_out: 0,
-          previous_stock: prevStock,
-          new_stock: newStock,
-          unit_cost: unitCost,
-          total_cost: Number(item.quantity) * unitCost,
-          document_type: 'CREDIT_NOTE',
-          document_reference: `${prefix}-${nextNumber}`,
-          reason: `Reingreso por Nota Crédito a Factura ${originalInvoiceId}`,
-          user_id: null,
-        })
-      }
-    }
-
-    return (await this.findById(data.id))!
+  async createCreditNote(): Promise<Invoice> {
+    throw new Error('Las notas crédito/débito se emiten desde el servidor de facturación (/api/dian/notes).')
   }
 
   /**
-   * Anula una factura con registro de auditoría
+   * Una factura electrónica transmitida a la DIAN no se "anula" cambiando su estado:
+   * se corrige o anula fiscalmente con una Nota Crédito (motivo 2 = anulación).
    */
-  async cancelInvoice(invoiceId: string, reason: string, user: string = 'Administrador'): Promise<Invoice> {
-    const { data, error } = await supabaseClient
-      .from('electronic_invoices')
-      .update({
-        dian_status: 'REJECTED',
-        dian_response_message: `Anulada por usuario ${user}. Motivo: ${reason}`,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', invoiceId)
-      .select()
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Error al anular factura: ${error?.message}`)
-    }
-
-    return (await this.findById(data.id))!
-  }
-
-  /**
-   * Registra intento o respuesta de transmisión ante la DIAN
-   */
-  async recordDIANAttempt(
-    invoiceId: string,
-    log: DIANTransmissionLog,
-    newDianStatus: DIANStatus,
-    cufe?: string
-  ): Promise<Invoice> {
-    const updates: any = {
-      dian_status: mapDomainDianStatusToDb(newDianStatus),
-      dian_response_message: log.message,
-      dian_response_date: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-    if (cufe) {
-      updates.cufe = cufe
-    }
-
-    const { data, error } = await supabaseClient
-      .from('electronic_invoices')
-      .update(updates)
-      .eq('id', invoiceId)
-      .select()
-      .single()
-
-    if (error || !data) {
-      throw new Error(`Error al actualizar estado DIAN: ${error?.message}`)
-    }
-
-    return (await this.findById(data.id))!
+  async cancelInvoice(_invoiceId: string, _reason: string, _user: string = 'Administrador'): Promise<Invoice> {
+    throw new Error('Una factura electrónica no se anula cambiando su estado. Emita una Nota Crédito con motivo "Anulación de factura electrónica".')
   }
 }
 

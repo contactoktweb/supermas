@@ -42,6 +42,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'inventario', label: 'Inventario', icon: 'inventory', path: '/inventario', permission: 'inventory.read' },
       { id: 'kardex', label: 'Kardex', icon: 'kardex', path: '/kardex', permission: 'kardex.read' },
       { id: 'transferencias', label: 'Transferencias', icon: 'transfers', path: '/transferencias', permission: 'inventory.transfer' },
+      { id: 'aprobaciones-precios', label: 'Aprobación de precios', icon: 'dollar', path: '/aprobaciones-precios', permission: 'prices.request' },
     ],
   },
   {
@@ -93,6 +94,18 @@ export const NAV_SECTIONS: NavSection[] = [
       { id: 'contabilidad', label: 'Contabilidad', icon: 'accounting', path: '/contabilidad', permission: 'reports.financial' },
       { id: 'impuestos', label: 'Impuestos', icon: 'taxes', path: '/impuestos', permission: 'taxes.read' },
       { id: 'exogena', label: 'Exógena', icon: 'exogena', path: '/exogena', permission: 'exogena.read' },
+    ],
+  },
+  {
+    id: 'recursos-humanos',
+    title: 'RECURSOS HUMANOS',
+    items: [
+      { id: 'rrhh-panel', label: 'Panel de RRHH', icon: 'hr', path: '/recursos-humanos/panel', permission: 'hr.read' },
+      { id: 'rrhh-empleados', label: 'Empleados', icon: 'users', path: '/recursos-humanos/empleados', permission: 'hr.read' },
+      { id: 'rrhh-estructura', label: 'Áreas y cargos', icon: 'structure', path: '/recursos-humanos/estructura', permission: 'hr.read' },
+      { id: 'rrhh-novedades', label: 'Novedades', icon: 'calendarMark', path: '/recursos-humanos/novedades', permission: 'hr.read' },
+      { id: 'rrhh-vacaciones', label: 'Vacaciones', icon: 'vacation', path: '/recursos-humanos/vacaciones', permission: 'hr.read' },
+      { id: 'rrhh-reportes', label: 'Reportes de personal', icon: 'reports', path: '/recursos-humanos/reportes', permission: 'hr.read' },
     ],
   },
   {

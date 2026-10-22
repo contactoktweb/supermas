@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { salesCalculationService } from '../services/sales-calculation.service'
+import { MAX_SALE_DISCOUNT_PERCENT } from '../schemas/sales.schema'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 
@@ -24,6 +25,7 @@ interface CartItem extends CreateSaleItemDTO {
   availableUnits: number
   unitPrice: number
   unitCost: number
+  taxRatePercent: number
   discountAmount: number
   taxAmount: number
   subtotal: number
@@ -54,6 +56,28 @@ export function NewSaleDrawer({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('EFECTIVO')
   const [documentType, setDocumentType] = useState<'FACTURA_POS' | 'FACTURA_ELECTRONICA' | 'REMISION' | 'NINGUNO'>('FACTURA_POS')
   const [notes, setNotes] = useState<string>('')
+  // Una clave por intento de venta: si la respuesta se pierde, reintentar no duplica la venta.
+  // Cambia cuando cambia el contenido de la venta (cliente, sede, productos o pago).
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID())
+  // Cuenta bancaria destino (contabilidad PUC por cuenta exacta)
+  const [bankOptions, setBankOptions] = useState<Array<{ id: string; label: string }>>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
+  const [mixedCashAmount, setMixedCashAmount] = useState<number>(0)
+  const [mixedRestMethod, setMixedRestMethod] = useState<'TARJETA' | 'TRANSFERENCIA'>('TRANSFERENCIA')
+
+  useEffect(() => {
+    if (!isOpen) return
+    supabaseClient.rpc('fn_list_payment_bank_accounts').then(({ data }) => {
+      setBankOptions(
+        ((data as any[]) || [])
+          .filter((a) => a.has_ledger)
+          .map((a) => ({
+            id: a.id,
+            label: `${a.bank_name} · ${a.account_type === 'CORRIENTE' ? 'Corriente' : 'Ahorros'} *${a.last4}`,
+          }))
+      )
+    })
+  }, [isOpen])
 
   // Search States
   const [customerSearch, setCustomerSearch] = useState('')
@@ -95,7 +119,7 @@ export function NewSaleDrawer({
         .order('first_name', { ascending: true }),
       supabaseClient
         .from('products')
-        .select('id, name, sku, barcode, sale_price, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt')
+        .select('id, name, sku, barcode, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt, iva_treatment')
         .eq('is_active', true)
         .order('name', { ascending: true }),
     ])
@@ -114,25 +138,23 @@ export function NewSaleDrawer({
           }))
           setAllCustomers(mappedCusts)
 
-          const mappedProds = (prodRes.data || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            barcode: p.barcode || '',
-            imageUrl: p.primary_image_url || '',
-            unitOfMeasure: p.unit_of_measure || 'UND',
-            status: 'ACTIVE',
-            prices: {
-              defaultPrice: Number(p.sale_price ?? p.public_sale_price ?? 0),
-              wholesalePrice: Number(p.wholesale_price ?? p.sale_price ?? 0),
-              specialPrice: Number(p.sale_price ?? 0),
-            },
-            tax: {
-              vatRate: p.is_tax_exempt ? 0 : Number(p.tax_rate_percent ?? 19),
-              isExempt: Boolean(p.is_tax_exempt),
-            },
-            cost: 0,
-          }))
+          // Vista previa con el precio vigente y el tratamiento de IVA del producto; el servidor recalcula al grabar.
+          const mappedProds = (prodRes.data || []).map((p: any) => {
+            const isExempt = Boolean(p.is_tax_exempt) || p.iva_treatment === 'EXENTO' || p.iva_treatment === 'EXCLUIDO'
+            return {
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              barcode: p.barcode || '',
+              imageUrl: p.primary_image_url || '',
+              unitOfMeasure: p.unit_of_measure || 'UND',
+              status: 'ACTIVE',
+              normalPrice: Number(p.public_sale_price ?? 0),
+              wholesalePrice: p.wholesale_price ? Number(p.wholesale_price) : undefined,
+              vatRatePercent: isExempt ? 0 : Number(p.tax_rate_percent ?? 0),
+              isExempt,
+            }
+          })
           setAllProducts(mappedProds)
 
           if (mappedCusts.length > 0) {
@@ -163,7 +185,7 @@ export function NewSaleDrawer({
       try {
         const { data, error } = await supabaseClient
           .from('stock_levels')
-          .select('product_id, quantity, location_id')
+          .select('product_id, quantity, reserved_quantity, location_id')
           .eq('location_id', selectedLocationId)
 
         if (isMounted && !error && data) {
@@ -171,7 +193,7 @@ export function NewSaleDrawer({
             data.map((s: any) => ({
               productId: s.product_id,
               locationId: s.location_id,
-              availableUnits: Number(s.quantity || 0),
+              availableUnits: Math.max(0, Number(s.quantity || 0) - Number(s.reserved_quantity || 0)),
             }))
           )
         }
@@ -200,6 +222,10 @@ export function NewSaleDrawer({
       }
     }
   }, [isOpen, locations])
+
+  useEffect(() => {
+    setIdempotencyKey(crypto.randomUUID())
+  }, [isOpen, selectedCustomerId, selectedLocationId, cart, paymentMethod, bankAccountId, mixedCashAmount, mixedRestMethod])
 
   // Selected customer object
   const selectedCustomer = useMemo(() => {
@@ -351,7 +377,7 @@ export function NewSaleDrawer({
 
   // Update item discount
   const handleUpdateDiscount = (productId: string, discountPercent: number) => {
-    const clamped = Math.min(100, Math.max(0, discountPercent))
+    const clamped = Math.min(MAX_SALE_DISCOUNT_PERCENT, Math.max(0, discountPercent))
     setCart((prev) =>
       prev.map((item) =>
         item.productId === productId ? { ...item, discountPercent: clamped } : item
@@ -381,16 +407,25 @@ export function NewSaleDrawer({
       setIsSubmitting(true)
       setErrorMessage(null)
 
+      if (paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totals.totalAmount)) {
+        setErrorMessage('En pago mixto, la parte en efectivo debe ser mayor a cero y menor que el total.')
+        setStep(3)
+        return
+      }
+
       const payload: CreateSaleDTO = {
         customerId: selectedCustomerId,
         locationId: selectedLocationId,
         paymentMethod,
+        idempotencyKey,
+        bankAccountId: bankAccountId || undefined,
+        mixedCashAmount: paymentMethod === 'MIXTO' ? mixedCashAmount : undefined,
+        mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
         documentTypeToGenerate: documentType,
         notes: notes.trim() || undefined,
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
-          unitPrice: i.unitPrice,
           discountPercent: i.discountPercent,
           notes: i.notes,
         })),
@@ -538,7 +573,7 @@ export function NewSaleDrawer({
                   fontWeight: 700,
                 }}
               >
-                {step > item.s ? '✓' : item.s}
+                {step > item.s ? <AppIcon name="checkSimple" size={12} /> : item.s}
               </span>
               <span>{item.label}</span>
             </button>
@@ -877,7 +912,7 @@ export function NewSaleDrawer({
                           <input
                             type="number"
                             min="0"
-                            max="100"
+                            max={MAX_SALE_DISCOUNT_PERCENT}
                             value={item.discountPercent || 0}
                             onChange={(e) => handleUpdateDiscount(item.productId, parseFloat(e.target.value) || 0)}
                             placeholder="% Dcto"
@@ -963,6 +998,44 @@ export function NewSaleDrawer({
                   ))}
                 </div>
               </div>
+
+              {/* Cuenta bancaria que recibe el dinero */}
+              {(paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'TARJETA' || paymentMethod === 'MIXTO') && (
+                <div style={{ padding: 14, borderRadius: 12, background: '#f8fafc', border: '1.5px solid #cbd5e1', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {paymentMethod === 'MIXTO' && (
+                    <>
+                      <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>Parte en efectivo</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={mixedCashAmount === 0 ? '' : mixedCashAmount}
+                        onChange={(e) => setMixedCashAmount(Number(e.target.value) || 0)}
+                        style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 14, fontWeight: 700 }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, flexWrap: 'wrap' }}>
+                        <span>Resto ({formatCOP(Math.max(0, totals.totalAmount - mixedCashAmount))}) con:</span>
+                        {(['TRANSFERENCIA', 'TARJETA'] as const).map((m) => (
+                          <button key={m} type="button" onClick={() => setMixedRestMethod(m)} className={mixedRestMethod === m ? 'primary-button compact' : 'outline-button compact'} style={{ height: 28, fontSize: 11 }}>
+                            {m === 'TRANSFERENCIA' ? 'Transferencia' : 'Tarjeta'}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)' }}>Cuenta bancaria que recibe el dinero *</label>
+                  {bankOptions.length === 0 ? (
+                    <span style={{ fontSize: 12, color: '#991b1b' }}>No hay cuentas bancarias con subcuenta PUC. Configúrelas en Tesorería.</span>
+                  ) : (
+                    <select value={bankAccountId} onChange={(e) => setBankAccountId(e.target.value)} style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 13 }}>
+                      <option value="">Seleccione la cuenta…</option>
+                      {bankOptions.map((o) => (
+                        <option key={o.id} value={o.id}>{o.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               {/* Financial Breakdown Box */}
               <div

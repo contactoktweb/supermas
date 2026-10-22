@@ -1,5 +1,4 @@
-import { salesRepository, SalesRepository } from '../repositories/sales.repository'
-import { salesCalculationService } from './sales-calculation.service'
+import { salesRepository, SalesRepository, SalePaymentInput } from '../repositories/sales.repository'
 import {
   createSaleSchema,
   cancelSaleSchema,
@@ -19,10 +18,9 @@ import {
   CreateRemissionFromSaleDTO,
   SaleReturnDTO,
   SalesUserContext,
-  SaleItem,
+  CreateSaleResult,
 } from '../types'
-import { supabaseClient } from '@/lib/supabase/client'
-import { getAuthenticatedCompany, resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
 
 const DEFAULT_USER: SalesUserContext = {
   userId: '',
@@ -101,259 +99,90 @@ export class SalesService {
   }
 
   /**
-   * Crea y procesa una nueva venta con validación de inventario, precios y Kardex
+   * Registra una venta del módulo Ventas. Todo ocurre en una transacción del servidor
+   * (fn_create_sale_with_payments): número, precios, IVA, costo, stock y kardex, pagos, efectivo a la
+   * caja del usuario, banco, cartera y asiento contable. Reintentar con la misma idempotencyKey no
+   * duplica la venta.
    */
   async create(
     dto: CreateSaleDTO,
     user: SalesUserContext = DEFAULT_USER
-  ): Promise<Sale> {
+  ): Promise<CreateSaleResult> {
     this.checkPermission(user, 'sales.create')
 
-    // 0. Validar existencia de empresa configurada para el usuario autenticado
     const comp = await getAuthenticatedCompany()
     if (!comp?.tax_id && !comp?.business_name) {
       throw new Error('Configure la empresa antes de operar.')
     }
 
-    // 1. Validación de esquema con Zod
     const validated = createSaleSchema.parse(dto)
 
-    // 2. Obtener cliente y validar existencia
-    const { data: rawCustomer } = await supabaseClient
-      .from('customers')
-      .select('id, first_name, last_name, company_name, document_number, is_active, credit_limit, current_balance, credit_days')
-      .eq('id', validated.customerId)
-      .maybeSingle()
-
-    if (!rawCustomer) {
-      throw new Error(`El cliente seleccionado con ID "${validated.customerId}" no existe.`)
-    }
-    if (!rawCustomer.is_active) {
-      const displayName = rawCustomer.company_name || `${rawCustomer.first_name || ''} ${rawCustomer.last_name || ''}`.trim()
-      throw new Error(`El cliente "${displayName}" se encuentra inactivo. Active el cliente para registrar ventas.`)
-    }
-
-    const customer = {
-      id: rawCustomer.id,
-      displayName: rawCustomer.company_name || `${rawCustomer.first_name || ''} ${rawCustomer.last_name || ''}`.trim() || 'Cliente',
-      documentNumber: rawCustomer.document_number,
-      customerType: 'NATURAL' as const,
-      category: 'GENERAL',
-      priceList: 'DEFAULT' as const,
-      creditLimit: Number(rawCustomer.credit_limit || 0),
-      currentBalance: Number(rawCustomer.current_balance || 0),
-      status: rawCustomer.is_active ? 'ACTIVE' : 'INACTIVE',
-    }
-
-    // 3. Obtener bodega y validar existencia
-    const { data: rawLocation } = await supabaseClient
-      .from('locations')
-      .select('id, name, code, type, status')
-      .eq('id', validated.locationId)
-      .maybeSingle()
-
-    if (!rawLocation) {
-      throw new Error(`La bodega o punto de venta con ID "${validated.locationId}" no existe.`)
-    }
-
-    const location = {
-      id: rawLocation.id,
-      name: rawLocation.name,
-      code: rawLocation.code,
-      type: rawLocation.type,
-      status: rawLocation.status,
-    }
-
-    // 4. Obtener productos y stock disponible
-    const productIds = validated.items.map((i) => i.productId)
-    const { data: rawProducts } = await supabaseClient
-      .from('products')
-      .select('id, name, sku, barcode, cost_price, public_sale_price, wholesale_price, tax_rate_percent, is_tax_exempt, is_active')
-      .in('id', productIds)
-
-    const allProducts = (rawProducts || []).map((p) => ({
-      id: p.id,
-      name: p.name,
-      sku: p.sku,
-      barcode: p.barcode,
-      costPrice: Number(p.cost_price || 0),
-      normalPrice: Number(p.public_sale_price || 0),
-      wholesalePrice: p.wholesale_price ? Number(p.wholesale_price) : undefined,
-      vatRatePercent: p.is_tax_exempt ? 0 : Number(p.tax_rate_percent || 19),
-      isExempt: Boolean(p.is_tax_exempt),
-      status: p.is_active ? 'ACTIVE' : 'INACTIVE',
-    }))
-
-    const { data: rawStock } = await supabaseClient
-      .from('stock_levels')
-      .select('product_id, location_id, quantity, reserved_quantity')
-      .eq('location_id', validated.locationId)
-      .in('product_id', productIds)
-
-    const allStock = (rawStock || []).map((s) => ({
-      productId: s.product_id,
-      locationId: s.location_id,
-      availableUnits: Math.max(0, Number(s.quantity || 0) - Number(s.reserved_quantity || 0)),
-      quantity: Number(s.quantity || 0),
-    }))
-
-    const calculatedItems: SaleItem[] = []
-
-    for (const rawItem of validated.items) {
-      const product = allProducts.find((p) => p.id === rawItem.productId)
-      if (!product) {
-        throw new Error(`El producto con ID "${rawItem.productId}" no existe en el catálogo.`)
-      }
-      if (product.status !== 'ACTIVE') {
-        throw new Error(`El producto "${product.name}" no está activo para venta.`)
-      }
-
-      // Validar stock disponible en la bodega
-      const stockLevel = allStock.find(
-        (s) => s.productId === rawItem.productId && s.locationId === validated.locationId
+    // Límite de descuento del usuario (el servidor aplica además el tope general por línea)
+    const canOverrideDiscount = user.permissions.includes('sales.discount') || user.permissions.includes('*')
+    const overLimit = validated.items.find((it) => (it.discountPercent || 0) > user.maxAllowedDiscountPercent)
+    if (overLimit && !canOverrideDiscount) {
+      throw new Error(
+        `El descuento del ${overLimit.discountPercent}% excede su límite permitido (${user.maxAllowedDiscountPercent}%). Se requiere autorización de supervisor.`
       )
-      const availableUnits = stockLevel ? stockLevel.availableUnits : 0
-
-      if (availableUnits < rawItem.quantity) {
-        throw new Error(
-          `Existencia insuficiente para el producto "${product.name}" en la bodega "${location.name}". Disponible: ${availableUnits} unidades, Solicitado: ${rawItem.quantity} unidades.`
-        )
-      }
-
-      // Validar límites de descuento
-      const requestedDiscount = rawItem.discountPercent || 0
-      if (requestedDiscount > user.maxAllowedDiscountPercent) {
-        if (!user.permissions.includes('sales.discount') && !user.permissions.includes('*')) {
-          throw new Error(
-            `El descuento del ${requestedDiscount}% aplicado a "${product.name}" excede su límite permitido (${user.maxAllowedDiscountPercent}%). Se requiere autorización de supervisor.`
-          )
-        }
-      }
-
-      // Calcular línea de venta en el servidor
-      const calculatedLine = salesCalculationService.calculateLineItem(
-        product,
-        rawItem,
-        customer.priceList
-      )
-      calculatedItems.push(calculatedLine)
     }
 
-    // 5. Calcular totales consolidados
-    const totals = salesCalculationService.calculateSaleTotals(calculatedItems)
-
-    // 6. Validar cupo de crédito si el método de pago es CREDITO
-    let saleDueDate = new Date().toISOString().split('T')[0]
-    if (validated.paymentMethod === 'CREDITO') {
-      const formatMoney = (n: number) =>
-        new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
-
-      if (customer.creditLimit <= 0) {
-        throw new Error(
-          `El cliente "${customer.displayName}" no tiene cupo de crédito aprobado (Cupo: $0). Configure el límite de crédito en la ficha del cliente.`
-        )
-      }
-
-      const newTotalDebt = customer.currentBalance + totals.totalAmount
-      if (newTotalDebt > customer.creditLimit) {
-        const available = Math.max(0, customer.creditLimit - customer.currentBalance)
-        throw new Error(
-          `La venta excede el cupo de crédito aprobado para "${customer.displayName}". Cupo: ${formatMoney(customer.creditLimit)}, Saldo actual: ${formatMoney(customer.currentBalance)}, Crédito disponible: ${formatMoney(available)}, Total venta: ${formatMoney(totals.totalAmount)}.`
-        )
-      }
-
-      const creditDays = Math.max(1, Number(rawCustomer.credit_days || 30))
-      const due = new Date()
-      due.setDate(due.getDate() + creditDays)
-      saleDueDate = due.toISOString().split('T')[0]
-    }
-
-    // 7. Generar código y objeto de venta
-    const saleCodeNumber = Math.floor(1000 + Math.random() * 9000)
-    const saleNumber = `VTA-${new Date().getFullYear()}-${saleCodeNumber}`
-    const saleId = `sale-${Date.now().toString().slice(-6)}`
-
-    const newSale: Sale = {
-      id: saleId,
-      saleNumber,
-      customerId: customer.id,
-      customerName: customer.displayName,
-      customerDoc: customer.documentNumber,
-      customerType: customer.customerType,
-      customerCategory: customer.category,
-      priceList: customer.priceList,
-      locationId: location.id,
-      locationName: location.name,
-      sellerId: user.userId,
-      sellerName: user.userName,
-      date: new Date().toISOString(),
-      items: calculatedItems,
-      ...totals,
-      paymentMethod: validated.paymentMethod,
-      paymentStatus: validated.paymentMethod === 'CREDITO' ? 'PENDING' : 'PAID',
-      paidAmount: validated.paymentMethod === 'CREDITO' ? 0 : totals.totalAmount,
-      dueDate: saleDueDate,
-      paymentTerms: validated.paymentMethod === 'CREDITO' ? 'CREDITO' : 'CONTADO',
-      status: validated.documentTypeToGenerate === 'FACTURA_POS' || validated.documentTypeToGenerate === 'FACTURA_ELECTRONICA'
-        ? 'INVOICED'
-        : 'CONFIRMED',
-      documentType: validated.documentTypeToGenerate || 'FACTURA_POS',
+    const result = await this.repo.createWithPayments({
+      locationId: validated.locationId,
+      customerId: validated.customerId,
+      idempotencyKey: validated.idempotencyKey,
+      items: validated.items.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        discountPercent: it.discountPercent || 0,
+      })),
+      payments: buildSalePayments(validated),
       notes: validated.notes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-
-    // 8. Guardar venta en base de datos
-    const createdSale = await this.repo.create(newSale)
-
-    // 9. Registrar movimientos de salida de inventario (SALE_OUT) para Kardex
-    await this.repo.createInventoryMovements(createdSale, {
-      userId: user.userId,
-      userName: user.userName,
     })
 
-    // 10. Si solicitó factura electrónica o POS inmediata
-    if (
-      validated.documentTypeToGenerate === 'FACTURA_ELECTRONICA' ||
-      validated.documentTypeToGenerate === 'FACTURA_POS'
-    ) {
-      const { invoiceId, invoiceNumber } = await this.repo.generateInvoice(
-        createdSale,
-        validated.documentTypeToGenerate,
-        { userId: user.userId, userName: user.userName }
-      )
-      createdSale.invoiceId = invoiceId
-      createdSale.invoiceNumber = invoiceNumber
-    } else if (validated.documentTypeToGenerate === 'REMISION') {
-      const { remissionId, remissionNumber } = await this.repo.generateRemission(
-        createdSale,
-        { notes: `Remisión directa de venta ${createdSale.saleNumber}` },
-        { userId: user.userId, userName: user.userName }
-      )
-      createdSale.remissionId = remissionId
-      createdSale.remissionNumber = remissionNumber
+    const sale = await this.repo.findById(result.sale_id)
+    if (!sale) {
+      throw new Error(`La venta ${result.sale_number} quedó registrada, pero no se pudo cargar. Actualice el listado.`)
     }
 
-    // 11. Auditoría
-    const formattedTotal = new Intl.NumberFormat('es-CO', {
-      style: 'currency',
-      currency: 'COP',
-      maximumFractionDigits: 0,
-    }).format(createdSale.totalAmount)
+    const created: CreateSaleResult = {
+      sale,
+      idempotentReplay: result.idempotent_replay,
+      accountingEntryNumber: result.accounting_entry_number,
+      voucherTypeCode: result.voucher_type_code,
+    }
 
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'CREACIÓN_VENTA',
-      details: `Venta ${createdSale.saleNumber} registrada exitosamente por ${formattedTotal} para el cliente "${createdSale.customerName}". Bodega: "${createdSale.locationName}". Documento: ${createdSale.documentType}.`,
-      entityId: createdSale.id,
-      newValues: { ...createdSale },
-    })
+    // Documento solicitado (solo en el primer registro: un reintento no emite documentos duplicados)
+    const docType = validated.documentTypeToGenerate
+    if (!result.idempotent_replay && docType !== 'NINGUNO') {
+      try {
+        if (docType === 'FACTURA_ELECTRONICA' || docType === 'FACTURA_POS') {
+          const { invoiceId, invoiceNumber } = await this.repo.generateInvoice(sale, docType, {
+            userId: user.userId,
+            userName: user.userName,
+          })
+          sale.invoiceId = invoiceId
+          sale.invoiceNumber = invoiceNumber
+        } else if (docType === 'REMISION') {
+          const { remissionId, remissionNumber } = await this.repo.generateRemission(
+            sale,
+            { notes: `Remisión directa de venta ${sale.saleNumber}` },
+            { userId: user.userId, userName: user.userName }
+          )
+          sale.remissionId = remissionId
+          sale.remissionNumber = remissionNumber
+        }
+      } catch (e: unknown) {
+        const reason = e instanceof Error ? e.message : String(e)
+        created.documentWarning = `No se pudo emitir el documento: ${reason}. Puede emitirlo desde el detalle de la venta.`
+      }
+    }
 
-    return createdSale
+    return created
   }
 
   /**
-   * Anula una venta existente y revierte los movimientos de inventario en Kardex
+   * Anula una venta en una sola transacción del servidor (fn_cancel_sale): revierte stock, caja,
+   * banco, cartera y asiento, y deja la auditoría. Reintentar sobre una venta ya anulada no repite nada.
    */
   async cancelSale(
     dto: CancelSaleDTO,
@@ -362,59 +191,12 @@ export class SalesService {
     this.checkPermission(user, 'sales.cancel')
     const validated = cancelSaleSchema.parse(dto)
 
-    const sale = await this.repo.findById(validated.saleId)
-    if (!sale) {
-      throw new Error(`La venta con ID "${validated.saleId}" no existe.`)
-    }
+    const result = await this.repo.cancelSale(validated.saleId, validated.reason.trim())
 
-    if (sale.status === 'CANCELLED') {
-      throw new Error(`La venta ${sale.saleNumber} ya se encuentra anulada.`)
-    }
-
-    // 1. Revertir inventario en Kardex
-    await this.repo.reverseInventoryMovements(sale, validated.reason, {
-      userId: user.userId,
-      userName: user.userName,
-    })
-
-    // 2. Revertir saldo deudor del cliente si la venta fue a crédito
-    if (sale.paymentMethod === 'CREDITO' && sale.customerId) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle()
-      if (custRow) {
-        const newBal = Math.max(0, Number(custRow.current_balance || 0) - sale.totalAmount)
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId)
-      }
-    }
-
-    // 3. Actualizar estado de la venta
-    const updated = await this.repo.update(sale.id, {
-      status: 'CANCELLED',
-      cancellationReason: validated.reason,
-      cancelledAt: new Date().toISOString(),
-      cancelledBy: user.userName,
-    })
-
+    const updated = await this.repo.findById(result.sale_id)
     if (!updated) {
-      throw new Error(`Error al anular la venta "${sale.saleNumber}".`)
+      throw new Error(`La venta ${result.sale_number} quedó anulada, pero no se pudo cargar. Actualice el listado.`)
     }
-
-    // 4. Registrar en auditoría
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'ANULACIÓN_VENTA',
-      details: `Venta ${sale.saleNumber} anulada. Motivo: ${validated.reason}. Stock de ${sale.totalUnits} unidades revertido en Kardex.`,
-      entityId: sale.id,
-      oldValues: { status: sale.status },
-      newValues: { status: 'CANCELLED', reason: validated.reason, cancelledBy: user.userName },
-    })
-
     return updated
   }
 
@@ -491,7 +273,8 @@ export class SalesService {
   }
 
   /**
-   * Procesa devoluciones parciales o totales de mercancía
+   * Procesa devoluciones parciales o totales de mercancía en buen estado con la RPC atómica de
+   * Devoluciones (kardex y documento de devolución en una transacción).
    */
   async processReturn(
     dto: SaleReturnDTO,
@@ -500,109 +283,57 @@ export class SalesService {
     this.checkPermission(user, 'sales.return')
     const validated = saleReturnSchema.parse(dto)
 
-    const sale = await this.repo.findById(validated.saleId)
-    if (!sale) {
-      throw new Error(`La venta con ID "${validated.saleId}" no existe.`)
-    }
-
-    for (const returnItem of validated.items) {
-      const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
-      if (!saleLine) {
-        throw new Error(`El producto no pertenece a la venta original ${sale.saleNumber}.`)
-      }
-      if (returnItem.quantity > saleLine.quantity) {
-        throw new Error(`La cantidad a devolver (${returnItem.quantity}) no puede superar la cantidad vendida (${saleLine.quantity}).`)
-      }
-
-      // Revertir inventario registrando movimiento CUSTOMER_RETURN en public.inventory_movements
-      // El trigger process_inventory_movement() de PostgreSQL actualiza automáticamente public.stock_levels
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', returnItem.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const previousStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const resultingStock = previousStock + returnItem.quantity
-      const unitCost = stockRow ? Number(stockRow.average_cost || 0) : Number(saleLine.unitCost || 0)
-
-      const companyId = await resolveUserCompanyId(supabaseClient)
-
-      const { error: movErr } = await supabaseClient
-        .from('inventory_movements')
-        .insert({
-          company_id: companyId,
-          product_id: returnItem.productId,
-          location_id: sale.locationId,
-          movement_type: 'CUSTOMER_RETURN',
-          quantity_in: returnItem.quantity,
-          quantity_out: 0,
-          previous_stock: previousStock,
-          new_stock: resultingStock,
-          unit_cost: unitCost,
-          total_cost: returnItem.quantity * unitCost,
-          document_type: 'SALE_RETURN',
-          document_reference: sale.saleNumber,
-          reason: `Devolución de venta ${sale.saleNumber}: ${returnItem.reason || validated.reason}`,
-          user_id: user.userId || null,
-        })
-
-      if (movErr) {
-        console.error('Error insertando movimiento de devolución:', movErr)
-        throw new Error(`Error al registrar devolución en Kardex: ${movErr.message}`)
-      }
-    }
-
-    // 2. Si fue venta a crédito, deducir el importe de los ítems devueltos del saldo del cliente
-    let totalReturnedMoney = 0
-    for (const returnItem of validated.items) {
-      const saleLine = sale.items.find((i) => i.productId === returnItem.productId)
-      if (saleLine) {
-        const itemUnitPrice = saleLine.quantity > 0 ? (saleLine.total / saleLine.quantity) : saleLine.unitPrice
-        totalReturnedMoney += Math.round(itemUnitPrice * returnItem.quantity)
-      }
-    }
-
-    if (sale.paymentMethod === 'CREDITO' && sale.customerId && totalReturnedMoney > 0) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle()
-      if (custRow) {
-        const newBal = Math.max(0, Number(custRow.current_balance || 0) - totalReturnedMoney)
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId)
-      }
-    }
-
-    // 3. Determinar si es devolución total o parcial
-    const totalOriginalQty = sale.items.reduce((acc, it) => acc + it.quantity, 0)
-    const totalReturnedQty = validated.items.reduce((acc, it) => acc + it.quantity, 0)
-    const isFullReturn = totalReturnedQty >= totalOriginalQty
-
-    const newStatus = isFullReturn ? 'RETURNED' : sale.status
-
-    const updated = await this.repo.update(sale.id, {
-      status: newStatus,
-      notes: sale.notes
-        ? `${sale.notes} | Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`
-        : `Devolución procesada (${totalReturnedQty} uds): ${validated.reason}`,
+    await this.repo.processCustomerReturn({
+      saleId: validated.saleId,
+      reason: validated.reason,
+      items: validated.items.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        reason: it.reason,
+      })),
     })
 
-    await this.repo.logAudit({
-      user: user.userName,
-      action: 'DEVOLUCIÓN_VENTA',
-      details: `Devolución de productos procesada para la venta ${sale.saleNumber}. Motivo: ${validated.reason}.`,
-      entityId: sale.id,
-      newValues: { status: 'RETURNED', returnDetails: validated },
-    })
-
-    return updated || sale
+    const updated = await this.repo.findById(validated.saleId)
+    if (!updated) {
+      throw new Error('La devolución quedó registrada, pero la venta no se pudo cargar. Actualice el listado.')
+    }
+    return updated
   }
 }
 
 export const salesService = new SalesService()
+
+/**
+ * Pagos de la venta para el servidor. amount = null → el servidor asigna el saldo exacto del total que
+ * calcula (sin diferencias de centavos).
+ */
+export function buildSalePayments(v: {
+  paymentMethod: string
+  bankAccountId?: string
+  mixedCashAmount?: number
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+}): SalePaymentInput[] {
+  const bankMethod = (m: 'TARJETA' | 'TRANSFERENCIA'): SalePaymentInput['method'] =>
+    m === 'TARJETA' ? 'CREDIT_CARD' : 'BANK_TRANSFER'
+  switch (v.paymentMethod) {
+    case 'EFECTIVO':
+      return [{ method: 'CASH', amount: null }]
+    case 'CREDITO':
+      return [{ method: 'CREDIT', amount: null }]
+    case 'TARJETA':
+    case 'TRANSFERENCIA':
+      if (!v.bankAccountId) throw new Error('Seleccione la cuenta bancaria que recibe el pago.')
+      return [{ method: bankMethod(v.paymentMethod), amount: null, bank_account_id: v.bankAccountId }]
+    case 'MIXTO': {
+      const cash = Math.round(Number(v.mixedCashAmount || 0) * 100) / 100
+      if (cash <= 0) throw new Error('En pago mixto, indique la parte en efectivo (mayor a cero y menor que el total).')
+      if (!v.bankAccountId) throw new Error('Seleccione la cuenta bancaria que recibe la parte no pagada en efectivo.')
+      return [
+        { method: 'CASH', amount: cash },
+        { method: bankMethod(v.mixedRestMethod || 'TRANSFERENCIA'), amount: null, bank_account_id: v.bankAccountId },
+      ]
+    }
+    default:
+      throw new Error('Medio de pago no soportado.')
+  }
+}

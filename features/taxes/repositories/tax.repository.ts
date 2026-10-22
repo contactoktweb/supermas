@@ -11,6 +11,7 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { getSessionUserId } from '@/lib/supabase/session-context'
 import {
   TaxConfig,
   TaxFilters,
@@ -927,7 +928,7 @@ export class TaxRepository {
       module: 'TAXES',
       entity_name: 'tax_rates',
       entity_id: entry.taxConfigId,
-      user_id: null,
+      user_id: await getSessionUserId(client),
       user_name: entry.userName || 'Sistema',
       previous_value: entry.changes?.previousValue ? { prev: entry.changes.previousValue } : null,
       new_value: {
@@ -942,7 +943,7 @@ export class TaxRepository {
     try {
       await client.from('audit_logs').insert(rowToInsert)
     } catch (e) {
-      console.warn('⚠️ No se pudo registrar auditoría de impuestos:', e)
+      console.warn('No se pudo registrar auditoría de impuestos:', e)
     }
   }
 }

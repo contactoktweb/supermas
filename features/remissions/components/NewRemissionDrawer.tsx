@@ -324,7 +324,7 @@ export function NewRemissionDrawer({
                 background: step === s.num ? '#fff' : 'transparent',
               }}
             >
-              {step > s.num ? '✓ ' : `${s.num}. `}
+              {step > s.num ? <AppIcon name="checkSimple" size={12} aria-hidden="true" style={{ marginRight: 4, verticalAlign: 'middle' }} /> : `${s.num}. `}
               {s.label}
             </div>
           ))}

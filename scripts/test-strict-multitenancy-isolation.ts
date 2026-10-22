@@ -28,8 +28,9 @@ import { invoiceRepository } from '../features/invoices/repositories/invoice.rep
 import { supplierRepository } from '../features/suppliers/repositories/supplier.repository'
 import { customerRepository } from '../features/customers/repositories/customer.repository'
 import { salesRepository } from '../features/sales/repositories/sales.repository'
+import { requireEnv } from './require-env'
 
-const adminPassword = process.env.STAGING_AUTH_PASSWORD || ''
+const adminPassword = requireEnv('STAGING_AUTH_PASSWORD')
 
 interface TestRecord {
   name: string

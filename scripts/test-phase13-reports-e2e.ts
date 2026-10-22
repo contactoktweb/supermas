@@ -28,6 +28,7 @@ import { createClient } from '@supabase/supabase-js'
 import { reportService, DEFAULT_ANALYTICS_USER } from '../features/reports/services/report.service'
 import { reportExportService } from '../features/reports/services/report-export.service'
 import { UserReportContext } from '../features/reports/types'
+import { requireEnv } from './require-env'
 
 const adminSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -112,7 +113,7 @@ async function runPhase13TestSuite() {
     const userEmail = `admin_${runId.toLowerCase()}@supermas.local`
     const { data: userACreated, error: userAErr } = await adminSupabase.auth.admin.createUser({
       email: userEmail,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: `Analista Principal ${runId}` },
     })

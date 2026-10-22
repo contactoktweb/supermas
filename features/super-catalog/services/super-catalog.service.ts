@@ -15,6 +15,7 @@ import {
   SuperCatalogPermission,
   ProductWebConfigUpdate,
   SuperBulkActionType,
+  SuperCatalogUpdateResult,
 } from '../types'
 import {
   superProductConfigUpdateSchema,
@@ -23,6 +24,15 @@ import {
   superBulkActionSchema,
 } from '../schemas/super-catalog.schema'
 import { auditService } from '@/features/audit/services/audit.service'
+import { productRepository } from '@/features/products/repositories/product.repository'
+import { planPriceChanges } from '@/features/products/utils/price-change-plan'
+import type { PriceChangeSubmissionResult, PriceTier } from '@/features/products/types'
+
+/** Lista de precios que publica el catálogo web (products.public_sale_price). */
+const WEB_PRICE_LIST: Pick<PriceTier, 'code' | 'name'> = {
+  code: 'NORMAL',
+  name: 'Precio Normal (Público)',
+}
 
 export interface UserContext {
   id: string
@@ -172,13 +182,40 @@ export class SuperCatalogService {
   }
 
   /**
-   * Actualiza la configuración comercial de un producto.
+   * Propone el nuevo precio web (lista NORMAL) mediante fn_submit_price_changes (069),
+   * reutilizando el plan de cambios del módulo de productos. La base decide si se aplica
+   * (aprobador) o queda pendiente de aprobación; también registra la auditoría del precio.
+   */
+  private async submitWebPriceChange(
+    before: SuperCatalogProduct,
+    newPrice: number,
+    reason?: string
+  ): Promise<PriceChangeSubmissionResult | null> {
+    const normalTier = await superCatalogRepository.findNormalPriceTier(before.id)
+    const desiredTier: PriceTier = normalTier
+      ? { ...normalTier, price: newPrice }
+      : { ...WEB_PRICE_LIST, price: newPrice, minQuantity: 1, isActive: true, isDefault: true }
+
+    const { priceChanges } = planPriceChanges({
+      existingTiers: normalTier ? [normalTier] : [],
+      currentNormalPrice: before.price,
+      currentWholesalePrice: 0,
+      desiredTiers: [desiredTier],
+    })
+
+    if (priceChanges.length === 0) return null
+    return productRepository.submitPriceChanges(before.id, priceChanges, reason)
+  }
+
+  /**
+   * Actualiza la configuración comercial de un producto. El precio, si cambia, viaja
+   * primero por el flujo de aprobación: si la base lo rechaza no se guarda nada más.
    */
   async updateProductConfig(
     productId: string,
     config: ProductWebConfigUpdate,
     user: UserContext = DEFAULT_ADMIN_USER
-  ): Promise<SuperCatalogProduct> {
+  ): Promise<SuperCatalogUpdateResult> {
     this.assertPermission('super_catalog.update', user)
 
     superProductConfigUpdateSchema.parse(config)
@@ -188,7 +225,11 @@ export class SuperCatalogService {
       throw new Error(`El producto con ID ${productId} no fue encontrado.`)
     }
 
-    const updated = await superCatalogRepository.updateConfig(productId, config)
+    const { price, priceChangeReason, ...webConfig } = config
+    const priceChange =
+      price !== undefined ? await this.submitWebPriceChange(before, price, priceChangeReason) : null
+
+    const updated = await superCatalogRepository.updateConfig(productId, webConfig)
 
     await auditService.log({
       action: 'SUPER_CATALOG_PRODUCT_UPDATED',
@@ -215,16 +256,10 @@ export class SuperCatalogService {
           previousValue: String(before.webDirectPurchaseEnabled),
           newValue: String(updated.webDirectPurchaseEnabled),
         },
-        {
-          field: 'price',
-          label: 'Precio Web',
-          previousValue: String(before.price),
-          newValue: String(updated.price),
-        },
       ],
     })
 
-    return updated
+    return { product: updated, priceChange }
   }
 
   /**
@@ -235,7 +270,8 @@ export class SuperCatalogService {
     user: UserContext = DEFAULT_ADMIN_USER
   ): Promise<SuperCatalogProduct> {
     this.assertPermission('super_catalog.publish', user)
-    return this.updateProductConfig(productId, { webSuperMas: true }, user)
+    const { product } = await this.updateProductConfig(productId, { webSuperMas: true }, user)
+    return product
   }
 
   /**
@@ -246,23 +282,27 @@ export class SuperCatalogService {
     user: UserContext = DEFAULT_ADMIN_USER
   ): Promise<SuperCatalogProduct> {
     this.assertPermission('super_catalog.publish', user)
-    return this.updateProductConfig(
+    const { product } = await this.updateProductConfig(
       productId,
       { webSuperMas: false, webDirectPurchaseEnabled: false },
       user
     )
+    return product
   }
 
   /**
-   * Actualiza el precio de venta web y su impuesto.
+   * Propone un nuevo precio de venta web. Aprobadores (prices.approve): se aplica de inmediato.
+   * Resto: queda como solicitud pendiente con el motivo indicado. La auditoría del precio la
+   * registra la base (069), así que aquí no se duplica.
    */
   async updatePrice(
     productId: string,
     price: number,
     showPrice: boolean = true,
     taxConfigId: string = 'tax-exento',
+    priceChangeReason?: string,
     user: UserContext = DEFAULT_ADMIN_USER
-  ): Promise<SuperCatalogProduct> {
+  ): Promise<SuperCatalogUpdateResult> {
     this.assertPermission('super_catalog.price', user)
 
     superProductPriceSchema.parse({ price, showPrice, taxConfigId })
@@ -272,31 +312,13 @@ export class SuperCatalogService {
       throw new Error(`El producto con ID ${productId} no existe.`)
     }
 
-    const updated = await superCatalogRepository.updateConfig(productId, {
-      price,
-      showPrice,
-      taxConfigId,
-    })
+    const priceChange = await this.submitWebPriceChange(before, price, priceChangeReason)
+    const product =
+      priceChange?.mode === 'APPLIED'
+        ? ((await superCatalogRepository.findById(productId)) ?? before)
+        : before
 
-    await auditService.log({
-      action: 'PRICE_MODIFIED',
-      module: 'PRODUCTS',
-      entityType: 'PRODUCT_PRICE',
-      entityId: productId,
-      entityReference: `${updated.sku} - ${updated.name}`,
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
-      locationId: user.locationId,
-      level: 'INFO',
-      details: `Precio web actualizado de $${before.price} a $${price} por ${user.name}.`,
-      changes: [
-        { field: 'price', label: 'Precio Web', previousValue: String(before.price), newValue: String(price) },
-        { field: 'taxConfigId', label: 'Perfil IVA', previousValue: before.taxConfigId, newValue: taxConfigId },
-      ],
-    })
-
-    return updated
+    return { product, priceChange }
   }
 
   /**

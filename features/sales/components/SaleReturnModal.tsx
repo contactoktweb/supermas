@@ -170,7 +170,7 @@ export function SaleReturnModal({
               Procesar Devolución - Venta {sale.saleNumber}
             </h3>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--muted)' }}>
-              Las unidades devueltas reingresarán automáticamente a Kardex y se ajustará el saldo.
+              Las unidades devueltas en buen estado reingresan a Kardex. El ajuste del valor al cliente se registra con nota crédito.
             </p>
           </div>
         </div>

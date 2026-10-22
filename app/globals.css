@@ -2102,6 +2102,103 @@ textarea:disabled {
   border-top: 1px solid var(--line);
 }
 
+/* Catalog form drawers (Categorías, Marcas): compact variant of the product form drawer */
+.product-form-drawer.catalog-form-drawer {
+  width: min(100%, 560px) !important;
+}
+.catalog-form-header {
+  align-items: flex-start;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.catalog-form-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.catalog-form-title .stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.catalog-form-title h2 {
+  font-size: 19px;
+  font-weight: 800;
+  word-break: break-word;
+}
+.catalog-form-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background-color .2s ease, color .2s ease;
+}
+.catalog-form-close:hover {
+  background: #f1f5f9;
+  color: var(--foreground);
+}
+.catalog-form-close:focus-visible,
+.catalog-form-drawer .primary-button:focus-visible,
+.catalog-form-drawer .outline-button:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.catalog-form-close:disabled,
+.catalog-form-drawer .primary-button:disabled,
+.catalog-form-drawer .outline-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.catalog-form-drawer .custom-form-textarea {
+  font-family: inherit;
+  resize: vertical;
+}
+.catalog-form-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.catalog-form-fieldset legend {
+  padding: 0;
+  margin-bottom: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+}
+.catalog-form-toggle {
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.catalog-form-toggle:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3.5px rgba(0, 27, 92, 0.12);
+}
+@media (max-width: 680px) {
+  .product-form-drawer.catalog-form-drawer {
+    width: 100vw !important;
+  }
+  .catalog-form-drawer .form-drawer-footer > button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .catalog-form-drawer,
+  .catalog-form-drawer * {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
 /* Detail Drawer Styles */
 .product-detail-drawer {
   width: clamp(380px, 54vw, 720px) !important;
@@ -6035,3 +6132,223 @@ html, body {
   transform: translateX(4px);
 }
 
+
+/* ============================================================
+   Cambio obligatorio de contraseña (primer ingreso)
+   ============================================================ */
+.password-change-form { gap: 12px; }
+.password-field { display: flex; flex-direction: column; gap: 6px; }
+.password-field-label { font-size: 13px; font-weight: 600; color: var(--navy); }
+.password-field-wrap { position: relative; height: 46px; }
+.password-visibility-toggle {
+  display: grid; place-items: center; flex-shrink: 0;
+  width: 36px; height: 36px; margin-right: -8px;
+  border: 0; border-radius: 8px; background: transparent; color: var(--muted);
+  transition: background-color .2s ease, color .2s ease;
+}
+.password-visibility-toggle:hover { background: #eef2fa; color: var(--navy); }
+.password-visibility-toggle:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; }
+.password-field-error { margin: -4px 0 0; color: #b91c1c; font-size: 12px; font-weight: 600; animation: fade .2s ease; }
+
+.password-strength { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
+.password-strength-header { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.password-strength-caption { color: var(--muted); font-weight: 600; }
+.password-strength-label { font-weight: 700; color: var(--muted); transition: color .25s ease; }
+.password-strength-track { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.password-strength-segment { height: 6px; border-radius: 4px; background: #e2e8f0; transform-origin: left; transition: background-color .3s ease, transform .3s ease; }
+.password-strength-segment.is-filled { animation: grow .3s ease both; }
+.password-strength[data-level="1"] .is-filled { background: #dc2626; }
+.password-strength[data-level="1"] .password-strength-label { color: #b91c1c; }
+.password-strength[data-level="2"] .is-filled { background: #d97706; }
+.password-strength[data-level="2"] .password-strength-label { color: #b45309; }
+.password-strength[data-level="3"] .is-filled { background: #16a34a; }
+.password-strength[data-level="3"] .password-strength-label { color: #15803d; }
+.password-strength[data-level="4"] .is-filled { background: #047857; }
+.password-strength[data-level="4"] .password-strength-label { color: #047857; }
+.password-rules { display: grid; grid-template-columns: 1fr; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.password-rules li { display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; transition: color .2s ease; }
+.password-rules li svg { color: #94a3b8; transition: color .2s ease, transform .2s ease; }
+.password-rules li.is-met { color: #15803d; }
+.password-rules li.is-met svg { color: #16a34a; transform: scale(1.08); }
+@media (min-width: 480px) { .password-rules { grid-template-columns: 1fr 1fr; } }
+
+.password-change-pill { background: #fff7ed; border-color: #fed7aa; color: #c2410c; }
+.password-change-alert {
+  display: flex; align-items: flex-start; gap: 8px; margin-bottom: 16px; padding: 12px 14px;
+  border: 1px solid #fca5a5; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 13px; line-height: 1.45;
+  animation: fade .2s ease;
+}
+.password-change-alert svg { flex-shrink: 0; color: #dc2626; }
+.password-change-submit { width: 100%; height: 46px; margin-top: 6px; font-size: 14px; }
+.password-change-submit:disabled, .password-change-signout:disabled { opacity: .65; cursor: not-allowed; transform: none; }
+.password-change-signout {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; align-self: center;
+  min-height: 40px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--muted); font-size: 13px; font-weight: 600; transition: color .2s ease, background-color .2s ease;
+}
+.password-change-signout:hover { color: var(--navy); background: #eef2fa; }
+.password-change-signout:focus-visible, .password-change-full:focus-visible, .password-change-submit:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.password-change-full { width: 100%; height: 46px; font-size: 14px; }
+.password-change-status { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px 0; color: var(--muted); font-size: 14px; }
+.password-change-spinner { width: 34px; height: 34px; border: 3px solid #e2e8f0; border-top-color: var(--navy); border-radius: 50%; animation: spin .8s linear infinite; }
+.password-change-spinner.is-small { width: 14px; height: 14px; border-width: 2px; border-color: #ffffff66; border-top-color: #fff; }
+.password-change-result { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 0; text-align: center; animation: scaleIn .3s ease both; }
+.password-change-result h2 { margin: 6px 0 0; font-size: 22px; color: var(--navy); }
+.password-change-result p { margin: 0 0 14px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.password-change-result-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; }
+.password-change-result-icon.is-success { background: #ecfdf5; color: #059669; }
+.password-change-result-icon.is-error { background: #fef2f2; color: #dc2626; }
+.password-change-footer { width: min(100%, 430px); margin-top: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .login-shell *, .login-shell *::before, .login-shell *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+  .password-change-spinner { animation-duration: 1.6s !important; animation-iteration-count: infinite !important; }
+}
+
+/* ==========================================================================
+   Centro de notificaciones (Header) y aprobación de precios (069)
+   ========================================================================== */
+.visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.notif-spin{animation:spin .8s linear infinite}
+@keyframes notif-pop{0%{transform:scale(.4);opacity:0}70%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+@keyframes notif-panel-in{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes notif-shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+
+.notif-center{position:relative;display:inline-flex}
+.notif-center-trigger{width:38px;height:38px;border-radius:10px;transition:background .2s,color .2s,transform .2s}
+.notif-center-trigger:hover,.notif-center-trigger[aria-expanded="true"]{background:#eef2fa;color:var(--navy)}
+.notif-center-trigger:active{transform:scale(.94)}
+.notif-center-trigger:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.notif-center .notification .notif-center-badge{top:-2px;right:-4px;width:auto;min-width:18px;height:18px;padding:0 4px;border-radius:9px;font-size:10px;font-weight:800;border:2px solid #fff;animation:notif-pop .35s ease both}
+.notif-center-panel{position:absolute;right:0;top:calc(100% + 10px);width:min(400px,calc(100vw - 32px));max-height:min(560px,calc(100vh - 110px));display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;background:#fff;box-shadow:0 18px 40px #10213f24;z-index:60;overflow:hidden;animation:notif-panel-in .18s ease both;transform-origin:top right}
+.notif-center-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);background:#f8fafc}
+.notif-center-header strong{font-size:13px;color:var(--foreground)}
+.notif-center-header-actions{display:flex;align-items:center;gap:6px}
+.notif-center-link-button{display:inline-flex;align-items:center;gap:4px;min-height:30px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:var(--navy);font-size:11px;font-weight:700;transition:background .2s}
+.notif-center-link-button:hover:not(:disabled){background:#e9eef8}
+.notif-center-link-button:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+.notif-center-error{display:flex;align-items:center;gap:6px;margin:0;padding:8px 14px;background:#fef2f2;color:#b91c1c;font-size:11px}
+.notif-center-body{overflow-y:auto;overscroll-behavior:contain}
+.notif-center-section{padding:8px 0;border-bottom:1px solid #eef1f5}
+.notif-center-section:last-child{border-bottom:0}
+.notif-center-section-title{display:flex;align-items:center;gap:6px;margin:0;padding:6px 14px;color:var(--muted);font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+.notif-center-count{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#fffbeb;color:#b45309;border:1px solid #fde68a;font-size:10px;letter-spacing:0}
+.notif-center-list{list-style:none;margin:0;padding:0}
+.notif-center-item{display:flex;align-items:flex-start;gap:10px;width:100%;padding:10px 14px;border:0;background:transparent;text-align:left;color:inherit;transition:background .18s;cursor:pointer;position:relative}
+.notif-center-item:hover{background:#f6f8fc}
+.notif-center-item:focus-visible{outline:2px solid var(--navy);outline-offset:-2px}
+.notif-center-item.is-unread{background:#fbfcff}
+.notif-center-item.is-unread::before{content:'';position:absolute;left:5px;top:18px;width:6px;height:6px;border-radius:50%;background:var(--red)}
+.notif-center-item-icon{display:grid;place-items:center;flex:0 0 30px;width:30px;height:30px;border-radius:8px;background:#e9eef8;color:var(--navy)}
+.notif-center-item-icon.tone-warning{background:#fffbeb;color:#b45309}
+.notif-center-item-icon.tone-success{background:#ecfdf5;color:var(--green)}
+.notif-center-item-icon.tone-critical{background:#fef2f2;color:var(--red)}
+.notif-center-item-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.notif-center-item-text strong{font-size:12px;color:var(--foreground)}
+.notif-center-item-text span{font-size:11px;color:#516079;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.notif-center-item-text small{font-size:10px;color:var(--muted)}
+.notif-center-item-text em{font-style:normal}
+.notif-center-empty-line{display:flex;align-items:center;gap:6px;margin:0;padding:8px 14px 10px;color:var(--muted);font-size:11px}
+.notif-center-empty-line svg{color:var(--green)}
+.notif-center-skeleton,.price-approvals-skeleton{display:flex;flex-direction:column;gap:8px;padding:10px 14px}
+.notif-center-skeleton span,.price-approvals-skeleton span{display:block;height:44px;border-radius:9px;background:linear-gradient(90deg,#f1f4f9 0,#e6ebf3 50%,#f1f4f9 100%);background-size:400px 100%;animation:notif-shimmer 1.2s linear infinite}
+.price-approvals-skeleton span{height:92px}
+.notif-center-footer{padding:10px 14px;border-top:1px solid var(--line);background:#f8fafc}
+.notif-center-footer .outline-button{width:100%}
+@media(max-width:760px){
+  .notif-center-panel{position:fixed;top:68px;right:16px;left:16px;width:auto}
+}
+
+/* Aviso de cambio de precio en el formulario de producto */
+.price-change-notice{display:flex;flex-direction:column;gap:12px;margin-bottom:16px;padding:14px;border-radius:10px;border:1px solid #bfdbfe;background:#eff6ff}
+.price-change-notice.is-pending{border-color:#fde68a;background:#fffbeb}
+.price-change-notice-head{display:flex;gap:10px;align-items:flex-start}
+.price-change-notice-head h3{margin:0 0 4px;font-size:13px;color:var(--foreground)}
+.price-change-notice-head p{margin:0;font-size:11px;line-height:1.5;color:#516079}
+.price-change-notice-icon{display:grid;place-items:center;flex:0 0 32px;height:32px;border-radius:8px;background:#fff;color:var(--navy)}
+.price-change-notice.is-pending .price-change-notice-icon{color:#b45309}
+.price-change-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.price-change-list li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px;padding:8px 10px;border-radius:8px;background:#fff;font-size:12px}
+.price-change-list-name{font-weight:700;color:var(--foreground)}
+.price-change-list-values,.price-request-prices{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.price-change-list-values s,.price-request-prices s{color:var(--muted)}
+.price-change-list-values em,.price-request-prices em,.price-review-compare em{font-style:normal;font-size:11px;font-weight:800;padding:2px 7px;border-radius:6px}
+.is-up{color:#047857;background:#ecfdf5}
+.is-down{color:#b91c1c;background:#fef2f2}
+.price-change-reason{width:100%;min-height:56px;padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--foreground);font-size:12px;resize:vertical;transition:border-color .2s,box-shadow .2s}
+.price-change-reason:focus{outline:0;border-color:var(--navy);box-shadow:0 0 0 4px #001b5c14}
+.price-change-reason.is-invalid{border-color:var(--red);box-shadow:0 0 0 4px #fe110c12}
+
+/* Bandeja de aprobación de precios */
+.price-approvals-page{display:flex;flex-direction:column;gap:16px}
+.price-approvals-page .page-heading{margin-bottom:0}
+.price-approvals-page .tabs{margin-bottom:0}
+.price-approvals-denied-title{margin:0;font-size:20px}
+.price-approvals-summary{display:flex;flex-wrap:wrap;gap:10px}
+.price-approvals-chip{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:12px;color:#516079;transition:transform .2s,box-shadow .2s}
+.price-approvals-chip:hover{transform:translateY(-2px);box-shadow:0 8px 18px #10213f0f}
+.price-approvals-chip strong{font-size:16px;color:var(--foreground)}
+.price-approvals-chip.is-pending svg{color:#b45309}
+.price-approvals-chip.is-approved svg{color:var(--green)}
+.price-approvals-chip.is-rejected svg{color:var(--red)}
+.price-approval-filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.price-approval-filters .search-box{flex:1 1 260px}
+.price-approval-select select{height:40px;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--foreground);font-size:12px;cursor:pointer}
+.price-approval-select select:focus-visible{outline:2px solid var(--navy);outline-offset:1px}
+.price-request-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.price-request-list li{animation:rise .45s ease both}
+.price-request-card{display:flex;flex-direction:column;gap:12px;width:100%;height:100%;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;text-align:left;color:inherit;transition:transform .22s,box-shadow .22s,border-color .22s}
+.price-request-card:hover{transform:translateY(-3px);border-color:#c8d3e5;box-shadow:0 14px 26px #10213f12}
+.price-request-card:active{transform:translateY(0)}
+.price-request-card:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.price-request-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.price-request-product{display:flex;flex-direction:column;gap:3px;min-width:0}
+.price-request-product strong{font-size:14px;color:var(--foreground);overflow-wrap:anywhere}
+.price-request-product small{font-size:11px;color:var(--muted)}
+.price-request-prices{font-size:13px}
+.price-request-prices strong{font-size:16px;color:var(--navy)}
+.price-request-meta{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted)}
+.price-request-meta span{display:inline-flex;align-items:center;gap:4px}
+.price-request-note{font-size:11px;color:#b91c1c;background:#fef2f2;padding:6px 8px;border-radius:7px}
+.price-request-status{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;padding:4px 8px;border-radius:6px;font-size:10px;font-weight:800;border:1px solid}
+.price-request-status.is-pending{color:#b45309;background:#fffbeb;border-color:#fde68a}
+.price-request-status.is-approved{color:#047857;background:#ecfdf5;border-color:#a7f3d0}
+.price-request-status.is-rejected{color:#b91c1c;background:#fef2f2;border-color:#fecaca}
+.price-review-drawer{display:flex;flex-direction:column;gap:14px}
+.price-review-sub{color:var(--muted);font-size:11px}
+.price-review-compare{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:16px;border-radius:12px;background:#f6f8fc}
+.price-review-compare div{display:flex;flex-direction:column;gap:4px}
+.price-review-compare span{font-size:10px;color:var(--muted)}
+.price-review-compare strong{font-size:18px}
+.price-review-compare .is-proposed{color:var(--navy)}
+.price-review-compare em{grid-column:1/-1;justify-self:start}
+.price-review-margins{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.price-review-margins .field-hint{grid-column:1/-1}
+.price-review-margin{display:flex;flex-direction:column;gap:3px;padding:12px;border:1px solid var(--line);border-radius:10px}
+.price-review-margin span,.price-review-margin small{font-size:10px;color:var(--muted)}
+.price-review-margin strong{font-size:18px}
+.price-review-margin strong.is-down{background:transparent}
+.price-review-muted{margin:0;font-size:12px;color:var(--muted)}
+.price-review-facts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}
+.price-review-facts div{display:flex;flex-direction:column;gap:3px}
+.price-review-facts .is-wide{grid-column:1/-1}
+.price-review-facts dt{font-size:10px;color:var(--muted)}
+.price-review-facts dd{margin:0;font-size:12px;color:var(--foreground);overflow-wrap:anywhere}
+.price-review-actions{display:flex;flex-direction:column;gap:12px;border-bottom:0}
+.price-review-buttons{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.price-review-buttons button{min-height:44px}
+.price-review-confirm{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:10px;background:#f8fafc;border:1px solid var(--line)}
+.price-review-confirm p{margin:0;font-size:12px;color:var(--foreground)}
+@media(max-width:760px){
+  .price-request-list{grid-template-columns:1fr}
+  .price-review-margins,.price-review-facts{grid-template-columns:1fr}
+  .price-review-buttons button{flex:1}
+}
+@media (prefers-reduced-motion: reduce){
+  .notif-center *,.notif-center-panel,.price-change-notice,.price-approvals-page *,.price-review-drawer *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+  .price-request-card:hover,.price-approvals-chip:hover{transform:none}
+}

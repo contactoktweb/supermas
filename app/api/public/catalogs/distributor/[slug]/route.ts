@@ -1,43 +1,32 @@
 import { NextRequest } from 'next/server'
 import { publicCatalogService } from '@/features/public-catalog/services/public-catalog.service'
-import { handleCorsOptions, jsonResponse, errorResponse } from '@/features/public-catalog/utils/cors'
+import { handleCorsOptions, jsonResponse, errorResponse, internalErrorResponse } from '@/features/public-catalog/utils/cors'
+import { readPublicCompanyId } from '@/features/public-catalog/utils/request'
 
 type RouteContext = {
-  params: Promise<{ slug: string }> | { slug: string }
+  params: Promise<{ slug: string }>
 }
 
-export async function OPTIONS() {
-  return handleCorsOptions()
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsOptions(request)
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const resolvedParams = await Promise.resolve(context.params)
-    const slug = resolvedParams.slug
+    const { slug } = await context.params
 
     if (!slug) {
-      return errorResponse('Slug o identificador de producto requerido', 400)
+      return errorResponse('Slug o identificador de producto requerido', { status: 400, request })
     }
 
-    const { searchParams } = new URL(request.url)
-    const companyId =
-      searchParams.get('companyId') ||
-      request.headers.get('x-company-id') ||
-      undefined
-
-    const product = await publicCatalogService.getDistributorProduct(slug, companyId)
+    const product = await publicCatalogService.getDistributorProduct(slug, readPublicCompanyId(request, request.nextUrl.searchParams))
 
     if (!product) {
-      return errorResponse(`Producto "${slug}" no encontrado en el Catálogo Distribuidora`, 404)
+      return errorResponse('Producto no encontrado en el Catálogo Distribuidora', { status: 404, request })
     }
 
-    return jsonResponse({
-      success: true,
-      channel: 'distributor',
-      data: product,
-    })
-  } catch (error: any) {
-    console.error('Error en API Pública Detalle Distribuidora:', error)
-    return errorResponse(error.message || 'Error interno al consultar el producto', 500)
+    return jsonResponse({ success: true, channel: 'distributor', data: product }, { request })
+  } catch (error) {
+    return internalErrorResponse('Detalle Catálogo Distribuidora', error, 'Error interno al consultar el producto', request)
   }
 }

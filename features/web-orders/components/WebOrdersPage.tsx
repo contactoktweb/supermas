@@ -209,8 +209,8 @@ export function WebOrdersPage() {
         isOpen={isDispatchModalOpen}
         order={dispatchOrderTarget}
         onClose={() => setIsDispatchModalOpen(false)}
-        onConfirmDispatch={async (orderId, data) => {
-          const updated = await dispatchOrder(orderId, data)
+        onConfirmDispatch={async (orderId, data, payment) => {
+          const updated = await dispatchOrder(orderId, data, payment)
           if (selectedOrder && selectedOrder.id === orderId) {
             setSelectedOrder(updated)
           }

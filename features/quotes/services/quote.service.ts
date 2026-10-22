@@ -4,19 +4,22 @@
  * Fachada comercial encargada de:
  * 1. Validación de reglas de negocio y vigencia de ofertas.
  * 2. Emisión y actualización de cotizaciones.
- * 3. Conversión atómica a venta oficial con trazabilidad de inventario y Kardex.
+ * 3. Conversión a venta oficial delegada en la transacción del servidor (fn_convert_quote_to_sale).
  * 4. Generación de enlaces y plantillas para compartir vía WhatsApp.
  * 5. Registro inmutable en auditService.
  */
 
 import { quoteRepository } from '../repositories/quote.repository'
 import { auditService } from '@/features/audit/services/audit.service'
+import { buildSalePayments } from '@/features/sales/services/sales.service'
+import type { PaymentMethod } from '@/features/sales/types'
 import {
   Quote,
   QuoteStatus,
   CreateQuoteInput,
   QuoteFilterParams,
   QuoteStats,
+  QuoteConversionResult,
 } from '../types'
 
 export class QuoteService {
@@ -116,42 +119,30 @@ export class QuoteService {
   }
 
   /**
-   * Conversión comercial de cotización a venta oficial
+   * Conversión comercial de cotización a venta oficial. Todo ocurre en el servidor
+   * (fn_convert_quote_to_sale): precios, IVA, costo, stock, pagos, asiento, marca de convertida y
+   * auditoría. El medio de pago usa los mismos valores del módulo Ventas.
    */
   async convertToSale(
     quoteId: string,
     options: {
-      locationId?: string
-      paymentMethod?: string
-      notes?: string
-    } = {},
-    user: { id: string; name: string; role: string; companyId?: string }
-  ): Promise<{ saleId: string; saleNumber: string; quote: Quote }> {
-    const result = await quoteRepository.convertToSale(
-      quoteId,
-      {
-        ...options,
-        sellerUserId: user.id,
-      },
-      user.companyId
-    )
-
-    await auditService.log({
-      companyId: user.companyId,
-      action: 'SALE_CREATED',
-      module: 'SALES',
-      entityType: 'SALE',
-      entityId: result.saleId,
-      entityReference: result.saleNumber,
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
-      locationId: options.locationId,
-      level: 'INFO',
-      details: `Venta oficial ${result.saleNumber} generada a partir de cotización ${result.quote.quoteNumber} por $${result.quote.totalAmount.toLocaleString('es-CO')} COP.`,
+      paymentMethod: PaymentMethod
+      bankAccountId?: string
+      mixedCashAmount?: number
+      mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+      idempotencyKey: string
+    }
+  ): Promise<QuoteConversionResult> {
+    if (!quoteId) {
+      throw new Error('Seleccione la cotización a convertir.')
+    }
+    if (!options.idempotencyKey) {
+      throw new Error('Falta la clave de la operación. Cierre y vuelva a abrir la conversión.')
+    }
+    return quoteRepository.convertToSale(quoteId, {
+      payments: buildSalePayments(options),
+      idempotencyKey: options.idempotencyKey,
     })
-
-    return result
   }
 
   /**
@@ -163,10 +154,10 @@ export class QuoteService {
   ): string {
     const lines = [
       `*COTIZACIÓN COMERCIAL - ${companyName}*`,
-      `📄 *Nº:* ${quote.quoteNumber}`,
-      `👤 *Cliente:* ${quote.customerName}`,
-      `📅 *Fecha de Emisión:* ${quote.issueDate}`,
-      `⏳ *Válida Hasta:* ${quote.validUntil}`,
+      `*Nº:* ${quote.quoteNumber}`,
+      `*Cliente:* ${quote.customerName}`,
+      `*Fecha de Emisión:* ${quote.issueDate}`,
+      `*Válida Hasta:* ${quote.validUntil}`,
       ``,
       `*DETALLE DE PRODUCTOS:*`,
     ]
@@ -179,14 +170,14 @@ export class QuoteService {
 
     lines.push(``)
     if (quote.discountAmount > 0) {
-      lines.push(`💰 *Descuento:* -$${quote.discountAmount.toLocaleString('es-CO')} COP`)
+      lines.push(`*Descuento:* -$${quote.discountAmount.toLocaleString('es-CO')} COP`)
     }
     if (quote.taxAmount > 0) {
-      lines.push(`🏛️ *IVA:* $${quote.taxAmount.toLocaleString('es-CO')} COP`)
+      lines.push(`*IVA:* $${quote.taxAmount.toLocaleString('es-CO')} COP`)
     }
-    lines.push(`💵 *TOTAL GENERAL:* *$${quote.totalAmount.toLocaleString('es-CO')} COP*`)
+    lines.push(`*TOTAL GENERAL:* *$${quote.totalAmount.toLocaleString('es-CO')} COP*`)
     lines.push(``)
-    lines.push(`ℹ️ _${quote.termsConditions || 'Precios sujetos a disponibilidad y vigencia de la oferta.'}_`)
+    lines.push(`_${quote.termsConditions || 'Precios sujetos a disponibilidad y vigencia de la oferta.'}_`)
 
     const encodedText = encodeURIComponent(lines.join('\n'))
     const phoneClean = quote.customerPhone ? quote.customerPhone.replace(/\D/g, '') : ''

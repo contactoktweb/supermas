@@ -7,6 +7,46 @@
 
 export type POSPaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'MIXTO' | 'OTRO'
 
+/** Cuenta bancaria destino visible al cajero: solo banco, tipo y últimos 4 dígitos (sin saldos ni números completos). */
+export interface POSBankAccountOption {
+  id: string
+  bankName: string
+  accountType: string
+  last4: string
+  hasLedger: boolean
+}
+
+/** Pago enviado al servidor. amount = null → el servidor asigna el saldo exacto del total calculado. */
+export interface POSPaymentLine {
+  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD'
+  amount: number | null
+  bank_account_id?: string | null
+}
+
+/** Datos que se envían a fn_execute_pos_sale_with_payments (el servidor recalcula precios, impuestos y stock). */
+export interface POSExecuteSaleInput {
+  locationId: string
+  customerId: string
+  sellerId: string
+  notes?: string
+  idempotencyKey: string
+  items: Array<{
+    productId: string
+    quantity: number
+    unitPrice: number
+    discountPercent: number
+    taxRatePercent: number
+  }>
+  payments: POSPaymentLine[]
+}
+
+/** Venta confirmada por el servidor. idempotentReplay = la clave ya había creado esta venta (reintento). */
+export interface POSExecuteSaleResult {
+  saleId: string
+  saleNumber: string
+  idempotentReplay: boolean
+}
+
 export interface POSProduct {
   id: string
   name: string
@@ -77,6 +117,11 @@ export interface POSSalePayload {
   paymentMethod: POSPaymentMethod
   amountPaid: number
   notes?: string
+  bankAccountId?: string
+  mixedCashAmount?: number
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+  /** Clave del intento de cobro (UUID). Se reutiliza en los reintentos hasta que la venta se confirme. */
+  idempotencyKey?: string
   items: Array<{
     productId: string
     quantity: number

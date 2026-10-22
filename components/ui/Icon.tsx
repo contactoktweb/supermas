@@ -96,12 +96,27 @@ export const LIGHT_ICON_MAP = {
   shield: 'solar:shield-linear',
   award: 'solar:cup-star-linear',
   pieChart: 'solar:pie-chart-2-linear',
-  grid: 'solar:grid-linear',
-  table: 'solar:list-minimalistic-linear',
+  grid: 'solar:widget-4-linear',
+  table: 'solar:list-linear',
   receipt: 'solar:bill-list-linear',
   dollar: 'solar:dollar-minimalistic-linear',
   creditCard: 'solar:card-linear',
   fileText: 'solar:document-text-linear',
+
+  // Recursos Humanos
+  hr: 'solar:users-group-two-rounded-linear',
+  briefcase: 'solar:case-linear',
+  vacation: 'solar:sun-2-linear',
+  userPlus: 'solar:user-plus-linear',
+  userMinus: 'solar:user-minus-linear',
+  calendarMark: 'solar:calendar-mark-linear',
+  structure: 'solar:structure-linear',
+  folder: 'solar:folder-with-files-linear',
+  fileCheck: 'solar:file-check-linear',
+  hospital: 'solar:hospital-linear',
+  history: 'solar:history-linear',
+  archive: 'solar:archive-linear',
+  clipboardCheck: 'solar:clipboard-check-linear',
 } as const
 
 export type LightIconName = keyof typeof LIGHT_ICON_MAP

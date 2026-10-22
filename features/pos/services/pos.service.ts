@@ -1,5 +1,5 @@
 import { posRepository, POSRepository } from '../repositories/pos.repository'
-import { posSalePayloadSchema } from '../schemas/pos.schema'
+import { posSalePayloadSchema, POS_CARD_PAYMENTS_ENABLED } from '../schemas/pos.schema'
 import {
   POSProduct,
   POSCustomer,
@@ -8,6 +8,9 @@ import {
   POSTicketReceipt,
   POSDailySaleSummary,
   POSUserContext,
+  POSPaymentMethod,
+  POSPaymentLine,
+  POSBankAccountOption,
 } from '../types'
 
 const DEFAULT_POS_USER: POSUserContext = {
@@ -161,6 +164,48 @@ export class POSService {
   }
 
   /**
+   * Arma los pagos que se registran con la venta. El valor del medio no efectivo va en null:
+   * el servidor le asigna el saldo exacto del total que él mismo calcula (evita diferencias de centavos).
+   */
+  private buildPayments(validated: { paymentMethod: POSPaymentMethod; bankAccountId?: string; mixedCashAmount?: number; mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA' }, totalAmount: number): POSPaymentLine[] {
+    const bankMethod = (m: 'TARJETA' | 'TRANSFERENCIA'): POSPaymentLine['method'] => (m === 'TARJETA' ? 'CREDIT_CARD' : 'BANK_TRANSFER')
+    const usesCard = validated.paymentMethod === 'TARJETA' || (validated.paymentMethod === 'MIXTO' && validated.mixedRestMethod === 'TARJETA')
+    if (usesCard && !POS_CARD_PAYMENTS_ENABLED) {
+      throw new Error('El POS no recibe pagos con tarjeta por ahora. Use efectivo o transferencia.')
+    }
+    switch (validated.paymentMethod) {
+      case 'EFECTIVO':
+        return [{ method: 'CASH', amount: null }]
+      case 'TARJETA':
+      case 'TRANSFERENCIA':
+        if (!validated.bankAccountId) {
+          throw new Error('Seleccione la cuenta bancaria que recibe el pago (necesaria para la contabilidad).')
+        }
+        return [{ method: bankMethod(validated.paymentMethod), amount: null, bank_account_id: validated.bankAccountId }]
+      case 'MIXTO': {
+        const cash = Math.round(Number(validated.mixedCashAmount || 0))
+        if (cash <= 0 || cash >= totalAmount) {
+          throw new Error('En pago mixto, el efectivo debe ser mayor a cero y menor que el total.')
+        }
+        if (!validated.bankAccountId) {
+          throw new Error('Seleccione la cuenta bancaria que recibe la parte no pagada en efectivo.')
+        }
+        return [
+          { method: 'CASH', amount: cash },
+          { method: bankMethod(validated.mixedRestMethod || 'TRANSFERENCIA'), amount: null, bank_account_id: validated.bankAccountId },
+        ]
+      }
+      default:
+        throw new Error('Medio de pago no soportado en POS.')
+    }
+  }
+
+  /** Cuentas bancarias destino disponibles para el cajero (sin datos sensibles). */
+  async listPaymentBankAccounts(): Promise<POSBankAccountOption[]> {
+    return this.repo.listPaymentBankAccounts()
+  }
+
+  /**
    * Procesa la venta POS, genera factura fiscal, ticket y descuenta inventario en Kardex
    */
   async processSale(
@@ -269,7 +314,7 @@ export class POSService {
       totalUnits += line.quantity
     }
 
-    // 5. Validar monto entregado y calcular cambio
+    // 5. Validar monto entregado, calcular cambio y armar los pagos con su cuenta destino
     let amountPaid = validated.amountPaid
     if (validated.paymentMethod === 'EFECTIVO' && amountPaid < totalAmount) {
       throw new Error(
@@ -277,15 +322,30 @@ export class POSService {
       )
     }
     if (validated.paymentMethod !== 'EFECTIVO') {
-      amountPaid = totalAmount // Tarjeta/Transferencia se cobra exacto
+      amountPaid = totalAmount // Tarjeta/Transferencia/Mixto se cobra exacto
     }
     const changeAmount = Math.max(0, amountPaid - totalAmount)
+    const payments = this.buildPayments(validated, totalAmount)
 
-    // 6. Generar números de comprobante
-    const saleRandom = Math.floor(1000 + Math.random() * 9000)
-    const saleNumber = `VTA-${new Date().getFullYear()}-${saleRandom}`
-    const invoiceNumber = `POS-${new Date().getFullYear()}-${saleRandom}`
-    const saleId = `sale-pos-${Date.now().toString().slice(-6)}`
+    // 6. Venta + pagos + asiento en una transacción. El número de venta lo asigna el servidor; la clave
+    //    de idempotencia (una por intento de cobro) evita duplicar la venta en reintentos o doble clic.
+    const idempotencyKey = validated.idempotencyKey ?? crypto.randomUUID()
+    const { saleId, saleNumber } = await this.repo.executePOSSale({
+      locationId: validated.locationId,
+      customerId: customer.id,
+      sellerId: user.userId,
+      notes: validated.notes,
+      idempotencyKey,
+      items: processedLines.map((l) => ({
+        productId: l.productId,
+        quantity: l.quantity,
+        unitPrice: l.unitPrice,
+        discountPercent: l.discountPercent,
+        taxRatePercent: l.taxRatePercent,
+      })),
+      payments,
+    })
+    const invoiceNumber = `POS-${saleNumber.slice(-4)}`
     const now = new Date()
 
     // 7. Estructura de comprobante térmico / ticket
@@ -318,46 +378,7 @@ export class POSService {
       paymentMethod: validated.paymentMethod,
       amountPaid,
       changeAmount,
-      dianCufe: Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
     }
-
-    // 8. Objeto Venta para la tabla general
-    const saleRecord = {
-      id: saleId,
-      saleNumber,
-      customerId: customer.id,
-      customerName: customer.displayName,
-      customerDoc: `${customer.documentType} ${customer.documentNumber}`,
-      customerType: 'NATURAL',
-      customerCategory: 'FINAL_CONSUMER',
-      priceList: customer.priceList,
-      locationId: validated.locationId,
-      locationName: user.locationName,
-      sellerId: user.userId,
-      sellerName: user.userName,
-      date: now.toISOString(),
-      items: processedLines,
-      itemsCount: processedLines.length,
-      totalUnits,
-      subtotal,
-      discountTotal,
-      taxTotal,
-      totalAmount,
-      totalCost: Math.round(totalAmount * 0.7),
-      totalProfit: Math.round(totalAmount * 0.3),
-      profitMarginPercent: 30,
-      paymentMethod: validated.paymentMethod,
-      paymentStatus: 'PAID',
-      status: 'INVOICED',
-      documentType: 'FACTURA_POS',
-      invoiceNumber,
-      notes: validated.notes || 'Venta directa en mostrador POS',
-      createdAt: now.toISOString(),
-      updatedAt: now.toISOString(),
-    }
-
-    // 9. Ejecutar transacción atómica en mock-db
-    await this.repo.executePOSSale(ticketReceipt, saleRecord)
 
     return ticketReceipt
   }

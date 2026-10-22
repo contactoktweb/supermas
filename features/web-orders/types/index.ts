@@ -159,3 +159,20 @@ export interface InventoryCheckResult {
   isEcommerceWarehouseAvailable: boolean
   notes?: string
 }
+
+/** Resultado de convertir un pedido web en venta (fn_convert_web_order_to_sale). */
+export interface WebOrderConversionResult {
+  saleId: string
+  saleNumber: string
+  totalAmount: number
+  /** Valor del envío del pedido: no hace parte de la venta. */
+  shippingFee: number
+  idempotentReplay: boolean
+}
+
+/** Medio de pago con que se registra la venta de un pedido web. */
+export interface WebOrderSalePayment {
+  paymentMethod: 'TRANSFERENCIA' | 'TARJETA' | 'EFECTIVO' | 'CREDITO'
+  bankAccountId?: string
+  idempotencyKey: string
+}

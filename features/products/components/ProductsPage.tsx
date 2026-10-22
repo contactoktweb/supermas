@@ -234,16 +234,26 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
     if (!formDrawer.product) return
 
     try {
-      const updated = await productService.updateProduct(
+      const { product: updated, priceChange } = await productService.updateProduct(
         formDrawer.product.id,
         data,
         userContext
       )
-      showToast(
-        'Producto actualizado',
-        `Se guardaron los cambios para "${updated.name}".`,
-        'success'
-      )
+      if (priceChange?.mode === 'PENDING') {
+        showToast(
+          'Cambio de precio enviado a aprobación',
+          `Se guardaron los demás cambios de "${updated.name}". El nuevo precio se aplicará cuando un administrador lo apruebe.`,
+          'info'
+        )
+      } else {
+        showToast(
+          'Producto actualizado',
+          priceChange?.mode === 'APPLIED'
+            ? `Se guardaron los cambios y el nuevo precio de "${updated.name}" quedó registrado en auditoría.`
+            : `Se guardaron los cambios para "${updated.name}".`,
+          'success'
+        )
+      }
       if (selectedProduct?.id === updated.id) {
         setSelectedProduct(updated)
       }

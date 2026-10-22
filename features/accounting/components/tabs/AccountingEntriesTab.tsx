@@ -2,11 +2,14 @@
 
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingEntry, AccountingFilters } from '../../types'
+import { AccountingEntry, AccountingFilters, AccountingVoucherType } from '../../types'
+import { VoucherTypeBadge } from '../VoucherTypeBadge'
 
 interface AccountingEntriesTabProps {
   entries: AccountingEntry[]
   filters: AccountingFilters
+  /** Catálogo de tipos de comprobante de la empresa (migración 064). */
+  voucherTypes: AccountingVoucherType[]
   onFilterChange: (filters: Partial<AccountingFilters>) => void
   onSelectEntry: (entry: AccountingEntry) => void
   onOpenNewEntry: () => void
@@ -16,11 +19,16 @@ interface AccountingEntriesTabProps {
 export function AccountingEntriesTab({
   entries,
   filters,
+  voucherTypes,
   onFilterChange,
   onSelectEntry,
   onOpenNewEntry,
   canCreateEntry,
 }: AccountingEntriesTabProps) {
+  // El filtro lista los tipos activos; si el seleccionado se desactivó, se conserva para poder quitarlo.
+  const selectedVoucherType = filters.voucherTypeCode && filters.voucherTypeCode !== 'ALL' ? filters.voucherTypeCode : ''
+  const voucherTypeOptions = voucherTypes.filter((vt) => vt.isActive || vt.code === selectedVoucherType)
+
   const getSourceTypeBadge = (sourceType: string) => {
     switch (sourceType) {
       case 'SALE':
@@ -63,6 +71,22 @@ export function AccountingEntriesTab({
     }
   }
 
+  // El filtro por mes fija el rango completo del mes (YYYY-MM-01 a su último día).
+  const selectedMonth =
+    filters.dateFrom && filters.dateTo && filters.dateFrom.slice(0, 7) === filters.dateTo.slice(0, 7)
+      ? filters.dateFrom.slice(0, 7)
+      : ''
+
+  const handleMonthChange = (value: string) => {
+    if (!value) {
+      onFilterChange({ dateFrom: undefined, dateTo: undefined, page: 1 })
+      return
+    }
+    const [year, month] = value.split('-').map(Number)
+    const lastDay = String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, '0')
+    onFilterChange({ dateFrom: `${value}-01`, dateTo: `${value}-${lastDay}`, page: 1 })
+  }
+
   const formatDate = (isoStr: string) => {
     try {
       const d = new Date(isoStr)
@@ -85,13 +109,51 @@ export function AccountingEntriesTab({
         <div className="search-box flex-1 max-w-md">
           <AppIcon name="search" size={16} />
           <input
-            placeholder="Buscar por comprobante (ej: AST-2026-000842), tercero o descripción..."
+            placeholder="Buscar por comprobante (ej: FC o FC-000012), tercero o descripción..."
             value={filters.query || ''}
             onChange={(e) => onFilterChange({ query: e.target.value })}
+            aria-label="Buscar asientos por comprobante, tercero o descripción"
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="filter-select-wrap flex items-center gap-1.5 text-xs" title="Filtrar asientos por mes">
+            <AppIcon name="calendar" size={14} />
+            <span className="sr-only">Mes de los asientos</span>
+            <input
+              type="month"
+              className="filter-select text-xs"
+              value={selectedMonth}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              aria-label="Mes de los asientos"
+            />
+          </label>
+          {selectedMonth && (
+            <button
+              type="button"
+              className="outline-button text-xs py-1.5"
+              onClick={() => handleMonthChange('')}
+              aria-label="Quitar filtro de mes"
+            >
+              <AppIcon name="closeSimple" size={12} />
+              <span>Todos los meses</span>
+            </button>
+          )}
+
+          <select
+            className="filter-select text-xs"
+            value={selectedVoucherType || 'ALL'}
+            onChange={(e) => onFilterChange({ voucherTypeCode: e.target.value })}
+            aria-label="Filtrar por tipo de comprobante"
+          >
+            <option value="ALL">Todos los comprobantes</option>
+            {voucherTypeOptions.map((vt) => (
+              <option key={vt.id} value={vt.code}>
+                {vt.code} — {vt.name}
+              </option>
+            ))}
+          </select>
+
           <select
             className="filter-select text-xs"
             value={filters.sourceType || 'ALL'}
@@ -137,7 +199,7 @@ export function AccountingEntriesTab({
           <table>
             <thead>
               <tr>
-                <th style={{ width: 140 }}>Comprobante</th>
+                <th style={{ width: 170 }}>Comprobante</th>
                 <th style={{ width: 140 }}>Fecha</th>
                 <th style={{ width: 110 }}>Origen</th>
                 <th style={{ width: 130 }}>Doc. Origen</th>
@@ -169,8 +231,11 @@ export function AccountingEntriesTab({
                     onClick={() => onSelectEntry(entry)}
                   >
                     <td>
-                      <span className="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded">
-                        {entry.entryNumber}
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                        <VoucherTypeBadge code={entry.voucherTypeCode} voucherTypes={voucherTypes} />
+                        <span className="font-mono text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded">
+                          {entry.entryNumber}
+                        </span>
                       </span>
                     </td>
                     <td>

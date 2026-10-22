@@ -7,12 +7,11 @@
  * Flujo canónico:
  * 1. Operación (Compra o Factura) genera cuenta por pagar/cobrar.
  * 2. Tesorería programa y efectúa el desembolso/recaudo bancario con soporte.
- * 3. Al confirmarse el desembolso, Tesorería genera de forma automática
- *    el asiento oficial en Contabilidad (Débito: Proveedor 220505, Crédito: Banco 111005).
+ * 3. El servidor ejecuta el desembolso/recaudo y causa su comprobante (CE, RC o CI) en la misma
+ *    transacción, con la subcuenta PUC real de la cuenta bancaria o caja (migración 073).
  */
 
 import { treasuryRepository } from '../repositories/treasury.repository'
-import { accountingService } from '@/features/accounting/services/accounting.service'
 import { auditService } from '@/features/audit/services/audit.service'
 import {
   BankAccount,
@@ -20,6 +19,8 @@ import {
   TreasuryReceipt,
   TreasuryStats,
   BankMovement,
+  TreasuryPostingResult,
+  ReceiptCustomerOption,
 } from '../types'
 
 export class TreasuryService {
@@ -89,10 +90,6 @@ export class TreasuryService {
       status: 'SCHEDULED',
       accountingEntryId: null,
       accountingEntryNumber: null,
-      debitAccountCode: '220505',
-      debitAccountName: 'Proveedores Nacionales',
-      creditAccountCode: bank.accountingAccountCode || '111005',
-      creditAccountName: bank.accountingAccountName || 'Bancos Nacionales',
       notes: data.notes || `Programación de pago a ${data.supplierName}`,
       createdById: user.id,
       createdByName: user.name,
@@ -116,190 +113,86 @@ export class TreasuryService {
   }
 
   /**
-   * Ejecuta el desembolso en tesorería y genera automáticamente el comprobante contable
+   * Ejecuta el desembolso. El servidor valida permisos y fondos, mueve el banco, abona la CxP y causa
+   * el comprobante de egreso (CE) en la misma transacción: si algo falla, no queda nada a medias.
    */
   async executePayment(
     paymentId: string,
-    executionData: {
-      paymentDate: string
-      bankAccountId: string
-      referenceNumber: string
-      supportDocumentUrl?: string
-    },
+    executionData: { bankAccountId: string; referenceNumber?: string },
     user: { id: string; name: string; role: string }
-  ): Promise<TreasuryPayment> {
-    const payments = await treasuryRepository.getPayments()
-    const target = payments.find((p) => p.id === paymentId)
-    if (!target) {
-      throw new Error(`Pago de tesorería ${paymentId} no encontrado.`)
-    }
+  ): Promise<TreasuryPostingResult> {
+    const result = await treasuryRepository.executePayment(paymentId, executionData)
 
-    const bank = await treasuryRepository.getBankAccountById(executionData.bankAccountId)
-    if (!bank) {
-      throw new Error(`Cuenta bancaria no existe.`)
-    }
-
-    if (bank.currentBalance < target.amount) {
-      throw new Error(
-        `Saldo insuficiente en ${bank.bankName} ($${bank.currentBalance.toLocaleString()}) para cubrir el desembolso de $${target.amount.toLocaleString()}.`
-      )
-    }
-
-    // 1. Generar asiento en Contabilidad (Partida Doble oficial)
-    // Débito: Cuenta Proveedor (220505) - Disminuye Pasivo
-    // Crédito: Cuenta Banco (111005) - Disminuye Activo
-    const accountingEntry = await accountingService.createManualEntry(
-      {
-        date: executionData.paymentDate,
-        description: `Pago Tesorería ${target.paymentNumber} a ${target.thirdPartyName}. Ref: ${executionData.referenceNumber}. Factura Proveedor: ${target.supplierInvoiceNumber || '—'}`,
-        thirdPartyId: target.thirdPartyId,
-        thirdPartyName: target.thirdPartyName,
-        thirdPartyDoc: target.thirdPartyDoc,
-        lines: [
-          {
-            accountId: 'acc-220505',
-            accountCode: '220505',
-            accountName: 'Proveedores Nacionales',
-            debit: target.amount,
-            credit: 0,
-            description: `Cancelación / Abono factura proveedor ${target.thirdPartyName}`,
-          },
-          {
-            accountId: bank.accountingAccountId || 'acc-111005',
-            accountCode: bank.accountingAccountCode || '111005',
-            accountName: bank.accountingAccountName || 'Bancos Nacionales',
-            debit: 0,
-            credit: target.amount,
-            description: `Egreso bancario ${bank.bankName} comprobante ${target.paymentNumber}`,
-          },
-        ],
-      },
-      user
-    )
-
-    // 2. Marcar como pagado en Tesorería con vínculo al asiento
-    const paidPayment = await treasuryRepository.markPaymentAsPaid(paymentId, {
-      paymentDate: executionData.paymentDate,
-      bankAccountId: bank.id,
-      referenceNumber: executionData.referenceNumber,
-      supportDocumentUrl: executionData.supportDocumentUrl,
-      accountingEntryId: accountingEntry.id,
-      accountingEntryNumber: accountingEntry.entryNumber,
-    })
-
-    // 3. Auditoría transversal
     await auditService.log({
       action: 'TREASURY_PAYMENT_EXECUTED' as any,
       module: 'FINANCIAL' as any,
       entityType: 'TREASURY_PAYMENT',
-      entityId: paidPayment.id,
-      entityReference: `${paidPayment.paymentNumber} -> ${accountingEntry.entryNumber}`,
+      entityId: result.documentId,
+      entityReference: `${result.documentNumber} -> ${result.accountingEntryNumber || ''}`,
       userId: user.id,
       userName: user.name,
       userRole: user.role,
       level: 'INFO',
       result: 'SUCCESS',
-      details: `Desembolso ejecutado por tesorería. Asiento contable ${accountingEntry.entryNumber} generado exitosamente por $${paidPayment.amount.toLocaleString()} COP.`,
+      details: `Desembolso ${result.documentNumber} por $${result.amount.toLocaleString('es-CO')} COP. Comprobante ${result.accountingEntryNumber || 'sin número'}.`,
     })
 
-    return paidPayment
+    return result
   }
 
   /**
-   * Registra un recaudo de cartera en tesorería y genera automáticamente el comprobante contable
+   * Registra un recaudo de cartera. El servidor mueve el banco o la caja, abona la cartera del cliente
+   * y causa el comprobante RC (caja) o CI (banco) en la misma transacción.
    */
   async executeCustomerCollection(
     data: {
       customerId: string
-      customerName: string
-      customerDoc: string
-      invoiceId?: string
-      invoiceNumber?: string
       bankAccountId: string
       amount: number
-      receiptDate: string
-      paymentMethod?: 'TRANSFERENCIA' | 'CONSIGNACION' | 'EFECTIVO' | 'TARJETA'
+      receiptDate?: string
+      paymentMethod: TreasuryReceipt['paymentMethod']
       referenceNumber?: string
+      invoiceId?: string
       notes?: string
+      idempotencyKey: string
     },
     user: { id: string; name: string; role: string }
-  ): Promise<TreasuryReceipt> {
-    const bank = await treasuryRepository.getBankAccountById(data.bankAccountId)
-    if (!bank) {
-      throw new Error(`Cuenta bancaria seleccionada no existe.`)
+  ): Promise<TreasuryPostingResult> {
+    if (!(data.amount > 0)) {
+      throw new Error('El valor del recaudo debe ser mayor a cero.')
+    }
+    const result = await treasuryRepository.createReceipt(data)
+
+    if (!result.idempotentReplay) {
+      await auditService.log({
+        action: 'TREASURY_RECEIPT_REGISTERED' as any,
+        module: 'FINANCIAL' as any,
+        entityType: 'TREASURY_RECEIPT',
+        entityId: result.documentId,
+        entityReference: `${result.documentNumber} -> ${result.accountingEntryNumber || ''}`,
+        userId: user.id,
+        userName: user.name,
+        userRole: user.role,
+        level: 'INFO',
+        result: 'SUCCESS',
+        details: `Recaudo ${result.documentNumber} por $${result.amount.toLocaleString('es-CO')} COP. Comprobante ${result.accountingEntryNumber || 'sin número'}.`,
+      })
     }
 
-    // 1. Asiento en Contabilidad:
-    // Débito: Bancos / Caja (Aumenta Activo)
-    // Crédito: Clientes (Disminuye Cartera)
-    const accountingEntry = await accountingService.createManualEntry(
-      {
-        date: data.receiptDate,
-        description: `Recaudo Tesorería de cliente ${data.customerName}. Factura: ${data.invoiceNumber || 'Venta'} Ref: ${data.referenceNumber || '—'}`,
-        thirdPartyId: data.customerId,
-        thirdPartyName: data.customerName,
-        thirdPartyDoc: data.customerDoc,
-        lines: [
-          {
-            accountId: bank.accountingAccountId || 'acc-111005',
-            accountCode: bank.accountingAccountCode || '111005',
-            accountName: bank.accountingAccountName || 'Bancos Nacionales',
-            debit: data.amount,
-            credit: 0,
-            description: `Ingreso por recaudo cliente ${data.customerName}`,
-          },
-          {
-            accountId: 'acc-130505',
-            accountCode: '130505',
-            accountName: 'Clientes Nacionales',
-            debit: 0,
-            credit: data.amount,
-            description: `Abono a cartera de cliente ${data.customerName}`,
-          },
-        ],
-      },
-      user
-    )
-
-    // 2. Registrar en tesorería
-    const receipt = await treasuryRepository.createReceipt({
-      invoiceId: data.invoiceId,
-      invoiceNumber: data.invoiceNumber,
-      customerId: data.customerId,
-      customerName: data.customerName,
-      customerDoc: data.customerDoc,
-      bankAccountId: bank.id,
-      bankAccountName: `${bank.bankName} (${bank.accountNumber})`,
-      paymentMethod: data.paymentMethod || 'TRANSFERENCIA',
-      amount: data.amount,
-      receiptDate: data.receiptDate,
-      referenceNumber: data.referenceNumber,
-      status: 'COLLECTED',
-      accountingEntryId: accountingEntry.id,
-      accountingEntryNumber: accountingEntry.entryNumber,
-      debitAccountCode: bank.accountingAccountCode || '111005',
-      debitAccountName: bank.accountingAccountName || 'Bancos Nacionales',
-      creditAccountCode: '130505',
-      creditAccountName: 'Clientes Nacionales',
-      notes: data.notes,
-    })
-
-    await auditService.log({
-      action: 'TREASURY_RECEIPT_REGISTERED' as any,
-      module: 'FINANCIAL' as any,
-      entityType: 'TREASURY_RECEIPT',
-      entityId: receipt.id,
-      entityReference: `${receipt.receiptNumber} -> ${accountingEntry.entryNumber}`,
-      userId: user.id,
-      userName: user.name,
-      userRole: user.role,
-      level: 'INFO',
-      result: 'SUCCESS',
-      details: `Recaudo registrado en tesorería por $${receipt.amount.toLocaleString()} COP. Asiento contable ${accountingEntry.entryNumber} creado.`,
-    })
-
-    return receipt
+    return result
   }
+
+  /** Contabiliza un pago o recaudo que quedó sin comprobante (registros anteriores a la causación automática). */
+  async causePendingAccounting(kind: 'PAYMENT' | 'RECEIPT', documentId: string): Promise<string | null> {
+    return kind === 'PAYMENT'
+      ? treasuryRepository.causePaymentAccounting(documentId)
+      : treasuryRepository.causeReceiptAccounting(documentId)
+  }
+
+  async getReceiptCustomers(): Promise<ReceiptCustomerOption[]> {
+    return treasuryRepository.getReceiptCustomers()
+  }
+
   /**
    * Registra una nueva cuenta bancaria
    */
@@ -309,7 +202,6 @@ export class TreasuryService {
       accountNumber: string
       accountType?: string
       currency?: string
-      initialBalance?: number
       locationId?: string
       description?: string
     },
@@ -328,7 +220,7 @@ export class TreasuryService {
         userRole: user.role,
         level: 'INFO',
         result: 'SUCCESS',
-        details: `Cuenta bancaria creada ${data.bankName} (${data.accountNumber}) con saldo inicial $${(data.initialBalance || 0).toLocaleString()} COP`,
+        details: `Cuenta bancaria creada ${data.bankName} (${data.accountNumber}) con saldo inicial 0 COP`,
       })
     }
     return res

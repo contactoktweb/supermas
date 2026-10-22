@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { WebOrder } from '../../types'
+import { WebOrder, WebOrderSalePayment } from '../../types'
+import { webOrderService } from '../../services/web-order.service'
 
 interface WebOrderDispatchModalProps {
   isOpen: boolean
@@ -11,9 +12,22 @@ interface WebOrderDispatchModalProps {
   onClose: () => void
   onConfirmDispatch: (
     orderId: string,
-    data: { courier: string; trackingNumber: string; deliveryNotes?: string }
-  ) => Promise<any>
+    data: { courier: string; trackingNumber: string; deliveryNotes?: string },
+    payment: WebOrderSalePayment
+  ) => Promise<unknown>
 }
+
+type SalePaymentMethod = WebOrderSalePayment['paymentMethod']
+
+const PAYMENT_OPTIONS: Array<{ id: SalePaymentMethod; label: string }> = [
+  { id: 'TRANSFERENCIA', label: 'Transferencia' },
+  { id: 'TARJETA', label: 'Tarjeta' },
+  { id: 'EFECTIVO', label: 'Efectivo (contraentrega)' },
+  { id: 'CREDITO', label: 'Crédito' },
+]
+
+const formatCOP = (amount: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(amount)
 
 export function WebOrderDispatchModal({
   isOpen,
@@ -27,10 +41,46 @@ export function WebOrderDispatchModal({
   const [deliveryNotes, setDeliveryNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [paymentMethod, setPaymentMethod] = useState<SalePaymentMethod>('TRANSFERENCIA')
+  const [bankAccountId, setBankAccountId] = useState('')
+  const [bankOptions, setBankOptions] = useState<Array<{ id: string; label: string }>>([])
+  const [banksLoading, setBanksLoading] = useState(false)
+  const [banksError, setBanksError] = useState<string | null>(null)
+  // Una clave por pedido abierto: si la respuesta se pierde, reintentar no duplica la venta.
+  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => crypto.randomUUID())
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEffect(() => {
+    if (!isOpen || !order) return
+    setIdempotencyKey(crypto.randomUUID())
+    setError(null)
+  }, [isOpen, order?.id])
+
+  useEffect(() => {
+    if (!isOpen) return
+    let active = true
+    setBanksLoading(true)
+    setBanksError(null)
+    webOrderService
+      .listPaymentBankAccounts()
+      .then((accounts) => {
+        if (!active) return
+        setBankOptions(accounts)
+        setBankAccountId((current) => current || accounts[0]?.id || '')
+      })
+      .catch((err: unknown) => {
+        if (active) setBanksError(err instanceof Error ? err.message : 'No se pudieron cargar las cuentas bancarias.')
+      })
+      .finally(() => {
+        if (active) setBanksLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [isOpen])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -44,6 +94,8 @@ export function WebOrderDispatchModal({
 
   if (!isOpen || !order || !mounted) return null
 
+  const needsBankAccount = paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'TARJETA'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!courier.trim()) {
@@ -54,18 +106,30 @@ export function WebOrderDispatchModal({
       setError('Debes ingresar el número de guía o tracking de despacho.')
       return
     }
+    if (needsBankAccount && !bankAccountId) {
+      setError('Selecciona la cuenta bancaria que recibió el pago del pedido.')
+      return
+    }
 
     try {
       setSubmitting(true)
       setError(null)
-      await onConfirmDispatch(order.id, {
-        courier,
-        trackingNumber,
-        deliveryNotes: deliveryNotes.trim() || undefined,
-      })
+      await onConfirmDispatch(
+        order.id,
+        {
+          courier,
+          trackingNumber,
+          deliveryNotes: deliveryNotes.trim() || undefined,
+        },
+        {
+          paymentMethod,
+          bankAccountId: needsBankAccount ? bankAccountId : undefined,
+          idempotencyKey,
+        }
+      )
       onClose()
-    } catch (err: any) {
-      setError(err.message || 'Error al despachar el pedido.')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Error al despachar el pedido.')
     } finally {
       setSubmitting(false)
     }
@@ -102,6 +166,7 @@ export function WebOrderDispatchModal({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Cerrar"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition-colors"
           >
             <AppIcon name="close" size={16} />
@@ -121,7 +186,7 @@ export function WebOrderDispatchModal({
             Al confirmar el despacho, el sistema:
             <ul className="list-disc pl-4 mt-1 space-y-0.5 text-[11px]">
               <li>Registrará la salida física del inventario desde <strong>{order.assignedLocationName}</strong>.</li>
-              <li>Generará automáticamente el documento de <strong>Venta oficial</strong> en el ERP.</li>
+              <li>Registrará la <strong>Venta oficial</strong> con los precios vigentes del catálogo, su pago y su asiento contable.</li>
               <li>Actualizará el estado a <strong>ENVIADO</strong> con trazabilidad en auditoría.</li>
             </ul>
           </div>
@@ -154,6 +219,74 @@ export function WebOrderDispatchModal({
             />
           </div>
 
+          <fieldset className="space-y-2 p-3.5 rounded-xl border border-slate-200 bg-slate-50/60">
+            <legend className="text-xs font-bold text-slate-700 px-1">Pago de la venta *</legend>
+            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Medio de pago de la venta">
+              {PAYMENT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={paymentMethod === opt.id}
+                  onClick={() => setPaymentMethod(opt.id)}
+                  className={`text-xs py-2 px-2.5 rounded-lg border transition-colors ${
+                    paymentMethod === opt.id
+                      ? 'border-sky-600 bg-sky-50 text-sky-800 font-semibold'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
+            {needsBankAccount && (
+              <div className="space-y-1.5">
+                <label htmlFor="dispatch-bank-account" className="text-xs font-bold text-slate-700">
+                  Cuenta bancaria que recibió el pago *
+                </label>
+                {banksLoading ? (
+                  <div className="h-9 rounded-lg bg-slate-200/70 animate-pulse" aria-label="Cargando cuentas bancarias" />
+                ) : banksError ? (
+                  <p className="text-xs text-rose-700 m-0">{banksError}</p>
+                ) : bankOptions.length === 0 ? (
+                  <p className="text-xs text-amber-800 m-0">
+                    No hay cuentas bancarias con cuenta contable asignada. Configúrelas en Tesorería.
+                  </p>
+                ) : (
+                  <select
+                    id="dispatch-bank-account"
+                    value={bankAccountId}
+                    onChange={(e) => setBankAccountId(e.target.value)}
+                    className="w-full text-xs p-2.5 rounded-lg border border-slate-200 bg-white"
+                  >
+                    {bankOptions.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {paymentMethod === 'EFECTIVO' && (
+              <p className="text-[11px] text-slate-600 m-0">
+                El efectivo entra a su caja abierta en {order.assignedLocationName}.
+              </p>
+            )}
+            {paymentMethod === 'CREDITO' && (
+              <p className="text-[11px] text-slate-600 m-0">
+                Se carga a la cartera del cliente registrado, dentro de su cupo de crédito.
+              </p>
+            )}
+            {order.shippingCost > 0 && (
+              <p className="text-[11px] text-slate-600 m-0">
+                El envío ({formatCOP(order.shippingCost)}) no hace parte de la venta.
+              </p>
+            )}
+          </fieldset>
+
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-700">Observaciones del Despacho (Opcional)</label>
             <textarea
@@ -171,7 +304,7 @@ export function WebOrderDispatchModal({
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (needsBankAccount && (banksLoading || bankOptions.length === 0))}
               className="px-4 py-2 rounded-lg bg-sky-600 text-white font-semibold text-xs hover:bg-sky-700 disabled:opacity-50 transition-colors flex items-center gap-1.5 shadow-xs"
             >
               <AppIcon name="transfers" size={15} />

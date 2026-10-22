@@ -3,14 +3,21 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { AccountingAccount, ThirdParty } from '../../types'
-import { ManualEntryFormData } from '../../schemas/accounting.schema'
+import { AccountingAccount, AccountingVoucherType, ThirdParty } from '../../types'
+import {
+  DEFAULT_MANUAL_VOUCHER_TYPE_CODE,
+  MANUAL_VOUCHER_TYPE_CODES,
+  ManualEntryFormData,
+  ManualVoucherTypeCode,
+} from '../../schemas/accounting.schema'
 import { supabaseClient } from '@/lib/supabase/client'
 
 interface NewManualEntryDrawerProps {
   isOpen: boolean
   onClose: () => void
   accounts: AccountingAccount[]
+  /** Catálogo de tipos de comprobante: el manual admite CC, AJ, CM y TR (si están activos). */
+  voucherTypes?: AccountingVoucherType[]
   thirdParties?: ThirdParty[]
   onOpenNewThirdParty?: () => void
   onSubmit: (data: ManualEntryFormData) => Promise<void>
@@ -29,11 +36,13 @@ export function NewManualEntryDrawer({
   isOpen,
   onClose,
   accounts,
+  voucherTypes = [],
   thirdParties = [],
   onOpenNewThirdParty,
   onSubmit,
 }: NewManualEntryDrawerProps) {
   const [mounted, setMounted] = useState(false)
+  const [voucherTypeCode, setVoucherTypeCode] = useState<ManualVoucherTypeCode>(DEFAULT_MANUAL_VOUCHER_TYPE_CODE)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [dueDate, setDueDate] = useState('')
   const [description, setDescription] = useState('')
@@ -162,6 +171,12 @@ export function NewManualEntryDrawer({
 
   if (!isOpen || !mounted) return null
 
+  // Tipos que admite el asiento manual, con el nombre que la empresa les dio y solo si están activos.
+  const manualVoucherOptions = MANUAL_VOUCHER_TYPE_CODES.flatMap((code) => {
+    const vt = voucherTypes.find((v) => v.code === code)
+    return vt && vt.isActive ? [{ code, name: vt.name }] : []
+  })
+
   const totalDebit = lines.reduce((acc, l) => acc + (Number(l.debit) || 0), 0)
   const totalCredit = lines.reduce((acc, l) => acc + (Number(l.credit) || 0), 0)
   const difference = Math.abs(totalDebit - totalCredit)
@@ -238,6 +253,7 @@ export function NewManualEntryDrawer({
     try {
       setIsSubmitting(true)
       await onSubmit({
+        voucherTypeCode,
         date,
         dueDate: dueDate.trim() || undefined,
         description,
@@ -328,7 +344,29 @@ export function NewManualEntryDrawer({
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
             {/* Campos Generales */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label htmlFor="manual-entry-voucher-type" className="block font-semibold text-slate-700 mb-1">
+                  Tipo de Comprobante:
+                </label>
+                <select
+                  id="manual-entry-voucher-type"
+                  className="w-full h-9 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all shadow-sm"
+                  value={voucherTypeCode}
+                  onChange={(e) => setVoucherTypeCode(e.target.value as ManualVoucherTypeCode)}
+                  disabled={manualVoucherOptions.length === 0}
+                >
+                  {manualVoucherOptions.length === 0 ? (
+                    <option value={DEFAULT_MANUAL_VOUCHER_TYPE_CODE}>Cargando tipos de comprobante...</option>
+                  ) : (
+                    manualVoucherOptions.map((opt) => (
+                      <option key={opt.code} value={opt.code}>
+                        {opt.code} — {opt.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Fecha del Asiento:</label>
                 <input

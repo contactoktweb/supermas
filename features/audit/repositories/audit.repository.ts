@@ -424,14 +424,14 @@ export class AuditRepository {
           }
         }
       } catch (clientErr) {
-        console.warn('⚠️ [auditRepository] Excepción invocando /api/audit, intentando inserción directa:', clientErr)
+        console.warn('[auditRepository] Excepción invocando /api/audit, intentando inserción directa:', clientErr)
       }
     }
 
     const { error } = await client.from('audit_logs').insert(rowToInsert)
 
     if (error) {
-      console.warn('⚠️ Advertencia al persistir audit_log en PostgreSQL:', error.message)
+      console.warn('Advertencia al persistir audit_log en PostgreSQL:', error.message)
     }
 
     return {

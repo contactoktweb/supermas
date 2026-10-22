@@ -1,4 +1,5 @@
 import { supabaseClient } from '@/lib/supabase/client'
+import { dianApiClient } from '@/features/invoices/services/dian-api.client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   Sale,
@@ -59,6 +60,38 @@ function mapDbStatusToDomain(status?: string): SaleStatus {
     default:
       return 'CONFIRMED'
   }
+}
+
+/** Pago de una venta tal como lo recibe el servidor (amount null = saldo restante del total que calcula). */
+export type SalePaymentInput = {
+  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'CREDIT'
+  amount: number | null
+  bank_account_id?: string
+}
+
+/** Respuesta de fn_create_sale_with_payments (073). */
+export interface CreateSaleRpcResult {
+  success: boolean
+  idempotent_replay: boolean
+  sale_id: string
+  sale_number: string
+  total_amount: number
+  accounting_entry_id: string | null
+  accounting_entry_number: string | null
+  voucher_type_code: string | null
+}
+
+/** Respuesta de fn_cancel_sale (079). */
+export interface CancelSaleRpcResult {
+  success: boolean
+  already_cancelled: boolean
+  sale_id: string
+  sale_number: string
+  reversed_units?: number
+  cash_refunded?: number
+  bank_reversed?: number
+  credit_reversed?: number
+  accounting_reversals?: Array<{ original_entry_number: string; reversal_entry_number: string }>
 }
 
 export class SalesRepository {
@@ -178,6 +211,10 @@ export class SalesRepository {
         total_amount,
         total_cost_amount,
         payment_method,
+        payment_status,
+        paid_amount,
+        payment_terms,
+        due_date,
         status,
         notes,
         created_at,
@@ -372,6 +409,10 @@ export class SalesRepository {
         total_amount,
         total_cost_amount,
         payment_method,
+        payment_status,
+        paid_amount,
+        payment_terms,
+        due_date,
         status,
         notes,
         created_at,
@@ -457,6 +498,7 @@ export class SalesRepository {
       .from('electronic_invoices')
       .select('*')
       .eq('sale_id', sale.id)
+      .eq('document_type', 'INVOICE') // las notas crédito/débito comparten sale_id con la factura
       .maybeSingle()
 
     const invoice = eInvoice
@@ -549,265 +591,83 @@ export class SalesRepository {
   }
 
   /**
-   * Crea una nueva venta en public.sales
+   * Crea la venta del módulo Ventas en una sola transacción del servidor (fn_create_sale_with_payments):
+   * número, precios, IVA, costo, stock/kardex, pagos, caja del usuario, banco, cartera y asiento.
+   * El navegador solo envía ids, cantidades, descuentos y pagos.
    */
-  async create(sale: Sale): Promise<Sale> {
-    const { data: authUser } = await supabaseClient.auth.getUser()
-    const companyId = await this.resolveCompanyId()
-
-    const isCredit = sale.paymentMethod === 'CREDITO';
-    const paidAmount = isCredit ? 0 : sale.totalAmount;
-    const paymentStatus = isCredit ? 'PENDING' : 'PAID';
-    const paymentTerms = isCredit ? 'CREDITO' : 'CONTADO';
-    const dueDate = sale.dueDate || (sale.date ? sale.date.split('T')[0] : new Date().toISOString().split('T')[0]);
-
-    const { data: created, error } = await supabaseClient
-      .from('sales')
-      .insert({
-        company_id: companyId,
-        location_id: sale.locationId,
-        customer_id: sale.customerId,
-        seller_user_id: authUser.user?.id || (sale.sellerId && sale.sellerId.length === 36 ? sale.sellerId : null),
-        sale_number: sale.saleNumber,
-        subtotal_amount: sale.subtotal,
-        discount_amount: sale.discountTotal,
-        tax_amount: sale.taxTotal,
-        total_amount: sale.totalAmount,
-        total_cost_amount: sale.totalCost,
-        payment_method: mapDomainPaymentMethodToDb(sale.paymentMethod),
-        paid_amount: paidAmount,
-        payment_status: paymentStatus,
-        payment_terms: paymentTerms,
-        due_date: dueDate,
-        status: sale.status === 'CANCELLED' ? 'CANCELLED' : 'ISSUED',
-        notes: sale.notes,
-      })
-      .select()
-      .single()
-
-    if (error || !created) {
-      throw new Error(`Error al registrar venta: ${error?.message}`)
-    }
-
-    if (sale.items && sale.items.length > 0) {
-      const itemsPayload = sale.items.map((it) => ({
-        company_id: companyId,
-        sale_id: created.id,
+  async createWithPayments(input: {
+    locationId: string
+    customerId: string
+    idempotencyKey: string
+    items: Array<{ productId: string; quantity: number; discountPercent: number }>
+    payments: SalePaymentInput[]
+    notes?: string
+  }): Promise<CreateSaleRpcResult> {
+    const { data, error } = await supabaseClient.rpc('fn_create_sale_with_payments', {
+      p_location_id: input.locationId,
+      p_customer_id: input.customerId,
+      p_idempotency_key: input.idempotencyKey,
+      p_items: input.items.map((it) => ({
         product_id: it.productId,
         quantity: it.quantity,
-        unit_cost: it.unitCost,
-        unit_price: it.unitPrice,
         discount_percent: it.discountPercent,
-        tax_rate_percent: it.taxRatePercent,
-        tax_amount: it.taxAmount,
-        subtotal: it.subtotal,
-        total: it.total,
-      }))
-      await supabaseClient.from('sale_items').insert(itemsPayload)
+      })),
+      p_payments: input.payments,
+      p_notes: input.notes ?? null,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as CreateSaleRpcResult | null
+    if (!res?.success || !res.sale_id) {
+      throw new Error('El servidor no confirmó el registro de la venta. Intente de nuevo: no se duplicará.')
     }
-
-    if (isCredit) {
-      const { data: custRow } = await supabaseClient
-        .from('customers')
-        .select('current_balance')
-        .eq('id', sale.customerId)
-        .maybeSingle();
-      if (custRow) {
-        const newBal = Number(custRow.current_balance || 0) + sale.totalAmount;
-        await supabaseClient
-          .from('customers')
-          .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-          .eq('id', sale.customerId);
-      }
-    } else {
-      try {
-        if (sale.paymentMethod === 'EFECTIVO') {
-          const { data: openSession } = await supabaseClient
-            .from('cash_sessions')
-            .select('id')
-            .eq('status', 'OPEN')
-            .limit(1)
-            .maybeSingle();
-          if (openSession?.id) {
-            await supabaseClient.from('cash_movements').insert({
-              session_id: openSession.id,
-              type: 'SALE_CASH',
-              amount: sale.totalAmount,
-              reason: 'Venta contado ' + sale.saleNumber,
-              authorized_by_user_id: authUser.user?.id || null,
-            });
-          }
-        } else if (sale.paymentMethod === 'TRANSFERENCIA' || sale.paymentMethod === 'TARJETA') {
-          const { data: bankAccount } = await supabaseClient
-            .from('bank_accounts')
-            .select('id, current_balance')
-            .eq('is_active', true)
-            .limit(1)
-            .maybeSingle();
-          if (bankAccount?.id) {
-            const newBal = Number(bankAccount.current_balance || 0) + sale.totalAmount;
-            await supabaseClient
-              .from('bank_accounts')
-              .update({ current_balance: newBal, updated_at: new Date().toISOString() })
-              .eq('id', bankAccount.id);
-
-            await supabaseClient.from('bank_movements').insert({
-              company_id: companyId,
-              location_id: sale.locationId,
-              bank_account_id: bankAccount.id,
-              movement_number: 'MOV-VTA-' + Date.now().toString().slice(-6),
-              movement_date: dueDate,
-              movement_type: 'DEBIT',
-              amount: sale.totalAmount,
-              balance_after: newBal,
-              concept: 'Ingreso venta contado ' + sale.saleNumber,
-              is_reconciled: true,
-              created_by_user_id: authUser.user?.id || null,
-            });
-
-            await supabaseClient.from('treasury_receipts').insert({
-              company_id: companyId,
-              location_id: sale.locationId,
-              receipt_number: 'TES-REC-' + Date.now().toString().slice(-6),
-              customer_id: sale.customerId,
-              bank_account_id: bankAccount.id,
-              amount: sale.totalAmount,
-              receipt_date: dueDate,
-              payment_method: sale.paymentMethod === 'TARJETA' ? 'TARJETA' : 'TRANSFERENCIA',
-              status: 'COLLECTED',
-              notes: 'Recaudo venta contado ' + sale.saleNumber,
-              created_by_user_id: authUser.user?.id || null,
-            });
-          }
-        }
-      } catch (finErr) {
-        console.warn('Advertencia registrando movimiento financiero de venta:', finErr);
-      }
-    }
-
-    return (await this.findById(created.id))!
+    return res
   }
 
   /**
-   * Actualiza una venta existente
+   * Anula la venta en una sola transacción del servidor (fn_cancel_sale, 079): stock (kardex), caja,
+   * banco, cartera y asiento contable. El servidor bloquea la anulación si la venta tiene factura
+   * electrónica (se usa nota crédito), devoluciones, remisiones o abonos.
    */
-  async update(id: string, partial: Partial<Sale>): Promise<Sale | null> {
-    const updates: any = { updated_at: new Date().toISOString() }
-    if (partial.status) {
-      if (partial.status === 'CANCELLED') {
-        updates.status = 'CANCELLED'
-      } else if (partial.status === 'RETURNED') {
-        updates.status = 'RETURNED'
-      } else if (partial.status === 'PENDING') {
-        updates.status = 'PENDING'
-      } else {
-        updates.status = 'ISSUED'
-      }
+  async cancelSale(saleId: string, reason: string): Promise<CancelSaleRpcResult> {
+    const { data, error } = await supabaseClient.rpc('fn_cancel_sale', {
+      p_sale_id: saleId,
+      p_reason: reason,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as CancelSaleRpcResult | null
+    if (!res?.success) {
+      throw new Error('El servidor no confirmó la anulación de la venta. Actualice el listado y verifique su estado.')
     }
-    if (partial.notes !== undefined) {
-      updates.notes = partial.notes
-    }
-
-    const { data, error } = await supabaseClient
-      .from('sales')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .maybeSingle()
-
-    if (error || !data) return null
-    return this.findById(id)
+    return res
   }
 
   /**
-   * Registra los movimientos de salida de inventario (SALE_OUT) para Kardex en PostgreSQL
+   * Devolución de mercancía en buen estado por la RPC atómica de Devoluciones (fn_process_customer_return, 068):
+   * reingreso a kardex y documento de devolución. Las devoluciones con mercancía en mal estado se
+   * registran desde el módulo Devoluciones.
    */
-  async createInventoryMovements(
-    sale: Sale,
-    user: { userId: string; userName: string }
-  ): Promise<void> {
-    const companyId = await this.resolveCompanyId()
-
-    for (const item of sale.items) {
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', item.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const newStock = Math.max(0, prevStock - item.quantity)
-      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
-
-      const { error: movErr } = await supabaseClient.from('inventory_movements').insert({
-        company_id: companyId,
-        product_id: item.productId,
-        location_id: sale.locationId,
-        movement_type: 'SALE_OUT',
-        quantity_in: 0,
-        quantity_out: item.quantity,
-        previous_stock: prevStock,
-        new_stock: newStock,
-        unit_cost: cost,
-        total_cost: item.quantity * cost,
-        document_type: 'SALE',
-        document_reference: sale.saleNumber,
-        reason: `Salida por venta comercial ${sale.saleNumber} - Cliente: ${sale.customerName}`,
-        user_id: user.userId || null,
-      })
-
-      if (movErr) {
-        console.error('Error insertando movimiento de inventario (SALE_OUT):', movErr)
-        throw new Error(`Error registrando movimiento de salida en Kardex: ${movErr.message}`)
-      }
+  async processCustomerReturn(input: {
+    saleId: string
+    reason: string
+    items: Array<{ productId: string; quantity: number; reason?: string }>
+  }): Promise<{ returnId: string; code: string }> {
+    const { data, error } = await supabaseClient.rpc('fn_process_customer_return', {
+      p_sale_id: input.saleId,
+      p_items: input.items.map((it) => ({
+        product_id: it.productId,
+        quantity: it.quantity,
+        reason: it.reason || null,
+        condition: 'BUENO',
+      })),
+      p_reason: input.reason,
+      p_notes: null,
+    })
+    if (error) throw new Error(error.message)
+    const res = data as { success?: boolean; return_id?: string; code?: string } | null
+    if (!res?.success || !res.return_id) {
+      throw new Error('El servidor no confirmó la devolución. Actualice el listado y verifique en Devoluciones.')
     }
-  }
-
-  /**
-   * Reversión de inventario por anulación de venta
-   */
-  async reverseInventoryMovements(
-    sale: Sale,
-    reason: string,
-    user: { userId: string; userName: string }
-  ): Promise<void> {
-    const companyId = await this.resolveCompanyId()
-
-    for (const item of sale.items) {
-      const { data: stockRow } = await supabaseClient
-        .from('stock_levels')
-        .select('quantity, average_cost')
-        .eq('product_id', item.productId)
-        .eq('location_id', sale.locationId)
-        .maybeSingle()
-
-      const prevStock = stockRow ? Number(stockRow.quantity || 0) : 0
-      const newStock = prevStock + item.quantity
-      const cost = stockRow ? Number(stockRow.average_cost || 0) : item.unitCost
-
-      const { error: revErr } = await supabaseClient.from('inventory_movements').insert({
-        company_id: companyId,
-        product_id: item.productId,
-        location_id: sale.locationId,
-        movement_type: 'POSITIVE_ADJUSTMENT',
-        quantity_in: item.quantity,
-        quantity_out: 0,
-        previous_stock: prevStock,
-        new_stock: newStock,
-        unit_cost: cost,
-        total_cost: item.quantity * cost,
-        document_type: 'SALE_RETURN',
-        document_reference: `REV-${sale.saleNumber}`,
-        reason: `Reversión por anulación de venta ${sale.saleNumber}. Motivo: ${reason}`,
-        user_id: user.userId || null,
-      })
-
-      if (revErr) {
-        console.error('Error insertando reversión de inventario (POSITIVE_ADJUSTMENT):', revErr)
-        throw new Error(`Error registrando reversión en Kardex: ${revErr.message}`)
-      }
-    }
+    return { returnId: res.return_id, code: res.code || '' }
   }
 
   /**
@@ -821,42 +681,9 @@ export class SalesRepository {
     const companyId = await this.resolveCompanyId()
 
     if (type === 'FACTURA_ELECTRONICA') {
-      const prefix = 'FE'
-      const { data: lastInv } = await supabaseClient
-        .from('electronic_invoices')
-        .select('number')
-        .eq('prefix', prefix)
-        .order('number', { ascending: false })
-        .limit(1)
-        .maybeSingle()
-
-      const nextNumber = lastInv ? Number(lastInv.number) + 1 : 1
-      const cufe = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('')
-
-      const { data: created, error } = await supabaseClient
-        .from('electronic_invoices')
-        .insert({
-          company_id: companyId,
-          location_id: sale.locationId,
-          sale_id: sale.id,
-          customer_id: sale.customerId,
-          prefix,
-          number: nextNumber,
-          document_type: 'INVOICE',
-          cufe,
-          subtotal_amount: sale.subtotal,
-          tax_amount: sale.taxTotal,
-          total_amount: sale.totalAmount,
-          dian_status: 'PENDING',
-        })
-        .select()
-        .single()
-
-      if (error || !created) {
-        throw new Error(`Error al generar factura electrónica DIAN: ${error?.message}`)
-      }
-
-      return { invoiceId: created.id, invoiceNumber: `${prefix}-${nextNumber}` }
+      // La factura electrónica la numera, construye y transmite el servidor (resolución DIAN vigente).
+      const res = await dianApiClient.emitFromSale(sale.id)
+      return { invoiceId: res.invoiceId, invoiceNumber: res.documentNumber }
     } else {
       const invoiceNumber = `POS-${sale.saleNumber.slice(-4)}`
       return { invoiceId: sale.id, invoiceNumber }

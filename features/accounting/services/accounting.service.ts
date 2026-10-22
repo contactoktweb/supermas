@@ -5,7 +5,7 @@
  * reglas de partida doble, reportes financieros y auditoría transversal del sistema.
  */
 
-import { accountingRepository } from '../repositories/accounting.repository'
+import { accountingRepository, toBogotaPeriodCode } from '../repositories/accounting.repository'
 import { accountingRulesService } from './accounting-rules.service'
 import { accountingReportService } from './accounting-report.service'
 import { auditService } from '@/features/audit/services/audit.service'
@@ -17,12 +17,15 @@ import {
   AccountingDashboard,
   BalanceSheetReport,
   IncomeStatementReport,
+  IncomeStatementParams,
   GeneralLedgerReport,
   AuxiliaryLedgerReport,
   AccountsReceivableItem,
   AccountsPayableItem,
   CostAnalysisItem,
-  InventoryAccountMapping,
+  InventoryLineAccounts,
+  InventoryLineAccountsConfig,
+  AccountingVoucherType,
   ExogenaPrepItem,
   AccountingPermission,
   AccountingPeriod,
@@ -30,12 +33,37 @@ import {
   LegalNature,
   ThirdPartyType,
   AccountNature,
+  AccountingCompanyHeader,
+  BalanceSheetParams,
+  TrialBalanceTotals,
 } from '../types'
 import {
   AccountFormData,
+  InventoryLineAccountsFormData,
   ManualEntryFormData,
   ThirdPartyFormData,
+  inventoryLineAccountsSchema,
+  VoucherTypeUpdateData,
+  voucherTypeUpdateSchema,
 } from '../schemas/accounting.schema'
+import { isCostAccountCodeFor } from '../utils/posting-accounts'
+
+/** Cambio de naturaleza en una cuenta con movimientos: la UI debe pedir confirmación y reintentar. */
+export class AccountNatureChangeConfirmationError extends Error {
+  readonly account: AccountingAccount
+  readonly requestedNature: AccountNature
+  readonly movementLines: number
+
+  constructor(account: AccountingAccount, requestedNature: AccountNature, movementLines: number) {
+    super(
+      `La cuenta ${account.code} ya tiene ${movementLines} líneas contables. Cambiar su naturaleza invierte el signo de su saldo en todos los libros y estados financieros.`
+    )
+    this.name = 'AccountNatureChangeConfirmationError'
+    this.account = account
+    this.requestedNature = requestedNature
+    this.movementLines = movementLines
+  }
+}
 
 const ROLE_PERMISSIONS: Record<string, AccountingPermission[]> = {
   SUPERADMIN: [
@@ -73,6 +101,16 @@ export class AccountingService {
   hasPermission(permission: AccountingPermission, userRole: string = 'SUPERADMIN'): boolean {
     const allowed = ROLE_PERMISSIONS[userRole] || []
     return allowed.includes(permission)
+  }
+
+  /** Descarta las lecturas contables memoizadas para forzar datos frescos. */
+  invalidateCache(): void {
+    accountingRepository.invalidateCache()
+  }
+
+  /** Sedes activas (id, nombre) para los filtros de reportes contables. */
+  async getActiveLocations(): Promise<{ id: string; name: string }[]> {
+    return accountingRepository.getActiveLocations()
   }
 
   private assertPermission(permission: AccountingPermission, userRole: string = 'SUPERADMIN'): void {
@@ -157,13 +195,31 @@ export class AccountingService {
     return updated
   }
 
+  /**
+   * Cambia la naturaleza (Débito/Crédito) de una cuenta PUC.
+   * La naturaleza decide el signo con que se presenta el saldo en todos los libros y estados: si la
+   * cuenta ya tiene líneas contables, el cambio exige confirmación explícita (`confirmedWithMovements`)
+   * y queda en auditoría con el número de líneas afectadas. No se modifican importes.
+   * La base (RLS de accounting_accounts) solo permite el cambio a administradores y contadores.
+   */
   async updateAccountNature(
     id: string,
     nature: AccountNature,
-    user: { id: string; name: string; role: string }
+    user: { id: string; name: string; role: string },
+    options: { confirmedWithMovements?: boolean } = {}
   ): Promise<AccountingAccount> {
     this.assertPermission('accounting.accounts', user.role)
     const previous = await accountingRepository.getAccountById(id)
+    if (!previous) {
+      throw new Error('La cuenta contable no existe o no tiene acceso a ella.')
+    }
+    if (previous.nature === nature) return previous
+
+    const movementLines = await accountingRepository.countAccountEntryLines(id)
+    if (movementLines > 0 && !options.confirmedWithMovements) {
+      throw new AccountNatureChangeConfirmationError(previous, nature, movementLines)
+    }
+
     const updated = await accountingRepository.updateAccountNature(id, nature)
 
     await auditService.log({
@@ -177,7 +233,9 @@ export class AccountingService {
       userRole: user.role,
       level: 'INFO',
       result: 'SUCCESS',
-      details: `Cambio de naturaleza contable a ${nature} para la cuenta ${updated.code} (${updated.name})`,
+      details:
+        `Cambio de naturaleza contable a ${nature} para la cuenta ${updated.code} (${updated.name})` +
+        (movementLines > 0 ? `. La cuenta tenía ${movementLines} líneas contables registradas (confirmado por el usuario).` : ''),
       changes: [
         { field: 'nature', label: 'Naturaleza', previousValue: previous?.nature || '—', newValue: updated.nature },
       ],
@@ -354,21 +412,34 @@ export class AccountingService {
   }
 
   async getBalanceSheet(
-    period?: string,
-    locationId?: string,
+    params?: Partial<BalanceSheetParams>,
     userRole: string = 'SUPERADMIN'
   ): Promise<BalanceSheetReport> {
     this.assertPermission('accounting.reports', userRole)
-    return accountingReportService.getBalanceSheet(period, locationId)
+    return accountingReportService.getBalanceSheet(params)
+  }
+
+  /** Saldo anterior y movimientos del periodo por cuenta (Balance de Comprobación). */
+  async getTrialBalanceTotals(
+    params: { startDate?: string; endDate?: string; locationId?: string; accountFrom?: string; accountTo?: string },
+    userRole: string = 'SUPERADMIN'
+  ): Promise<TrialBalanceTotals> {
+    this.assertPermission('accounting.reports', userRole)
+    return accountingReportService.getTrialBalanceTotals(params)
+  }
+
+  /** Razón social, NIT y DV de la empresa del usuario para encabezados de reportes. */
+  async getCompanyHeader(userRole: string = 'SUPERADMIN'): Promise<AccountingCompanyHeader> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getCompanyHeader()
   }
 
   async getIncomeStatement(
-    period?: string,
-    locationId?: string,
+    params: Partial<IncomeStatementParams> = {},
     userRole: string = 'SUPERADMIN'
   ): Promise<IncomeStatementReport> {
     this.assertPermission('accounting.reports', userRole)
-    return accountingReportService.getIncomeStatement(period, locationId)
+    return accountingReportService.getIncomeStatement(params)
   }
 
   async getGeneralLedger(
@@ -404,32 +475,132 @@ export class AccountingService {
     return accountingReportService.getExogenaPreparation()
   }
 
-  // --- CONFIGURACIÓN DE CUENTAS DE INVENTARIO ---
+  // --- CUENTAS POR LÍNEA DE INVENTARIO (migración 062) ---
 
-  async getCategoryMappings(userRole: string = 'SUPERADMIN'): Promise<InventoryAccountMapping[]> {
-    this.assertPermission('accounting.config', userRole)
-    return accountingRepository.getCategoryMappings()
+  async getInventoryLineAccounts(userRole: string = 'SUPERADMIN'): Promise<InventoryLineAccountsConfig> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getInventoryLineAccounts()
   }
 
-  async updateCategoryMapping(
-    mapping: InventoryAccountMapping,
+  /**
+   * Asigna el costo de ventas y el ingreso de una línea de inventario.
+   * La base (RLS + trigger) exige accounting.post/admin y cuentas auxiliares válidas; aquí se
+   * valida antes para dar un mensaje claro sin ir al servidor.
+   */
+  async saveInventoryLineAccounts(
+    input: InventoryLineAccountsFormData,
     user: { id: string; name: string; role: string }
-  ): Promise<InventoryAccountMapping> {
+  ): Promise<void> {
     this.assertPermission('accounting.config', user.role)
-    const updated = await accountingRepository.updateCategoryMapping(mapping)
+    const data = inventoryLineAccountsSchema.parse(input)
+
+    const config = await accountingRepository.getInventoryLineAccounts()
+    const line = config.lines.find((l) => l.inventoryAccount.id === data.inventoryAccountId)
+    const cost = config.costAccounts.find((a) => a.id === data.costAccountId)
+    const income = config.incomeAccounts.find((a) => a.id === data.incomeAccountId)
+    if (!line) {
+      throw new Error('La cuenta de inventario no es una auxiliar activa del grupo 14.')
+    }
+    if (!cost || !isCostAccountCodeFor(line.inventoryAccount.code, cost.code)) {
+      throw new Error(
+        `La cuenta de costo no corresponde a la línea ${line.inventoryAccount.code}: use una auxiliar del grupo 61 (71/72/73 solo para inventarios de producción).`
+      )
+    }
+    if (!income) {
+      throw new Error('La cuenta de ingreso debe ser una auxiliar del grupo 41 distinta de 4175 (devoluciones).')
+    }
+
+    await accountingRepository.saveInventoryLineAccounts(data)
 
     await auditService.log({
       action: 'INVENTORY_ACCOUNT_MAPPING_UPDATED' as any,
       module: 'ACCOUNTING' as any,
       entityType: 'INVENTORY_ACCOUNT_MAPPING',
-      entityId: mapping.categoryId,
-      entityReference: mapping.categoryName,
+      entityId: line.inventoryAccount.id,
+      entityReference: line.inventoryAccount.code,
       userId: user.id,
       userName: user.name,
       userRole: user.role,
       level: 'INFO',
       result: 'SUCCESS',
-      details: `Actualización de mapeo de cuentas para la categoría ${mapping.categoryName}: Inventario ${mapping.inventoryAccountCode}, Costo ${mapping.costAccountCode}, Ingreso ${mapping.revenueAccountCode}`,
+      details: `Línea de inventario ${line.inventoryAccount.code}: costo ${cost.code}, ingreso ${income.code}`,
+    })
+  }
+
+  /** La línea deja su configuración propia y vuelve a las cuentas por defecto. */
+  async resetInventoryLineAccounts(
+    line: InventoryLineAccounts,
+    user: { id: string; name: string; role: string }
+  ): Promise<void> {
+    this.assertPermission('accounting.config', user.role)
+    if (!line.mapId || !line.isActive) return
+
+    await accountingRepository.deactivateInventoryLineAccounts(line.mapId)
+
+    await auditService.log({
+      action: 'INVENTORY_ACCOUNT_MAPPING_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'INVENTORY_ACCOUNT_MAPPING',
+      entityId: line.inventoryAccount.id,
+      entityReference: line.inventoryAccount.code,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Línea de inventario ${line.inventoryAccount.code}: vuelve a las cuentas por defecto`,
+    })
+  }
+
+  // --- TIPOS DE COMPROBANTE (migración 064) ---
+
+  async getVoucherTypes(userRole: string = 'SUPERADMIN'): Promise<AccountingVoucherType[]> {
+    this.assertPermission('accounting.read', userRole)
+    return accountingRepository.getVoucherTypes()
+  }
+
+  /**
+   * Renombra o activa/desactiva un tipo de comprobante. Los del sistema no se modifican
+   * (la base lo impide igualmente: solo administradores y solo tipos no-system).
+   */
+  async updateVoucherType(
+    voucherType: AccountingVoucherType,
+    input: VoucherTypeUpdateData,
+    user: { id: string; name: string; role: string }
+  ): Promise<AccountingVoucherType> {
+    this.assertPermission('accounting.config', user.role)
+    if (voucherType.isSystem) {
+      throw new Error(`El tipo ${voucherType.code} es del sistema: no se puede renombrar ni desactivar.`)
+    }
+    const changes = voucherTypeUpdateSchema.parse(input)
+    const updated = await accountingRepository.updateVoucherType(voucherType.id, changes)
+
+    const auditChanges = []
+    if (updated.name !== voucherType.name) {
+      auditChanges.push({ field: 'name', label: 'Nombre', previousValue: voucherType.name, newValue: updated.name })
+    }
+    if (updated.isActive !== voucherType.isActive) {
+      auditChanges.push({
+        field: 'isActive',
+        label: 'Estado',
+        previousValue: voucherType.isActive ? 'Activo' : 'Inactivo',
+        newValue: updated.isActive ? 'Activo' : 'Inactivo',
+      })
+    }
+
+    await auditService.log({
+      action: 'ACCOUNTING_VOUCHER_TYPE_UPDATED' as any,
+      module: 'ACCOUNTING' as any,
+      entityType: 'ACCOUNTING_VOUCHER_TYPE',
+      entityId: updated.id,
+      entityReference: updated.code,
+      userId: user.id,
+      userName: user.name,
+      userRole: user.role,
+      level: 'INFO',
+      result: 'SUCCESS',
+      details: `Tipo de comprobante ${updated.code}: ${updated.name} (${updated.isActive ? 'activo' : 'inactivo'})`,
+      changes: auditChanges,
     })
 
     return updated
@@ -444,9 +615,7 @@ export class AccountingService {
   async assertPeriodOpen(dateOrPeriod: string): Promise<void> {
     const isOpen = await accountingRepository.isPeriodOpen(dateOrPeriod)
     if (!isOpen) {
-      const periodCode = dateOrPeriod.includes('T') || dateOrPeriod.length === 10
-        ? dateOrPeriod.slice(0, 7)
-        : dateOrPeriod
+      const periodCode = toBogotaPeriodCode(dateOrPeriod)
       throw new Error(
         `El periodo contable ${periodCode} se encuentra CERRADO. Operación bloqueada: no es posible crear, modificar ni anular comprobantes en meses clausurados. Se requiere reapertura autorizada por el Contador General.`
       )

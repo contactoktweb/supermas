@@ -17,6 +17,7 @@ interface InvoiceTableProps {
   onViewDetail: (inv: Invoice) => void
   onSendToDIAN: (invoiceId: string) => Promise<any>
   onOpenCreditNote: (inv: Invoice) => void
+  canIssueNotes?: boolean
   onOpenCancel: (inv: Invoice) => void
   onOpenXml: (inv: Invoice) => void
   onRetryFetch?: () => void
@@ -34,6 +35,7 @@ export function InvoiceTable({
   onViewDetail,
   onSendToDIAN,
   onOpenCreditNote,
+  canIssueNotes = false,
   onOpenCancel,
   onOpenXml,
   onRetryFetch,
@@ -472,8 +474,8 @@ export function InvoiceTable({
                               {/* Separator */}
                               <div style={{ height: 1, background: '#f1f5f9', margin: '4px 0' }} />
 
-                              {/* Emitir Nota Crédito */}
-                              {inv.status !== 'CANCELLED' && inv.type !== 'NOTA_CREDITO' && (
+                              {/* Nota crédito / débito (también es la forma de anular una factura electrónica: concepto 2) */}
+                              {inv.type === 'ELECTRONICA' && canIssueNotes && inv.transmissionState === 'ACCEPTED' && (
                                 <button
                                   type="button"
                                   style={dropdownItemStyle}
@@ -483,12 +485,12 @@ export function InvoiceTable({
                                   }}
                                 >
                                   <AppIcon name="receipt" size={14} color="var(--navy)" />
-                                  Emitir Nota Crédito
+                                  Nota crédito / débito
                                 </button>
                               )}
 
-                              {/* Anular Factura */}
-                              {inv.status !== 'CANCELLED' && (
+                              {/* Anular: solo documentos no electrónicos (la factura electrónica se anula con nota crédito) */}
+                              {inv.status !== 'CANCELLED' && !['ELECTRONICA', 'NOTA_CREDITO', 'NOTA_DEBITO'].includes(inv.type) && (
                                 <button
                                   type="button"
                                   style={{ ...dropdownItemStyle, color: 'var(--red)' }}

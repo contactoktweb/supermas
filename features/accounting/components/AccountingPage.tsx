@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
-import { useAccounting, AccountingTab } from '../hooks/useAccounting'
+import React, { useState, useCallback, useMemo } from 'react'
+import { useAccounting, AccountingTab, AccountingResource } from '../hooks/useAccounting'
 import { useAccountingPermissions } from '../hooks/useAccountingPermissions'
 import { AccountingHeader } from './AccountingHeader'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
@@ -28,6 +28,8 @@ import { NewAccountDrawer } from './drawers/NewAccountDrawer'
 import { NewThirdPartyModal } from './modals/NewThirdPartyModal'
 import { AccountingExportModal } from './modals/AccountingExportModal'
 import { TrialBalancePdfModal } from './modals/TrialBalancePdfModal'
+import { AccountNatureConfirmModal, PendingNatureChange } from './modals/AccountNatureConfirmModal'
+import { AccountNatureChangeConfirmationError } from '../services/accounting.service'
 
 // Skeletons & Toasts
 import { AccountingStatsSkeleton, AccountingTableSkeleton } from './AccountingSkeleton'
@@ -57,8 +59,29 @@ const TABS_CONFIG: { id: AccountingTab; label: string; icon: LightIconName }[] =
   { id: 'config', label: 'Configuración Contable', icon: 'settings' },
 ]
 
+// Datos que necesita cada panel flotante mientras está abierto.
+const NEW_ENTRY_RESOURCES: AccountingResource[] = ['accounts', 'thirdParties', 'voucherTypes']
+const NEW_ACCOUNT_RESOURCES: AccountingResource[] = ['accounts']
+const EXPORT_RESOURCES: AccountingResource[] = ['thirdParties', 'entries', 'movements', 'accounts']
+
 export function AccountingPage() {
   const permissions = useAccountingPermissions('SUPERADMIN')
+
+  // Modales y Drawers
+  const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
+  const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
+  const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
+
+  const panelResources = useMemo<AccountingResource[]>(() => {
+    const resources: AccountingResource[] = []
+    if (isNewEntryOpen) resources.push(...NEW_ENTRY_RESOURCES)
+    if (isNewAccountOpen) resources.push(...NEW_ACCOUNT_RESOURCES)
+    if (isExportModalOpen || isTrialBalancePdfOpen) resources.push(...EXPORT_RESOURCES)
+    return Array.from(new Set(resources))
+  }, [isNewEntryOpen, isNewAccountOpen, isExportModalOpen, isTrialBalancePdfOpen])
+
   const {
     activeTab,
     setActiveTab,
@@ -76,7 +99,11 @@ export function AccountingPage() {
     accountsReceivable,
     accountsPayable,
     costAnalysis,
-    categoryMappings,
+    inventoryLineAccounts,
+    inventoryLineAccountsState,
+    voucherTypes,
+    voucherTypesState,
+    updateVoucherType,
     exogenaPrep,
     filters,
     updateFilters,
@@ -88,9 +115,9 @@ export function AccountingPage() {
     updateThirdPartyType,
     createManualEntry,
     reverseEntry,
-    updateCategoryMapping,
-    exportCSV,
-  } = useAccounting('SUPERADMIN')
+    saveInventoryLineAccounts,
+    resetInventoryLineAccounts,
+  } = useAccounting('SUPERADMIN', { extraResources: panelResources })
 
   // Notificaciones Toast
   const [toasts, setToasts] = useState<AccountingToastMessage[]>([])
@@ -104,13 +131,7 @@ export function AccountingPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }, [])
 
-  // Modales y Drawers
-  const [isNewEntryOpen, setIsNewEntryOpen] = useState(false)
-  const [isNewAccountOpen, setIsNewAccountOpen] = useState(false)
-  const [isNewThirdPartyOpen, setIsNewThirdPartyOpen] = useState(false)
-  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [exportInitialType, setExportInitialType] = useState<AccountingExportType>('third_parties')
-  const [isTrialBalancePdfOpen, setIsTrialBalancePdfOpen] = useState(false)
   const [pdfReportType, setPdfReportType] = useState<AccountingExportType>('trial_balance')
   const [accountingPdfParams, setAccountingPdfParams] = useState<AccountingExportPdfParams>({
     reportType: 'trial_balance',
@@ -120,6 +141,7 @@ export function AccountingPage() {
     hideZeroBalances: true,
   })
   const [selectedEntry, setSelectedEntry] = useState<AccountingEntry | null>(null)
+  const [pendingNatureChange, setPendingNatureChange] = useState<PendingNatureChange | null>(null)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
   const handleOpenAccountingPdf = useCallback(
@@ -131,9 +153,7 @@ export function AccountingPage() {
           mainAccountCode: params.mainAccountCode || 'ALL',
           startAccountCode: params.startAccountCode || '',
           endAccountCode: params.endAccountCode || '',
-          branch: params.branch || '01 - SUPER MÁS PRINCIPAL',
-          costCenter: params.costCenter || 'TODOS',
-          administrativeArea: params.administrativeArea || 'TODAS',
+          locationId: params.locationId || 'ALL',
           voucherType: params.voucherType || 'TODOS',
           selectedThirdPartyId: params.selectedThirdPartyId || 'ALL',
           thirdPartyType: params.thirdPartyType || 'ALL',
@@ -155,6 +175,27 @@ export function AccountingPage() {
   const handleOpenTrialBalancePdf = useCallback(() => {
     handleOpenAccountingPdf('trial_balance')
   }, [handleOpenAccountingPdf])
+
+  // Balance General en PDF con la fecha de corte y la sede de la pestaña.
+  const handleOpenBalancePdf = useCallback(() => {
+    handleOpenAccountingPdf('balance', {
+      endDate: filters.cutoffDate,
+      locationId: filters.locationId,
+      maxLevel: 'AUXILIARY',
+      hideZeroBalances: true,
+    })
+  }, [handleOpenAccountingPdf, filters.cutoffDate, filters.locationId])
+
+  // Estado de Resultados en PDF con el periodo y la sede de la pestaña.
+  const handleOpenIncomeStatementPdf = useCallback(() => {
+    handleOpenAccountingPdf('income_statement', {
+      startDate: filters.resultsDateFrom,
+      endDate: filters.resultsDateTo,
+      locationId: filters.locationId,
+      maxLevel: 'AUXILIARY',
+      hideZeroBalances: true,
+    })
+  }, [handleOpenAccountingPdf, filters.resultsDateFrom, filters.resultsDateTo, filters.locationId])
 
   const handleOpenExportModal = useCallback((preferredType?: AccountingExportType) => {
     if (preferredType) {
@@ -243,18 +284,43 @@ export function AccountingPage() {
     }
   }
 
+  const applyAccountNatureChange = async (accountId: string, nature: AccountNature, confirmedWithMovements: boolean) => {
+    const updated = await updateAccountNature(accountId, nature, { confirmedWithMovements })
+    addToast(
+      'success',
+      'Naturaleza Contable Actualizada',
+      `Cuenta ${updated.code} configurada como naturaleza ${nature === 'DEBIT' ? 'Débito' : 'Crédito'}.`
+    )
+  }
+
   const handleUpdateAccountNature = async (accountId: string, nature: AccountNature) => {
     try {
-      await updateAccountNature(accountId, nature)
-      const acc = accounts.find((a) => a.id === accountId)
-      addToast(
-        'success',
-        'Naturaleza Contable Actualizada',
-        `Cuenta ${acc?.code || ''} configurada como naturaleza ${nature === 'DEBIT' ? 'Débito' : 'Crédito'}.`
-      )
+      await applyAccountNatureChange(accountId, nature, false)
     } catch (err: any) {
+      // Cuenta con movimientos: se pide confirmación explícita antes de cambiarla.
+      if (err instanceof AccountNatureChangeConfirmationError) {
+        setPendingNatureChange({
+          accountId,
+          accountCode: err.account.code,
+          accountName: err.account.name,
+          currentNature: err.account.nature,
+          requestedNature: nature,
+          movementLines: err.movementLines,
+        })
+        return
+      }
       addToast('error', 'Error al actualizar naturaleza', err.message)
       throw err
+    }
+  }
+
+  const handleConfirmNatureChange = async () => {
+    if (!pendingNatureChange) return
+    try {
+      await applyAccountNatureChange(pendingNatureChange.accountId, pendingNatureChange.requestedNature, true)
+      setPendingNatureChange(null)
+    } catch (err: any) {
+      addToast('error', 'Error al actualizar naturaleza', err.message)
     }
   }
 
@@ -367,6 +433,7 @@ export function AccountingPage() {
             <AccountingEntriesTab
               entries={entries}
               filters={filters}
+              voucherTypes={voucherTypes}
               onFilterChange={updateFilters}
               onSelectEntry={(e) => setSelectedEntry(e)}
               onOpenNewEntry={() => setIsNewEntryOpen(true)}
@@ -416,7 +483,9 @@ export function AccountingPage() {
             <AccountingBalanceSheetTab
               balanceSheet={balanceSheet}
               locationId={filters.locationId}
-              onLocationChange={(locId) => updateFilters({ locationId: locId })}
+              cutoffDate={filters.cutoffDate}
+              onFiltersChange={(changes) => updateFilters(changes)}
+              onOpenBalancePdf={handleOpenBalancePdf}
               onOpenTrialBalancePdf={() => handleOpenTrialBalancePdf()}
             />
           )}
@@ -425,7 +494,10 @@ export function AccountingPage() {
             <AccountingIncomeStatementTab
               incomeStatement={incomeStatement}
               locationId={filters.locationId}
-              onLocationChange={(locId) => updateFilters({ locationId: locId })}
+              dateFrom={filters.resultsDateFrom}
+              dateTo={filters.resultsDateTo}
+              onFiltersChange={(changes) => updateFilters(changes)}
+              onOpenPdf={handleOpenIncomeStatementPdf}
             />
           )}
 
@@ -446,10 +518,29 @@ export function AccountingPage() {
 
           {activeTab === 'config' && (
             <AccountingConfigTab
-              categoryMappings={categoryMappings}
+              inventoryLineAccounts={inventoryLineAccounts}
+              inventoryLineAccountsState={inventoryLineAccountsState}
+              voucherTypes={voucherTypes}
+              voucherTypesState={voucherTypesState}
+              onUpdateVoucherType={async (voucherType, changes) => {
+                try {
+                  const updated = await updateVoucherType(voucherType, changes)
+                  addToast('success', `Tipo de comprobante ${updated.code} actualizado`)
+                } catch (err: any) {
+                  addToast('error', 'No se pudo actualizar el tipo de comprobante', err?.message)
+                  throw err
+                }
+              }}
               exogenaPrep={exogenaPrep}
-              accounts={accounts}
-              onUpdateMapping={updateCategoryMapping}
+              onSaveInventoryLine={async (data) => {
+                await saveInventoryLineAccounts(data)
+                addToast('success', 'Cuentas de la línea de inventario guardadas')
+              }}
+              onResetInventoryLine={async (line) => {
+                await resetInventoryLineAccounts(line)
+                addToast('info', `La línea ${line.inventoryAccount.code} usa ahora las cuentas por defecto`)
+              }}
+              onRetry={loadData}
               canManageConfig={permissions.canManageConfig}
             />
           )}
@@ -463,12 +554,14 @@ export function AccountingPage() {
         onClose={() => setSelectedEntry(null)}
         onReverse={handleReverseEntry}
         canCancelEntry={permissions.canCancelEntries}
+        voucherTypes={voucherTypes}
       />
 
       <NewManualEntryDrawer
         isOpen={isNewEntryOpen}
         onClose={() => setIsNewEntryOpen(false)}
         accounts={accounts}
+        voucherTypes={voucherTypes}
         thirdParties={thirdParties}
         onOpenNewThirdParty={() => setIsNewThirdPartyOpen(true)}
         onSubmit={handleCreateManualEntry}
@@ -516,9 +609,7 @@ export function AccountingPage() {
         initialMainAccountCode={accountingPdfParams.mainAccountCode}
         initialStartAccountCode={accountingPdfParams.startAccountCode}
         initialEndAccountCode={accountingPdfParams.endAccountCode}
-        initialBranch={accountingPdfParams.branch}
-        initialCostCenter={accountingPdfParams.costCenter}
-        initialAdministrativeArea={accountingPdfParams.administrativeArea}
+        initialLocationId={accountingPdfParams.locationId}
         initialVoucherType={accountingPdfParams.voucherType}
         initialSelectedThirdPartyId={accountingPdfParams.selectedThirdPartyId}
         initialThirdPartyType={accountingPdfParams.thirdPartyType}
@@ -530,6 +621,12 @@ export function AccountingPage() {
         initialHideZeroBalances={accountingPdfParams.hideZeroBalances}
         initialStartDate={accountingPdfParams.startDate}
         initialEndDate={accountingPdfParams.endDate}
+      />
+
+      <AccountNatureConfirmModal
+        pending={pendingNatureChange}
+        onCancel={() => setPendingNatureChange(null)}
+        onConfirm={handleConfirmNatureChange}
       />
 
       {/* Notificaciones flotantes */}

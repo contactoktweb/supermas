@@ -174,7 +174,7 @@ export function DistributorProductPreviewModal({
                         rel="noopener noreferrer"
                         className="py-3 px-4 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-xs"
                       >
-                        <span className="text-base">💬</span>
+                        <AppIcon icon="solar:chat-round-line-linear" size={16} aria-hidden="true" />
                         <span>Cotizar por WhatsApp</span>
                       </a>
                     ) : (

@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useEffect, useRef } from 'react'
-import { POSCustomer, POSPaymentMethod, POSTotals } from '../types'
+import { POSBankAccountOption, POSCustomer, POSPaymentMethod, POSTotals } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
+import { POS_CARD_PAYMENTS_ENABLED } from '../schemas/pos.schema'
 
 interface POSPaymentModalProps {
   isOpen: boolean
@@ -16,14 +17,24 @@ interface POSPaymentModalProps {
   onConfirmPayment: () => Promise<void>
   loading: boolean
   error: string | null
+  bankAccounts?: POSBankAccountOption[]
+  bankAccountId?: string
+  setBankAccountId?: (id: string) => void
+  mixedCashAmount?: number
+  setMixedCashAmount?: (v: number) => void
+  mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+  setMixedRestMethod?: (m: 'TARJETA' | 'TRANSFERENCIA') => void
 }
 
-const PAYMENT_METHODS: { id: POSPaymentMethod; label: string; iconName: 'sales' | 'creditCard' | 'webOrders' | 'transfers'; description: string }[] = [
+const ALL_PAYMENT_METHODS: { id: POSPaymentMethod; label: string; iconName: 'sales' | 'creditCard' | 'webOrders' | 'transfers'; description: string }[] = [
   { id: 'EFECTIVO', label: 'Efectivo', iconName: 'sales', description: 'Pago en caja' },
   { id: 'TARJETA', label: 'Tarjeta Débito/Crédito', iconName: 'creditCard', description: 'Datáfono' },
   { id: 'TRANSFERENCIA', label: 'Transferencia QR', iconName: 'webOrders', description: 'Nequi / Bancolombia' },
-  { id: 'MIXTO', label: 'Mixto / Otro', iconName: 'transfers', description: 'Varios métodos' },
+  { id: 'MIXTO', label: 'Mixto', iconName: 'transfers', description: POS_CARD_PAYMENTS_ENABLED ? 'Efectivo + otro medio' : 'Efectivo + transferencia' },
 ]
+// Por ahora el POS no recibe tarjeta (decisión de la empresa).
+const PAYMENT_METHODS = ALL_PAYMENT_METHODS.filter((m) => POS_CARD_PAYMENTS_ENABLED || m.id !== 'TARJETA')
+const MIXED_REST_METHODS = (POS_CARD_PAYMENTS_ENABLED ? ['TRANSFERENCIA', 'TARJETA'] : ['TRANSFERENCIA']) as Array<'TRANSFERENCIA' | 'TARJETA'>
 
 const QUICK_BILLS = [10000, 20000, 50000, 100000]
 
@@ -47,6 +58,13 @@ export function POSPaymentModal({
   onConfirmPayment,
   loading,
   error,
+  bankAccounts = [],
+  bankAccountId = '',
+  setBankAccountId,
+  mixedCashAmount = 0,
+  setMixedCashAmount,
+  mixedRestMethod = 'TRANSFERENCIA',
+  setMixedRestMethod,
 }: POSPaymentModalProps) {
   const cashInputRef = useRef<HTMLInputElement>(null)
 
@@ -54,6 +72,12 @@ export function POSPaymentModal({
   const totalAmount = totals.totalAmount || 0
   const change = Math.max(0, amountPaid - totalAmount)
   const isInsufficient = isCash && amountPaid < totalAmount
+  const needsBank = paymentMethod === 'TARJETA' || paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'MIXTO'
+  const usableAccounts = bankAccounts.filter((a) => a.hasLedger)
+  const mixedInvalid = paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totalAmount)
+  const bankMissing = needsBank && !bankAccountId
+  const accountLabel = (a: POSBankAccountOption) =>
+    `${a.bankName} · ${a.accountType === 'CORRIENTE' ? 'Corriente' : a.accountType === 'AHORROS' || a.accountType === 'AHORRO' ? 'Ahorros' : a.accountType} *${a.last4}`
 
   useEffect(() => {
     if (isOpen && isCash) {
@@ -221,6 +245,63 @@ export function POSPaymentModal({
           </div>
         </div>
 
+        {/* 3b. Cuenta bancaria que recibe el dinero (contabilidad PUC por cuenta exacta) */}
+        {needsBank && (
+          <div style={{ background: '#f8fafc', border: '1.5px solid var(--line)', borderRadius: 14, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {paymentMethod === 'MIXTO' && (
+              <>
+                <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--navy)' }}>
+                  Parte en efectivo
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={mixedCashAmount === 0 ? '' : mixedCashAmount}
+                  onChange={(e) => setMixedCashAmount?.(Number(e.target.value) || 0)}
+                  placeholder="0"
+                  style={{ width: '100%', height: 42, padding: '0 12px', fontSize: 18, fontWeight: 800, borderRadius: 10, border: mixedInvalid ? '2px solid #ef4444' : '2px solid #cbd5e1', color: 'var(--navy)' }}
+                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: '#334155' }}>
+                    Resto ({formatCOP(Math.max(0, totalAmount - mixedCashAmount))}) con:
+                  </span>
+                  {MIXED_REST_METHODS.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMixedRestMethod?.(m)}
+                      className={mixedRestMethod === m ? 'primary-button compact' : 'outline-button compact'}
+                      style={{ height: 28, fontSize: 11, padding: '0 10px' }}
+                    >
+                      {m === 'TRANSFERENCIA' ? 'Transferencia' : 'Tarjeta'}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+            <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--navy)' }}>
+              Cuenta bancaria que recibe el dinero
+            </label>
+            {usableAccounts.length === 0 ? (
+              <p style={{ margin: 0, fontSize: 12, color: '#991b1b' }}>
+                No hay cuentas bancarias con subcuenta PUC configurada. Un administrador debe configurarlas en Tesorería.
+              </p>
+            ) : (
+              <select
+                value={bankAccountId}
+                onChange={(e) => setBankAccountId?.(e.target.value)}
+                style={{ height: 40, borderRadius: 10, border: bankMissing ? '2px solid #ef4444' : '2px solid #cbd5e1', padding: '0 10px', fontSize: 13, fontWeight: 600, color: 'var(--navy)', background: '#fff' }}
+              >
+                <option value="">Seleccione la cuenta…</option>
+                {usableAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>{accountLabel(a)}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
         {/* 4. Cash Amount Section (When Cash is Selected) */}
         {isCash && (
           <div
@@ -275,7 +356,7 @@ export function POSPaymentModal({
                 ref={cashInputRef}
                 type="number"
                 min="0"
-                step="100"
+                step="any"
                 value={amountPaid === 0 ? '' : amountPaid}
                 onChange={(e) => setAmountPaid(Number(e.target.value) || 0)}
                 placeholder="0"
@@ -419,7 +500,7 @@ export function POSPaymentModal({
           <button
             type="button"
             onClick={onConfirmPayment}
-            disabled={loading || isInsufficient || totalAmount <= 0}
+            disabled={loading || isInsufficient || totalAmount <= 0 || bankMissing || mixedInvalid}
             className="primary-button"
             style={{
               height: 42,
@@ -430,8 +511,8 @@ export function POSPaymentModal({
               background: isCash ? 'var(--red)' : 'var(--navy)',
               gap: 8,
               boxShadow: isCash ? '0 4px 12px rgba(254, 17, 12, 0.25)' : '0 4px 12px rgba(0, 27, 92, 0.25)',
-              opacity: loading || isInsufficient || totalAmount <= 0 ? 0.5 : 1,
-              cursor: loading || isInsufficient || totalAmount <= 0 ? 'not-allowed' : 'pointer',
+              opacity: loading || isInsufficient || totalAmount <= 0 || bankMissing || mixedInvalid ? 0.5 : 1,
+              cursor: loading || isInsufficient || totalAmount <= 0 || bankMissing || mixedInvalid ? 'not-allowed' : 'pointer',
             }}
           >
             <AppIcon name="check" size={16} />

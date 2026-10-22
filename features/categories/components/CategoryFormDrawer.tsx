@@ -134,7 +134,7 @@ export function CategoryFormDrawer({
       setIsSubmitting(true)
       await onSubmit(result.data)
       onClose()
-    } catch (err: any) {
+    } catch (err: unknown) {
       setErrors({ form: extractErrorMessage(err, 'Error al guardar la categoría') })
     } finally {
       setIsSubmitting(false)
@@ -142,7 +142,7 @@ export function CategoryFormDrawer({
   }
 
   const selectParentOptions = [
-    { value: '', label: '📂 Categoría principal (Nivel raíz)' },
+    { value: '', label: 'Categoría principal (nivel raíz)' },
     ...parentOptions.map((opt) => ({
       value: opt.value,
       label: opt.label,
@@ -150,68 +150,78 @@ export function CategoryFormDrawer({
     })),
   ]
 
+  const fieldErrorId = (field: string) => `cat-${field}-error`
+
   return createPortal(
-    <div
-      className="drawer-backdrop"
-      onClick={() => !isSubmitting && onClose()}
-      role="dialog"
-      aria-modal="true"
-    >
-      <div
-        className="drawer-card page-enter"
+    <div className="drawer-backdrop" onClick={() => !isSubmitting && onClose()}>
+      <aside
+        className="product-drawer product-form-drawer catalog-form-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxWidth: '540px' }}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="category-form-title"
       >
-        <div className="drawer-header">
-          <div>
-            <span className="badge badge-accent">
-              {mode === 'create' ? 'Nueva Categoría' : 'Editar Categoría'}
+        <header className="drawer-header catalog-form-header">
+          <div className="catalog-form-title">
+            <span className="stat-icon blue" aria-hidden="true">
+              <AppIcon name={mode === 'create' ? 'plus' : 'edit'} size={20} />
             </span>
-            <h2 className="drawer-title">
-              {mode === 'create' ? 'Crear categoría de productos' : formData.name || 'Editar categoría'}
-            </h2>
+            <div>
+              <span className="product-category-eyebrow">
+                {mode === 'create' ? 'Nueva categoría' : 'Editar categoría'}
+              </span>
+              <h2 id="category-form-title">
+                {mode === 'create' ? 'Crear categoría de productos' : formData.name || 'Editar categoría'}
+              </h2>
+            </div>
           </div>
           <button
             type="button"
-            className="icon-button close-drawer-btn"
+            className="icon-button catalog-form-close"
             onClick={onClose}
             disabled={isSubmitting}
             aria-label="Cerrar formulario"
           >
-            <AppIcon name="close" size={18} />
+            <AppIcon name="close" size={20} />
           </button>
-        </div>
+        </header>
 
-        <form onSubmit={handleSubmit} className="drawer-form">
-          <div className="drawer-body">
-            {errors.form && (
-              <div className="form-error-banner" role="alert">
-                <AppIcon name="warning" size={16} />
-                <span>{extractErrorMessage(errors.form)}</span>
-              </div>
-            )}
+        {errors.form && (
+          <div className="form-error-banner page-enter" role="alert">
+            <AppIcon name="warning" size={16} />
+            <span>{extractErrorMessage(errors.form)}</span>
+          </div>
+        )}
 
-            <div className="input-field-block">
+        <form onSubmit={handleSubmit} className="product-form-body" noValidate>
+          <div className="form-tab-content">
+            <div className="form-field">
               <label htmlFor="cat-name">
-                Nombre de la categoría <span className="req">*</span>
+                Nombre de la categoría <em>*</em>
               </label>
-              <div className="input-wrap">
+              <div className={`input-wrap ${errors.name ? 'is-invalid' : ''}`}>
                 <input
                   id="cat-name"
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="Ej: Lácteos, Bebidas, Aseo..."
+                  aria-invalid={Boolean(errors.name)}
+                  aria-describedby={errors.name ? fieldErrorId('name') : undefined}
                   autoFocus
                 />
               </div>
-              {errors.name && <span className="field-error">{errors.name}</span>}
+              {errors.name && (
+                <span id={fieldErrorId('name')} className="field-error-text">
+                  {errors.name}
+                </span>
+              )}
             </div>
 
             <div className="form-grid-2">
-              <div className="input-field-block">
+              <div className="form-field">
                 <label htmlFor="cat-code">Código interno</label>
-                <div className="input-wrap">
+                <div className={`input-wrap ${errors.code ? 'is-invalid' : ''}`}>
                   <input
                     id="cat-code"
                     type="text"
@@ -223,32 +233,46 @@ export function CategoryFormDrawer({
                       }))
                     }
                     placeholder="Ej: CAT-LAC"
-                    className="mono"
+                    aria-invalid={Boolean(errors.code)}
+                    aria-describedby={errors.code ? fieldErrorId('code') : undefined}
                   />
                 </div>
-                {errors.code && <span className="field-error">{errors.code}</span>}
+                {errors.code && (
+                  <span id={fieldErrorId('code')} className="field-error-text">
+                    {errors.code}
+                  </span>
+                )}
               </div>
 
-              <div className="input-field-block">
+              <div className="form-field">
                 <label htmlFor="cat-slug">
-                  Slug (URL amigable) <span className="req">*</span>
+                  Slug (URL amigable) <em>*</em>
                 </label>
-                <div className="input-wrap">
+                <div className={`input-wrap ${errors.slug ? 'is-invalid' : ''}`}>
                   <input
                     id="cat-slug"
                     type="text"
                     value={formData.slug}
                     onChange={(e) => handleSlugChange(e.target.value)}
                     placeholder="lacteos"
-                    className="mono"
+                    aria-invalid={Boolean(errors.slug)}
+                    aria-describedby={errors.slug ? fieldErrorId('slug') : 'cat-slug-hint'}
                   />
                 </div>
-                {errors.slug && <span className="field-error">{errors.slug}</span>}
+                {errors.slug ? (
+                  <span id={fieldErrorId('slug')} className="field-error-text">
+                    {errors.slug}
+                  </span>
+                ) : (
+                  <small id="cat-slug-hint" className="field-hint">
+                    Se genera automáticamente a partir del nombre.
+                  </small>
+                )}
               </div>
             </div>
 
-            <div className="input-field-block">
-              <label htmlFor="cat-parent">Categoría padre (Jerarquía)</label>
+            <div className="form-field">
+              <label htmlFor="cat-parent">Categoría padre (jerarquía)</label>
               <CustomSelect
                 id="cat-parent"
                 value={formData.parentId || ''}
@@ -256,14 +280,18 @@ export function CategoryFormDrawer({
                 options={selectParentOptions}
                 placeholder={isLoadingParents ? 'Cargando categorías...' : 'Selecciona una categoría padre'}
                 disabled={isLoadingParents}
+                error={errors.parentId}
               />
-              <span className="field-helper">
-                Si seleccionas una categoría padre, esta se convertirá en una subcategoría anidada.
-              </span>
-              {errors.parentId && <span className="field-error">{errors.parentId}</span>}
+              {errors.parentId ? (
+                <span className="field-error-text">{errors.parentId}</span>
+              ) : (
+                <small className="field-hint">
+                  Si seleccionas una categoría padre, esta se convertirá en una subcategoría anidada.
+                </small>
+              )}
             </div>
 
-            <div className="input-field-block">
+            <div className="form-field">
               <label htmlFor="cat-desc">Descripción</label>
               <textarea
                 id="cat-desc"
@@ -271,15 +299,21 @@ export function CategoryFormDrawer({
                 value={formData.description || ''}
                 onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Breve detalle sobre los productos incluidos en esta clasificación..."
-                className="styled-textarea"
+                className="custom-form-textarea"
+                aria-invalid={Boolean(errors.description)}
+                aria-describedby={errors.description ? fieldErrorId('description') : undefined}
               />
-              {errors.description && <span className="field-error">{errors.description}</span>}
+              {errors.description && (
+                <span id={fieldErrorId('description')} className="field-error-text">
+                  {errors.description}
+                </span>
+              )}
             </div>
 
             <div className="form-grid-2">
-              <div className="input-field-block">
+              <div className="form-field">
                 <label htmlFor="cat-sort">Orden visual</label>
-                <div className="input-wrap">
+                <div className={`input-wrap ${errors.sortOrder ? 'is-invalid' : ''}`}>
                   <input
                     id="cat-sort"
                     type="number"
@@ -288,56 +322,49 @@ export function CategoryFormDrawer({
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value, 10) || 0 }))
                     }
+                    aria-describedby="cat-sort-hint"
                   />
                 </div>
-                <span className="field-helper">0 = prioridad normal en listas</span>
+                {errors.sortOrder ? (
+                  <span className="field-error-text">{errors.sortOrder}</span>
+                ) : (
+                  <small id="cat-sort-hint" className="field-hint">
+                    0 = prioridad normal en listas
+                  </small>
+                )}
               </div>
 
-              <div className="input-field-block">
-                <label>Estado de operación</label>
-                <div className="checkbox-toggle-card">
-                  <label className="toggle-row-simple">
-                    <input
-                      type="checkbox"
-                      checked={formData.isActive}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-                    />
-                    <span>{formData.isActive ? 'Categoría Activa' : 'Categoría Inactiva'}</span>
-                  </label>
-                </div>
-              </div>
+              <fieldset className="form-field catalog-form-fieldset">
+                <legend>Estado de operación</legend>
+                <label className="toggle-row-simple catalog-form-toggle">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  />
+                  <span>{formData.isActive ? 'Categoría activa' : 'Categoría inactiva'}</span>
+                </label>
+              </fieldset>
             </div>
           </div>
 
-          <div className="drawer-footer">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
+          <footer className="dialog-footer form-drawer-footer">
+            <button type="button" className="outline-button" onClick={onClose} disabled={isSubmitting}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              className="btn btn-primary icon-button-text"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <AppIcon name="refresh" size={16} className="spin" />
-                  <span>Guardando...</span>
-                </>
-              ) : (
-                <>
-                  <AppIcon name="save" size={16} />
-                  <span>{mode === 'create' ? 'Crear Categoría' : 'Guardar Cambios'}</span>
-                </>
-              )}
+            <button type="submit" className="primary-button" disabled={isSubmitting} aria-busy={isSubmitting}>
+              <AppIcon
+                name={isSubmitting ? 'refresh' : 'save'}
+                size={16}
+                className={isSubmitting ? 'spin-animation' : ''}
+              />
+              <span>
+                {isSubmitting ? 'Guardando...' : mode === 'create' ? 'Crear categoría' : 'Guardar cambios'}
+              </span>
             </button>
-          </div>
+          </footer>
         </form>
-      </div>
+      </aside>
     </div>,
     document.body
   )

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CostAnalysisItem } from '../../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
 
 interface AccountingCostsTabProps {
   costs: CostAnalysisItem[]
@@ -21,7 +22,7 @@ export function AccountingCostsTab({
   const [costMethod, setCostMethod] = useState<'WEIGHTED_AVERAGE' | 'FIFO'>('WEIGHTED_AVERAGE')
 
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const locations = useAccountingLocations()
 
   React.useEffect(() => {
     supabaseClient
@@ -29,14 +30,6 @@ export function AccountingCostsTab({
       .select('id, name')
       .then(({ data }) => {
         if (data) setCategories(data)
-      })
-    supabaseClient
-      .from('locations')
-      .select('id, name')
-      .neq('status', 'INACTIVE')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setLocations(data)
       })
   }, [])
 

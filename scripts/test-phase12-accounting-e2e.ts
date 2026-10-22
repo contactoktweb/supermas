@@ -24,6 +24,7 @@
 import { createClient } from '@supabase/supabase-js'
 import pg from 'pg'
 import dotenv from 'dotenv'
+import { requireEnv } from './require-env'
 dotenv.config({ path: '.env.local' })
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321'
@@ -112,7 +113,7 @@ async function runPhase12TestSuite() {
     const emailA = `contador_a_${runId}@supermas.com`
     const { data: userACreated, error: userAErr } = await adminSupabase.auth.admin.createUser({
       email: emailA,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: `Contador A ${runId}` },
     })
@@ -129,7 +130,7 @@ async function runPhase12TestSuite() {
     const emailB = `contador_b_${runId}@supermas.com`
     const { data: userBCreated, error: userBErr } = await adminSupabase.auth.admin.createUser({
       email: emailB,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: `Contador B ${runId}` },
     })
@@ -187,8 +188,13 @@ async function runPhase12TestSuite() {
     bankAccountId = bankRes.rows[0].id
 
     // Asegurar periodo contable OPEN para fecha actual en Empresa A
-    const currentMonthCode = new Date().toISOString().slice(0, 7)
+    const currentMonthCode = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+    }).format(new Date()).slice(0, 7)
     const [curYr, curMo] = currentMonthCode.split('-').map(Number)
+    const lastDayOfMonth = String(new Date(Date.UTC(curYr, curMo, 0)).getUTCDate()).padStart(2, '0')
     await pgClient.query(
       `INSERT INTO public.accounting_periods (id, company_id, period_code, year, month, month_name, start_date, end_date, status)
        VALUES (gen_random_uuid(), $1, $2, $3, $4, 'Mes Actual', $5, $6, 'OPEN')
@@ -199,7 +205,7 @@ async function runPhase12TestSuite() {
         curYr,
         curMo,
         `${currentMonthCode}-01`,
-        `${currentMonthCode}-28`,
+        `${currentMonthCode}-${lastDayOfMonth}`,
       ]
     )
 

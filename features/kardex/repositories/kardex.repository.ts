@@ -26,6 +26,7 @@ function mapDbMovementTypeToDomain(type: string): MovementType {
       return 'AJUSTE_SALIDA'
     case 'CUSTOMER_RETURN':
     case 'SUPPLIER_RETURN':
+    case 'DAMAGED_RETURN': // 068: devolución en mal estado (informativo, no mueve stock vendible)
       return 'DEVOLUCION'
     default:
       return (type as MovementType) || 'AJUSTE_ENTRADA'
@@ -67,6 +68,8 @@ function mapDbDocumentTypeToDomain(docType: string): SourceDocumentType {
     case 'INVENTARIO_INICIAL':
       return 'STOCK_ADJUSTMENT'
     case 'CUSTOMER_RETURN':
+    case 'SALE_RETURN_DAMAGED':
+    case 'DAMAGED_DISPATCH':
       return 'CUSTOMER_RETURN'
     case 'REMISSION':
       return 'REMISSION_ORDER'

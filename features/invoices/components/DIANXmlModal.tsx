@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { Invoice } from '../types'
 import { invoiceService } from '../services/invoice.service'
@@ -13,23 +13,48 @@ interface DIANXmlModalProps {
 
 export function DIANXmlModal({ isOpen, invoice, onClose }: DIANXmlModalProps) {
   const [copied, setCopied] = useState(false)
+  const [kind, setKind] = useState<'signed' | 'response'>('signed')
+  const [xmlContent, setXmlContent] = useState('')
+  const [fileName, setFileName] = useState('factura.xml')
+  const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!isOpen || !invoice) return
+    let alive = true
+    setLoading(true)
+    setLoadError(null)
+    setXmlContent('')
+    invoiceService
+      .getInvoiceXml(invoice, kind)
+      .then((r) => {
+        if (!alive) return
+        setXmlContent(r.xml)
+        setFileName(r.fileName)
+      })
+      .catch((e) => alive && setLoadError(e?.message || 'No se pudo obtener el XML.'))
+      .finally(() => alive && setLoading(false))
+    return () => {
+      alive = false
+    }
+  }, [isOpen, invoice, kind])
 
   if (!isOpen || !invoice) return null
 
-  const xmlContent = invoiceService.getInvoiceXml(invoice)
-
   const handleCopy = () => {
+    if (!xmlContent) return
     navigator.clipboard.writeText(xmlContent)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDownloadXml = () => {
+    if (!xmlContent) return
     const blob = new Blob([xmlContent], { type: 'application/xml;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `${invoice.invoiceNumber}_DIAN_UBL2.1.xml`
+    link.download = fileName
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -85,7 +110,7 @@ export function DIANXmlModal({ isOpen, invoice, onClose }: DIANXmlModalProps) {
                 Estructura XML UBL 2.1 (DIAN)
               </h2>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Documento electrónico estándar · {invoice.invoiceNumber}
+                XML real guardado en el servidor · {invoice.invoiceNumber}
               </span>
             </div>
           </div>
@@ -120,7 +145,14 @@ export function DIANXmlModal({ isOpen, invoice, onClose }: DIANXmlModalProps) {
               color: 'var(--muted)',
             }}
           >
-            <span>Estándar: UBL 2.1 Colombia · Firma Digital SHA-384</span>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button type="button" className={kind === 'signed' ? 'primary-button compact' : 'outline-button'} onClick={() => setKind('signed')} style={{ height: 28, fontSize: 11, padding: '0 10px' }}>
+                Factura (UBL 2.1)
+              </button>
+              <button type="button" className={kind === 'response' ? 'primary-button compact' : 'outline-button'} onClick={() => setKind('response')} style={{ height: 28, fontSize: 11, padding: '0 10px' }}>
+                Respuesta DIAN
+              </button>
+            </span>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
@@ -159,7 +191,7 @@ export function DIANXmlModal({ isOpen, invoice, onClose }: DIANXmlModalProps) {
               border: '1px solid #1e293b',
             }}
           >
-            <code>{xmlContent}</code>
+            <code>{loading ? 'Cargando XML desde el servidor…' : loadError ? loadError : xmlContent}</code>
           </pre>
         </div>
 

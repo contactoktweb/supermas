@@ -3,6 +3,9 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { SuperCatalogProduct, ProductWebConfigUpdate } from '../../types'
+import { PriceChangeNotice } from '@/features/products/components/PriceChangeNotice'
+import { PRICE_CHANGE_REASON_MIN_LENGTH } from '@/features/products/services/product.service'
+import { roundMoney } from '@/features/products/utils/price-change-plan'
 
 interface SuperProductDetailDrawerProps {
   isOpen: boolean
@@ -12,6 +15,8 @@ interface SuperProductDetailDrawerProps {
   onSaveConfig: (id: string, config: ProductWebConfigUpdate) => Promise<void>
   onOpenPreview: (product: SuperCatalogProduct) => void
   canUpdate: boolean
+  /** true: el usuario no aprueba precios; el cambio queda pendiente y exige motivo (069). */
+  requiresPriceApproval: boolean
 }
 
 export function SuperProductDetailDrawer({
@@ -22,6 +27,7 @@ export function SuperProductDetailDrawer({
   onSaveConfig,
   onOpenPreview,
   canUpdate,
+  requiresPriceApproval,
 }: SuperProductDetailDrawerProps) {
   const [webSuperMas, setWebSuperMas] = useState(false)
   const [webDirectPurchaseEnabled, setWebDirectPurchaseEnabled] = useState(false)
@@ -31,6 +37,8 @@ export function SuperProductDetailDrawer({
   const [taxConfigId, setTaxConfigId] = useState('')
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<'config' | 'inventory' | 'metrics'>('config')
+  const [priceChangeReason, setPriceChangeReason] = useState('')
+  const [reasonError, setReasonError] = useState<string | undefined>()
 
   useEffect(() => {
     if (product) {
@@ -40,19 +48,31 @@ export function SuperProductDetailDrawer({
       setPrice(product.price)
       setWebLowStockThreshold(product.webLowStockThreshold)
       setTaxConfigId(product.taxConfigId)
+      setPriceChangeReason('')
+      setReasonError(undefined)
     }
   }, [product])
 
   if (!isOpen || !product) return null
 
+  const priceChanged = roundMoney(price) !== roundMoney(product.price)
+
   const handleSave = async () => {
+    if (priceChanged && requiresPriceApproval && priceChangeReason.trim().length < PRICE_CHANGE_REASON_MIN_LENGTH) {
+      setActiveTab('config')
+      setReasonError(
+        `Indica el motivo del cambio de precio (mínimo ${PRICE_CHANGE_REASON_MIN_LENGTH} caracteres). El administrador lo verá al aprobar.`
+      )
+      return
+    }
     try {
       setSaving(true)
       await onSaveConfig(product.id, {
         webSuperMas,
         webDirectPurchaseEnabled,
         showPrice,
-        price,
+        // Solo se propone precio si cambió: viaja por el flujo de aprobación (069).
+        ...(priceChanged ? { price, priceChangeReason: priceChangeReason.trim() || undefined } : {}),
         webLowStockThreshold,
         taxConfigId,
       })
@@ -334,6 +354,26 @@ export function SuperProductDetailDrawer({
                   }}
                 />
               </div>
+
+              {priceChanged && price > 0 && (
+                <PriceChangeNotice
+                  changes={[
+                    {
+                      priceListCode: 'NORMAL',
+                      priceListName: 'Precio de venta web',
+                      proposedPrice: roundMoney(price),
+                      currentPrice: product.price,
+                    },
+                  ]}
+                  requiresApproval={requiresPriceApproval}
+                  reason={priceChangeReason}
+                  onReasonChange={(value) => {
+                    setPriceChangeReason(value)
+                    if (reasonError) setReasonError(undefined)
+                  }}
+                  error={reasonError}
+                />
+              )}
 
               {/* Umbral de Pocas Unidades Configurable */}
               <div>

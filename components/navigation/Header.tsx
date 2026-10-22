@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AppIcon } from '@/components/ui/Icon'
 import { GlobalSearch } from './GlobalSearch'
-import { NotificationButton } from './NotificationButton'
+import { NotificationCenter } from '@/features/notifications/components/NotificationCenter'
 
 export interface BreadcrumbItem {
   label: string
@@ -164,6 +164,11 @@ const ROUTE_BREADCRUMBS: Record<string, BreadcrumbItem[]> = {
     { label: 'Gestión y Control' },
     { label: 'Reportes' },
   ],
+  '/aprobaciones-precios': [
+    { label: 'Inicio', href: '/' },
+    { label: 'Inventario' },
+    { label: 'Aprobación de precios' },
+  ],
   '/alertas': [
     { label: 'Inicio', href: '/' },
     { label: 'Gestión y Control' },
@@ -270,7 +275,7 @@ export function Header({ onOpenMenu, breadcrumbs }: HeaderProps) {
 
       <div className="top-actions">
         <GlobalSearch />
-        <NotificationButton count={3} />
+        <NotificationCenter />
       </div>
     </header>
   )

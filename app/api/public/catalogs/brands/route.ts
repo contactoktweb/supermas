@@ -1,31 +1,20 @@
 import { NextRequest } from 'next/server'
 import { publicCatalogService } from '@/features/public-catalog/services/public-catalog.service'
-import { handleCorsOptions, jsonResponse, errorResponse } from '@/features/public-catalog/utils/cors'
+import { handleCorsOptions, jsonResponse, internalErrorResponse } from '@/features/public-catalog/utils/cors'
+import { parsePublicChannel, readPublicCompanyId } from '@/features/public-catalog/utils/request'
 
-export async function OPTIONS() {
-  return handleCorsOptions()
+export async function OPTIONS(request: NextRequest) {
+  return handleCorsOptions(request)
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const channelParam = searchParams.get('channel') || searchParams.get('catalogo') || 'supermas'
-    const channel = channelParam === 'distributor' || channelParam === 'distribuidora' ? 'distributor' : 'supermas'
+    const { searchParams } = request.nextUrl
+    const channel = parsePublicChannel(searchParams)
+    const data = await publicCatalogService.getBrands(channel, readPublicCompanyId(request, searchParams))
 
-    const companyId =
-      searchParams.get('companyId') ||
-      request.headers.get('x-company-id') ||
-      undefined
-
-    const brands = await publicCatalogService.getBrands(channel, companyId)
-
-    return jsonResponse({
-      success: true,
-      channel,
-      data: brands,
-    })
-  } catch (error: any) {
-    console.error('Error en API Pública Marcas:', error)
-    return errorResponse(error.message || 'Error interno al consultar marcas', 500)
+    return jsonResponse({ success: true, channel, data }, { request })
+  } catch (error) {
+    return internalErrorResponse('Marcas', error, 'Error interno al consultar marcas', request)
   }
 }

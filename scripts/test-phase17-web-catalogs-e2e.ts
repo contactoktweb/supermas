@@ -12,6 +12,7 @@ import { createClient } from '@supabase/supabase-js'
 import { superCatalogRepository } from '../features/super-catalog/repositories/super-catalog.repository'
 import { distributorCatalogRepository } from '../features/distributor-catalog/repositories/distributor-catalog.repository'
 import { webOrderRepository } from '../features/web-orders/repositories/web-order.repository'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -115,7 +116,7 @@ async function runPhase17WebCatalogsE2ETests() {
     const authEmail = `admin_web_${testSuffix}@supermas.com`
     const { data: authUserData, error: userAErr } = await supabaseAdmin.auth.admin.createUser({
       email: authEmail,
-      password: 'SuperPassword123!',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       user_metadata: { full_name: 'Admin Catálogos Web' },
     })

@@ -22,6 +22,7 @@ import pg from 'pg'
 import { quoteRepository } from '../features/quotes/repositories/quote.repository'
 import { quoteService } from '../features/quotes/services/quote.service'
 import { supabaseAdmin } from '../lib/supabase/admin'
+import { requireEnv } from './require-env'
 
 interface TestResult {
   code: string
@@ -116,7 +117,7 @@ async function runPhase19QuotesE2ETests() {
     // 4. Usuario Admin en Empresa A
     const authUserRes = await supabaseAdmin.auth.admin.createUser({
       email: `seller_quotes_${testSuffix}@supermas.co`,
-      password: 'SuperQuotesPass2026*',
+      password: requireEnv('E2E_TEST_USER_PASSWORD'),
       email_confirm: true,
       app_metadata: { company_id: companyAId, role: 'SELLER' },
     })

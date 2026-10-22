@@ -12,6 +12,13 @@ import {
   PeriodMode,
 } from '../../types'
 import { supabaseClient } from '@/lib/supabase/client'
+import { useAccountingLocations } from '../../hooks/useAccountingLocations'
+import { useAccountingCatalog } from '../../hooks/useAccountingReportContext'
+import { AccountRangeFilter } from '../filters/AccountRangeFilter'
+import { currentBogotaMonthRange } from '../../utils/report-format'
+
+/** Años seleccionables en el filtro de periodo (el actual y los anteriores). */
+const YEAR_OPTIONS_COUNT = 5
 
 interface AccountingMovementsTabProps {
   movements: AccountingMovement[]
@@ -68,19 +75,12 @@ export function AccountingMovementsTab({
   onSelectEntry,
   onExportAuxiliary,
 }: AccountingMovementsTabProps) {
-  const [locations, setLocations] = useState<{ id: string; name: string }[]>([])
+  const locations = useAccountingLocations()
+  // Catálogo completo para el rango de cuentas (la prop `accounts` es la página visible del PUC).
+  const catalog = useAccountingCatalog()
   const [masterParties, setMasterParties] = useState<{ doc: string; name: string }[]>([])
 
   useEffect(() => {
-    supabaseClient
-      .from('locations')
-      .select('id, name')
-      .neq('status', 'INACTIVE')
-      .order('name')
-      .then(({ data }) => {
-        if (data) setLocations(data)
-      })
-
     Promise.all([
       supabaseClient.from('customers').select('document_number, company_name, first_name, last_name'),
       supabaseClient.from('suppliers').select('tax_id, name, legal_name'),
@@ -114,9 +114,14 @@ export function AccountingMovementsTab({
     return Array.from(map.entries()).map(([doc, name]) => ({ doc, name }))
   }, [entries, masterParties])
 
+  // Periodo por defecto: mes en curso en America/Bogota.
+  const defaultRange = currentBogotaMonthRange()
+  const defaultYear = Number(defaultRange.dateFrom.slice(0, 4))
+  const defaultMonth = defaultRange.dateFrom.slice(5, 7)
+  const yearOptions = Array.from({ length: YEAR_OPTIONS_COUNT }, (_, index) => defaultYear - index)
   const currentPeriodMode: PeriodMode = filters.periodMode || 'MONTH'
-  const currentYear = filters.year || 2026
-  const currentMonth = filters.month || '09'
+  const currentYear = filters.year || defaultYear
+  const currentMonth = filters.month || defaultMonth
 
   const selectedAccount = auxiliaryReport?.selectedAccount || null
   const isSpecificAccount = Boolean(selectedAccount)
@@ -125,8 +130,8 @@ export function AccountingMovementsTab({
     if (mode === 'RANGE') {
       onFilterChange({
         periodMode: 'RANGE',
-        dateFrom: filters.dateFrom || '2026-09-01',
-        dateTo: filters.dateTo || '2026-09-30',
+        dateFrom: filters.dateFrom || defaultRange.dateFrom,
+        dateTo: filters.dateTo || defaultRange.dateTo,
       })
     } else if (mode === 'MONTH') {
       onFilterChange({
@@ -146,21 +151,24 @@ export function AccountingMovementsTab({
     Boolean(filters.thirdPartyId && filters.thirdPartyId !== 'ALL') ||
     Boolean(filters.locationId && filters.locationId !== 'ALL') ||
     Boolean(filters.accountId && filters.accountId !== 'ALL') ||
+    Boolean(filters.accountFrom || filters.accountTo) ||
     currentPeriodMode !== 'MONTH' ||
-    currentMonth !== '09' ||
-    currentYear !== 2026
+    currentMonth !== defaultMonth ||
+    currentYear !== defaultYear
 
   const handleResetFilters = () => {
     onFilterChange({
       periodMode: 'MONTH',
-      month: '09',
-      year: 2026,
-      dateFrom: '2026-09-01',
-      dateTo: '2026-09-30',
+      month: defaultMonth,
+      year: defaultYear,
+      dateFrom: defaultRange.dateFrom,
+      dateTo: defaultRange.dateTo,
       thirdPartyId: 'ALL',
       locationId: 'ALL',
       costCenterId: 'ALL',
       accountId: 'ALL',
+      accountFrom: '',
+      accountTo: '',
       query: '',
     })
   }
@@ -272,9 +280,11 @@ export function AccountingMovementsTab({
                   value={currentYear}
                   onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
                 >
-                  <option value={2026}>2026</option>
-                  <option value={2025}>2025</option>
-                  <option value={2024}>2024</option>
+                  {yearOptions.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -290,9 +300,11 @@ export function AccountingMovementsTab({
                 value={currentYear}
                 onChange={(e) => onFilterChange({ year: Number(e.target.value) })}
               >
-                <option value={2026}>Año 2026</option>
-                <option value={2025}>Año 2025</option>
-                <option value={2024}>Año 2024</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    Año {year}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -301,12 +313,12 @@ export function AccountingMovementsTab({
           {currentPeriodMode === 'RANGE' && (
             <div className="flex items-center gap-2">
               <DateRangeFilter
-                startDate={filters.dateFrom || '2026-09-01'}
-                endDate={filters.dateTo || '2026-09-30'}
+                startDate={filters.dateFrom || defaultRange.dateFrom}
+                endDate={filters.dateTo || defaultRange.dateTo}
                 onChange={({ startDate, endDate }) => {
                   onFilterChange({
-                    dateFrom: startDate || '2026-09-01',
-                    dateTo: endDate || '2026-09-30',
+                    dateFrom: startDate || defaultRange.dateFrom,
+                    dateTo: endDate || defaultRange.dateTo,
                     periodMode: 'RANGE',
                   })
                 }}
@@ -363,6 +375,22 @@ export function AccountingMovementsTab({
               <AppIcon name="close" size={12} />
               <span>Limpiar filtros</span>
             </button>
+          )}
+        </div>
+
+        {/* Rango de cuentas PUC (se aplica en la consulta de movimientos) */}
+        <div className="pt-3 border-t border-gray-100">
+          <AccountRangeFilter
+            accounts={catalog.accounts.length > 0 ? catalog.accounts : accounts}
+            value={{ from: filters.accountFrom || '', to: filters.accountTo || '' }}
+            onChange={(range) => onFilterChange({ accountFrom: range.from, accountTo: range.to })}
+            disabled={catalog.state === 'loading' && accounts.length === 0}
+            className="max-w-2xl"
+          />
+          {catalog.state === 'error' && (
+            <p role="alert" className="mt-1 text-[11px] text-rose-700">
+              {catalog.error}
+            </p>
           )}
         </div>
 

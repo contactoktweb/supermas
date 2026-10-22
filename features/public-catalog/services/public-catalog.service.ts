@@ -18,29 +18,26 @@ import {
   PublicSuperCatalogProduct,
   PublicDistributorCatalogProduct,
   PublicCatalogListResponse,
-  PublicProductDetailResponse,
   PublicCatalogFilters,
-  PublicCatalogPagination,
 } from '../types'
+import { PUBLIC_CATALOG_DEFAULT_PAGE_SIZE, PUBLIC_CATALOG_MAX_PAGE_SIZE } from '../utils/request'
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export class PublicCatalogService {
   /**
    * Resuelve el company_id activo para consumo público.
-   * Si no se especifica en la petición, selecciona la primera empresa activa en PostgreSQL.
+   * - Si la petición indica una empresa, solo se acepta si es un UUID de una empresa ACTIVA.
+   * - Si no se especifica, selecciona la primera empresa activa.
    */
   async resolveCompanyId(preferredCompanyId?: string): Promise<string | null> {
-    if (preferredCompanyId && preferredCompanyId.trim().length > 0) {
-      return preferredCompanyId.trim()
-    }
+    const requested = preferredCompanyId?.trim()
+    if (requested && !UUID_PATTERN.test(requested)) return null
 
     try {
-      const { data, error } = await supabaseAdmin
-        .from('companies')
-        .select('id')
-        .eq('status', 'ACTIVE')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
+      let query = supabaseAdmin.from('companies').select('id').eq('status', 'ACTIVE')
+      query = requested ? query.eq('id', requested) : query.order('created_at', { ascending: true })
+      const { data, error } = await query.limit(1).maybeSingle()
 
       if (error || !data?.id) {
         return null
@@ -48,6 +45,15 @@ export class PublicCatalogService {
       return data.id
     } catch {
       return null
+    }
+  }
+
+  /** Página y tamaño de página acotados (defensa adicional a la validación de la ruta). */
+  private normalizePaging(filters: PublicCatalogFilters): { page: number; pageSize: number } {
+    const requestedSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : PUBLIC_CATALOG_DEFAULT_PAGE_SIZE
+    return {
+      page: filters.page && filters.page > 0 ? filters.page : 1,
+      pageSize: Math.min(requestedSize, PUBLIC_CATALOG_MAX_PAGE_SIZE),
     }
   }
 
@@ -120,8 +126,7 @@ export class PublicCatalogService {
         data: [],
         pagination: {
           total: 0,
-          page: filters.page || 1,
-          pageSize: filters.pageSize || 12,
+          ...this.normalizePaging(filters),
           totalPages: 0,
           hasNextPage: false,
           hasPrevPage: false,
@@ -129,8 +134,7 @@ export class PublicCatalogService {
       }
     }
 
-    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 12
-    const page = filters.page && filters.page > 0 ? filters.page : 1
+    const { page, pageSize } = this.normalizePaging(filters)
 
     const result = await superCatalogRepository.findAll(
       {
@@ -208,8 +212,7 @@ export class PublicCatalogService {
         data: [],
         pagination: {
           total: 0,
-          page: filters.page || 1,
-          pageSize: filters.pageSize || 12,
+          ...this.normalizePaging(filters),
           totalPages: 0,
           hasNextPage: false,
           hasPrevPage: false,
@@ -217,8 +220,7 @@ export class PublicCatalogService {
       }
     }
 
-    const pageSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : 12
-    const page = filters.page && filters.page > 0 ? filters.page : 1
+    const { page, pageSize } = this.normalizePaging(filters)
 
     const result = await distributorCatalogRepository.findAll(
       {

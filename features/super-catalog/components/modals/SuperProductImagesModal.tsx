@@ -191,7 +191,8 @@ export function SuperProductImagesModal({
                 </div>
                 <div className="flex-1 min-w-0">
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60 mb-1">
-                    ★ Portada actual
+                    <AppIcon name="award" size={12} aria-hidden="true" />
+                    Portada actual
                   </span>
                   <p className="text-xs text-slate-500 font-medium">
                     Visible como foto principal en catálogo y ecommerce.

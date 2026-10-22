@@ -30,7 +30,7 @@ import { PurchaseExportModal } from './PurchaseExportModal'
 import { PurchaseStatsSkeleton, PurchaseTableSkeleton } from './PurchaseSkeleton'
 import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
-import { PurchaseToastContainer, PurchaseToastMessage } from './PurchaseToast'
+import { PurchaseToastContainer, usePurchaseToasts } from './PurchaseToast'
 import { canReceivePurchase } from '../utils/purchase-status'
 
 interface PurchasesPageProps {
@@ -91,23 +91,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // 4. Toast Notifications
-  const [toasts, setToasts] = useState<PurchaseToastMessage[]>([])
-
-  const addToast = (
-    title: string,
-    message: string,
-    type: 'success' | 'error' | 'info' | 'warning' = 'info'
-  ) => {
-    const id = `toast-${Date.now()}-${Math.random()}`
-    setToasts((prev) => [...prev, { id, title, message, type }])
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 4500)
-  }
-
-  const dismissToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id))
-  }
+  const { toasts, addToast, dismissToast } = usePurchaseToasts()
 
   // 5. Initial fetch of dynamic options (Suppliers & Locations)
   useEffect(() => {
@@ -328,14 +312,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       filters.endDate
   )
 
-  const activeFilterCount = [
-    Boolean(filters.query?.trim()),
-    Boolean(filters.supplierId && filters.supplierId !== 'ALL'),
-    Boolean(filters.locationId && filters.locationId !== 'ALL'),
-    Boolean(filters.status && filters.status !== 'ALL'),
-    Boolean(filters.paymentType && filters.paymentType !== 'ALL'),
-    Boolean(filters.startDate || filters.endDate),
-  ].filter(Boolean).length
 
   return (
     <div className="products-module-wrapper purchases-module-wrapper page-enter">
@@ -347,9 +323,6 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         onNewPurchase={() => setIsNewDrawerOpen(true)}
         onQuickReceive={handleQuickReceive}
         onExport={() => setIsExportModalOpen(true)}
-        onResetFilters={handleResetFilters}
-        hasActiveFilters={hasActiveFilters}
-        activeFilterCount={activeFilterCount}
       />
 
       {/* 2. Key Metrics & Stats */}
@@ -373,6 +346,14 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
         <PurchaseTableSkeleton />
       ) : error ? (
         <PurchaseErrorState message={error} onRetry={loadData} />
+      ) : purchases.length === 0 ? (
+        <div className="table-panel">
+          <PurchaseEmptyState
+            hasFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            onNewPurchase={() => setIsNewDrawerOpen(true)}
+          />
+        </div>
       ) : (
         <PurchaseTable
           purchases={purchases}

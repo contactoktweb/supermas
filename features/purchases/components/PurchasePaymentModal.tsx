@@ -24,6 +24,8 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
 import { BankAccount } from '@/features/treasury/types'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { todayBogota } from '@/features/purchases/utils/purchase-status'
 
 export function PurchasePaymentModal({
   purchase,
@@ -33,7 +35,7 @@ export function PurchasePaymentModal({
 }: PurchasePaymentModalProps) {
   const [mounted, setMounted] = useState(false)
   const [amount, setAmount] = useState<number>(0)
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState<string>(todayBogota())
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFERENCIA')
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [bankAccountId, setBankAccountId] = useState<string>('')
@@ -56,12 +58,14 @@ export function PurchasePaymentModal({
   useEffect(() => {
     if (purchase) {
       setAmount(purchase.pendingBalance)
-      setPaymentDate(new Date().toISOString().split('T')[0])
+      setPaymentDate(todayBogota())
       setReference('')
       setNotes('')
       setError(null)
     }
   }, [purchase])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !purchase || !mounted) return null
 

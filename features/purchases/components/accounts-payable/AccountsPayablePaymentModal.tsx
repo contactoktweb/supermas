@@ -25,6 +25,8 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
 import { BankAccount } from '@/features/treasury/types'
 import { DatePicker } from '@/components/ui/DatePicker'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { todayBogota } from '@/features/purchases/utils/purchase-status'
 
 export function AccountsPayablePaymentModal({
   item,
@@ -34,7 +36,7 @@ export function AccountsPayablePaymentModal({
 }: AccountsPayablePaymentModalProps) {
   const [mounted, setMounted] = useState(false)
   const [amount, setAmount] = useState<number>(0)
-  const [paymentDate, setPaymentDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [paymentDate, setPaymentDate] = useState<string>(todayBogota())
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('TRANSFERENCIA')
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
   const [bankAccountId, setBankAccountId] = useState<string>('')
@@ -57,13 +59,15 @@ export function AccountsPayablePaymentModal({
   useEffect(() => {
     if (isOpen && item) {
       setAmount(item.pendingBalance)
-      setPaymentDate(new Date().toISOString().split('T')[0])
+      setPaymentDate(todayBogota())
       setPaymentMethod('TRANSFERENCIA')
       setReference('')
       setNotes('')
       setError(null)
     }
   }, [isOpen, item])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !item || !mounted) return null
 
@@ -111,7 +115,7 @@ export function AccountsPayablePaymentModal({
         paymentMethod,
         bankAccountId: paymentMethod !== 'EFECTIVO' ? bankAccountId : undefined,
         date: paymentDate,
-        reference: reference.trim() || 'N/A',
+        reference: reference.trim(),
         notes: notes.trim() || undefined,
       })
       onSuccess()
@@ -125,40 +129,19 @@ export function AccountsPayablePaymentModal({
   }
 
   return createPortal(
-    <div
-      className="modal-backdrop page-enter"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(3px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 16,
-      }}
-    >
+    <div className="drawer-backdrop modal-center" onClick={onClose} role="dialog" aria-modal="true">
       <div
-        className="modal-content"
-        style={{
-          background: 'var(--card-bg, #ffffff)',
-          borderRadius: 16,
-          width: '100%',
-          maxWidth: 520,
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
+        className="modal-card modal-card-flush animate-scale-up"
+        style={{ width: 'min(100%, 520px)', maxWidth: 520, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div
           style={{
             padding: '20px 24px',
-            borderBottom: '1px solid var(--border)',
-            background: 'var(--navy, #1e3a8a)',
-            color: '#ffffff',
+            borderBottom: '1px solid var(--line)',
+            background: '#ffffff',
+            color: 'var(--navy)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -170,7 +153,7 @@ export function AccountsPayablePaymentModal({
                 width: 36,
                 height: 36,
                 borderRadius: 8,
-                background: 'rgba(255, 255, 255, 0.15)',
+                background: '#edf2fa',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -179,25 +162,13 @@ export function AccountsPayablePaymentModal({
               <AppIcon name="wallet" size={20} />
             </div>
             <div>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Registrar Abono a Proveedor</h2>
-              <p style={{ fontSize: 12, margin: 0, opacity: 0.85 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>Registrar Abono a Proveedor</h3>
+              <p style={{ fontSize: 12, margin: 0, color: 'var(--muted)' }}>
                 {item.purchaseNumber} — {item.supplierName}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#ffffff',
-              cursor: 'pointer',
-              padding: 4,
-              borderRadius: 6,
-              opacity: 0.85,
-            }}
-          >
+          <button type="button" onClick={onClose} className="icon-button" aria-label="Cerrar" style={{ width: 32, height: 32, borderRadius: 8 }}>
             <AppIcon name="close" size={18} />
           </button>
         </div>
@@ -259,7 +230,7 @@ export function AccountsPayablePaymentModal({
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <button
                 type="button"
-                className="outline-button-sm"
+                className="outline-button compact"
                 onClick={() => handleQuickPercent(100)}
                 style={{
                   flex: 1,
@@ -277,7 +248,7 @@ export function AccountsPayablePaymentModal({
               </button>
               <button
                 type="button"
-                className="outline-button-sm"
+                className="outline-button compact"
                 onClick={() => handleQuickPercent(50)}
                 style={{
                   flex: 1,
@@ -294,7 +265,7 @@ export function AccountsPayablePaymentModal({
               </button>
               <button
                 type="button"
-                className="outline-button-sm"
+                className="outline-button compact"
                 onClick={() => handleQuickPercent(25)}
                 style={{
                   flex: 1,

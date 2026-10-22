@@ -7,6 +7,11 @@ import { CustomSelect } from '@/components/ui/CustomSelect'
 import { Supplier, SupplierInvoiceSummary } from '../types'
 import { supplierService } from '../services/supplier.service'
 import { purchaseService } from '@/features/purchases/services/purchase.service'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { treasuryRepository } from '@/features/treasury/repositories/treasury.repository'
+import type { BankAccount } from '@/features/treasury/types'
+import { DatePicker } from '@/components/ui/DatePicker'
+import { todayBogota } from '@/features/purchases/utils/purchase-status'
 
 interface SupplierPaymentModalProps {
   supplier: Supplier | null
@@ -34,6 +39,9 @@ export function SupplierPaymentModal({
   const [selectedPurchaseId, setSelectedPurchaseId] = useState<string>('')
   const [amount, setAmount] = useState<number>(0)
   const [paymentMethod, setPaymentMethod] = useState<string>('TRANSFERENCIA')
+  const [paymentDate, setPaymentDate] = useState<string>(todayBogota())
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([])
+  const [bankAccountId, setBankAccountId] = useState<string>('')
   const [reference, setReference] = useState('')
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -41,6 +49,14 @@ export function SupplierPaymentModal({
 
   useEffect(() => {
     setMounted(true)
+    treasuryRepository
+      .getBankAccounts()
+      .then((accounts) => {
+        const active = accounts.filter((a) => a.status === 'ACTIVE')
+        setBankAccounts(active)
+        if (active.length > 0) setBankAccountId(active[0].id)
+      })
+      .catch(() => setBankAccounts([]))
   }, [])
 
   useEffect(() => {
@@ -64,6 +80,7 @@ export function SupplierPaymentModal({
 
     if (isOpen && supplier) {
       loadPendingInvoices()
+      setPaymentDate(todayBogota())
       setReference('')
       setNotes('')
       setError(null)
@@ -80,6 +97,8 @@ export function SupplierPaymentModal({
       setAmount(inv.pendingBalance)
     }
   }
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !supplier || !mounted) return null
 
@@ -112,6 +131,10 @@ export function SupplierPaymentModal({
       setError('Ingrese el número de comprobante o referencia de pago.')
       return
     }
+    if (paymentMethod !== 'EFECTIVO' && !bankAccountId) {
+      setError('Seleccione la cuenta bancaria de la que sale el pago.')
+      return
+    }
 
     setError(null)
     setIsSubmitting(true)
@@ -120,12 +143,11 @@ export function SupplierPaymentModal({
         purchaseId: selectedPurchaseId,
         amount,
         paymentMethod: paymentMethod as any,
+        bankAccountId: paymentMethod !== 'EFECTIVO' ? bankAccountId : undefined,
+        date: paymentDate,
         reference: reference.trim(),
         notes: notes.trim() || undefined,
       })
-
-      // Actualizar saldo del proveedor en db.suppliers
-      supplier.currentBalance = Math.max(0, (supplier.currentBalance || 0) - amount)
 
       onSuccess()
       onClose()
@@ -313,6 +335,35 @@ export function SupplierPaymentModal({
                   options={PAYMENT_METHODS}
                 />
               </div>
+
+              <div>
+                <label htmlFor="supplier-payment-date" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                  Fecha del pago <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <DatePicker id="supplier-payment-date" value={paymentDate} onChange={setPaymentDate} max={todayBogota()} required />
+              </div>
+
+              {paymentMethod !== 'EFECTIVO' && (
+                <div>
+                  <label htmlFor="supplier-payment-bank" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    Cuenta bancaria de origen <span style={{ color: '#dc2626' }}>*</span>
+                  </label>
+                  {bankAccounts.length > 0 ? (
+                    <CustomSelect
+                      id="supplier-payment-bank"
+                      value={bankAccountId}
+                      onChange={setBankAccountId}
+                      options={bankAccounts.map((b) => ({
+                        value: b.id,
+                        label: `${b.bankName} · ${b.accountNumber}`,
+                        description: `Disponible: ${formatCurrency(b.currentBalance)}`,
+                      }))}
+                    />
+                  ) : (
+                    <p className="field-hint">No hay cuentas bancarias activas. Regístrela en Tesorería.</p>
+                  )}
+                </div>
+              )}
 
               {/* Referencia bancaria */}
               <div>

@@ -122,7 +122,7 @@ export function SupplierStats({ stats }: SupplierStatsProps) {
 
   return (
     <section
-      className="stats-grid products-stats-grid page-enter"
+      className="stats-grid dashboard-primary-grid page-enter"
       aria-label="Métricas de gestión de proveedores"
     >
       {/* 1. Total proveedores */}
@@ -153,7 +153,7 @@ export function SupplierStats({ stats }: SupplierStatsProps) {
 
       {/* 3. Proveedores con compras recientes */}
       <SupplierStatCard
-        title="Compras recientes"
+        title="Proveedores con compras"
         value={animatedRecent.toLocaleString('es-CO')}
         iconName="purchases"
         tone="purple"
@@ -199,7 +199,7 @@ export function SupplierStats({ stats }: SupplierStatsProps) {
         badge="Inversión"
         note="Facturado"
         isPositive={true}
-        subtext="Adquisiciones totales"
+        subtext="Compras del mes en curso"
         index={6}
       />
 
@@ -214,6 +214,19 @@ export function SupplierStats({ stats }: SupplierStatsProps) {
         isPositive={true}
         subtext="Catálogo abastecido"
         index={7}
+      />
+
+      {/* 8. Facturas pendientes de pago */}
+      <SupplierStatCard
+        title="Facturas por pagar"
+        value={stats.pendingInvoicesCount.toLocaleString('es-CO')}
+        iconName="fileText"
+        tone="amber"
+        badge="Obligaciones"
+        note={stats.pendingInvoicesCount > 0 ? 'Con saldo' : 'Al día'}
+        isPositive={stats.pendingInvoicesCount === 0}
+        subtext="Compras confirmadas con saldo"
+        index={8}
       />
     </section>
   )

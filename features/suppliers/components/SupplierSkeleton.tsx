@@ -4,7 +4,7 @@ import React from 'react'
 
 export function SupplierStatsSkeleton() {
   return (
-    <div className="stats-grid products-stats-grid page-enter" aria-busy="true">
+    <div className="stats-grid dashboard-primary-grid page-enter" aria-busy="true">
       {[1, 2, 3, 4, 5, 6, 7].map((i) => (
         <div key={i} className="dashboard-kpi-card tone-blue skeleton-pulse" style={{ minHeight: 128 }}>
           <div className="kpi-card-header">

@@ -44,7 +44,7 @@ export class SupplierService {
     userContext?: UserPermissionContext
   ): Promise<PaginatedSuppliersResponse> {
     if (!this.hasPermission(userContext, 'suppliers.read', 'supplier.read')) {
-      throw new Error('No tienes permisos suficientes para consultar proveedores (suppliers.read requerido)')
+      throw new Error('No tienes permisos suficientes para consultar proveedores.')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
@@ -65,7 +65,7 @@ export class SupplierService {
    */
   async getById(id: string, userContext?: UserPermissionContext): Promise<Supplier | null> {
     if (!this.hasPermission(userContext, 'suppliers.read', 'supplier.read')) {
-      throw new Error('No tienes permisos para consultar este proveedor')
+      throw new Error('No tienes permisos para consultar este proveedor.')
     }
 
     const supplier = await supplierRepository.findById(id)
@@ -80,7 +80,7 @@ export class SupplierService {
    */
   async create(input: CreateSupplierInput, userContext?: UserPermissionContext): Promise<Supplier> {
     if (!this.hasPermission(userContext, 'suppliers.write', 'supplier.create', 'supplier.write')) {
-      throw new Error('No tienes permisos para crear proveedores (suppliers.write requerido)')
+      throw new Error('No tienes permisos para crear proveedores.')
     }
 
     // 1. Validar esquema Zod
@@ -154,7 +154,7 @@ export class SupplierService {
     }
 
     if (!this.hasPermission(userContext, 'suppliers.write', 'supplier.update', 'supplier.write')) {
-      throw new Error('No tienes permisos para editar proveedores (suppliers.write requerido)')
+      throw new Error('No tienes permisos para editar proveedores.')
     }
 
     updateSupplierSchema.parse(input)
@@ -186,7 +186,7 @@ export class SupplierService {
     const userContext = typeof reasonOrContext === 'string' ? optionalContext : reasonOrContext
 
     if (!this.hasPermission(userContext, 'suppliers.write', 'supplier.deactivate', 'supplier.write')) {
-      throw new Error('No tienes permisos para desactivar proveedores (suppliers.write requerido)')
+      throw new Error('No tienes permisos para desactivar proveedores.')
     }
 
     return supplierRepository.deactivate(id, {
@@ -215,7 +215,7 @@ export class SupplierService {
     }
 
     if (!this.hasPermission(userContext, 'treasury.create', 'purchases.create', 'supplier.payment', 'purchase.payment')) {
-      throw new Error('No tienes permisos para registrar pagos a proveedores (purchases.create / treasury.create requerido)')
+      throw new Error('No tienes permisos para registrar pagos a proveedores.')
     }
 
     const effectiveContext: UserPermissionContext | undefined = userContext
@@ -235,7 +235,7 @@ export class SupplierService {
    */
   async activate(id: string, userContext?: UserPermissionContext): Promise<Supplier> {
     if (!this.hasPermission(userContext, 'suppliers.write', 'supplier.update', 'supplier.write')) {
-      throw new Error('No tienes permisos para activar proveedores (suppliers.write requerido)')
+      throw new Error('No tienes permisos para activar proveedores.')
     }
 
     return supplierRepository.activate(id, {

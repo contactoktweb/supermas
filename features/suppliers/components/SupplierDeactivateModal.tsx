@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Supplier } from '../types'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface SupplierDeactivateModalProps {
   supplier: Supplier | null
@@ -29,6 +30,8 @@ export function SupplierDeactivateModal({
   useEffect(() => {
     if (supplier) setError(null)
   }, [supplier])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !supplier || !mounted) return null
 

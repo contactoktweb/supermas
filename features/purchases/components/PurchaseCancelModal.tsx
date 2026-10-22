@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase } from '../types'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface PurchaseCancelModalProps {
   purchase: Purchase | null
@@ -33,6 +34,8 @@ export function PurchaseCancelModal({
       setError(null)
     }
   }, [purchase])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !purchase || !mounted) return null
 

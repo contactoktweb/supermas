@@ -780,7 +780,7 @@ export function PurchaseDetailDrawer({
                         href={att.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="outline-button-sm"
+                        className="outline-button compact"
                         style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                       >
                         <AppIcon name="eye" size={14} />

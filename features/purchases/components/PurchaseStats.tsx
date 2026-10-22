@@ -128,7 +128,7 @@ export function PurchaseStats({ stats }: PurchaseStatsProps) {
 
   return (
     <section
-      className="stats-grid products-stats-grid page-enter"
+      className="stats-grid dashboard-primary-grid page-enter"
       aria-label="Métricas de compras y proveedores"
     >
       {/* 1. Total comprado del periodo */}
@@ -220,6 +220,19 @@ export function PurchaseStats({ stats }: PurchaseStatsProps) {
         isPositive={true}
         subtext="Unidades recibidas en bodega"
         index={7}
+      />
+
+      {/* 8. Saldo por pagar */}
+      <PurchaseStatCard
+        title="Saldo por pagar"
+        value={formatCurrency(stats.totalPendingBalance)}
+        iconName="wallet"
+        tone="amber"
+        badge="Proveedores"
+        note={stats.totalPendingBalance > 0 ? 'Pendiente' : 'Sin deuda'}
+        isPositive={stats.totalPendingBalance === 0}
+        subtext="Compras confirmadas sin pagar"
+        index={8}
       />
     </section>
   )

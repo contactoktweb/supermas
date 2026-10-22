@@ -876,7 +876,7 @@ export function PurchaseNewDrawer({
                         </div>
                         <button
                           type="button"
-                          className="outline-button-sm"
+                          className="outline-button compact"
                           style={{ fontSize: 11 }}
                         >
                           <AppIcon name="plus" size={12} /> Agregar

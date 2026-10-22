@@ -64,7 +64,7 @@ function mapDbRowToPurchase(row: any): Purchase {
       date: pay.payment_date || pay.created_at,
       amount: Number(pay.amount || 0),
       paymentMethod: (pay.payment_method as any) || 'TRANSFERENCIA',
-      reference: pay.transaction_reference || 'N/A',
+      reference: pay.transaction_reference || '—',
       notes: pay.notes || undefined,
       registeredByUserId: pay.created_by_user_id || undefined,
       registeredByUserName: payUser.full_name || undefined,

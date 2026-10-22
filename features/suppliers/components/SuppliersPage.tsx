@@ -268,14 +268,6 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
       filters.endDate
   )
 
-  const activeFilterCount = [
-    Boolean(filters.query?.trim()),
-    Boolean(filters.documentNumber?.trim()),
-    Boolean(filters.status && filters.status !== 'ALL'),
-    Boolean(filters.locationId && filters.locationId !== 'ALL'),
-    filters.hasPendingBalance !== undefined,
-    Boolean(filters.startDate || filters.endDate),
-  ].filter(Boolean).length
 
   return (
     <div className="products-module-wrapper suppliers-module-wrapper page-enter">
@@ -290,9 +282,6 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
           setIsFormDrawerOpen(true)
         }}
         onExport={() => setIsExportModalOpen(true)}
-        onResetFilters={handleResetFilters}
-        hasActiveFilters={hasActiveFilters}
-        activeFilterCount={activeFilterCount}
       />
 
       {/* 2. Key Metrics & Stats */}
@@ -315,6 +304,18 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
         <SupplierTableSkeleton />
       ) : error ? (
         <SupplierErrorState message={error} onRetry={fetchSuppliers} />
+      ) : suppliers.length === 0 ? (
+        <div className="table-panel">
+          <SupplierEmptyState
+            hasFilters={hasActiveFilters}
+            onResetFilters={handleResetFilters}
+            onNewSupplier={() => {
+              setFormDrawerMode('create')
+              setEditingSupplier(null)
+              setIsFormDrawerOpen(true)
+            }}
+          />
+        </div>
       ) : (
         <SupplierTable
           suppliers={suppliers}

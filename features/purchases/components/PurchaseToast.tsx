@@ -4,6 +4,25 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 
+const TOAST_DURATION_MS = 4500
+
+/** Avisos temporales de los módulos de compras. */
+export function usePurchaseToasts() {
+  const [toasts, setToasts] = React.useState<PurchaseToastMessage[]>([])
+  const dismissToast = React.useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+  const addToast = React.useCallback(
+    (title: string, message: string, type: PurchaseToastMessage['type'] = 'info') => {
+      const id = `toast-${Date.now()}-${Math.random()}`
+      setToasts((prev) => [...prev, { id, title, message, type }])
+      window.setTimeout(() => dismissToast(id), TOAST_DURATION_MS)
+    },
+    [dismissToast]
+  )
+  return { toasts, addToast, dismissToast }
+}
+
 export interface PurchaseToastMessage {
   id: string
   title: string

@@ -619,11 +619,12 @@ export class SupplierRepository {
       .from('purchases')
       .select('id, purchase_number, supplier_invoice_number, issue_date, due_date, total_amount, paid_amount, payment_status, invoice_attachment_url')
       .eq('supplier_id', supplierId)
+      .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
       .order('issue_date', { ascending: false })
 
     if (error || !data) return []
 
-    const now = new Date().toISOString().split('T')[0]
+    const now = todayBogota()
 
     return data.map((p) => {
       const total = Number(p.total_amount || 0)

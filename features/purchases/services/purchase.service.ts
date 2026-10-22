@@ -96,7 +96,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<PaginatedPurchasesResponse> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos suficientes para consultar compras (purchases.read requerido)')
+      throw new Error('No tienes permisos suficientes para consultar compras.')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')
@@ -119,7 +119,7 @@ export class PurchaseService {
    */
   async getById(id: string, userContext?: UserPermissionContext): Promise<Purchase | null> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para ver el detalle de compras')
+      throw new Error('No tienes permisos para ver el detalle de compras.')
     }
 
     const purchase = await this.repository.findById(id)
@@ -134,7 +134,7 @@ export class PurchaseService {
    */
   async create(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para crear compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para crear compras.')
     }
 
     // 1. Validar esquema con Zod
@@ -182,7 +182,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para modificar compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para modificar compras.')
     }
 
     updatePurchaseSchema.parse(input)
@@ -227,7 +227,7 @@ export class PurchaseService {
    */
   async confirmOrder(purchaseId: string, userContext?: UserPermissionContext): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
-      throw new Error('No tienes permisos para confirmar órdenes de compra (purchases.create requerido)')
+      throw new Error('No tienes permisos para confirmar órdenes de compra.')
     }
 
     return this.repository.confirm(purchaseId)
@@ -242,7 +242,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'purchases.create', 'purchase.cancel')) {
-      throw new Error('No tienes permisos para anular compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para anular compras.')
     }
 
     cancelPurchaseSchema.parse({ purchaseId: id, reason })
@@ -255,7 +255,7 @@ export class PurchaseService {
    */
   async getReceipts(purchaseId?: string, userContext?: UserPermissionContext): Promise<PurchaseReceipt[]> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para consultar recepciones (purchases.read requerido)')
+      throw new Error('No tienes permisos para consultar recepciones.')
     }
 
     return this.repository.getReceipts(purchaseId)
@@ -288,7 +288,7 @@ export class PurchaseService {
     }
 
     if (!this.hasPermission(context, 'purchases.create', 'purchase.receive', 'purchase.create')) {
-      throw new Error('No tienes permisos para recibir compras (purchases.create requerido)')
+      throw new Error('No tienes permisos para recibir compras.')
     }
 
     receivePurchaseSchema.parse(payload)
@@ -304,7 +304,7 @@ export class PurchaseService {
     userContext?: UserPermissionContext
   ): Promise<Purchase> {
     if (!this.hasPermission(userContext, 'treasury.create', 'purchases.create', 'purchase.payment')) {
-      throw new Error('No tienes permisos para registrar pagos (purchases.create / treasury.create requerido)')
+      throw new Error('No tienes permisos para registrar pagos.')
     }
 
     registerPaymentSchema.parse(input)
@@ -317,7 +317,7 @@ export class PurchaseService {
    */
   async getPurchaseStats(userContext?: UserPermissionContext): Promise<PurchaseStats> {
     if (!this.hasPermission(userContext, 'purchases.read', 'purchase.read')) {
-      throw new Error('No tienes permisos para ver estadísticas de compras')
+      throw new Error('No tienes permisos para ver estadísticas de compras.')
     }
 
     const canReadCost = this.hasPermission(userContext, 'cost.read')

@@ -6576,3 +6576,12 @@ html, body {
 
 /* Drawers con encabezado, cuerpo y pie propios: cada sección define su padding. */
 .product-drawer.product-drawer-flush{padding:0!important}
+
+/* Impresión de documentos abiertos en un drawer (p. ej. acta de recepción): solo sale ese documento. */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area { position: absolute !important; inset: 0 !important; width: 100% !important; max-width: none !important; height: auto !important; overflow: visible !important; box-shadow: none !important; animation: none !important; }
+  .print-area button, .print-area .drawer-footer { display: none !important; }
+  .drawer-backdrop { background: none !important; backdrop-filter: none !important; }
+}

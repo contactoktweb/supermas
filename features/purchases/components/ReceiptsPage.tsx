@@ -876,7 +876,7 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
           aria-modal="true"
         >
           <div
-            className="product-drawer product-detail-drawer page-enter"
+            className="product-drawer product-detail-drawer page-enter print-area"
             onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: 680, width: '92vw' }}
           >

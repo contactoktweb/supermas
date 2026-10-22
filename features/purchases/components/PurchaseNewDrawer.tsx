@@ -371,7 +371,7 @@ export function PurchaseNewDrawer({
       aria-labelledby="new-purchase-drawer-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 860, width: '92vw' }}
       >

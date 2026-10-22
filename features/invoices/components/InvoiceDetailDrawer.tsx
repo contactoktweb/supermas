@@ -49,7 +49,7 @@ export function InvoiceDetailDrawer({
   return (
     <div className="drawer-backdrop" onClick={onClose}>
       <aside
-        className="product-drawer page-enter"
+        className="product-drawer product-drawer-flush page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',

@@ -151,7 +151,7 @@ export function SupplierPaymentModal({
       aria-labelledby="supplier-pay-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 540, width: '92vw' }}
       >

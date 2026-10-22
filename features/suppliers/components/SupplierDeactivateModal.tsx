@@ -56,7 +56,7 @@ export function SupplierDeactivateModal({
       aria-labelledby="deactivate-modal-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 480, width: '92vw' }}
       >

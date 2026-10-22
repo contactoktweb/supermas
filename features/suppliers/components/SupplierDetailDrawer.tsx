@@ -129,7 +129,7 @@ export function SupplierDetailDrawer({
       aria-labelledby="supplier-detail-title"
     >
       <div
-        className="product-drawer product-detail-drawer page-enter"
+        className="product-drawer product-drawer-flush product-detail-drawer page-enter"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 880, width: '94vw' }}
       >

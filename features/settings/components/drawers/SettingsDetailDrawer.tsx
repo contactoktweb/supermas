@@ -96,9 +96,9 @@ export function SettingsDetailDrawer({
   return createPortal(
     <div className="drawer-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="settings-drawer-title">
       <aside
-        className="product-drawer page-enter"
+        className="product-drawer product-drawer-flush page-enter"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column', padding: 0 }}
+        style={{ width: '100%', maxWidth: 680, display: 'flex', flexDirection: 'column' }}
       >
         <header className="px-6 py-5 border-b border-[#e2e8f0] flex items-center justify-between gap-3 bg-slate-50/80 shrink-0 sticky top-0 z-10 backdrop-blur-sm">
           <div className="flex items-center gap-3 min-w-0">

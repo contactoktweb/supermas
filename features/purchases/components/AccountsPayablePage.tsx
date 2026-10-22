@@ -17,6 +17,7 @@ import { AccountsPayableHistoryModal } from "./accounts-payable/AccountsPayableH
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PurchaseErrorState } from "./PurchaseErrorState";
 import { PurchaseToastContainer, usePurchaseToasts } from "./PurchaseToast";
+import { todayBogota } from '../utils/purchase-status'
 
 function useCountUp(target: number, duration: number = 600) {
   const [count, setCount] = useState(target);
@@ -107,6 +108,14 @@ function CxpStatCard({
       </div>
     </article>
   );
+}
+
+const AP_STATUS_LABELS: Record<string, string> = {
+  PENDIENTE: 'Pendiente',
+  PARCIAL: 'Abonada',
+  VENCIDA: 'Vencida',
+  PAGADA: 'Liquidada',
+  ANULADA: 'Anulada',
 }
 
 export function AccountsPayablePage() {
@@ -269,49 +278,39 @@ export function AccountsPayablePage() {
     setPage(1);
   };
 
-  const handleExportCSV = () => {
-    if (items.length === 0) return;
-    const headers = [
-      "Documento",
-      "Factura Proveedor",
-      "Proveedor",
-      "NIT",
-      "Bodega",
-      "Vencimiento",
-      "Total Factura",
-      "Abonado",
-      "Saldo Pendiente",
-      "Estado",
-    ];
-
-    const rows = items.map((it) => [
-      `"${it.purchaseNumber}"`,
-      `"${it.supplierInvoiceNumber || ""}"`,
-      `"${it.supplierName.replace(/"/g, '""')}"`,
-      `"${it.supplierNit}"`,
-      `"${it.locationName}"`,
-      `"${it.dueDate}"`,
-      it.originalAmount,
-      it.paidAmount,
-      it.pendingBalance,
-      `"${it.status}"`,
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute(
-      "download",
-      `Cuentas_por_Pagar_${new Date().toISOString().split("T")[0]}.csv`,
-    );
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Exporta todas las cuentas que cumplen los filtros, no solo la página visible.
+  const handleExportCSV = async () => {
+    try {
+      const all = await accountsPayableService.list({ query, supplierId, locationId, status, page: 1, pageSize: 1000 })
+      const headers = ['Documento', 'Factura proveedor', 'Proveedor', 'NIT', 'Bodega', 'Vencimiento', 'Total factura', 'Abonado', 'Saldo pendiente', 'Estado']
+      const quote = (value: string) => `"${value.replace(/"/g, '""')}"`
+      const rows = all.items.map((it) =>
+        [
+          quote(it.purchaseNumber),
+          quote(it.supplierInvoiceNumber || ''),
+          quote(it.supplierName),
+          quote(it.supplierNit),
+          quote(it.locationName),
+          quote(it.dueDate),
+          it.originalAmount,
+          it.paidAmount,
+          it.pendingBalance,
+          quote(AP_STATUS_LABELS[it.status] ?? it.status),
+        ].join(',')
+      )
+      const blob = new Blob([`\uFEFF${[headers.join(','), ...rows].join('\n')}`], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `cuentas_por_pagar_${todayBogota()}.csv`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      addToast('No se pudo exportar', err instanceof Error ? err.message : 'Intente de nuevo.', 'error')
+    }
+  }
 
   return (
     <div className="products-module-wrapper accounts-payable-module-wrapper page-enter">

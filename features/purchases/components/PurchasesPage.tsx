@@ -457,8 +457,8 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       {/* Modal Exportar CSV/JSON */}
       <PurchaseExportModal
         isOpen={isExportModalOpen}
-        purchases={purchases}
-        isCostRedacted={isCostRedacted}
+        filters={filters}
+        userContext={effectiveUserContext}
         onClose={() => setIsExportModalOpen(false)}
       />
     </div>

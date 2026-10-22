@@ -259,6 +259,16 @@ export function parsePurchaseDatabaseError(error: any): Error {
   return new Error(msg)
 }
 
+const PURCHASE_STATUS_EXPORT_LABELS: Record<string, string> = {
+  BORRADOR: 'Borrador',
+  CONFIRMADA: 'Confirmada',
+  RECIBIDA_PARCIALMENTE: 'Recibida parcialmente',
+  RECIBIDA: 'Recibida',
+  PAYMENT_PENDING: 'Recibida con saldo',
+  PAID: 'Pagada',
+  CANCELADA: 'Anulada',
+}
+
 const INVOICES_BUCKET = 'invoices'
 const INVOICE_MAX_BYTES = 10 * 1024 * 1024
 const INVOICE_EXTENSIONS: Record<string, string> = {
@@ -966,8 +976,8 @@ export class PurchaseRepository {
         `"${p.supplierName.replace(/"/g, '""')}"`,
         `"${p.supplierNit}"`,
         `"${p.destinationLocationName}"`,
-        `"${p.paymentType}"`,
-        `"${p.status}"`,
+        `"${p.paymentType === 'CREDITO' ? 'Crédito' : 'Contado'}"`,
+        `"${PURCHASE_STATUS_EXPORT_LABELS[p.status] ?? p.status}"`,
       ]
       if (!isCostRedacted) {
         base.push(

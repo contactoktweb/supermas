@@ -3,25 +3,29 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
-import { Purchase } from '../types'
+import type { PurchaseFilterParams, UserPermissionContext } from '../types'
 import { purchaseService } from '../services/purchase.service'
 
 interface PurchaseExportModalProps {
   isOpen: boolean
-  purchases: Purchase[]
-  isCostRedacted: boolean
+  /** Filtros activos: se exportan todas las compras que cumplen, no solo la página visible. */
+  filters: PurchaseFilterParams
+  userContext?: UserPermissionContext
   onClose: () => void
 }
 
+const EXPORT_MAX_ROWS = 1000
+
 export function PurchaseExportModal({
   isOpen,
-  purchases,
-  isCostRedacted,
+  filters,
+  userContext,
   onClose,
 }: PurchaseExportModalProps) {
   const [mounted, setMounted] = useState(false)
   const [format, setFormat] = useState<'csv' | 'json'>('csv')
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -29,33 +33,35 @@ export function PurchaseExportModal({
 
   if (!isOpen || !mounted) return null
 
-  const handleDownload = () => {
-    setIsExporting(true)
-    setTimeout(() => {
-      let content = ''
-      let mimeType = 'text/csv;charset=utf-8;'
+  const handleDownload = async () => {
+    try {
+      setIsExporting(true)
+      setExportError(null)
+      const { items, isCostRedacted } = await purchaseService.list(
+        { ...filters, page: 1, pageSize: EXPORT_MAX_ROWS },
+        userContext
+      )
       const dateStr = new Date().toISOString().slice(0, 10)
-      let filename = `compras_supermas_${dateStr}.csv`
-
-      if (format === 'csv') {
-        content = purchaseService.exportToCsv(purchases, isCostRedacted)
-      } else {
-        mimeType = 'application/json;charset=utf-8;'
-        filename = `compras_supermas_${dateStr}.json`
-        content = JSON.stringify(purchases, null, 2)
-      }
-
-      const blob = new Blob([content], { type: mimeType })
+      const isCsv = format === 'csv'
+      // El BOM hace que Excel lea las tildes en UTF-8.
+      const content = isCsv
+        ? `\uFEFF${purchaseService.exportToCsv(items, isCostRedacted)}`
+        : JSON.stringify(items, null, 2)
+      const blob = new Blob([content], { type: isCsv ? 'text/csv;charset=utf-8;' : 'application/json;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.setAttribute('href', url)
-      link.setAttribute('download', filename)
+      link.href = url
+      link.download = `ordenes_de_compra_${dateStr}.${isCsv ? 'csv' : 'json'}`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      setIsExporting(false)
+      URL.revokeObjectURL(url)
       onClose()
-    }, 300)
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'No se pudo generar el archivo.')
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   return createPortal(
@@ -92,13 +98,20 @@ export function PurchaseExportModal({
               id="export-modal-title"
               style={{ margin: 0, fontSize: 16, color: 'var(--navy)', fontWeight: 800 }}
             >
-              Exportar Compras
+              Exportar órdenes de compra
             </h3>
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              {purchases.length} registros seleccionados
+              Todas las órdenes que cumplen los filtros actuales
             </span>
           </div>
         </div>
+
+        {exportError && (
+          <div className="form-error-banner" role="alert" style={{ marginBottom: 12 }}>
+            <AppIcon name="warning" size={16} />
+            <span>{exportError}</span>
+          </div>
+        )}
 
         <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-main)' }}>
           Descargue la información de las órdenes de compra para análisis en Excel, auditoría tributaria o integración contable.

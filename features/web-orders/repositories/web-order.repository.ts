@@ -77,7 +77,7 @@ export class WebOrderRepository {
     }
 
     const channel: WebOrderChannel =
-      row.channel === 'SUPER_MAS' || row.channel === 'CATALOGO_SUPERMAS'
+      row.channel === 'SUPER_MAS' || row.channel === 'CATALOGO_SUPERMAS' || row.channel === 'SUPERMAS_B2C'
         ? 'CATALOGO_SUPERMAS'
         : 'CATALOGO_DISTRIBUIDORA'
 
@@ -158,8 +158,11 @@ export class WebOrderRepository {
       .eq('company_id', companyId)
 
     if (filters.channel && filters.channel !== 'ALL') {
-      const dbChannel = filters.channel === 'CATALOGO_SUPERMAS' ? 'SUPER_MAS' : 'DISTRIBUIDORA'
-      query = query.or(`channel.eq.${dbChannel},channel.eq.${filters.channel}`)
+      const dbChannels =
+        filters.channel === 'CATALOGO_SUPERMAS'
+          ? ['SUPER_MAS', 'SUPERMAS_B2C']
+          : ['DISTRIBUIDORA', 'DISTRIBUTOR_B2B']
+      query = query.or([...dbChannels, filters.channel].map((c) => `channel.eq.${c}`).join(','))
     }
 
     if (filters.status && filters.status !== 'ALL') {

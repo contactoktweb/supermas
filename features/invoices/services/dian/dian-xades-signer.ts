@@ -38,8 +38,11 @@ export function signUblDocument(root: XmlElement, cert: DianSigningCertificate, 
 
   const exts = findFirst(root, (e) => e.name === 'ext:UBLExtensions')
   const slots = exts ? exts.children.filter((c): c is XmlElement => c.kind === 'element' && c.name === 'ext:UBLExtension') : []
-  const slot = slots[1] && slots[1].children.find((c): c is XmlElement => c.kind === 'element' && c.name === 'ext:ExtensionContent')
-  if (!slot) throw new Error('El XML no tiene el contenedor de firma (segundo ext:UBLExtension).')
+  // La firma va en el último ext:UBLExtension: el segundo en facturas y notas (el primero son las DianExtensions),
+  // el único en el AttachedDocument.
+  const last = slots[slots.length - 1]
+  const slot = last && last.children.find((c): c is XmlElement => c.kind === 'element' && c.name === 'ext:ExtensionContent')
+  if (!slot) throw new Error('El XML no tiene el contenedor de firma (ext:UBLExtension).')
   if (slot.children.length > 0) throw new Error('El documento ya está firmado.')
 
   const id = `xmldsig-${randomUUID()}`

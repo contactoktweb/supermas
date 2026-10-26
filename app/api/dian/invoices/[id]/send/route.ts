@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireServerUser, requireAnyPermission } from '@/lib/auth/server-auth'
 import { DianOrchestratorService } from '@/features/invoices/services/dian/dian-orchestrator.service'
-import { assertInvoiceVisible, dianErrorResponse, isUuid } from '../../../_shared'
+import { assertInvoiceVisible, dianErrorResponse, isUuid, scheduleCustomerDelivery } from '../../../_shared'
 
 export const runtime = 'nodejs'
 
@@ -21,6 +21,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const isNote = doc?.document_type === 'CREDIT_NOTE' || doc?.document_type === 'DEBIT_NOTE'
     await requireAnyPermission(user, isNote ? ['invoices.cancel', 'dian.manage'] : ['invoices.create', 'dian.manage'])
     const result = await new DianOrchestratorService().process({ userId: user.userId, companyId: user.companyId }, id)
+    scheduleCustomerDelivery(user, result)
     return NextResponse.json({ success: true, data: result })
   } catch (e) {
     return dianErrorResponse(e)

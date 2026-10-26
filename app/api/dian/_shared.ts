@@ -1,9 +1,10 @@
 /**
  * Utilidades comunes de las rutas /api/dian (solo servidor).
  */
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { AuthError, ServerUser } from '@/lib/auth/server-auth'
-import { DianOrchestratorError } from '@/features/invoices/services/dian/dian-orchestrator.service'
+import { DianOrchestratorError, DianProcessResult } from '@/features/invoices/services/dian/dian-orchestrator.service'
+import { InvoiceDeliveryService } from '@/features/invoices/services/delivery/invoice-delivery.service'
 
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -25,4 +26,19 @@ export function dianErrorResponse(e: unknown) {
 export async function assertInvoiceVisible(user: ServerUser, invoiceId: string): Promise<void> {
   const { data } = await user.userClient.from('electronic_invoices').select('id').eq('id', invoiceId).maybeSingle()
   if (!data) throw new AuthError('Factura no encontrada o sin acceso desde su sede.', 403)
+}
+
+/**
+ * Cuando la DIAN acepta un documento, se entrega al cliente por correo después de responder
+ * (no retrasa la respuesta). La entrega automática ocurre una sola vez por documento.
+ */
+export function scheduleCustomerDelivery(user: ServerUser, result: DianProcessResult): void {
+  if (result.dianStatus !== 'ACCEPTED') return
+  after(async () => {
+    try {
+      await new InvoiceDeliveryService().deliver({ userId: user.userId, companyId: user.companyId }, result.invoiceId, 'AUTO')
+    } catch (e) {
+      console.error('[DIAN] Entrega automática al cliente:', e instanceof Error ? e.message : String(e))
+    }
+  })
 }

@@ -1,5 +1,5 @@
 /**
- * SUPER MÁS ERP/POS — ZIP de un solo archivo (formato PKZIP, deflate) para envío a la DIAN.
+ * SUPER MÁS ERP/POS — ZIP (formato PKZIP, deflate) para el envío a la DIAN y la entrega al adquiriente.
  * Implementación mínima con node:zlib (sin dependencias externas).
  */
 
@@ -30,58 +30,71 @@ function dosDateTime(d: Date): { time: number; date: number } {
 
 /** Crea un ZIP con un único archivo. */
 export function zipSingleFile(fileName: string, content: Buffer | string, when = new Date()): Buffer {
-  const data = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8')
-  const name = Buffer.from(fileName, 'utf8')
-  const compressed = deflateRawSync(data)
-  const crc = crc32(data)
+  return zipFiles([{ fileName, content }], when)
+}
+
+/** Crea un ZIP con varios archivos (paquete de entrega al adquiriente: XML + PDF). */
+export function zipFiles(entries: Array<{ fileName: string; content: Buffer | string }>, when = new Date()): Buffer {
   const { time, date } = dosDateTime(when)
+  const locals: Buffer[] = []
+  const centrals: Buffer[] = []
+  let offset = 0
 
-  const local = Buffer.alloc(30)
-  local.writeUInt32LE(0x04034b50, 0)
-  local.writeUInt16LE(20, 4) // versión necesaria
-  local.writeUInt16LE(0x0800, 6) // UTF-8
-  local.writeUInt16LE(8, 8) // deflate
-  local.writeUInt16LE(time, 10)
-  local.writeUInt16LE(date, 12)
-  local.writeUInt32LE(crc, 14)
-  local.writeUInt32LE(compressed.length, 18)
-  local.writeUInt32LE(data.length, 22)
-  local.writeUInt16LE(name.length, 26)
-  local.writeUInt16LE(0, 28)
+  for (const entry of entries) {
+    const data = Buffer.isBuffer(entry.content) ? entry.content : Buffer.from(entry.content, 'utf8')
+    const name = Buffer.from(entry.fileName, 'utf8')
+    const compressed = deflateRawSync(data)
+    const crc = crc32(data)
 
-  const central = Buffer.alloc(46)
-  central.writeUInt32LE(0x02014b50, 0)
-  central.writeUInt16LE(20, 4)
-  central.writeUInt16LE(20, 6)
-  central.writeUInt16LE(0x0800, 8)
-  central.writeUInt16LE(8, 10)
-  central.writeUInt16LE(time, 12)
-  central.writeUInt16LE(date, 14)
-  central.writeUInt32LE(crc, 16)
-  central.writeUInt32LE(compressed.length, 20)
-  central.writeUInt32LE(data.length, 24)
-  central.writeUInt16LE(name.length, 28)
-  central.writeUInt16LE(0, 30)
-  central.writeUInt16LE(0, 32)
-  central.writeUInt16LE(0, 34)
-  central.writeUInt16LE(0, 36)
-  central.writeUInt32LE(0, 38)
-  central.writeUInt32LE(0, 42) // offset del encabezado local
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    local.writeUInt16LE(20, 4) // versión necesaria
+    local.writeUInt16LE(0x0800, 6) // UTF-8
+    local.writeUInt16LE(8, 8) // deflate
+    local.writeUInt16LE(time, 10)
+    local.writeUInt16LE(date, 12)
+    local.writeUInt32LE(crc, 14)
+    local.writeUInt32LE(compressed.length, 18)
+    local.writeUInt32LE(data.length, 22)
+    local.writeUInt16LE(name.length, 26)
+    local.writeUInt16LE(0, 28)
 
-  const localSize = local.length + name.length + compressed.length
-  const centralSize = central.length + name.length
+    const central = Buffer.alloc(46)
+    central.writeUInt32LE(0x02014b50, 0)
+    central.writeUInt16LE(20, 4)
+    central.writeUInt16LE(20, 6)
+    central.writeUInt16LE(0x0800, 8)
+    central.writeUInt16LE(8, 10)
+    central.writeUInt16LE(time, 12)
+    central.writeUInt16LE(date, 14)
+    central.writeUInt32LE(crc, 16)
+    central.writeUInt32LE(compressed.length, 20)
+    central.writeUInt32LE(data.length, 24)
+    central.writeUInt16LE(name.length, 28)
+    central.writeUInt16LE(0, 30)
+    central.writeUInt16LE(0, 32)
+    central.writeUInt16LE(0, 34)
+    central.writeUInt16LE(0, 36)
+    central.writeUInt32LE(0, 38)
+    central.writeUInt32LE(offset, 42) // offset del encabezado local
 
+    locals.push(local, name, compressed)
+    centrals.push(central, name)
+    offset += local.length + name.length + compressed.length
+  }
+
+  const centralDir = Buffer.concat(centrals)
   const end = Buffer.alloc(22)
   end.writeUInt32LE(0x06054b50, 0)
   end.writeUInt16LE(0, 4)
   end.writeUInt16LE(0, 6)
-  end.writeUInt16LE(1, 8)
-  end.writeUInt16LE(1, 10)
-  end.writeUInt32LE(centralSize, 12)
-  end.writeUInt32LE(localSize, 16)
+  end.writeUInt16LE(entries.length, 8)
+  end.writeUInt16LE(entries.length, 10)
+  end.writeUInt32LE(centralDir.length, 12)
+  end.writeUInt32LE(offset, 16)
   end.writeUInt16LE(0, 20)
 
-  return Buffer.concat([local, name, compressed, central, name, end])
+  return Buffer.concat([...locals, centralDir, end])
 }
 
 /** Lee el primer archivo de un ZIP (para la respuesta de la DIAN en GetStatusZip). */

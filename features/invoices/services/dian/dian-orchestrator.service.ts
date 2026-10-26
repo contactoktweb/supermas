@@ -463,6 +463,19 @@ export class DianOrchestratorService {
     return this.result({ ...inv, transmission_state: state, dian_status: state }, state, message, res.errorMessages)
   }
 
+  /**
+   * Datos de un documento ACEPTADO para entregarlo al adquiriente (AttachedDocument, PDF y correo).
+   * El documento fiscal se arma desde la misma fuente que el XML transmitido.
+   */
+  async loadAcceptedDocument(actor: DianActor, invoiceId: string): Promise<{ invoice: any; document: DianInvoiceDocument }> {
+    const inv = await this.loadInvoice(actor.companyId, invoiceId)
+    if (inv.transmission_state !== 'ACCEPTED' || !inv.xml_signed || !inv.cufe) {
+      throw new DianOrchestratorError('Solo se entregan al cliente los documentos aceptados por la DIAN.', 409)
+    }
+    const input = inv.document_type === 'INVOICE' ? await this.loadDocumentInput(inv) : await this.loadNoteInput(inv)
+    return { invoice: inv, document: buildInvoiceDocument(input) }
+  }
+
   // ----------------------------------------------------------------------------
   // Carga de datos
   // ----------------------------------------------------------------------------

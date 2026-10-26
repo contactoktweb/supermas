@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireServerUser, requireAnyPermission } from '@/lib/auth/server-auth'
 import { DianOrchestratorService } from '@/features/invoices/services/dian/dian-orchestrator.service'
-import { dianErrorResponse, isUuid } from '../_shared'
+import { dianErrorResponse, isUuid, scheduleCustomerDelivery } from '../_shared'
 
 export const runtime = 'nodejs'
 
@@ -25,6 +25,7 @@ export async function POST(req: NextRequest) {
 
     const orchestrator = new DianOrchestratorService()
     const result = await orchestrator.emitFromSale(user.userClient, { userId: user.userId, companyId: user.companyId }, saleId, idempotencyKey)
+    scheduleCustomerDelivery(user, result)
     return NextResponse.json({ success: true, data: result })
   } catch (e) {
     return dianErrorResponse(e)

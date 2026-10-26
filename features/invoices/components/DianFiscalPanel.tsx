@@ -3,13 +3,14 @@
 /**
  * Panel fiscal DIAN del detalle de factura:
  * resolución (número, fecha, prefijo, rango desde–hasta, vigencia), estado REAL de transmisión,
- * CUFE, código QR, errores devueltos por la DIAN y acciones (enviar, consultar, XML, representación gráfica).
+ * CUFE, código QR, errores devueltos por la DIAN y acciones (enviar, consultar, XML, representación gráfica, envío al cliente).
  */
 
 import React, { useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { qrSvg } from '@/lib/qr/qr-svg'
 import { Invoice } from '../types'
+import { dianApiClient } from '../services/dian-api.client'
 
 export const TRANSMISSION_LABELS: Record<string, { label: string; color: string; bg: string; hint: string }> = {
   PENDING: { label: 'Pendiente', color: '#475569', bg: '#f1f5f9', hint: 'Aún no se ha generado el documento electrónico.' },
@@ -54,7 +55,7 @@ interface Props {
 }
 
 export function DianFiscalPanel({ invoice, onSend, onCheckStatus, onOpenXml }: Props) {
-  const [busy, setBusy] = useState<'send' | 'status' | null>(null)
+  const [busy, setBusy] = useState<'send' | 'status' | 'email' | null>(null)
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -77,6 +78,19 @@ export function DianFiscalPanel({ invoice, onSend, onCheckStatus, onOpenXml }: P
       setFeedback({ ok: errs.length === 0, text: errs.length ? `${msg} ${errs.join(' | ')}` : msg })
     } catch (e: any) {
       setFeedback({ ok: false, text: e?.message || 'Error en la facturación electrónica.' })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const emailCustomer = async () => {
+    try {
+      setBusy('email')
+      setFeedback(null)
+      const res = await dianApiClient.emailToCustomer(invoice.id)
+      setFeedback({ ok: true, text: res.message })
+    } catch (e: any) {
+      setFeedback({ ok: false, text: e?.message || 'No se pudo enviar el documento al cliente.' })
     } finally {
       setBusy(null)
     }
@@ -205,6 +219,12 @@ export function DianFiscalPanel({ invoice, onSend, onCheckStatus, onOpenXml }: P
             <button type="button" className="primary-button compact" onClick={() => run('status')} disabled={busy !== null} style={{ height: 32, fontSize: 11, padding: '0 12px' }}>
               <AppIcon name="refresh" size={13} className={busy === 'status' ? 'spin' : ''} />
               {busy === 'status' ? 'Consultando…' : 'Consultar estado en la DIAN'}
+            </button>
+          )}
+          {state === 'ACCEPTED' && (
+            <button type="button" className="primary-button compact" onClick={emailCustomer} disabled={busy !== null} style={{ height: 32, fontSize: 11, padding: '0 12px' }}>
+              <AppIcon name="mail" size={13} />
+              {busy === 'email' ? 'Enviando…' : 'Enviar al cliente por correo'}
             </button>
           )}
           {invoice.hasXml && (

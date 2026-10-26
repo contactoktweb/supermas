@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireServerUser, requireAnyPermission } from '@/lib/auth/server-auth'
 import { DianOrchestratorService } from '@/features/invoices/services/dian/dian-orchestrator.service'
-import { assertInvoiceVisible, dianErrorResponse, isUuid } from '../_shared'
+import { assertInvoiceVisible, dianErrorResponse, isUuid, scheduleCustomerDelivery } from '../_shared'
 
 export const runtime = 'nodejs'
 
@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
       { originalInvoiceId, documentType, conceptCode, reason, lines, returnId },
       idempotencyKey
     )
+    scheduleCustomerDelivery(user, result)
     return NextResponse.json({ success: true, data: result })
   } catch (e) {
     return dianErrorResponse(e)

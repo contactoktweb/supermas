@@ -82,6 +82,14 @@ export const dianApiClient = {
     return call<DianProcessResponse>(`/api/dian/invoices/${invoiceId}/send`, { method: 'POST' })
   },
 
+  /** Envía (o reenvía) al cliente por correo el documento aceptado: XML (AttachedDocument) + PDF. */
+  emailToCustomer(invoiceId: string, to?: string) {
+    return call<{ outcome: string; message: string; recipient: string | null }>(`/api/dian/invoices/${invoiceId}/email`, {
+      method: 'POST',
+      body: JSON.stringify(to ? { to } : {}),
+    })
+  },
+
   checkStatus(invoiceId: string) {
     return call<DianProcessResponse>(`/api/dian/invoices/${invoiceId}/status`, { method: 'POST' })
   },

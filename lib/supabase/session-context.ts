@@ -187,7 +187,7 @@ async function loadCompanyContext(client: SupabaseClient, userId: string): Promi
     .maybeSingle()
 
   if (error || !data) {
-    throw new Error('No se encontró un perfil de usuario registrado en public.users.')
+    throw new Error('Tu usuario no tiene un perfil asignado; contacta al administrador.')
   }
 
   return { userId, companyId: data.company_id ?? null, isActive: data.is_active ?? null }

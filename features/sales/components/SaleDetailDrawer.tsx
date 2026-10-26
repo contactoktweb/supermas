@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { SaleDetail, SaleStatus } from '../types'
+import { displayLabel, PAYMENT_METHOD_LABELS, SALE_DOCUMENT_LABELS, REMISSION_STATUS_LABELS, MOVEMENT_TYPE_LABELS, ACTION_LABELS, SALE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface SaleDetailDrawerProps {
   isOpen: boolean
@@ -91,7 +92,7 @@ export function SaleDetailDrawer({
       case 'RETURNED':
         return <span className="custom-badge badge-purple">Devuelta</span>
       default:
-        return <span className="custom-badge">{status}</span>
+        return <span className="custom-badge">{displayLabel(SALE_STATUS_LABELS, status)}</span>
     }
   }
 
@@ -347,11 +348,11 @@ export function SaleDetailDrawer({
                       </div>
                       <div>
                         <span style={{ color: 'var(--muted)' }}>Método de Pago: </span>
-                        <strong>{sale.paymentMethod}</strong>
+                        <strong>{displayLabel(PAYMENT_METHOD_LABELS, sale.paymentMethod)}</strong>
                       </div>
                       <div>
                         <span style={{ color: 'var(--muted)' }}>Documento Emitido: </span>
-                        <span>{sale.documentType}</span>
+                        <span>{displayLabel(SALE_DOCUMENT_LABELS, sale.documentType)}</span>
                       </div>
                       {sale.notes && (
                         <div style={{ marginTop: 4, paddingTop: 4, borderTop: '1px solid var(--line)' }}>
@@ -562,7 +563,7 @@ export function SaleDetailDrawer({
                         </strong>
                         {sale.remission ? (
                           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                            {sale.remission.remissionNumber} • {sale.remission.status} • {sale.remission.deliveredBy}
+                            {sale.remission.remissionNumber} • {displayLabel(REMISSION_STATUS_LABELS, sale.remission.status)} • {sale.remission.deliveredBy}
                           </span>
                         ) : (
                           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -631,7 +632,7 @@ export function SaleDetailDrawer({
                           <div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <strong style={{ color: 'var(--navy)' }}>{m.movementNumber}</strong>
-                              <span className="custom-badge badge-red">{m.type}</span>
+                              <span className="custom-badge badge-red">{displayLabel(MOVEMENT_TYPE_LABELS, m.type)}</span>
                             </div>
                             <span style={{ color: 'var(--muted)', marginTop: 2, display: 'block' }}>
                               {m.productName} ({m.sku}) • {formatDate(m.createdAt)}
@@ -670,7 +671,7 @@ export function SaleDetailDrawer({
                         }}
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <strong style={{ color: 'var(--navy)' }}>{log.action}</strong>
+                          <strong style={{ color: 'var(--navy)' }}>{displayLabel(ACTION_LABELS, log.action)}</strong>
                           <span style={{ color: 'var(--muted)', fontSize: 11 }}>{formatDate(log.timestamp)}</span>
                         </div>
                         <p style={{ margin: 0, color: '#334155' }}>{log.details}</p>

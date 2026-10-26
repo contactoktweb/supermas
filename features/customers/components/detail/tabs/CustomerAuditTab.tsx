@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { displayLabel, ACTION_LABELS } from '@/lib/labels/display-labels'
 
 interface CustomerAuditTabProps {
   auditLogs: {
@@ -88,7 +89,7 @@ export function CustomerAuditTab({ auditLogs }: CustomerAuditTabProps) {
 
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <strong style={{ fontSize: 12, color: 'var(--navy)' }}>{log.action}</strong>
+              <strong style={{ fontSize: 12, color: 'var(--navy)' }}>{displayLabel(ACTION_LABELS, log.action)}</strong>
               <span style={{ fontSize: 10, color: 'var(--muted)' }}>
                 {formatAuditDate(log.timestamp)}
               </span>

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder, WebOrderChecklist } from '../../types'
+import { displayLabel, PAYMENT_METHOD_LABELS, PAYMENT_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface WebOrderPreparationModalProps {
   isOpen: boolean
@@ -223,7 +224,7 @@ export function WebOrderPreparationModal({
                   <div className="text-xs">
                     <span className="font-bold text-slate-900 block">5. Soporte de pago confirmado</span>
                     <span className="text-slate-500">
-                      {order.paymentMethod} — Estado: {order.paymentStatus}
+                      {displayLabel(PAYMENT_METHOD_LABELS, order.paymentMethod)} — Estado: {displayLabel(PAYMENT_STATUS_LABELS, order.paymentStatus)}
                     </span>
                   </div>
                 </label>

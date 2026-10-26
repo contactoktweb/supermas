@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountPayableItem, accountsPayableService } from '../../services/accounts-payable.service'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface AccountsPayableHistoryModalProps {
   item: AccountPayableItem | null
@@ -163,7 +164,7 @@ export function AccountsPayableHistoryModal({
                       {p.paymentNumber || `Comprobante #${idx + 1}`}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      Fecha: {p.date} • Medio: <strong>{p.paymentMethod}</strong>
+                      Fecha: {p.date} • Medio: <strong>{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</strong>
                     </div>
                     {p.reference && (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>

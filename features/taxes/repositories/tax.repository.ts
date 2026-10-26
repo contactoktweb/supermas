@@ -98,7 +98,7 @@ export class TaxRepository {
 
     const { data: taxRows, error: taxErr } = await query
     if (taxErr) {
-      console.error('❌ Error consultando tax_rates en PostgreSQL:', taxErr)
+      console.error('Error consultando tax_rates en PostgreSQL:', taxErr)
       return { data: [], total: 0 }
     }
 
@@ -330,7 +330,7 @@ export class TaxRepository {
       .single()
 
     if (error) {
-      console.error('❌ Error creando tax_rate en PostgreSQL:', error)
+      console.error('Error creando tax_rate en PostgreSQL:', error)
       throw new Error(`Error al persistir configuración tributaria: ${error.message}`)
     }
 
@@ -346,7 +346,7 @@ export class TaxRepository {
       changes: {
         field: 'all',
         newValue: rowToInsert,
-        details: `Configuración tributaria ${rowToInsert.name} (${rowToInsert.code} - ${rate}%) creada exitosamente en PostgreSQL.`,
+        details: `Configuración tributaria ${rowToInsert.name} (${rowToInsert.code} - ${rate}%) creada exitosamente.`,
       },
     })
 
@@ -399,7 +399,7 @@ export class TaxRepository {
       .single()
 
     if (updErr) {
-      console.error('❌ Error actualizando tax_rate en PostgreSQL:', updErr)
+      console.error('Error actualizando tax_rate en PostgreSQL:', updErr)
       throw new Error(`Error al actualizar configuración tributaria: ${updErr.message}`)
     }
 
@@ -728,7 +728,7 @@ export class TaxRepository {
 
       const { data: salesData, error: salesErr } = await salesQuery
       if (salesErr) {
-        console.error('❌ Error consultando sales para reporte tributario:', salesErr)
+        console.error('Error consultando sales para reporte tributario:', salesErr)
       }
 
       if (salesData) {
@@ -783,7 +783,7 @@ export class TaxRepository {
 
       const { data: purData, error: purErr } = await purQuery
       if (purErr) {
-        console.error('❌ Error consultando purchases para reporte tributario:', purErr)
+        console.error('Error consultando purchases para reporte tributario:', purErr)
       }
 
       if (purData) {

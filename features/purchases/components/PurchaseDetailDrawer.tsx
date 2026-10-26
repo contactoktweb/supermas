@@ -7,6 +7,7 @@ import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
 import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
 import { purchaseService } from '../services/purchase.service'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface PurchaseDetailDrawerProps {
   purchase: Purchase | null
@@ -704,7 +705,7 @@ export function PurchaseDetailDrawer({
                         <tr key={p.id}>
                           <td>{formatDate(p.date)}</td>
                           <td>
-                            <span className="sku-badge">{p.paymentMethod}</span>
+                            <span className="sku-badge">{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</span>
                           </td>
                           <td>{p.reference}</td>
                           <td>{p.registeredByUserName}</td>

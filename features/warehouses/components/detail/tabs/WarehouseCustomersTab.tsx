@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomerLocationRelation } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehouseCustomersTabProps {
   customers: CustomerLocationRelation[]
@@ -82,7 +83,7 @@ export function WarehouseCustomersTab({ customers }: WarehouseCustomersTabProps)
                     </td>
                     <td>
                       <span className="mono">
-                        {c.documentType} {c.documentNumber}
+                        {displayLabel(ID_DOCUMENT_LABELS, c.documentType, '')} {c.documentNumber}
                       </span>
                     </td>
                     <td>

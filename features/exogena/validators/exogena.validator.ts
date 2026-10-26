@@ -6,6 +6,7 @@
  */
 
 import { ExogenaRecord, ExogenaValidationError } from '../types'
+import { displayLabel, SOURCE_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 export class ExogenaValidator {
   /**
@@ -51,7 +52,7 @@ export class ExogenaValidator {
         field: 'documentNumber',
         currentValue: record.documentNumber || '(Vacío)',
         issueDescription: 'El número de identificación del tercero es obligatorio y no puede estar vacío.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     } else if (cleanDoc.length < 5) {
       errors.push({
@@ -64,7 +65,7 @@ export class ExogenaValidator {
         field: 'documentNumber',
         currentValue: record.documentNumber,
         issueDescription: 'El documento de identificación tiene una longitud inferior a 5 dígitos, no admitida por la DIAN.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -82,7 +83,7 @@ export class ExogenaValidator {
           field: 'verificationDigit',
           currentValue: record.verificationDigit || '(Sin DV)',
           issueDescription: `Dígito de verificación incorrecto o ausente. El DV calculado mediante algoritmo Módulo 11 es '${expectedDV}'.`,
-          sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+          sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
         })
       }
     }
@@ -99,7 +100,7 @@ export class ExogenaValidator {
         field: 'businessName',
         currentValue: record.businessName || '(Vacío)',
         issueDescription: 'La razón social o nombres del tercero son obligatorios y deben superar 3 caracteres.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -115,7 +116,7 @@ export class ExogenaValidator {
         field: 'address',
         currentValue: record.address || '(Sin dirección)',
         issueDescription: 'La dirección física del tercero está incompleta o vacía. La DIAN exige domicilio fiscal válido.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -130,7 +131,7 @@ export class ExogenaValidator {
         field: 'cityCode',
         currentValue: `${record.departmentCode || '??'}/${record.cityCode || '??'}`,
         issueDescription: 'Faltan los códigos DANE de departamento o municipio del tercero.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -146,7 +147,7 @@ export class ExogenaValidator {
         field: 'conceptCode',
         currentValue: '(Sin concepto)',
         issueDescription: 'El registro no tiene asignado un concepto normativo DIAN válido para este formato.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -162,7 +163,7 @@ export class ExogenaValidator {
         field: 'baseAmount',
         currentValue: `$${record.baseAmount.toLocaleString('es-CO')}`,
         issueDescription: 'El valor base del pago o abono no puede ser negativo en la estructura general de medios magnéticos.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -181,7 +182,7 @@ export class ExogenaValidator {
         field: 'withholdingAmount',
         currentValue: `$${record.withholdingAmount.toLocaleString('es-CO')}`,
         issueDescription: 'La retención en la fuente practicada excede el valor total de la base económica reportada.',
-        sourceOrigin: `${record.sourceType}: ${record.documentReference}`,
+        sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, record.sourceType)}: ${record.documentReference}`,
       })
     }
 
@@ -224,7 +225,7 @@ export class ExogenaValidator {
           field: 'documentNumber',
           currentValue: rec.documentNumber,
           issueDescription: `Se detectaron múltiples movimientos para el mismo tercero bajo el concepto ${rec.conceptCode}. Se recomienda consolidar en una sola línea según instructivo DIAN.`,
-          sourceOrigin: `${rec.sourceType}: ${rec.documentReference}`,
+          sourceOrigin: `${displayLabel(SOURCE_DOCUMENT_LABELS, rec.sourceType)}: ${rec.documentReference}`,
         })
       }
 

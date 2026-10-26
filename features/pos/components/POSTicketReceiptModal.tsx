@@ -7,6 +7,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { Heart } from 'lucide-react'
 import { customerReceiptHref } from '@/features/customer-receipt'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -235,7 +236,7 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
             <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Método de Pago:</span>
-                <strong style={{ color: 'var(--navy)' }}>{receipt.paymentMethod}</strong>
+                <strong style={{ color: 'var(--navy)' }}>{displayLabel(PAYMENT_METHOD_LABELS, receipt.paymentMethod)}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Monto Recibido:</span>

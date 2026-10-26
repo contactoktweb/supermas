@@ -12,6 +12,7 @@ import {
 import { CustomerPaymentModal } from './CustomerPaymentModal'
 import { Customer } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 function formatCOP(val: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -572,7 +573,7 @@ export function AccountsReceivablePage() {
                         {p.paymentNumber}
                       </strong>
                       <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                        {formatDate(p.date)} • {p.paymentMethod}
+                        {formatDate(p.date)} • {displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}
                       </span>
                       {p.reference && (
                         <span style={{ display: 'block', fontSize: 10, color: '#64748b' }}>

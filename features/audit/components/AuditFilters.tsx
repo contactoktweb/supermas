@@ -221,7 +221,7 @@ export function AuditFilters({
               onChange={(e) => onUpdateFilter('onlyWithChanges', e.target.checked)}
               style={{ accentColor: 'var(--primary, #00205B)' }}
             />
-            <span>Solo cambios con comparativa (diff)</span>
+            <span>Solo cambios con antes y después</span>
           </label>
         </div>
 

@@ -1260,7 +1260,7 @@ export class ProductRepository {
       return 'No tiene permisos suficientes para realizar esta operación sobre los productos.'
     }
 
-    return msg || 'Error desconocido al operar sobre el producto en base de datos.'
+    return msg || 'No se pudo completar la operación con el producto.'
   }
 }
 

@@ -10,6 +10,7 @@ import {
   UserPermissionContext,
 } from '../types'
 import { productService } from '../services/product.service'
+import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface ProductDetailDrawerProps {
   product: Product | null
@@ -501,7 +502,7 @@ export function ProductDetailDrawer({
                             .toLowerCase()
                             .replace('_', '-')}`}
                         >
-                          {mov.type}
+                          {displayLabel(MOVEMENT_TYPE_LABELS, mov.type)}
                         </span>
                         <time>{new Date(mov.timestamp).toLocaleDateString()}</time>
                       </div>

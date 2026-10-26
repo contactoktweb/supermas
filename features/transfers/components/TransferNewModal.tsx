@@ -977,7 +977,7 @@ export function TransferNewModal({
               >
                 <AppIcon name="shield" size={20} color="var(--green)" />
                 <span style={{ fontSize: 12, color: '#166534', lineHeight: 1.4 }}>
-                  <strong>Regla de Stock:</strong> Al crear la transferencia quedará en estado <strong>PENDIENTE</strong>. El stock saldrá de <strong>{originLocation?.name}</strong> únicamente cuando el despachador confirme la salida con el movimiento <strong>TRANSFER_OUT</strong>.
+                  <strong>Regla de Stock:</strong> Al crear la transferencia quedará en estado <strong>PENDIENTE</strong>. El stock saldrá de <strong>{originLocation?.name}</strong> únicamente cuando el despachador confirme la salida.
                 </span>
               </div>
             </div>

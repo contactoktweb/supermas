@@ -157,7 +157,7 @@ export function DispatchModal({
             }}
           >
             <strong style={{ display: 'block', marginBottom: 2 }}>Movimiento de Inventario Kardex:</strong>
-            Al confirmar el despacho, se generará una salida física automática (<code>REMISSION_OUT</code>) por{' '}
+            Al confirmar el despacho, se generará automáticamente una salida de inventario por{' '}
             <strong>{remission.totalUnits} unidades</strong> de la <strong>{remission.locationName}</strong>.
           </div>
 

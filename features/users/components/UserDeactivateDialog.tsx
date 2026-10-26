@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { User } from '../types'
+import { roleDisplayName } from '../services/role-permissions'
 
 interface UserDeactivateDialogProps {
   isOpen: boolean
@@ -105,7 +106,7 @@ export function UserDeactivateDialog({
           ) : (
             <span>
               Al activar la cuenta, el usuario recuperará acceso inmediato al sistema con los permisos derivados de su rol{' '}
-              <strong className="text-slate-900 font-semibold">{user.role}</strong>.
+              <strong className="text-slate-900 font-semibold">{roleDisplayName(user.role)}</strong>.
             </span>
           )}
         </div>

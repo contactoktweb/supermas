@@ -15,6 +15,7 @@ import {
   Clock,
   User,
 } from 'lucide-react'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface POSDailySalesDrawerProps {
   isOpen: boolean
@@ -200,7 +201,7 @@ export const POSDailySalesDrawer: React.FC<POSDailySalesDrawerProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center gap-1 ${methodColor}`}>
                           <MethodIcon className="w-3 h-3" />
-                          {sale.paymentMethod}
+                          {displayLabel(PAYMENT_METHOD_LABELS, sale.paymentMethod)}
                         </span>
                         <span className="w-2 h-2 rounded-full bg-emerald-500" title="Completada" />
                       </div>

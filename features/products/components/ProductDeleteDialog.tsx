@@ -224,7 +224,7 @@ export function ProductDeleteDialog({
                 <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2">
                   <AppIcon name="checkSimple" size={14} className="text-emerald-700" aria-hidden="true" />
                   <span>
-                    El producto no registra movimientos de inventario ni ventas históricas. Será <strong>borrado al 100%</strong> de la base de datos sin dejar rastro.
+                    El producto no registra movimientos de inventario ni ventas históricas. Será <strong>borrado al 100%</strong> del sistema sin dejar rastro.
                   </span>
                 </div>
               )}

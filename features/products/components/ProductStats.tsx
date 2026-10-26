@@ -112,7 +112,7 @@ export function ProductStats({ stats }: ProductStatsProps) {
         badge="Catálogo"
         note="Total registrado"
         isPositive={true}
-        subtext="En base de datos"
+        subtext="Registrados"
         index={1}
       />
 

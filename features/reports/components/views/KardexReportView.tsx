@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { ReportStatsCard } from '../ReportStatsCard'
 import { DistributionBarList } from '../ReportCharts'
 import { KardexReportData, KardexReportRow } from '../../types'
+import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface KardexReportViewProps {
   data: KardexReportData | null
@@ -79,7 +80,7 @@ export function KardexReportView({
           </h3>
           <p className="text-xs text-slate-600 mb-4 leading-relaxed">
             El stock jamás se edita directamente; cada unidad que ingresa o egresa está
-            estrictamente respaldada por un comprobante transaccional inmutable (Compra, Venta,
+            respaldada por un documento que no se puede modificar (Compra, Venta,
             Transferencia, Ajuste de Inventario o Despacho Ecommerce).
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
@@ -120,7 +121,7 @@ export function KardexReportView({
               Movimientos del Libro Kardex ({data?.rows?.length || 0})
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Registro cronológico inmutable de fluctuaciones de inventario
+              Historial de entradas y salidas de inventario
             </p>
           </div>
         </div>
@@ -165,7 +166,7 @@ export function KardexReportView({
                           : 'bg-amber-50 text-amber-900 border-amber-300'
                       }`}
                     >
-                      {row.movementType}
+                      {displayLabel(MOVEMENT_TYPE_LABELS, row.movementType)}
                     </span>
                   </td>
                   <td className="py-3 px-3 font-semibold text-blue-600">{row.reference}</td>

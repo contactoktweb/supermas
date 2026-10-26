@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder, WebOrderStatus, WebOrderChannel } from '../types'
 import { WebOrderTableSkeleton } from './WebOrderSkeleton'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface WebOrderTableProps {
   orders: WebOrder[]
@@ -279,7 +280,7 @@ export function WebOrderTable({
                 <td className="py-3.5 px-4">
                   <div className="flex flex-col gap-0.5">
                     <span className="text-slate-800 font-medium truncate max-w-[130px]">
-                      {ord.paymentMethod}
+                      {displayLabel(PAYMENT_METHOD_LABELS, ord.paymentMethod)}
                     </span>
                     <span
                       className={`text-[10px] font-bold ${

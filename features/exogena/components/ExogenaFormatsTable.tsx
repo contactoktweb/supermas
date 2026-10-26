@@ -3,6 +3,22 @@
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ExogenaFormatConfig } from '../types'
+import { displayLabel, type LabelMap } from '@/lib/labels/display-labels'
+
+const EXOGENA_CATEGORY_LABELS: LabelMap = {
+  PAGOS: 'Pagos',
+  PAYMENTS: 'Pagos',
+  INGRESOS: 'Ingresos',
+  INCOME: 'Ingresos',
+  RETENCIONES: 'Retenciones',
+  WITHHOLDINGS: 'Retenciones',
+  IVA: 'IVA',
+  SALDOS: 'Saldos',
+  CUENTAS_POR_COBRAR: 'Cuentas por cobrar',
+  CUENTAS_POR_PAGAR: 'Cuentas por pagar',
+  ACCOUNTS_RECEIVABLE: 'Cuentas por cobrar',
+  ACCOUNTS_PAYABLE: 'Cuentas por pagar',
+}
 
 interface ExogenaFormatsTableProps {
   formats: ExogenaFormatConfig[]
@@ -99,7 +115,7 @@ export function ExogenaFormatsTable({
 
                   <td>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      {fmt.category.replace(/_/g, ' ')}
+                      {displayLabel(EXOGENA_CATEGORY_LABELS, fmt.category)}
                     </span>
                   </td>
 

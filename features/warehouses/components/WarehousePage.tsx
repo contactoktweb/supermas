@@ -23,6 +23,7 @@ import { WarehouseToastContainer, ToastMessage } from './WarehouseToast'
 import { WarehouseFormData, StockAdjustmentFormData, CreateTransferFormData } from '../schemas/warehouse.schema'
 import { WarehouseDetailPage } from './detail/WarehouseDetailPage'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { displayLabel, LOCATION_TYPE_LABELS, ACTIVE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehousePageProps {
   onNavigateWarehouseDetail?: (id: string) => void
@@ -225,7 +226,7 @@ export function WarehousePage({
         'Código,Nombre,Tipo,Estado,Ciudad,Dirección,Productos,Inventario_Costo,Ventas_Hoy,Stock_Bajo,Alertas',
         ...warehouses.map(
           (w) =>
-            `"${w.code}","${w.name}","${w.type}","${w.status}","${w.city}","${w.address}",${w.productsCount},${w.inventoryValueAtCost},${w.todaySalesAmount},${w.lowStockProductsCount},${w.activeAlertsCount}`
+            `"${w.code}","${w.name}","${displayLabel(LOCATION_TYPE_LABELS, w.type)}","${displayLabel(ACTIVE_STATUS_LABELS, w.status)}","${w.city}","${w.address}",${w.productsCount},${w.inventoryValueAtCost},${w.todaySalesAmount},${w.lowStockProductsCount},${w.activeAlertsCount}`
         ),
       ].join('\n')
 

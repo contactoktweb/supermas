@@ -10,6 +10,7 @@ import { TreasuryReceiptModal } from './TreasuryReceiptModal'
 import { TreasuryBankAccountCard } from './TreasuryBankAccountCard'
 import { TreasuryPostingResult } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 const TABS: { id: TreasuryTab; label: string; icon: LightIconName }[] = [
   { id: 'banks', label: 'Cuentas Bancarias y Saldos', icon: 'wallet' },
@@ -560,7 +561,9 @@ export function TreasuryPage() {
                               <span className="text-xs text-gray-700">{rec.bankAccountName}</span>
                             </td>
                             <td>
-                              <span className="text-xs text-gray-600">{rec.paymentMethod}</span>
+                              <span className="text-xs text-gray-600">
+                                {displayLabel(PAYMENT_METHOD_LABELS, rec.paymentMethod)}
+                              </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
                               <span className="font-mono text-xs font-bold text-emerald-800">

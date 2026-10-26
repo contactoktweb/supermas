@@ -150,7 +150,7 @@ export function KardexStats({ stats }: KardexStatsProps) {
         iconName="kardex"
         tone="blue"
         badge="Trazabilidad"
-        note="100% Inmutables"
+        note="No se pueden modificar"
         isPositive={true}
         subtext="Historial auditado"
         index={1}

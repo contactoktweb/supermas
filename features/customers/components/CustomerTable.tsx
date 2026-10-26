@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { Customer, CustomerFilterParams } from '../types'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface CustomerTableProps {
   customers: Customer[]
@@ -293,7 +294,7 @@ export function CustomerTable({
                     {/* Documento */}
                     <td>
                       <span className="mono" style={{ fontWeight: 600, color: 'var(--foreground)' }}>
-                        {c.documentType} {c.documentNumber}
+                        {displayLabel(ID_DOCUMENT_LABELS, c.documentType, '')} {c.documentNumber}
                       </span>
                     </td>
 

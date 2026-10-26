@@ -224,7 +224,7 @@ export function ExogenaHistoryDrawer({
 
               {selectedBatch.checksum && (
                 <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed #cbd5e1', fontSize: 11, color: 'var(--muted)', wordBreak: 'break-all' }}>
-                  Checksum SHA-256: <code style={{ color: '#0f172a' }}>{selectedBatch.checksum}</code>
+                  Código de verificación del archivo: <code style={{ color: '#0f172a' }}>{selectedBatch.checksum}</code>
                 </div>
               )}
             </div>

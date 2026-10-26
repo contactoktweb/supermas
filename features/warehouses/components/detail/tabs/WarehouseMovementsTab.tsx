@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseMovement } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehouseMovementsTabProps {
   movements: WarehouseMovement[]
@@ -120,7 +121,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
                           .toLowerCase()
                           .replaceAll('_', '-')}`}
                       >
-                        {m.type}
+                        {displayLabel(MOVEMENT_TYPE_LABELS, m.type)}
                       </span>
                     </td>
                     <td>

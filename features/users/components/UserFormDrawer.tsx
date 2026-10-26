@@ -10,6 +10,7 @@ import { userService } from '../services/user.service'
 import { evaluatePasswordStrength, newPasswordSchema } from '@/features/auth/schemas/password-policy.schema'
 import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, LOCATION_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface UserFormDrawerProps {
   isOpen: boolean
@@ -557,7 +558,7 @@ export function UserFormDrawer({
                 >
                   {locations.map((loc) => (
                     <option key={loc.id} value={loc.id}>
-                      {loc.name} ({loc.code} - {loc.type})
+                      {loc.name} ({loc.code} - {displayLabel(LOCATION_TYPE_LABELS, loc.type)})
                     </option>
                   ))}
                 </SelectField>
@@ -620,7 +621,7 @@ export function UserFormDrawer({
               >
                 {availableWarehouses.map((loc) => (
                   <option key={loc.id} value={loc.id}>
-                    {loc.name} ({loc.code} - {loc.type})
+                    {loc.name} ({loc.code} - {displayLabel(LOCATION_TYPE_LABELS, loc.type)})
                   </option>
                 ))}
               </SelectField>
@@ -673,7 +674,7 @@ export function UserFormDrawer({
                       />
                       <div>
                         <strong style={{ color: 'var(--text)' }}>{loc.name}</strong>{' '}
-                        <span style={{ color: '#64748b', fontSize: 11 }}>({loc.code} - {loc.type})</span>
+                        <span style={{ color: '#64748b', fontSize: 11 }}>({loc.code} - {displayLabel(LOCATION_TYPE_LABELS, loc.type)})</span>
                       </div>
                     </label>
                   )

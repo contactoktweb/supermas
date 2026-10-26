@@ -66,7 +66,7 @@ export function ExogenaPage() {
   if (!permissions.canRead) {
     return (
       <ExogenaErrorState
-        message="No dispones de los permisos necesarios (exogena.read) para visualizar el módulo de Medios Magnéticos."
+        message="No tienes permiso para ver la información exógena."
       />
     )
   }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { WebOrder, WebOrderStatus, InventoryCheckResult } from '../../types'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface WebOrderDetailDrawerProps {
   isOpen: boolean
@@ -530,7 +531,7 @@ export function WebOrderDetailDrawer({
                 <span>Método y Estado de Pago</span>
               </h3>
               <div className="space-y-2">
-                <p className="m-0 font-bold text-slate-900 text-sm">{order.paymentMethod}</p>
+                <p className="m-0 font-bold text-slate-900 text-sm">{displayLabel(PAYMENT_METHOD_LABELS, order.paymentMethod)}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <span
                     className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${

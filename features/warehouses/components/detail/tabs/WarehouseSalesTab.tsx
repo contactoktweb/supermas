@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { WarehouseSaleRecord } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
+import { displayLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehouseSalesTabProps {
   sales: WarehouseSaleRecord[]
@@ -142,19 +143,19 @@ export function WarehouseSalesTab({ sales, canReadCost }: WarehouseSalesTabProps
                       <strong>${s.totalAmount.toLocaleString('es-CO')}</strong>
                     </td>
                     <td>
-                      <span className="movement-badge">{s.paymentMethod}</span>
+                      <span className="movement-badge">{displayLabel(PAYMENT_METHOD_LABELS, s.paymentMethod)}</span>
                     </td>
                     <td>
                       <span
                         className={`state ${
-                          s.status === 'EMITIDA'
+                          ['EMITIDA', 'ISSUED'].includes(String(s.status))
                             ? 'disponible'
-                            : s.status === 'PENDIENTE'
+                            : ['PENDIENTE', 'PENDING'].includes(String(s.status))
                             ? 'pendiente'
                             : 'agotado'
                         }`}
                       >
-                        {s.status}
+                        {displayLabel(SALE_STATUS_LABELS, s.status)}
                       </span>
                     </td>
                   </tr>

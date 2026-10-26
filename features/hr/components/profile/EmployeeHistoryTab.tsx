@@ -8,6 +8,7 @@ import { useHrCatalogs } from '../../hooks/useHrCatalogs'
 import { hrEmployeeService } from '../../services/hr-employee.service'
 import {
   CONTRACT_TYPE_LABELS,
+  EMPLOYEE_STATUS_LABELS,
   EVENT_TYPE_ICONS,
   EVENT_TYPE_LABELS,
   SALARY_TYPE_LABELS,
@@ -15,7 +16,7 @@ import {
   WORK_SCHEDULE_LABELS,
 } from '../../constants'
 import { formatCOP, formatDate, formatDateTime } from '../../utils/hr-format'
-import type { ContractType, Employee, SalaryType, WorkSchedule } from '../../types'
+import type { ContractType, Employee, EmployeeStatus, SalaryType, WorkSchedule } from '../../types'
 
 const FIELD_LABELS: Record<string, string> = {
   position_id: 'Cargo',
@@ -60,6 +61,8 @@ export function EmployeeHistoryTab({ employee }: { employee: Employee }) {
         return CONTRACT_TYPE_LABELS[text as ContractType] ?? text
       case 'work_schedule':
         return WORK_SCHEDULE_LABELS[text as WorkSchedule] ?? text
+      case 'status':
+        return EMPLOYEE_STATUS_LABELS[text as EmployeeStatus] ?? text
       case 'contract_end_date':
       case 'hire_date':
         return formatDate(text)
@@ -76,7 +79,7 @@ export function EmployeeHistoryTab({ employee }: { employee: Employee }) {
         <h3 id="hr-history-title" className="m-0 text-[14px] font-bold">
           Historial laboral
         </h3>
-        <p>Registro inmutable de ingresos, cambios y retiros.</p>
+        <p>Registro permanente de ingresos, cambios y retiros.</p>
       </div>
       {error && <HrErrorBanner message={error} onRetry={() => void reload()} />}
       {isLoading ? (

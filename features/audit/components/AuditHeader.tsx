@@ -19,7 +19,7 @@ export function AuditHeader({
   return (
     <header className="page-heading page-enter">
       <div>
-        <p className="eyebrow">Seguridad & Registro Inmutable</p>
+        <p className="eyebrow">Seguridad y registro de actividad</p>
         <h1>Auditoría</h1>
         <p className="welcome-subtitle">
           Consulta la actividad y trazabilidad de las operaciones realizadas dentro del sistema.

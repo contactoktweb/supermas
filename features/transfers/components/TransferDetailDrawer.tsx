@@ -335,7 +335,7 @@ export function TransferDetailDrawer({
                     Trazabilidad de Movimientos en Kardex
                   </strong>
                   <p style={{ margin: 0, fontSize: 11, color: '#1e40af' }}>
-                    Consulta los registros inmutables TRANSFER_OUT y TRANSFER_IN generados por este traslado.
+                    Consulta las salidas y entradas registradas por este traslado.
                   </p>
                 </div>
               </div>

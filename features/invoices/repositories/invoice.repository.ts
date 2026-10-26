@@ -2,6 +2,7 @@ import { CREDIT_NOTE_CONCEPTS, DEBIT_NOTE_CONCEPTS } from '../services/dian/dian
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import { returnRepository } from '@/features/returns/repositories/return.repository'
+import { displayLabel } from '@/lib/labels/display-labels'
 import {
   Invoice,
   InvoiceItem,
@@ -67,7 +68,7 @@ const EVENT_LABELS: Record<string, string> = {
 }
 
 function describeEvent(e: any): string {
-  const base = EVENT_LABELS[e.event_type] || e.event_type
+  const base = displayLabel(EVENT_LABELS, e.event_type)
   const r = e.response_received || {}
   const detail = r.statusMessage || r.message || r.fault || (Array.isArray(r.errors) && r.errors.length ? r.errors.join(' | ') : '') ||
     (Array.isArray(r.problems) ? r.problems.join(' | ') : '')

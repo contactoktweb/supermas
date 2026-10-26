@@ -14,6 +14,12 @@ import {
 } from '../types'
 import { supplierService } from '../services/supplier.service'
 import { getSupplierStatusBadge } from './SupplierTable'
+import {
+  ACTION_LABELS,
+  displayLabel,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+} from '@/lib/labels/display-labels'
 
 interface SupplierDetailDrawerProps {
   supplier: Supplier | null
@@ -552,7 +558,7 @@ export function SupplierDetailDrawer({
                               </td>
                               <td>
                                 <span className={`kardex-type-badge ${inv.status === 'PAGADA' ? 'type-badge-green' : inv.status === 'VENCIDA' ? 'type-badge-red' : 'type-badge-amber'}`}>
-                                  {inv.status}
+                                  {displayLabel(PAYMENT_STATUS_LABELS, inv.status)}
                                 </span>
                               </td>
                             </tr>
@@ -619,7 +625,7 @@ export function SupplierDetailDrawer({
                               </td>
                               <td>
                                 <span className={`kardex-type-badge ${inv.status === 'PAGADA' ? 'type-badge-green' : inv.status === 'VENCIDA' ? 'type-badge-red' : 'type-badge-amber'}`}>
-                                  {inv.status}
+                                  {displayLabel(PAYMENT_STATUS_LABELS, inv.status)}
                                 </span>
                               </td>
                               <td style={{ textAlign: 'right', paddingRight: 14 }}>
@@ -778,7 +784,7 @@ export function SupplierDetailDrawer({
                             </div>
 
                             <span className={`kardex-type-badge ${inv.status === 'PAGADA' ? 'type-badge-green' : inv.status === 'VENCIDA' ? 'type-badge-red' : 'type-badge-amber'}`}>
-                              {inv.status}
+                              {displayLabel(PAYMENT_STATUS_LABELS, inv.status)}
                             </span>
 
                             {inv.hasAttachment && inv.attachmentUrl && (
@@ -844,7 +850,7 @@ export function SupplierDetailDrawer({
                             <tr key={p.paymentId}>
                               <td>{formatDate(p.date)}</td>
                               <td>{p.invoiceNumber} ({p.purchaseNumber})</td>
-                              <td><span className="sku-badge">{p.paymentMethod}</span></td>
+                              <td><span className="sku-badge">{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</span></td>
                               <td>{p.reference}</td>
                               <td>{p.registeredByUserName}</td>
                               <td className="numeric font-tabular">
@@ -986,7 +992,7 @@ export function SupplierDetailDrawer({
               {activeTab === 'auditoria' && (
                 <div className="page-enter">
                   <p style={{ margin: '0 0 14px', fontSize: 13, color: 'var(--muted)' }}>
-                    Bitácora inmutable de modificaciones sobre el proveedor (audit_logs.json).
+                    Historial de cambios realizados sobre el proveedor. Estos registros no se pueden modificar.
                   </p>
 
                   {auditLogs.length === 0 ? (
@@ -1007,7 +1013,7 @@ export function SupplierDetailDrawer({
                           }}
                         >
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <strong style={{ color: 'var(--navy)' }}>{log.action}</strong>
+                            <strong style={{ color: 'var(--navy)' }}>{displayLabel(ACTION_LABELS, log.action)}</strong>
                             <span style={{ color: 'var(--muted)', fontSize: 11 }}>
                               {formatDate(log.timestamp)} por {log.userName}
                             </span>

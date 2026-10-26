@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { ActivityFeedItem } from '../types'
 import { dashboardService } from '../services/dashboard.service'
+import { displayLabel, MODULE_LABELS } from '@/lib/labels/display-labels'
 
 interface DashboardActivityFeedProps {
   items: ActivityFeedItem[]
@@ -103,7 +104,7 @@ export function DashboardActivityFeed({ items }: DashboardActivityFeedProps) {
                   <div className="activity-feed-meta">
                     <span className="activity-location">{item.locationName}</span>
                     <span className="meta-dot">·</span>
-                    <span className="activity-module">{item.module}</span>
+                    <span className="activity-module">{displayLabel(MODULE_LABELS, item.module)}</span>
                     <span className="meta-dot">·</span>
                     <time className="activity-time">{timeFormatted}</time>
                   </div>

@@ -38,6 +38,7 @@ import { WarehouseErrorState } from '../WarehouseErrorState'
 import { WarehouseToastContainer, ToastMessage } from '../WarehouseToast'
 import { WarehouseFormData, StockAdjustmentFormData, CreateTransferFormData } from '../../schemas/warehouse.schema'
 import { useAuth } from '@/features/auth/hooks/useAuth'
+import { roleDisplayName } from '@/features/users/services/role-permissions'
 
 interface WarehouseDetailPageProps {
   warehouseId: string
@@ -249,7 +250,7 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
       { id: 'usr-admin', name: 'Admin Mauricio' }
     )
     setUsers((prev) => [newAssn, ...prev])
-    addToast('success', 'Usuario asignado', `${u.name} fue vinculado como ${u.role}.`)
+    addToast('success', 'Usuario asignado', `${u.name} fue vinculado como ${roleDisplayName(u.role)}.`)
   }
 
   const handleUnassignUser = async (userId: string) => {

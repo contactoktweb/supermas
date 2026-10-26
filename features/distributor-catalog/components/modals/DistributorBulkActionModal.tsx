@@ -130,7 +130,7 @@ export function DistributorBulkActionModal({
 
           <div className="p-3.5 rounded-xl bg-purple-50/70 border border-purple-200 text-xs text-purple-900">
             <span className="font-bold block mb-1">Trazabilidad en Auditoría:</span>
-            Esta operación masiva modificará simultáneamente los productos maestros en la base de datos de Super Más y registrará un evento inmutable en el historial de auditoría.
+            Esta operación masiva modificará al mismo tiempo todos los productos seleccionados y quedará registrada en el historial de auditoría, donde no se puede borrar.
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">

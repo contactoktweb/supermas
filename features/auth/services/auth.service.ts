@@ -66,7 +66,7 @@ export class AuthService {
         throw new Error('Credenciales inválidas. Verifique su correo electrónico y contraseña.')
       }
       if (msg.includes('Email not confirmed')) {
-        throw new Error('El correo electrónico no ha sido confirmado en Supabase Auth.')
+        throw new Error('Tu correo aún no está confirmado.')
       }
       throw new Error(authError?.message || 'Error al autenticar con el servidor.')
     }
@@ -77,7 +77,7 @@ export class AuthService {
     if (!userProfile) {
       await supabaseClient.auth.signOut()
       this.syncAuthCookies(null, null)
-      throw new Error('El usuario está autenticado en Supabase Auth pero no tiene un perfil registrado en public.users.')
+      throw new Error('Tu usuario no tiene un perfil asignado; contacta al administrador.')
     }
 
     if (!userProfile.isActive) {

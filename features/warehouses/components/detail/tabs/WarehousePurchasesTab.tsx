@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { WarehousePurchaseRecord } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
+import { displayLabel, PAYMENT_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehousePurchasesTabProps {
   purchases: WarehousePurchaseRecord[]
@@ -131,7 +132,7 @@ export function WarehousePurchasesTab({ purchases, canReadCost }: WarehousePurch
                             : 'agotado'
                         }`}
                       >
-                        {p.status}
+                        {displayLabel(PAYMENT_STATUS_LABELS, p.status)}
                       </span>
                     </td>
                   </tr>

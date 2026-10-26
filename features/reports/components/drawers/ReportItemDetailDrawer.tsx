@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface ReportItemDetailDrawerProps {
   item: {
@@ -78,7 +79,7 @@ export function ReportItemDetailDrawer({ item, onClose }: ReportItemDetailDrawer
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500 font-sans font-medium">Medio de Pago:</span>
-                    <span className="text-slate-900 font-bold">{data.paymentMethod}</span>
+                    <span className="text-slate-900 font-bold">{displayLabel(PAYMENT_METHOD_LABELS, data.paymentMethod)}</span>
                   </div>
                 </div>
               </div>

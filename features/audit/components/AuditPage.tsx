@@ -49,7 +49,7 @@ export function AuditPage() {
   if (!permissions.canRead) {
     return (
       <AuditErrorState
-        message="No dispones de los permisos necesarios (audit.read) para consultar los registros de auditoría del sistema."
+        message="No tienes permiso para ver la auditoría."
       />
     )
   }

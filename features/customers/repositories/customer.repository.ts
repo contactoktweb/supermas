@@ -26,6 +26,7 @@ import {
   CustomerPriceList,
   CustomerStatus,
 } from '../types'
+import { displayLabel, ACTION_LABELS } from '@/lib/labels/display-labels'
 
 /**
  * Mapea una fila de public.customers a la entidad de dominio Customer
@@ -407,7 +408,7 @@ export class CustomerRepository {
       timestamp: a.created_at,
       user: a.user_name || 'Sistema',
       action: a.action,
-      details: `Acción [${a.action}] sobre cliente ${customer.displayName}`,
+      details: `${displayLabel(ACTION_LABELS, a.action)} del cliente ${customer.displayName}`,
       oldValues: a.previous_value,
       newValues: a.new_value,
     }))

@@ -90,7 +90,7 @@ export function buildInvoicePdf({ document: doc, cufe, qrContent, validation }: 
     `NIT ${issuer.nit}-${issuer.dv}${issuer.tradeName && issuer.tradeName !== issuer.legalName ? ` · ${issuer.tradeName}` : ''}`,
     `${issuer.address} · ${issuer.cityName}, ${issuer.departmentName}`,
     [issuer.phone && `Tel. ${issuer.phone}`, issuer.email].filter(Boolean).join(' · '),
-    `Responsabilidades fiscales: ${issuer.taxLevelCodes} · ${issuer.taxSchemeCode === '01' ? 'Responsable de IVA' : 'No responsable de IVA'}`,
+    issuer.taxSchemeCode === '01' ? 'Responsable de IVA' : 'No responsable de IVA',
   ].filter(Boolean)
   for (const line of issuerLines) {
     pdf.text(MARGIN, y, line, { size: 8, color: TEXT })

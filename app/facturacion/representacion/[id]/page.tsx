@@ -30,7 +30,7 @@ export default function InvoiceRepresentationPage() {
         const inv = await invoiceService.getById(params.id)
         const { data: comp } = await supabaseClient
           .from('companies')
-          .select('business_name, trade_name, tax_id, verification_digit, address, city, department, phone, email, invoice_email, logo_url, rut_responsibilities, dian_tax_level_codes')
+          .select('business_name, trade_name, tax_id, verification_digit, address, city, department, phone, email, invoice_email, logo_url, rut_responsibilities')
           .limit(1)
           .maybeSingle()
         if (!alive) return
@@ -101,7 +101,6 @@ export default function InvoiceRepresentationPage() {
           <div className="fe-muted">NIT {company?.tax_id}-{company?.verification_digit}</div>
           <div className="fe-muted">{company?.address} · {company?.city}, {company?.department}</div>
           {(company?.invoice_email || company?.email) && <div className="fe-muted">{company?.invoice_email || company?.email}</div>}
-          {company?.dian_tax_level_codes && <div className="fe-muted">Responsabilidades fiscales: {company.dian_tax_level_codes}</div>}
         </div>
         <div className="fe-box" style={{ minWidth: 220 }}>
           <div style={{ fontWeight: 800, fontSize: 13 }}>{title}</div>

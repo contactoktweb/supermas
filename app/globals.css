@@ -5375,29 +5375,51 @@ html, body {
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
+    /* dvh: en iPhone 100vh queda detrás de la barra del navegador y esconde los últimos módulos */
     height: 100vh !important;
+    height: 100dvh !important;
     width: 280px !important;
     flex: 0 0 280px !important;
     transform: translateX(-100%) !important;
-    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s ease !important;
     z-index: 99999 !important;
-    box-shadow: 10px 0 35px rgba(0, 27, 92, 0.4) !important;
+    box-shadow: none !important;
   }
 
   .sidebar.sidebar-open {
     transform: translateX(0) !important;
+    box-shadow: 10px 0 35px rgba(0, 27, 92, 0.4) !important;
   }
 
+  /* Deslizar el menú no debe arrastrar la página de atrás */
+  .sidebar nav {
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  /* El fondo cubre solo lo que queda a la derecha del menú: nunca se superpone a los enlaces
+     (Safari puede pintar y recibir toques de una capa con backdrop-filter por encima del menú). */
   .sidebar-backdrop {
     position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 280px !important;
+    width: auto !important;
+    height: auto !important;
     background: rgba(0, 27, 92, 0.6) !important;
     backdrop-filter: blur(4px) !important;
     -webkit-backdrop-filter: blur(4px) !important;
     z-index: 99990 !important;
     animation: fade 0.2s ease;
+  }
+
+  body.sidebar-locked {
+    overflow: hidden;
+  }
+
+  .main-area {
+    -webkit-overflow-scrolling: auto;
   }
 
   .mobile-close {
@@ -5434,6 +5456,7 @@ html, body {
   }
 
   /* Grids */
+  .stats-grid,
   .dashboard-primary-grid,
   .dashboard-secondary-grid,
   .products-stats-grid,
@@ -5441,6 +5464,24 @@ html, body {
   .warehouse-stats,
   .inventory-kpis-grid {
     grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Tarjetas de indicadores: el ícono va arriba para que el valor use todo el ancho de la tarjeta */
+  .stats-grid .stat-card {
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .stats-grid .stat-text {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .stats-grid .stat-text strong {
+    font-size: 19px;
+    overflow-wrap: anywhere;
   }
 
   .settings-form-grid,

@@ -7,6 +7,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { DASHBOARD_ITEM, NAV_SECTIONS, NavSection, NavItem } from './modules'
 import { UserMini } from './UserMini'
 import { useAuth } from '@/features/auth'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 export interface SidebarProps {
   open?: boolean
@@ -168,6 +169,14 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
   }
 
   const isDashboardActive = effectivePath === '/'
+
+  // Menú abierto en el celular: la página de atrás no se desplaza y Escape lo cierra
+  useEffect(() => {
+    if (!open) return
+    document.body.classList.add('sidebar-locked')
+    return () => document.body.classList.remove('sidebar-locked')
+  }, [open])
+  useEscapeKey(open, () => onClose?.())
 
   const handleLinkClick = () => {
     if (navRef.current) {

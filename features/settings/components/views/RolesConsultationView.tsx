@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { DEFINITIVE_ROLES } from '@/features/users/services/role-permissions'
 import type { RoleSummary } from '../../types'
@@ -9,119 +9,127 @@ interface RolesConsultationViewProps {
   roles: RoleSummary[]
 }
 
+/** Nombre del área para cada grupo de permisos (prefijo antes del punto: "sales.create" → "sales"). */
+const AREA_LABELS: Record<string, string> = {
+  sales: 'Ventas',
+  pos: 'Punto de venta',
+  invoices: 'Facturación electrónica',
+  remissions: 'Remisiones',
+  customers: 'Clientes',
+  products: 'Productos',
+  prices: 'Precios',
+  inventory: 'Inventario',
+  kardex: 'Kardex',
+  warehouses: 'Bodegas',
+  purchases: 'Compras',
+  suppliers: 'Proveedores',
+  treasury: 'Tesorería y caja menor',
+  accounting: 'Contabilidad',
+  financial: 'Reportes financieros',
+  taxes: 'Impuestos',
+  exogena: 'Información exógena',
+  cost: 'Costos',
+  costs: 'Costos',
+  hr: 'Recursos humanos',
+  users: 'Usuarios',
+  settings: 'Configuración',
+  audit: 'Auditoría',
+}
+
+/** Acciones que solo permiten mirar: si un área solo tiene estas, el rol la consulta pero no la modifica. */
+const READ_ONLY_ACTIONS = new Set(['read'])
+
+interface RoleArea {
+  label: string
+  readOnly: boolean
+}
+
+function roleAreas(permissions: string[]): RoleArea[] {
+  const actionsByArea = new Map<string, Set<string>>()
+  for (const permission of permissions) {
+    const [area, action = ''] = permission.split('.')
+    const label = AREA_LABELS[area]
+    if (!label) continue
+    const actions = actionsByArea.get(label) ?? new Set<string>()
+    actions.add(action)
+    actionsByArea.set(label, actions)
+  }
+  return [...actionsByArea.entries()]
+    .map(([label, actions]) => ({ label, readOnly: [...actions].every((a) => READ_ONLY_ACTIONS.has(a)) }))
+    .sort((a, b) => Number(a.readOnly) - Number(b.readOnly) || a.label.localeCompare(b.label))
+}
+
 export function RolesConsultationView({ roles }: RolesConsultationViewProps) {
   const roleOrder: readonly string[] = DEFINITIVE_ROLES
   const sortedRoles = [...roles].sort((a, b) => {
-    const aDefIndex = roleOrder.indexOf(a.code)
-    const bDefIndex = roleOrder.indexOf(b.code)
-    if (aDefIndex !== -1 && bDefIndex !== -1) return aDefIndex - bDefIndex
-    if (aDefIndex !== -1) return -1
-    if (bDefIndex !== -1) return 1
+    const aIndex = roleOrder.indexOf(a.code)
+    const bIndex = roleOrder.indexOf(b.code)
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex
+    if (aIndex !== -1) return -1
+    if (bIndex !== -1) return 1
     return a.name.localeCompare(b.name)
   })
 
-  const [selectedRoleCode, setSelectedRoleCode] = useState<string>('ADMIN')
-
-  const activeRole = sortedRoles.find((r) => r.code === selectedRoleCode) || sortedRoles[0]
+  if (sortedRoles.length === 0) {
+    return <p className="text-sm text-slate-500">No hay roles configurados.</p>
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Notice Banner */}
-      <div className="rounded-2xl border border-blue-200 bg-blue-50/80 p-4 flex items-start gap-3">
-        <div className="w-8 h-8 rounded-lg bg-blue-100 text-[var(--navy)] flex items-center justify-center shrink-0">
-          <AppIcon name="shield" size={18} />
-        </div>
-        <div className="space-y-1 text-xs">
-          <strong className="text-[var(--navy)] block font-semibold">
-            Roles y permisos vigentes (solo lectura)
-          </strong>
-          <p className="text-slate-600 leading-relaxed">
-            Estos son los permisos que la base de datos aplica a cada rol. Los roles se asignan a cada persona desde el módulo <strong>Usuarios</strong>.
-          </p>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600">
+        Esto es lo que puede hacer cada rol en el sistema. Los roles se asignan a cada persona desde el módulo{' '}
+        <strong>Usuarios</strong>.
+      </p>
 
-      {/* Role selector tabs */}
-      <div className="flex flex-wrap gap-2 pb-2 border-b border-[#e2e8f0]">
-        {sortedRoles.map((r) => (
-          <button
-            key={r.code}
-            onClick={() => setSelectedRoleCode(r.code)}
-            className={`px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 ${
-              selectedRoleCode === r.code
-                ? 'bg-[var(--navy)] text-white shadow-md'
-                : 'bg-slate-100 text-slate-600 hover:text-[var(--navy)] hover:bg-slate-200'
-            }`}
-          >
-            <AppIcon name="users" size={14} />
-            <span>{r.name}</span>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
-                selectedRoleCode === r.code
-                  ? 'bg-white/20 text-white'
-                  : 'bg-white text-slate-500 border border-slate-200'
-              }`}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {sortedRoles.map((role, index) => {
+          const areas = roleAreas(role.permissions || [])
+          const allLocations = role.scope === 'ALL_LOCATIONS'
+          return (
+            <article
+              key={role.code}
+              className="page-enter rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md motion-reduce:transition-none"
+              style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
             >
-              {r.permissions?.length || 0}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Role Details */}
-      {activeRole && (
-        <div className="rounded-2xl bg-white border border-[#e2e8f0] p-6 space-y-6 shadow-sm">
-          {/* Top info */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#e2e8f0]">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="text-base font-bold text-[var(--navy)]">{activeRole.name}</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  {activeRole.code}
+              <header className="mb-2 flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[var(--navy)]">
+                    <AppIcon name="users" size={16} />
+                  </span>
+                  <h3 className="text-sm font-bold text-[var(--navy)]">{role.name}</h3>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                    allLocations
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                      : 'border-slate-200 bg-slate-50 text-slate-600'
+                  }`}
+                >
+                  {allLocations ? 'Todas las sedes' : 'Solo su sede'}
                 </span>
-              </div>
-              <p className="text-xs text-slate-500">{activeRole.description}</p>
-            </div>
+              </header>
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-slate-500">Alcance de Sede:</span>
-              <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                {activeRole.scope === 'ALL_LOCATIONS' ? 'Todas las Bodegas (Global)' : 'Sede Asignada'}
-              </span>
-            </div>
-          </div>
+              {role.description && <p className="mb-3 text-xs leading-relaxed text-slate-600">{role.description}</p>}
 
-          {/* Permissions Matrix */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-[var(--navy)]">
-                Permisos Asignados ({activeRole.permissions?.length || 0})
-              </span>
-              <span className="text-[11px] text-slate-400">Definidos por la administración del sistema</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {activeRole.permissions?.map((perm: string) => {
-                const [mod] = perm.split('.')
-                return (
-                  <div
-                    key={perm}
-                    className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span className="font-mono text-xs text-slate-700 truncate">{perm}</span>
-                    </div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 shrink-0">
-                      {mod}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      )}
+              {areas.length > 0 && (
+                <ul className="flex flex-wrap gap-1.5" aria-label={`Áreas de ${role.name}`}>
+                  {areas.map((area) => (
+                    <li
+                      key={area.label}
+                      className={`rounded-lg px-2 py-1 text-[11px] font-medium ${
+                        area.readOnly ? 'bg-slate-50 text-slate-500' : 'bg-blue-50 text-[var(--navy)]'
+                      }`}
+                    >
+                      {area.label}
+                      {area.readOnly && <span className="text-slate-400"> · solo consulta</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
+          )
+        })}
+      </div>
     </div>
   )
 }

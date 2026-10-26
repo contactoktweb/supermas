@@ -886,11 +886,15 @@ export function NewSaleDrawer({
                           </button>
                           <input
                             type="number"
+                            min="1"
+                            inputMode="numeric"
                             value={item.quantity}
                             onChange={(e) => handleUpdateQuantity(item.productId, parseInt(e.target.value) || 0)}
+                            aria-label={`Cantidad de ${item.productName}`}
                             style={{
-                              width: 44,
+                              width: 52,
                               height: 28,
+                              padding: '0 4px',
                               textAlign: 'center',
                               fontWeight: 700,
                               fontSize: 12,
@@ -918,9 +922,11 @@ export function NewSaleDrawer({
                             onChange={(e) => handleUpdateDiscount(item.productId, parseFloat(e.target.value) || 0)}
                             placeholder="% Dcto"
                             title="Descuento porcentual"
+                            aria-label={`Descuento porcentual de ${item.productName}`}
                             style={{
                               width: '100%',
                               height: 28,
+                              padding: '0 4px',
                               textAlign: 'center',
                               fontSize: 11,
                               border: '1.5px solid #cbd5e1',

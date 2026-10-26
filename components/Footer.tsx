@@ -15,10 +15,10 @@ export function Footer({ isDark = false }: FooterProps) {
         <div className="footer-brand-wrap" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={isDark ? '/logo-super-white.webp' : '/logo-super.webp'}
-            alt="Super Más"
+            src={isDark ? '/logo-distribuidora-blanco.png' : '/logo-distribuidora.png'}
+            alt="Distribuidora Super Más"
             className="footer-logo"
-            style={{ height: '28px', width: 'auto', objectFit: 'contain' }}
+            style={{ height: '36px', width: 'auto', objectFit: 'contain' }}
           />
           <span className="copyright-text">
             © {currentYear} Super Más S.A.S. Todos los derechos reservados.

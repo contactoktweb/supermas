@@ -60,7 +60,7 @@ export function POSHeader({
     <header className="pos-header">
       <div className="pos-header-group">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/super-mas-logo.svg" alt="Super Más" className="pos-header-logo" />
+        <img src="/logo-distribuidora-blanco.png" alt="Distribuidora Super Más" className="pos-header-logo" />
 
         <button type="button" onClick={exit} className="pos-header-button" title="Volver al panel administrativo">
           <AppIcon name="chevronLeft" size={15} />

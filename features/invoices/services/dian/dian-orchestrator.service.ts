@@ -32,7 +32,7 @@ import { dianCryptoService } from './dian-crypto.service'
 import { dianUblBuilderService } from './dian-ubl-builder.service'
 import { serialize } from './xml/xml-tree'
 import { loadSigningCertificate, DianCertificateError } from './dian-certificate'
-import { signUblDocument } from './dian-xades-signer'
+import { bogotaTimestamp, signUblDocument } from './dian-xades-signer'
 import { zipSingleFile } from './dian-zip'
 import { DianCommunicationError, DianSoapAdapter, DianSoapResult, dianFileNames } from './dian-soap.adapter'
 
@@ -233,6 +233,8 @@ export class DianOrchestratorService {
   }
 
   private async processClaimed(actor: DianActor, inv: any, previousState: TransmissionState): Promise<DianProcessResult> {
+    inv = await this.refreshStaleIssueDate(actor, inv)
+
     // a) Documento fiscal desde la BD (misma fuente para XML, CUFE y QR)
     const kind: DianDocumentKind = inv.document_type
     let doc: DianInvoiceDocument
@@ -670,6 +672,30 @@ export class DianOrchestratorService {
       logDatabaseError('DIAN guardar estado de la factura', error)
       throw new DianOrchestratorError('No se pudo guardar el estado de la factura.', 500)
     }
+  }
+
+  /**
+   * La DIAN exige que la fecha de emisión sea la del día de la firma (regla FAD09e). Un documento que nunca
+   * fue aceptado y se reintenta otro día se re-fecha a hoy; su CUFE/CUDE y el XML se regeneran con la nueva fecha.
+   * Solo llega aquí un documento reservado en un estado no aceptado ni en validación (ver process).
+   */
+  private async refreshStaleIssueDate(actor: DianActor, inv: any): Promise<any> {
+    const now = bogotaTimestamp()
+    const today = now.slice(0, 10)
+    const previousDate = String(inv.issue_date).slice(0, 10)
+    if (previousDate === today) return inv
+
+    const refreshed = {
+      issue_date: today,
+      issue_time: now.slice(11),
+      cufe: null,
+      qr_code_data: null,
+      software_security_code: null,
+      xml_unsigned: null,
+    }
+    await this.update(inv.id, refreshed)
+    await this.event(actor, inv, 'ISSUE_DATE_REFRESHED', 'SUCCESS', { previousDate, issueDate: today }, null)
+    return { ...inv, ...refreshed }
   }
 
   private async event(actor: DianActor, inv: any, type: string, status: string, sent: any, received: any): Promise<void> {

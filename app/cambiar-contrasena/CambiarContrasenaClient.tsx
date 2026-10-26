@@ -101,7 +101,7 @@ export function CambiarContrasenaClient() {
         <div className="visual-grid" />
         <div className="visual-copy">
           <div className="brand">
-            <img src="/super-mas-logo.svg" alt="Super Más ERP/POS" width={155} height={40} />
+            <img src="/logo-distribuidora-blanco.png" alt="Distribuidora Super Más ERP/POS" width={160} height={63} />
             <span>ERP / POS</span>
           </div>
           <p className="eyebrow">Primer ingreso</p>
@@ -133,7 +133,7 @@ export function CambiarContrasenaClient() {
         <div className="login-card">
           <div className="mobile-brand">
             <div className="brand">
-              <img src="/super-mas-logo.svg" alt="" width={155} height={40} />
+              <img src="/logo-distribuidora.png" alt="" width={160} height={63} />
               <span>ERP / POS</span>
             </div>
           </div>

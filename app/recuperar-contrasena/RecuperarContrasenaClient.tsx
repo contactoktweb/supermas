@@ -160,7 +160,7 @@ export function RecuperarContrasenaClient() {
         <div className="visual-grid" />
         <div className="visual-copy">
           <div className="brand">
-            <img src="/super-mas-logo.svg" alt="Super Más" />
+            <img src="/logo-distribuidora-blanco.png" alt="Distribuidora Super Más" />
             <span>ERP / POS</span>
           </div>
           <p className="eyebrow">Seguridad y Recuperación</p>
@@ -193,7 +193,7 @@ export function RecuperarContrasenaClient() {
         <div className="login-card">
           <div className="mobile-brand">
             <div className="brand">
-              <img src="/super-mas-logo.svg" alt="Super Más" />
+              <img src="/logo-distribuidora.png" alt="Distribuidora Super Más" />
               <span>ERP / POS</span>
             </div>
           </div>

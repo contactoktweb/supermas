@@ -21,9 +21,9 @@ function Brand({ compact = false }: { compact?: boolean }) {
     <div className={`brand ${compact ? 'brand-compact' : ''}`}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/logo-super-white.webp"
-        alt="Super Más"
-        style={{ height: '32px', width: 'auto', objectFit: 'contain' }}
+        src="/logo-distribuidora-blanco.png"
+        alt="Distribuidora Super Más"
+        style={{ height: '44px', width: 'auto', objectFit: 'contain' }}
       />
       <span>ERP / POS</span>
     </div>

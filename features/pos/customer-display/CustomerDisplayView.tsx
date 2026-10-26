@@ -62,7 +62,7 @@ export function CustomerDisplayView() {
     <div className="customer-display">
       <header className="customer-display-header">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/super-mas-logo.svg" alt="Super Más" className="customer-display-logo" />
+        <img src="/logo-distribuidora-blanco.png" alt="Distribuidora Super Más" className="customer-display-logo" />
         <div className="customer-display-header-text">
           <span>{cart?.locationName || 'Super Más'}</span>
           {hasItems && cart?.customerName && <strong>Cliente: {cart.customerName}</strong>}

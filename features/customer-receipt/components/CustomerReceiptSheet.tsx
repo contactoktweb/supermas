@@ -4,7 +4,7 @@ import React, { useMemo } from 'react'
 import { qrSvg } from '@/lib/qr/qr-svg'
 import { CustomerReceiptData } from '../types'
 
-const DEFAULT_LOGO = '/logo-super.webp'
+const DEFAULT_LOGO = '/logo-distribuidora.png'
 const KYT_URL = 'https://www.kytcode.lat'
 
 const money = (v: number) =>
@@ -34,7 +34,15 @@ export function CustomerReceiptSheet({ data }: Props) {
     <article className="cr-sheet" aria-labelledby="cr-title">
       <header className="cr-head">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="cr-logo" src={issuer.logoUrl || DEFAULT_LOGO} alt={`Logo de ${issuer.tradeName || issuer.legalName || 'la empresa'}`} />
+        <img
+          className="cr-logo"
+          src={issuer.logoUrl || DEFAULT_LOGO}
+          alt={`Logo de ${issuer.tradeName || issuer.legalName || 'la empresa'}`}
+          onError={(e) => {
+            // Logo guardado que ya no existe (p. ej. un archivo de marca anterior): se usa el de la plataforma
+            if (!e.currentTarget.src.endsWith(DEFAULT_LOGO)) e.currentTarget.src = DEFAULT_LOGO
+          }}
+        />
         <div className="cr-issuer">
           <p className="cr-issuer-name">{issuer.legalName || '—'}</p>
           {issuer.tradeName && issuer.tradeName !== issuer.legalName && <p>{issuer.tradeName}</p>}

@@ -9,6 +9,8 @@ import { DAMAGED_DESTINATION_LABELS, DAMAGED_STATUS_LABELS, RETURN_ITEM_CONDITIO
 import { CustomerReturnFormLine, CustomerReturnLineEditor } from './CustomerReturnLineEditor'
 import { DamagedGoodsPanel } from './DamagedGoodsPanel'
 import { SelectField } from '@/components/ui/SelectField'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { KpiCard } from '@/components/ui/KpiCard'
 
 interface ReturnsPageProps {
   onNavigate?: (view: string) => void
@@ -28,6 +30,11 @@ const TABS: { id: ReturnsTab; label: string; icon: 'returns' | 'warning' }[] = [
   { id: 'returns', label: 'Devoluciones', icon: 'returns' },
   { id: 'damaged', label: 'Mal estado por destino', icon: 'warning' },
 ]
+
+const SOURCE_DOCUMENT_LABELS: Record<string, string> = { SALE: 'Venta', PURCHASE: 'Compra' }
+
+const formatCOP = (value: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(value)
 
 let lineKeySequence = 0
 const nextLineKey = () => `line-${++lineKeySequence}`
@@ -324,52 +331,28 @@ export function ReturnsPage(_props: ReturnsPageProps) {
   const suggestionFor = (productId: string) => dispositionOptions?.suggestions.find((s) => s.productId === productId)
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 motion-safe:animate-in motion-safe:fade-in">
-      {/* HEADER */}
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600/10 text-blue-600">
-            <AppIcon name="returns" size={24} />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Devoluciones de Mercancía</h1>
-            <p className="text-sm text-slate-500">
-              Devoluciones de clientes y a proveedores con trazabilidad en Kardex y destino de productos en mal estado
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={loadData}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 motion-reduce:transition-none"
-          >
-            <AppIcon name="refresh" size={16} className={loading ? 'motion-safe:animate-spin' : ''} />
-            Actualizar
-          </button>
-
-          <button
-            type="button"
-            onClick={openCustomerModal}
-            disabled={loadingSources}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100"
-          >
-            <AppIcon name="arrowDownLeft" size={16} />
-            Devolución de Cliente
-          </button>
-
-          <button
-            type="button"
-            onClick={openSupplierModal}
-            disabled={loadingSources}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-amber-600 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-amber-700 active:scale-[0.98] disabled:opacity-60 motion-reduce:transition-none motion-reduce:active:scale-100"
-          >
-            <AppIcon name="arrowUpRight" size={16} />
-            Devolución a Proveedor
-          </button>
-        </div>
-      </header>
+    <div className="products-module-wrapper page-enter">
+      <PageHeader
+        eyebrow="Ventas"
+        title="Devoluciones"
+        subtitle="Devoluciones de clientes y a proveedores, y el destino de los productos en mal estado."
+        actions={
+          <>
+            <button type="button" className="outline-button" onClick={loadData} disabled={loading}>
+              <AppIcon name="refresh" size={15} className={loading ? 'spin' : ''} />
+              <span>Actualizar</span>
+            </button>
+            <button type="button" className="outline-button" onClick={openSupplierModal} disabled={loadingSources}>
+              <AppIcon name="arrowUpRight" size={15} />
+              <span>Devolución a proveedor</span>
+            </button>
+            <button type="button" className="primary-button" onClick={openCustomerModal} disabled={loadingSources}>
+              <AppIcon name="arrowDownLeft" size={15} />
+              <span>Devolución de cliente</span>
+            </button>
+          </>
+        }
+      />
 
       {sourcesError && (
         <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -402,89 +385,77 @@ export function ReturnsPage(_props: ReturnsPageProps) {
             Listado de devoluciones
           </h2>
 
-          {/* METRICS CARDS */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Devoluciones</span>
-                <AppIcon name="returns" size={20} className="text-slate-400" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-slate-900">{stats?.totalReturns ?? 0}</span>
-                <span className="text-xs text-slate-500">registros</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">{stats?.totalUnitsReturned ?? 0} unidades procesadas</p>
-            </div>
+          <section className="stats-grid dashboard-primary-grid page-enter" aria-label="Indicadores de devoluciones">
+            <KpiCard
+              title="Devoluciones registradas"
+              value={(stats?.totalReturns ?? 0).toLocaleString('es-CO')}
+              iconName="returns"
+              tone="blue"
+              badge="Total"
+              subtext="Clientes y proveedores"
+              index={1}
+            />
+            <KpiCard
+              title="De clientes"
+              value={(stats?.customerReturnsCount ?? 0).toLocaleString('es-CO')}
+              iconName="arrowDownLeft"
+              tone="purple"
+              badge="Entrada"
+              note={formatCOP(stats?.customerReturnsAmount ?? 0)}
+              subtext="Lo que está en buen estado vuelve al inventario"
+              index={2}
+            />
+            <KpiCard
+              title="A proveedores"
+              value={(stats?.supplierReturnsCount ?? 0).toLocaleString('es-CO')}
+              iconName="arrowUpRight"
+              tone="amber"
+              badge="Salida"
+              note={formatCOP(stats?.supplierReturnsAmount ?? 0)}
+              subtext="Mercancía que sale del inventario"
+              index={3}
+            />
+            <KpiCard
+              title="Unidades devueltas"
+              value={(stats?.totalUnitsReturned ?? 0).toLocaleString('es-CO')}
+              iconName="inventory"
+              tone="teal"
+              badge="Unidades"
+              subtext="Registradas en el kardex"
+              index={4}
+            />
+          </section>
 
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-indigo-700">Devoluciones Clientes</span>
-                <AppIcon name="arrowDownLeft" size={20} className="text-indigo-600" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-indigo-900">{stats?.customerReturnsCount ?? 0}</span>
-                <span className="text-xs text-indigo-600">${(stats?.customerReturnsAmount ?? 0).toLocaleString('es-CO')} COP</span>
-              </div>
-              <p className="mt-1 text-xs text-indigo-600">Buen estado reingresa; mal estado va a su destino</p>
-            </div>
-
-            <div className="rounded-xl border border-amber-100 bg-amber-50/40 p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-amber-700">Devoluciones Proveedores</span>
-                <AppIcon name="arrowUpRight" size={20} className="text-amber-600" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-amber-900">{stats?.supplierReturnsCount ?? 0}</span>
-                <span className="text-xs text-amber-600">${(stats?.supplierReturnsAmount ?? 0).toLocaleString('es-CO')} COP</span>
-              </div>
-              <p className="mt-1 text-xs text-amber-600">Deducción de inventario (SUPPLIER_RETURN)</p>
-            </div>
-
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Trazabilidad Kardex</span>
-                <AppIcon name="check" size={20} className="text-emerald-600" />
-              </div>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-emerald-900">100%</span>
-                <span className="text-xs text-emerald-700">Transaccional</span>
-              </div>
-              <p className="mt-1 text-xs text-emerald-600">Sin mutaciones directas de saldo</p>
-            </div>
-          </div>
-
-          {/* FILTERS & SEARCH */}
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1">
-              <AppIcon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <label htmlFor="returns-search" className="sr-only">
-                Buscar devoluciones
-              </label>
+          <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
+            <div className="products-search-box search-box">
+              <AppIcon name="search" size={16} className="search-icon" />
               <input
-                id="returns-search"
-                type="search"
-                placeholder="Buscar por código (DEV-...), documento origen, motivo..."
+                type="text"
+                aria-label="Buscar devoluciones"
+                placeholder="Buscar por código, documento de origen o motivo..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 w-full rounded-lg border border-slate-300 pl-9 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               />
+              {searchQuery && (
+                <button type="button" className="search-clear-btn" onClick={() => setSearchQuery('')} title="Limpiar búsqueda">
+                  <AppIcon name="close" size={13} />
+                </button>
+              )}
             </div>
-
-            <div className="flex items-center gap-2">
-              <AppIcon name="filter" size={16} className="text-slate-500" />
-              <label htmlFor="returns-type" className="sr-only">
-                Tipo de devolución
-              </label>
-              <SelectField
-                id="returns-type"
-                value={selectedType}
-                size="sm"
-                onChange={(value) => setSelectedType(value as ReturnType | 'ALL')}
-              >
-                <option value="ALL">Todos los tipos</option>
-                <option value="CUSTOMER_RETURN">Clientes (Entrada)</option>
-                <option value="SUPPLIER_RETURN">Proveedores (Salida)</option>
-              </SelectField>
+            <div className="filter-select-group">
+              <div className="filter-select-item" style={{ minWidth: 200 }}>
+                <SelectField
+                  id="returns-type"
+                  aria-label="Tipo de devolución"
+                  value={selectedType}
+                  size="sm"
+                  onChange={(value) => setSelectedType(value as ReturnType | 'ALL')}
+                >
+                  <option value="ALL">Todos los tipos</option>
+                  <option value="CUSTOMER_RETURN">De clientes</option>
+                  <option value="SUPPLIER_RETURN">A proveedores</option>
+                </SelectField>
+              </div>
             </div>
           </div>
 
@@ -550,7 +521,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                             )}
                           </td>
                           <td className="px-4 py-3 font-mono text-xs text-slate-600">
-                            {ret.sourceDocumentCode || ret.sourceDocumentType}
+                            {ret.sourceDocumentCode || SOURCE_DOCUMENT_LABELS[ret.sourceDocumentType] || '—'}
                           </td>
                           <td className="px-4 py-3 font-medium text-slate-900">{ret.customerName || ret.supplierName || 'N/A'}</td>
                           <td className="px-4 py-3 text-slate-600">{ret.locationName}</td>
@@ -621,7 +592,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
               <div>
                 <p className="text-xs text-slate-400">Tipo de Devolución</p>
                 <p className="font-semibold text-slate-800">
-                  {selectedRecord.returnType === 'CUSTOMER_RETURN' ? 'Cliente' : 'Proveedor (Salida Kardex)'}
+                  {selectedRecord.returnType === 'CUSTOMER_RETURN' ? 'Cliente' : 'A proveedor'}
                 </p>
               </div>
               <div>

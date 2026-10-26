@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ComparisonBarChart } from '../ReportCharts'
 import { WarehousesReportData, WarehousePerformanceMetrics } from '../../types'
+import { displayLabel, LOCATION_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehousesReportViewProps {
   data: WarehousesReportData | null
@@ -139,7 +140,7 @@ export function WarehousesReportView({
                       {wh.code}
                     </span>
                     <span className="text-[10px] text-slate-500 uppercase font-semibold">
-                      {wh.type}
+                      {displayLabel(LOCATION_TYPE_LABELS, wh.type)}
                     </span>
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 mb-3 truncate">{wh.name}</h4>

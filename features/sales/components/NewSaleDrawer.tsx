@@ -9,6 +9,7 @@ import { MAX_SALE_DISCOUNT_PERCENT } from '../schemas/sales.schema'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface NewSaleDrawerProps {
   isOpen: boolean
@@ -686,7 +687,7 @@ export function NewSaleDrawer({
                           {cust.displayName}
                         </strong>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-                          <span>{cust.documentType} {cust.documentNumber}</span>
+                          <span>{displayLabel(ID_DOCUMENT_LABELS, cust.documentType, '')} {cust.documentNumber}</span>
                           <span>•</span>
                           <span>{cust.city}</span>
                           <span>•</span>

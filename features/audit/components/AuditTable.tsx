@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AuditLogEntry, AuditLevel, AuditResult } from '../types'
+import { auditActionLabel, auditEntityLabel, auditModuleLabel, auditRoleLabel } from '../utils/audit-labels'
 
 interface AuditTableProps {
   logs: AuditLogEntry[]
@@ -69,45 +70,6 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
         return { label: 'Fallido', color: '#991b1b', bg: '#fee2e2' }
       case 'REJECTED':
         return { label: 'Rechazado', color: '#9a3412', bg: '#ffedd5' }
-    }
-  }
-
-  const getActionLabel = (action: string) => {
-    switch (action) {
-      case 'STOCK_ADJUSTED':
-        return 'Ajuste de stock'
-      case 'TRANSFER_APPROVED':
-        return 'Transferencia aprobada'
-      case 'SALE_CREATED':
-        return 'Venta registrada'
-      case 'SALE_CANCELLED':
-        return 'Venta anulada'
-      case 'PRICE_MODIFIED':
-        return 'Precio modificado'
-      case 'LOGIN':
-        return 'Inicio de sesión'
-      case 'LOGOUT':
-        return 'Cierre de sesión'
-      case 'LOGIN_FAILED':
-        return 'Acceso fallido'
-      case 'CASH_REGISTER_CLOSED':
-        return 'Cierre de caja'
-      case 'INVOICE_ISSUED':
-        return 'Factura emitida'
-      case 'INVOICE_CANCELLED':
-        return 'Factura anulada'
-      case 'PURCHASE_CREATED':
-        return 'Compra registrada'
-      case 'TAX_CONFIG_MODIFIED':
-        return 'Impuesto modificado'
-      case 'LOCATION_UPDATED':
-        return 'Bodega editada'
-      case 'EXOGENA_GENERATED':
-        return 'Exógena generada'
-      case 'EXPORT_EXECUTED':
-        return 'Exportación CSV'
-      default:
-        return action.replace(/_/g, ' ')
     }
   }
 
@@ -212,7 +174,7 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
                         <div style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text)' }}>
                           {log.userName}
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{log.userRole}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{auditRoleLabel(log.userRole)}</div>
                       </div>
                     </div>
                   </td>
@@ -229,14 +191,14 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
                         color: '#334155',
                       }}
                     >
-                      {log.module}
+                      {auditModuleLabel(log.module)}
                     </span>
                   </td>
 
                   {/* Acción */}
                   <td>
                     <div style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text)' }}>
-                      {getActionLabel(log.action)}
+                      {auditActionLabel(log.action)}
                     </div>
                     {hasDiff && (
                       <span
@@ -257,10 +219,10 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
                   {/* Registro afectado */}
                   <td>
                     <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text)' }}>
-                      {log.entityReference || log.entityId}
+                      {log.entityReference || 'Sin referencia'}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      Tipo: {log.entityType}
+                      Tipo: {auditEntityLabel(log.entityType)}
                     </div>
                   </td>
 
@@ -311,7 +273,7 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
                         e.stopPropagation()
                         onSelectLog(log)
                       }}
-                      title="Ver detalle del evento y diffs"
+                      title="Ver detalle del evento"
                       style={{ padding: '3px 8px', fontSize: 11 }}
                     >
                       <AppIcon name="eye" size={12} />

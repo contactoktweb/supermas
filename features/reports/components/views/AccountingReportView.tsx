@@ -30,7 +30,7 @@ export function AccountingReportView({
             Consolidado Financiero y Estado de Resultados
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            Los datos contables se calculan dinámicamente desde el motor contable oficial sin duplicar reglas.
+            Los datos se calculan automáticamente a partir de la contabilidad registrada.
           </p>
         </div>
         <Link

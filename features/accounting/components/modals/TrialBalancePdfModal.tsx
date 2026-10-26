@@ -38,6 +38,7 @@ import { AccountRangeFilter } from '../filters/AccountRangeFilter'
 import { incomeStatementLines, incomeStatementSections } from '../../utils/income-statement'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, SOURCE_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 export interface TrialBalancePdfModalProps {
   isOpen: boolean
@@ -1201,7 +1202,7 @@ export function TrialBalancePdfModal({
                       <div className="border-b border-black pb-1 mb-1.5 flex justify-between items-start gap-2 font-mono text-xs">
                         <div>
                           <h4 className="text-black text-sm font-bold m-0 inline">{entry.entryNumber}</h4>{' '}
-                          <span className="text-slate-600">({entry.sourceType})</span>
+                          <span className="text-slate-600">({displayLabel(SOURCE_DOCUMENT_LABELS, entry.sourceType)})</span>
                           <div className="text-[11px] text-slate-800 font-sans mt-0.5">
                             <strong>Concepto:</strong> {entry.description}
                           </div>

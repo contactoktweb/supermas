@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { POSCustomer } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface POSCustomerModalProps {
   isOpen: boolean
@@ -223,7 +224,7 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
                         )}
                       </div>
                       <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', gap: 8 }}>
-                        <span>{customer.documentType}: {customer.documentNumber}</span>
+                        <span>{displayLabel(ID_DOCUMENT_LABELS, customer.documentType, '')}: {customer.documentNumber}</span>
                         {customer.phone && <span>· {customer.phone}</span>}
                       </div>
                     </div>

@@ -415,10 +415,10 @@ export async function PATCH(request: NextRequest) {
       )
     }
     if (statusChanged && !caller.isAdmin && !(await caller.can('users.activate'))) {
-      return jsonError('Acceso denegado: requiere users.activate.', 403)
+      return jsonError('No tienes permiso para activar o desactivar usuarios.', 403)
     }
     if (profileChanged && !caller.isAdmin && !(await caller.can('users.update'))) {
-      return jsonError('Acceso denegado: requiere users.update.', 403)
+      return jsonError('No tienes permiso para editar usuarios.', 403)
     }
 
     if (!profileChanged && !roleChanged && !statusChanged) {

@@ -90,12 +90,12 @@ export function ProductDeactivateDialog({
           <div className="blocker-warning-box">
             <div className="blocker-head">
               <AppIcon name="audit" size={16} />
-              <strong>Protección Histórica (Soft Delete):</strong>
+              <strong>Desactivación (no se borra):</strong>
             </div>
             <ul>
               <li>El producto dejará de estar disponible para nuevas ventas y en la web.</li>
               <li>Se preservan íntegros todos los históricos de ventas, compras, Kardex y contabilidad.</li>
-              <li>El producto no será eliminado físicamente de la base de datos.</li>
+              <li>El producto no será eliminado del sistema.</li>
             </ul>
           </div>
 

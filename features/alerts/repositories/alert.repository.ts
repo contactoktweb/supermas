@@ -58,7 +58,7 @@ export class AlertRepository {
     const appMetadata = user?.app_metadata
     if (appMetadata?.company_id) return appMetadata.company_id
 
-    throw new Error('No se pudo resolver el company_id para el módulo de Alertas.')
+    throw new Error('Tu usuario no tiene una empresa asignada.')
   }
 
   /**
@@ -357,7 +357,8 @@ export class AlertRepository {
       .single()
 
     if (error || !data) {
-      throw new Error(`Error insertando alerta en PostgreSQL: ${error?.message}`)
+      console.error('[alerts] Error insertando alerta:', error)
+      throw new Error('No se pudo registrar la alerta.')
     }
 
     return this.mapDbToAlertItem(data)

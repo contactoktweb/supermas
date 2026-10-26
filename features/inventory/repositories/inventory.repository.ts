@@ -452,7 +452,7 @@ export class InventoryRepository {
       .single()
 
     if (!prodData) {
-      throw new Error(`El producto con ID ${input.productId} no existe en la base de datos.`)
+      throw new Error('El producto seleccionado no existe.')
     }
 
     const previousStock = existingSL ? Number(existingSL.quantity || 0) : 0

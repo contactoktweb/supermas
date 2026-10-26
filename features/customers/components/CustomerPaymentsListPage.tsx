@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { supabaseClient } from '@/lib/supabase/client'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 function formatCOP(val: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -185,7 +186,7 @@ export function CustomerPaymentsListPage() {
                   </td>
                   <td style={{ padding: '14px 16px' }}>
                     <span className="status-badge" style={{ background: '#f1f5f9', color: '#334155' }}>
-                      {row.paymentMethod}
+                      {displayLabel(PAYMENT_METHOD_LABELS, row.paymentMethod)}
                     </span>
                   </td>
                   <td style={{ padding: '14px 16px', color: '#64748b' }}>

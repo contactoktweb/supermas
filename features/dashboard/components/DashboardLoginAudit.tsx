@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { LoginAuditItem, UserProfile } from '../types'
 import { dashboardService } from '../services/dashboard.service'
 import { DashboardAuditModal } from './DashboardAuditModal'
+import { roleDisplayName } from '@/features/users/services/role-permissions'
 
 interface DashboardLoginAuditProps {
   audits: LoginAuditItem[]
@@ -71,7 +72,7 @@ export function DashboardLoginAudit({ audits, user }: DashboardLoginAuditProps) 
                     </td>
 
                     <td>
-                      <span className="code-badge">{log.roleSnapshot}</span>
+                      <span className="code-badge">{roleDisplayName(log.roleSnapshot)}</span>
                       <small
                         style={{
                           display: 'block',

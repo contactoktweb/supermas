@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { AuditStats as AuditStatsData } from '../types'
+import { auditModuleLabel } from '../utils/audit-labels'
 import { useCountUp } from '@/features/warehouses/hooks/useCountUp'
 
 interface AuditStatsProps {
@@ -59,7 +60,7 @@ export function AuditStats({ stats, isLoading, onFilterCritical }: AuditStatsPro
         <div className="stat-text">
           <span className="stat-title">Módulo principal</span>
           <strong style={{ fontSize: 18, color: 'var(--text)', display: 'block', marginTop: 2 }}>
-            {stats.topActiveModule !== 'N/A' && stats.periodEventsCount > 0 ? stats.topActiveModule : 'Sin actividad'}
+            {stats.topActiveModule !== 'N/A' && stats.periodEventsCount > 0 ? auditModuleLabel(stats.topActiveModule) : 'Sin actividad'}
           </strong>
           <span className="stat-note">
             {stats.periodEventsCount > 0 ? 'Mayor volumen de registros' : 'Esperando operaciones'}

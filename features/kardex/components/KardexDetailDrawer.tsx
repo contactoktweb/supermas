@@ -5,6 +5,11 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { InventoryMovement, UserPermissionContext } from '../types'
 import { getMovementTypeBadge } from './KardexTable'
+import {
+  displayLabel,
+  MOVEMENT_TYPE_LABELS,
+  SOURCE_DOCUMENT_LABELS,
+} from '@/lib/labels/display-labels'
 
 interface KardexDetailDrawerProps {
   movement: InventoryMovement | null
@@ -131,7 +136,7 @@ export function KardexDetailDrawer({
             <div className="info-list-grid">
               <div className="info-kv-item">
                 <span>Tipo de movimiento:</span>
-                <strong>{movement.type}</strong>
+                <strong>{displayLabel(MOVEMENT_TYPE_LABELS, movement.type)}</strong>
               </div>
 
               <div className="info-kv-item">
@@ -293,7 +298,9 @@ export function KardexDetailDrawer({
                   <strong className="doc-number-highlight">
                     {movement.sourceDocumentNumber}
                   </strong>
-                  <span className="doc-type-text">{movement.sourceDocumentType}</span>
+                  <span className="doc-type-text">
+                    {displayLabel(SOURCE_DOCUMENT_LABELS, movement.sourceDocumentType)}
+                  </span>
                 </div>
 
                 {onNavigateDocument && (

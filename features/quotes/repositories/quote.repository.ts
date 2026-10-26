@@ -56,7 +56,7 @@ export class QuoteRepository {
     const appMetadata = user?.app_metadata
     if (appMetadata?.company_id) return appMetadata.company_id
 
-    throw new Error('No se pudo resolver el company_id para el módulo de Cotizaciones.')
+    throw new Error('Tu usuario no tiene una empresa asignada.')
   }
 
   /**

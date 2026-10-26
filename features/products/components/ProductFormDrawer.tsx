@@ -1270,7 +1270,7 @@ export function ProductFormDrawer({
               >
                 <AppIcon name="inventory" size={16} />
                 <span>
-                  Indica las existencias iniciales por bodega física. Si una bodega tiene 0 unidades, no se generará movimiento innecesario. Para cantidades mayores a 0, se registrará una entrada formal en el Kardex (<code>POSITIVE_ADJUSTMENT</code>) con tipo de documento <code>INVENTARIO_INICIAL</code> y la base de datos actualizará el saldo mediante <code>process_inventory_movement()</code>.
+                  Indica las existencias iniciales por bodega física. Se registrará una entrada de inventario inicial en el Kardex por cada bodega con cantidad mayor a 0.
                 </span>
               </div>
 

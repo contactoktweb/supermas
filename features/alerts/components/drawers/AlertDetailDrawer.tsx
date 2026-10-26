@@ -5,6 +5,16 @@ import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { AlertItem, AlertPriority, AlertStatus, AlertModule } from '../../types'
 import { useRouter } from 'next/navigation'
+import { displayLabel, MODULE_LABELS, SOURCE_DOCUMENT_LABELS, type LabelMap } from '@/lib/labels/display-labels'
+
+const ALERT_HISTORY_LABELS: LabelMap = {
+  CREATED: 'Creada',
+  READ: 'Leída',
+  ATTENDED: 'En atención',
+  RESOLVED: 'Resuelta',
+  CLOSED: 'Cerrada',
+  NOTE_ADDED: 'Nota agregada',
+}
 
 interface AlertDetailDrawerProps {
   alert: AlertItem | null
@@ -194,7 +204,7 @@ export function AlertDetailDrawer({
               {alert.title}
             </h2>
             <p className="text-xs text-slate-500 font-medium">
-              Módulo: <span className="text-slate-800 font-semibold">{alert.module}</span> • Sede:{' '}
+              Módulo: <span className="text-slate-800 font-semibold">{displayLabel(MODULE_LABELS, alert.module)}</span> • Sede:{' '}
               <span className="text-slate-800 font-semibold">{alert.locationName || 'Consolidado General'}</span>
             </p>
           </div>
@@ -344,7 +354,7 @@ export function AlertDetailDrawer({
               <div className="space-y-0.5">
                 <p className="text-[11px] font-bold text-blue-700 uppercase tracking-wider">Registro Relacionado</p>
                 <p className="text-xs sm:text-sm font-bold text-slate-900">
-                  {alert.entityType}: <span className="font-mono text-blue-600">{alert.entityReference}</span>
+                  {displayLabel(SOURCE_DOCUMENT_LABELS, alert.entityType)}: <span className="font-mono text-blue-600">{alert.entityReference}</span>
                 </p>
               </div>
 
@@ -425,7 +435,7 @@ export function AlertDetailDrawer({
                     </span>
                   </div>
                   <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
-                    {hist.action}
+                    {displayLabel(ALERT_HISTORY_LABELS, hist.action)}
                   </span>
                   {hist.notes && <p className="text-xs text-slate-600 mt-1 font-normal">{hist.notes}</p>}
                 </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Sale, SaleStatus, SaleDocumentType } from '../types'
+import { displayLabel, SALE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface SalesTableProps {
   sales: Sale[]
@@ -96,7 +97,7 @@ export function SalesTable({
       case 'RETURNED':
         return <span className="custom-badge badge-purple">Devuelta</span>
       default:
-        return <span className="custom-badge">{status}</span>
+        return <span className="custom-badge">{displayLabel(SALE_STATUS_LABELS, status)}</span>
     }
   }
 

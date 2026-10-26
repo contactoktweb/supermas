@@ -66,6 +66,24 @@ const TRANSFER_QUERY_SELECT = `
   )
 `
 
+/** Detecta mensajes internos de la base de datos (nombres de funciones, columnas, estados en código) que no deben verse en pantalla. */
+// Sensible a mayúsculas: nombres internos en minúscula (inventory.transfer, stock_levels), estados en inglés o
+// palabras de SQL. Un nombre de producto como "Aceite S.A." no debe ocultar un aviso de negocio legítimo.
+const TECHNICAL_MESSAGE_PATTERN =
+  /\b[a-z]+_[a-z_]+\b|\b[a-z]+\.[a-z_]+\b|\b(PENDING|DISPATCHED|RECEIVED|CANCELLED|REJECTED)\b|[Pp]ostgre|\bSQL\b|\b(function|relation|column|constraint|violates|syntax|permission|denied|duplicate|table|schema|null value)\b/
+
+/**
+ * Las validaciones de negocio de las funciones de traslados llegan como texto en español (código P0001);
+ * cualquier otro error se reemplaza por un mensaje general.
+ */
+function toFriendlyTransferError(error: { code?: string; message?: string } | null, fallback: string): Error {
+  const message = error?.message?.trim()
+  if (message && !TECHNICAL_MESSAGE_PATTERN.test(message)) {
+    return new Error(message)
+  }
+  return new Error(fallback)
+}
+
 function mapDbRowToTransfer(row: any): Transfer {
   const items: TransferItem[] = (row.items || []).map((i: any) => {
     const req = Number(i.requested_quantity || 0)
@@ -335,7 +353,7 @@ export class TransferRepository {
 
     if (error || !result) {
       console.error('Error registrando traslado vía fn_create_transfer:', error)
-      throw new Error(error?.message || 'Error registrando traslado en PostgreSQL.')
+      throw toFriendlyTransferError(error, 'No se pudo registrar el traslado.')
     }
 
     const created = await this.findById(result.transfer_id)
@@ -353,7 +371,7 @@ export class TransferRepository {
 
     if (error || !result) {
       console.error('Error despachando traslado vía fn_dispatch_transfer:', error)
-      throw new Error(error?.message || 'Error despachando traslado en PostgreSQL.')
+      throw toFriendlyTransferError(error, 'No se pudo despachar el traslado.')
     }
 
     const updated = await this.findById(input.transferId)
@@ -380,7 +398,7 @@ export class TransferRepository {
 
     if (error || !result) {
       console.error('Error recibiendo traslado vía fn_receive_transfer:', error)
-      throw new Error(error?.message || 'Error recibiendo traslado en PostgreSQL.')
+      throw toFriendlyTransferError(error, 'No se pudo recibir el traslado.')
     }
 
     const updated = await this.findById(input.transferId)
@@ -398,7 +416,7 @@ export class TransferRepository {
 
     if (error || !result) {
       console.error('Error cancelando traslado vía fn_cancel_transfer:', error)
-      throw new Error(error?.message || 'Error cancelando traslado en PostgreSQL.')
+      throw toFriendlyTransferError(error, 'No se pudo cancelar el traslado.')
     }
 
     const updated = await this.findById(input.transferId)

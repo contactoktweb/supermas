@@ -10,6 +10,7 @@ import { customerService } from '../services/customer.service'
 import { Customer } from '../types'
 import { CustomerPaymentModal } from './CustomerPaymentModal'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 function formatCOP(val: number): string {
   return new Intl.NumberFormat('es-CO', {
@@ -195,7 +196,7 @@ export function CustomerStatementPage() {
                     {statement.customer.displayName}
                   </strong>
                   <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-                    {statement.customer.documentType} {statement.customer.documentNumber}
+                    {displayLabel(ID_DOCUMENT_LABELS, statement.customer.documentType, '')} {statement.customer.documentNumber}
                   </span>
                 </div>
                 <span className={`status-badge ${statement.customer.status === 'ACTIVE' ? 'status-active' : 'status-inactive'}`}>
@@ -365,7 +366,7 @@ export function CustomerStatementPage() {
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                           <span className={`status-badge ${r.status === 'PAGADA' ? 'status-active' : r.status === 'VENCIDA' ? 'status-rejected' : 'status-pending'}`}>
-                            {r.status}
+                            {displayLabel(PAYMENT_STATUS_LABELS, r.status)}
                           </span>
                         </td>
                         <td style={{ padding: '12px 16px', textAlign: 'center' }}>
@@ -406,7 +407,7 @@ export function CustomerStatementPage() {
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.date)}</span>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#0369a1', fontWeight: 600 }}>{p.saleNumber || '—'}</td>
-                      <td style={{ padding: '12px 16px' }}>{p.paymentMethod}</td>
+                      <td style={{ padding: '12px 16px' }}>{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</td>
                       <td style={{ padding: '12px 16px', color: '#64748b' }}>{p.reference || '—'}</td>
                       <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#047857' }}>
                         {formatCOP(p.amount)}

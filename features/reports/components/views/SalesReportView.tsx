@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { ReportStatsCard } from '../ReportStatsCard'
 import { TrendLineChart, DistributionBarList } from '../ReportCharts'
 import { SalesReportData, SalesReportRow } from '../../types'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface SalesReportViewProps {
   data: SalesReportData | null
@@ -187,7 +188,7 @@ export function SalesReportView({
                   <td className="py-3 px-3 font-sans text-slate-700 font-semibold">{row.locationName}</td>
                   <td className="py-3 px-3">
                     <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold border border-slate-200">
-                      {row.paymentMethod}
+                      {displayLabel(PAYMENT_METHOD_LABELS, row.paymentMethod)}
                     </span>
                   </td>
                   <td className="py-3 px-3 text-right text-slate-600 font-semibold">{row.itemsCount}</td>

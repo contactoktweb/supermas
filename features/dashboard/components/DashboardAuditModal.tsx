@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { LoginAuditItem } from '../types'
 import { dashboardService } from '../services/dashboard.service'
+import { roleDisplayName } from '@/features/users/services/role-permissions'
 
 interface DashboardAuditModalProps {
   isOpen: boolean
@@ -160,7 +161,7 @@ export function DashboardAuditModal({
                       </td>
 
                       <td>
-                        <span className="code-badge">{log.roleSnapshot}</span>
+                        <span className="code-badge">{roleDisplayName(log.roleSnapshot)}</span>
                         <small style={{ display: 'block', color: 'var(--muted)', marginTop: 2 }}>
                           {log.locationName}
                         </small>

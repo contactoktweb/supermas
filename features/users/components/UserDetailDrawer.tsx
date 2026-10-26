@@ -5,6 +5,8 @@ import { AppIcon } from '@/components/ui/Icon'
 import { User } from '../types'
 import { SYSTEM_ROLES } from '../services/role-permissions'
 import { AuditLogEntry } from '@/features/audit/types'
+import { displayLabel, ACTION_LABELS, MODULE_LABELS } from '@/lib/labels/display-labels'
+import { permissionDisplayName } from '../services/permission-labels'
 
 interface UserDetailDrawerProps {
   isOpen: boolean
@@ -484,7 +486,6 @@ export function UserDetailDrawer({
                         key={p}
                         style={{
                           fontSize: 11.5,
-                          fontFamily: 'monospace',
                           padding: '4px 8px',
                           borderRadius: 4,
                           background: '#f1f5f9',
@@ -496,7 +497,7 @@ export function UserDetailDrawer({
                         }}
                       >
                         <AppIcon name="check" size={10} />
-                        {p}
+                        {permissionDisplayName(p)}
                       </span>
                     ))}
                   </div>
@@ -511,7 +512,7 @@ export function UserDetailDrawer({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 12, color: 'var(--muted, #64748b)' }}>
-                Trazabilidad inmutable desde audit_logs.json
+                Historial de actividad
               </span>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
                 {activity.length} registros
@@ -566,10 +567,10 @@ export function UserDetailDrawer({
                             color: item.level === 'CRITICAL' ? '#991b1b' : item.level === 'WARNING' ? '#92400e' : '#1e40af',
                           }}
                         >
-                          {item.action}
+                          {displayLabel(ACTION_LABELS, item.action)}
                         </span>
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
-                          {item.module}
+                          {displayLabel(MODULE_LABELS, item.module)}
                         </span>
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--muted, #64748b)' }}>

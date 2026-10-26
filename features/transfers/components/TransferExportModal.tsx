@@ -120,7 +120,7 @@ export function TransferExportModal({
             <div className="info-banner-compact" style={{ marginTop: 14 }}>
               <AppIcon name="lock" size={14} />
               <span>
-                Los valores financieros y costos están ocultos por no contar con el permiso <code>cost.read</code>.
+                Los valores financieros y costos están ocultos porque no tiene permiso para ver costos.
               </span>
             </div>
           )}

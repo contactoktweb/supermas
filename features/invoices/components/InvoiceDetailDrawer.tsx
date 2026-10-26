@@ -6,6 +6,7 @@ import { DIANStatusBadge, InvoiceTypeBadge, InvoiceStatusBadge } from './DIANSta
 import { Invoice } from '../types'
 import { DianFiscalPanel, resolutionLegend } from './DianFiscalPanel'
 import { customerReceiptHref } from '@/features/customer-receipt'
+import { DIAN_EVENT_LABELS, displayLabel, ivaRateLabel } from '@/lib/labels/display-labels'
 
 interface InvoiceDetailDrawerProps {
   isOpen: boolean
@@ -304,7 +305,7 @@ export function InvoiceDetailDrawer({
                             color: '#475569',
                           }}
                         >
-                          {item.taxRatePercent}% ({item.taxCode})
+                          {ivaRateLabel(item.taxCode)}
                         </span>
                       </td>
                       <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 500, color: '#334155' }}>
@@ -431,7 +432,7 @@ export function InvoiceDetailDrawer({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
                       <span style={{ fontWeight: 700, color: log.status === 'EXITOSO' ? '#166534' : '#991b1b' }}>
-                        {log.action} · {log.status}
+                        {displayLabel(DIAN_EVENT_LABELS, log.action)} · {displayLabel(DIAN_EVENT_LABELS, log.status)}
                       </span>
                       <span style={{ color: 'var(--muted)' }}>
                         {new Date(log.timestamp).toLocaleDateString('es-CO')} {new Date(log.timestamp).toLocaleTimeString('es-CO')}

@@ -11,6 +11,7 @@ import {
   PaymentMethod,
   SaleDocumentType,
 } from '../types'
+import { displayLabel, ACTION_LABELS } from '@/lib/labels/display-labels'
 
 function mapDbPaymentMethodToDomain(pm?: string): PaymentMethod {
   switch (pm) {
@@ -575,7 +576,7 @@ export class SalesRepository {
       timestamp: a.created_at,
       user: a.user_name || 'Sistema',
       action: a.action,
-      details: a.action,
+      details: `${displayLabel(ACTION_LABELS, a.action)} de la venta ${sale.saleNumber}`,
       oldValues: a.previous_value,
       newValues: a.new_value,
     }))

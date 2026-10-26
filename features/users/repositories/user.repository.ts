@@ -274,7 +274,8 @@ export class UserRepository {
         },
       })
       if (authError || !authData?.user) {
-        throw new Error(`Error al crear usuario en Supabase Auth: ${authError?.message || 'Fallo desconocido'}`)
+        console.error('Error al crear usuario en Supabase Auth:', authError)
+        throw new Error('No se pudo crear el usuario.')
       }
       userId = authData.user.id
     }

@@ -12,6 +12,7 @@ import { CustomerWebOrdersTab } from './detail/tabs/CustomerWebOrdersTab'
 import { CustomerPaymentsTab } from './detail/tabs/CustomerPaymentsTab'
 import { CustomerDocumentsTab } from './detail/tabs/CustomerDocumentsTab'
 import { CustomerAuditTab } from './detail/tabs/CustomerAuditTab'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface CustomerDetailDrawerProps {
   isOpen: boolean
@@ -134,7 +135,7 @@ export function CustomerDetailDrawer({
 
                   <span style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginTop: 3 }}>
                     <strong style={{ color: 'var(--foreground)' }}>
-                      {customer.documentType} {customer.documentNumber}
+                      {displayLabel(ID_DOCUMENT_LABELS, customer.documentType, '')} {customer.documentNumber}
                     </strong>{' '}
                     • {customer.city}, {customer.department} • {customer.phone}
                   </span>

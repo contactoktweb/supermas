@@ -148,7 +148,7 @@ export function RemissionCancelModal({
             </strong>
             {wasDispatched ? (
               <span>
-                Esta remisión ya había sido <strong>despachada</strong>. Al anularla, el sistema generará automáticamente un movimiento Kardex de reingreso (<code>REMISSION_RETURN</code>) devolviendo{' '}
+                Esta remisión ya había sido <strong>despachada</strong>. Al anularla, el sistema generará automáticamente un reingreso al inventario devolviendo{' '}
                 <strong>{remission.totalUnits} unidades</strong> al stock disponible de la{' '}
                 <strong>{remission.locationName}</strong>.
               </span>

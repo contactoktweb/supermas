@@ -75,7 +75,7 @@ export function KardexRevertModal({
               <AppIcon name="refresh" size={20} />
             </div>
             <div>
-              <p className="eyebrow">Auditoría e Inmutabilidad</p>
+              <p className="eyebrow">Auditoría del Kardex</p>
               <h3>Generar Reversión Compensatoria</h3>
             </div>
           </div>
@@ -98,12 +98,12 @@ export function KardexRevertModal({
           <div className="blocker-warning-box">
             <div className="blocker-head">
               <AppIcon name="shield" size={16} />
-              <strong>Regla de Inmutabilidad del Kardex:</strong>
+              <strong>Los movimientos del Kardex no se pueden modificar:</strong>
             </div>
             <ul>
               <li>El movimiento original <strong>no será eliminado ni modificado</strong>.</li>
               <li>
-                Se creará un asiento de reversión tipo <code>REVERSION</code> que ajustará{' '}
+                Se creará un movimiento de reversión que ajustará{' '}
                 <strong>{isOriginalEntry ? `-${qty}` : `+${qty}`} {movement.unitOfMeasure}s</strong> en{' '}
                 {movement.locationName}.
               </li>

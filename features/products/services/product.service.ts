@@ -299,7 +299,7 @@ export class ProductService {
     await productRepository.delete(id)
     return {
       mode: 'HARD_DELETE',
-      message: `El producto "${existing.name}" fue eliminado definitivamente de la base de datos.`,
+      message: `El producto "${existing.name}" fue eliminado definitivamente del sistema.`,
     }
   }
 

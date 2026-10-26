@@ -221,7 +221,7 @@ export function AccountingDashboardTab({ dashboard, onNavigateToTab }: Accountin
           })()}
 
           <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500">
-            <span>Cálculo automático desde asientos contables POSTED</span>
+            <span>Cálculo automático desde asientos contabilizados</span>
             <span className="font-medium text-gray-700">Margen promedio actual: {dashboard.profitMarginPercent}%</span>
           </div>
         </section>

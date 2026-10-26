@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry, AccountingVoucherType } from '../../types'
 import { VoucherTypeBadge } from '../VoucherTypeBadge'
+import { displayLabel, SOURCE_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface AccountingEntryDetailDrawerProps {
   entry: AccountingEntry | null
@@ -166,7 +167,7 @@ export function AccountingEntryDetailDrawer({
             </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Tipo de Origen</span>
-              <strong className="text-gray-800 font-medium">{entry.sourceType}</strong>
+              <strong className="text-gray-800 font-medium">{displayLabel(SOURCE_DOCUMENT_LABELS, entry.sourceType)}</strong>
             </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Documento Fuente</span>
@@ -308,7 +309,7 @@ export function AccountingEntryDetailDrawer({
             <p className="text-xs text-gray-600">
               Esta acción no borrará el registro histórico (principio de trazabilidad). Generará un
               comprobante de reversión contable invertido por <strong>${entry.totalDebit.toLocaleString('es-CO')} COP</strong> y
-              marcará el asiento original como REVERSED.
+              marcará el asiento original como Reversado.
             </p>
 
             <div>

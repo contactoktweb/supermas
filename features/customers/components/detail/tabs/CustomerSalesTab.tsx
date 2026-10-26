@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomerSaleSummary } from '../../../types'
+import { displayLabel, PAYMENT_METHOD_LABELS, SALE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface CustomerSalesTabProps {
   sales: CustomerSaleSummary[]
@@ -96,7 +97,7 @@ export function CustomerSalesTab({ sales }: CustomerSalesTabProps) {
                   </td>
                   <td>
                     <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
-                      {s.paymentMethod}
+                      {displayLabel(PAYMENT_METHOD_LABELS, s.paymentMethod)}
                     </span>
                   </td>
                   <td style={{ textAlign: 'right' }}>
@@ -107,7 +108,7 @@ export function CustomerSalesTab({ sales }: CustomerSalesTabProps) {
                   <td style={{ textAlign: 'center' }}>
                     <span className="state disponible">
                       <AppIcon name="check" size={11} />
-                      <span>{s.status}</span>
+                      <span>{displayLabel(SALE_STATUS_LABELS, s.status)}</span>
                     </span>
                   </td>
                 </tr>

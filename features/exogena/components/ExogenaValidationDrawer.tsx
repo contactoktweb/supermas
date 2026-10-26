@@ -4,6 +4,21 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ExogenaValidationError } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, type LabelMap } from '@/lib/labels/display-labels'
+
+const EXOGENA_FIELD_LABELS: LabelMap = {
+  documentNumber: 'Número de documento',
+  documentType: 'Tipo de documento',
+  verificationDigit: 'Dígito de verificación',
+  businessName: 'Nombre o razón social',
+  address: 'Dirección',
+  cityCode: 'Código de ciudad',
+  departmentCode: 'Código de departamento',
+  countryCode: 'Código de país',
+  conceptCode: 'Concepto',
+  baseAmount: 'Valor base',
+  withholdingAmount: 'Valor retenido',
+}
 
 interface ExogenaValidationDrawerProps {
   isOpen: boolean
@@ -66,7 +81,7 @@ export function ExogenaValidationDrawer({
   if (!isOpen) return null
 
   const handleCopy = (err: ExogenaValidationError) => {
-    const text = `[${err.severity}] Formato ${err.formatNumber}\nTercero: ${err.thirdPartyName} (Doc: ${err.thirdPartyDoc})\nCampo: ${err.field} | Valor Actual: "${err.currentValue}"\nProblema: ${err.issueDescription}\nOrigen: ${err.sourceOrigin}`
+    const text = `[${err.severity}] Formato ${err.formatNumber}\nTercero: ${err.thirdPartyName} (Doc: ${err.thirdPartyDoc})\nCampo: ${displayLabel(EXOGENA_FIELD_LABELS, err.field)} | Valor registrado: "${err.currentValue}"\nProblema: ${err.issueDescription}\nOrigen: ${err.sourceOrigin}`
     navigator.clipboard.writeText(text)
     setCopiedId(err.id)
     setTimeout(() => setCopiedId(null), 2000)
@@ -349,16 +364,14 @@ export function ExogenaValidationDrawer({
                     </div>
                     <div>
                       <span style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>Campo afectado:</span>
-                      <code style={{ background: '#e2e8f0', padding: '1px 4px', borderRadius: 3, fontSize: 11 }}>
-                        {err.field}
-                      </code>
+                      <strong>{displayLabel(EXOGENA_FIELD_LABELS, err.field)}</strong>
                     </div>
                     <div>
-                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>Valor actual en BD:</span>
+                      <span style={{ color: 'var(--muted)', display: 'block', fontSize: 11 }}>Valor registrado:</span>
                       <span style={{ color: '#b91c1c', fontWeight: 600 }}>
                         {err.currentValue !== undefined && err.currentValue !== ''
                           ? String(err.currentValue)
-                          : '<Vacío / Nulo>'}
+                          : 'Vacío'}
                       </span>
                     </div>
                   </div>
@@ -368,7 +381,7 @@ export function ExogenaValidationDrawer({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <AppIcon name="clock" size={13} />
                       <span>
-                        Origen: <strong>{err.sourceOrigin}</strong>
+                        <strong>{err.sourceOrigin}</strong>
                       </span>
                     </div>
                     {err.sourceLink && (

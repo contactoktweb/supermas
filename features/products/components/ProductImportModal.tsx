@@ -223,7 +223,7 @@ export function ProductImportModal({
           <div className="info-banner-compact" style={{ marginTop: 14 }}>
             <AppIcon name="warning" size={14} />
             <span>
-              La importación es transaccional. Todo producto con stock inicial creará movimientos auditables en el Kardex.
+              Si algo falla, no se guarda nada. Todo producto con stock inicial creará movimientos auditables en el Kardex.
             </span>
           </div>
         </div>

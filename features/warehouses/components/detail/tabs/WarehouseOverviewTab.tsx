@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseInventoryItem, WarehouseTransfer, WarehouseMovement } from '../../../types'
 import { warehouseService } from '../../../services/warehouse.service'
+import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface WarehouseOverviewTabProps {
   warehouse: LocationWithMetrics
@@ -692,7 +693,7 @@ export function WarehouseOverviewTab({
                 <div>
                   <strong>{m.productName}</strong>
                   <span>
-                    {m.type} ({m.documentRef}) · Por {m.userName}
+                    {displayLabel(MOVEMENT_TYPE_LABELS, m.type)} ({m.documentRef}) · Por {m.userName}
                   </span>
                 </div>
                 <div style={{ textAlign: 'right' }}>

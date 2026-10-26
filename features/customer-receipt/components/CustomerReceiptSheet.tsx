@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react'
 import { qrSvg } from '@/lib/qr/qr-svg'
 import { CustomerReceiptData } from '../types'
+import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 const DEFAULT_LOGO = '/logo-distribuidora.png'
 const KYT_URL = 'https://www.kytcode.lat'
@@ -86,7 +87,7 @@ export function CustomerReceiptSheet({ data }: Props) {
           <div className="cr-span"><dt>Cliente</dt><dd>{customer.name}</dd></div>
           <div>
             <dt>Documento</dt>
-            <dd>{customer.documentNumber ? `${customer.documentType ? `${customer.documentType} ` : ''}${customer.documentNumber}` : '—'}</dd>
+            <dd>{customer.documentNumber ? `${customer.documentType ? `${displayLabel(ID_DOCUMENT_LABELS, customer.documentType)} ` : ''}${customer.documentNumber}` : '—'}</dd>
           </div>
           {customer.taxLevelCodes && <div><dt>Resp. fiscal</dt><dd>{customer.taxLevelCodes}</dd></div>}
         </dl>

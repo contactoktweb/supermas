@@ -117,7 +117,7 @@ export async function createPublicWebOrder(
     throw error
   }
   if (!data?.web_order_id) {
-    throw new Error('fn_create_public_web_order no devolvió el pedido creado')
+    throw new Error('No se pudo crear el pedido. Intenta de nuevo.')
   }
 
   return {

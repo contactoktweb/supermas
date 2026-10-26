@@ -7,6 +7,7 @@ import { TaxConfig } from '../types'
 import { taxService } from '../services/tax.service'
 import { taxCalculationService } from '../services/tax-calculation.service'
 import { TaxPermissions } from '../hooks/useTaxPermissions'
+import { displayLabel, TAX_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface TaxDetailDrawerProps {
   taxId: string | null
@@ -148,7 +149,7 @@ export function TaxDetailDrawer({
                   {tax.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
                 </span>
                 <div style={{ fontSize: 11, opacity: 0.8, marginTop: 8 }}>
-                  Tipo: <strong>{tax.type}</strong>
+                  Tipo: <strong>{displayLabel(TAX_TYPE_LABELS, tax.type)}</strong>
                 </div>
               </div>
             </div>

@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount, AccountClass, AccountingFilters, AccountNature } from '../../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { ACCOUNT_LEVEL_LABEL } from '../../utils/account-tree'
 
 interface AccountingAccountsTabProps {
   accounts: AccountingAccount[]
@@ -259,7 +260,7 @@ export function AccountingAccountsTab({
                           </span>
                         ) : (
                           <span className="badge badge-gray text-[10px] uppercase font-medium">
-                            {acc.level}
+                            {ACCOUNT_LEVEL_LABEL[acc.level] ?? acc.level}
                           </span>
                         )}
                       </td>

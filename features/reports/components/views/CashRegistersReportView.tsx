@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ReportStatsCard } from '../ReportStatsCard'
 import { CashRegistersReportData, CashRegisterReportRow } from '../../types'
+import { displayLabel, CASH_MOVEMENT_LABELS } from '@/lib/labels/display-labels'
 
 interface CashRegistersReportViewProps {
   data: CashRegistersReportData | null
@@ -271,7 +272,7 @@ export function CashRegistersReportView({
                             : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}
                       >
-                        {m.type}
+                        {displayLabel(CASH_MOVEMENT_LABELS, m.type)}
                       </span>
                     </td>
                     <td className="py-3 px-3 text-slate-500">{m.reference}</td>

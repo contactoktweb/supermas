@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomerWebOrderSummary } from '../../../types'
+import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface CustomerWebOrdersTabProps {
   orders: CustomerWebOrderSummary[]
@@ -119,7 +120,7 @@ export function CustomerWebOrdersTab({ orders }: CustomerWebOrdersTabProps) {
                   </td>
                   <td>
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                      {ord.paymentMethod}
+                      {displayLabel(PAYMENT_METHOD_LABELS, ord.paymentMethod)}
                     </span>
                   </td>
                   <td>

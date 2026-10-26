@@ -20,6 +20,7 @@ import {
   AuditModule,
   AuditActionType,
 } from '../types'
+import { auditActionLabel, auditEntityLabel, auditFieldLabel, formatAuditValue } from '../utils/audit-labels'
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -111,7 +112,7 @@ export class AuditRepository {
     let details: string = newVal.details
     if (!details) {
       const refPart = entityReference ? ` [${entityReference}]` : ''
-      details = `${row.action} ejecutado en ${row.entity_name}${refPart} por ${row.user_name}`
+      details = `${auditActionLabel(row.action)} de ${auditEntityLabel(row.entity_name)}${refPart} por ${row.user_name || 'Sistema'}`
     }
 
     // 6. Construir lista de diffs / cambios
@@ -125,9 +126,9 @@ export class AuditRepository {
           newVal.diff_before && newVal.diff_before[idx] ? newVal.diff_before[idx][k] : '(Previo)'
         return {
           field: k,
-          label: k,
-          previousValue: String(vBefore ?? ''),
-          newValue: String(vAfter ?? ''),
+          label: auditFieldLabel(k),
+          previousValue: formatAuditValue(vBefore),
+          newValue: formatAuditValue(vAfter),
         }
       })
     } else if (prevVal && typeof prevVal === 'object' && newVal && typeof newVal === 'object' && Object.keys(newVal).length > 0 && Object.keys(prevVal).length > 0) {
@@ -139,9 +140,9 @@ export class AuditRepository {
         if (JSON.stringify(v1) !== JSON.stringify(v2)) {
           changes.push({
             field: key,
-            label: key,
-            previousValue: v1 !== undefined && v1 !== null ? (typeof v1 === 'object' ? JSON.stringify(v1) : String(v1)) : '(Vacío)',
-            newValue: v2 !== undefined && v2 !== null ? (typeof v2 === 'object' ? JSON.stringify(v2) : String(v2)) : '(Vacío)',
+            label: auditFieldLabel(key),
+            previousValue: formatAuditValue(v1),
+            newValue: formatAuditValue(v2),
           })
         }
       })
@@ -150,7 +151,7 @@ export class AuditRepository {
         {
           field: 'registro',
           label: 'Registro Eliminado',
-          previousValue: JSON.stringify(prevVal).slice(0, 160),
+          previousValue: formatAuditValue(prevVal),
           newValue: '(Registro purgado/eliminado)',
         },
       ]
@@ -160,7 +161,7 @@ export class AuditRepository {
           field: 'registro',
           label: 'Registro Creado',
           previousValue: '(Ninguno)',
-          newValue: JSON.stringify(newVal).slice(0, 160),
+          newValue: formatAuditValue(newVal),
         },
       ]
     }

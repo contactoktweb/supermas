@@ -4,6 +4,7 @@ import React, { useEffect } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AuditLogEntry, AuditLevel, AuditResult } from '../types'
 import Link from 'next/link'
+import { auditActionLabel, auditEntityLabel, auditModuleLabel, auditRoleLabel } from '../utils/audit-labels'
 
 interface AuditDetailDrawerProps {
   isOpen: boolean
@@ -152,7 +153,6 @@ export function AuditDetailDrawer({ isOpen, onClose, log }: AuditDetailDrawerPro
               >
                 {result.label}
               </span>
-              <span style={{ fontSize: 11.5, color: 'var(--muted)' }}>ID: {log.id}</span>
             </div>
             <h2 id="audit-detail-title" style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
               Detalle del Evento de Auditoría
@@ -198,39 +198,34 @@ export function AuditDetailDrawer({ isOpen, onClose, log }: AuditDetailDrawerPro
             <div style={{ padding: 12, borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Usuario Responsable</span>
               <strong style={{ fontSize: 13, color: 'var(--text)' }}>{log.userName}</strong>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{log.userRole}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>{auditRoleLabel(log.userRole)}</div>
             </div>
 
             <div style={{ padding: 12, borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Módulo del Sistema</span>
-              <strong style={{ fontSize: 13, color: 'var(--primary, #00205B)' }}>{log.module}</strong>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Acción: {log.action}</div>
+              <strong style={{ fontSize: 13, color: 'var(--primary, #00205B)' }}>{auditModuleLabel(log.module)}</strong>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Acción: {auditActionLabel(log.action)}</div>
             </div>
 
             <div style={{ padding: 12, borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Bodega / Sede</span>
-              <strong style={{ fontSize: 13, color: 'var(--text)' }}>{log.locationName || 'Consolidado General'}</strong>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>ID: {log.locationId || 'GLOBAL'}</div>
+              <strong style={{ fontSize: 13, color: 'var(--text)' }}>{log.locationName || 'Todas las sedes'}</strong>
             </div>
 
             <div style={{ padding: 12, borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>Registro Afectado</span>
               <strong style={{ fontSize: 13, color: 'var(--text)' }}>
-                {log.entityReference || log.entityId}
+                {log.entityReference || 'Sin referencia'}
               </strong>
-              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Tipo: {log.entityType}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--muted)' }}>Tipo: {auditEntityLabel(log.entityType)}</div>
             </div>
           </div>
 
           {/* Fecha y Hora en Diferentes Formatos */}
           <div style={{ padding: 12, borderRadius: 6, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ color: 'var(--muted)' }}>Fecha Local (Bogotá):</span>
+              <span style={{ color: 'var(--muted)' }}>Fecha y hora:</span>
               <strong style={{ color: 'var(--text)' }}>{formatLocalTime(log.timestamp)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ color: 'var(--muted)' }}>Marca de Tiempo UTC:</span>
-              <code style={{ fontSize: 11 }}>{log.timestamp}</code>
             </div>
             {log.ipAddress && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -246,7 +241,7 @@ export function AuditDetailDrawer({ isOpen, onClose, log }: AuditDetailDrawerPro
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                 <AppIcon name="edit" size={16} />
                 <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-                  Modificaciones Realizadas (Diffs)
+                  Modificaciones realizadas
                 </h3>
               </div>
 

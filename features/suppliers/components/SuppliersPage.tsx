@@ -192,7 +192,7 @@ export function SuppliersPage({ onNavigate, userContext }: SuppliersPageProps) {
       const created = await supplierService.create(input as CreateSupplierInput, userContext)
       addToast(
         'Proveedor Registrado',
-        `El proveedor "${created.businessName}" fue creado con éxito en la base de datos.`,
+        `El proveedor "${created.businessName}" fue creado correctamente.`,
         'success'
       )
     } else {

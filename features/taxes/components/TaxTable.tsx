@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { TaxConfig, TaxFilters } from '../types'
 import { TaxPermissions } from '../hooks/useTaxPermissions'
+import { displayLabel, TAX_TYPE_LABELS } from '@/lib/labels/display-labels'
 
 interface TaxTableProps {
   taxes: TaxConfig[]
@@ -200,7 +201,7 @@ export function TaxTable({
 
                   <td>
                     <span className={getTypeBadgeClass(tax.type)}>
-                      <span>{tax.type}</span>
+                      <span>{displayLabel(TAX_TYPE_LABELS, tax.type)}</span>
                     </span>
                   </td>
 

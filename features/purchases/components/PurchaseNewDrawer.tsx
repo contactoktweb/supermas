@@ -1468,8 +1468,8 @@ export function PurchaseNewDrawer({
                 <p style={{ margin: 0 }}>
                   Al emitir la orden quedará registrada como{' '}
                   <strong>Pendiente de Recepción</strong>. El inventario físico
-                  en bodega y los movimientos de Kardex se actualizarán de forma
-                  transaccional únicamente al confirmar la recepción física.
+                  en bodega y los movimientos de Kardex se actualizarán
+                  automáticamente únicamente al confirmar la recepción física.
                 </p>
               </div>
             </div>

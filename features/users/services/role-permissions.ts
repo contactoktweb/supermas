@@ -6,6 +6,7 @@
  */
 
 import { UserRole, RoleDefinition } from '../types'
+import { displayLabel } from '@/lib/labels/display-labels'
 
 export const SYSTEM_ROLES: Record<UserRole, RoleDefinition> = {
   SUPERADMIN: {
@@ -373,6 +374,18 @@ export const DEFINITIVE_ROLES: UserRole[] = [
  */
 export function getRoleDefinition(role: UserRole): RoleDefinition {
   return SYSTEM_ROLES[role] || SYSTEM_ROLES.SELLER
+}
+
+/** Roles de asignación por sede que no forman parte del catálogo de roles del sistema. */
+const LOCATION_ROLE_NAMES: Record<string, string> = {
+  STORE_ADMIN: 'Administrador de sede',
+  INVENTORY_CLERK: 'Auxiliar de inventario',
+}
+
+/** Nombre del rol para mostrar en pantalla; nunca devuelve el código interno. */
+export function roleDisplayName(role: string | null | undefined): string {
+  if (!role) return '—'
+  return SYSTEM_ROLES[role as UserRole]?.name ?? LOCATION_ROLE_NAMES[role] ?? displayLabel({}, role)
 }
 
 /**

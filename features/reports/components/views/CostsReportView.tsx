@@ -28,8 +28,7 @@ export function CostsReportView({
         </div>
         <h2 className="text-base font-bold text-white mb-1">Acceso Financiero Restringido</h2>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Tu rol de usuario no cuenta con el permiso analítico <code>reports.costs</code> para visualizar
-          costos reales de adquisición, costos de mercancía vendida (CMV) ni márgenes de utilidad.
+          No tienes permiso para ver costos.
         </p>
       </div>
     )

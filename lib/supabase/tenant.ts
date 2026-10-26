@@ -43,7 +43,7 @@ export async function resolveUserCompanyId(
   }
 
   if (!userProfile.company_id) {
-    throw new Error('El usuario autenticado no tiene una empresa asociada (company_id no configurado).')
+    throw new Error('Tu usuario no tiene una empresa asignada.')
   }
 
   // Si se envió un company_id preferido, validar que coincida estrictamente con el asignado al usuario

@@ -236,7 +236,7 @@ export function TaxFormDrawer({
                 type="text"
                 value={formData.code}
                 onChange={(e) => handleInputChange('code', e.target.value)}
-                placeholder="Ej. IVA_19, EXENTO"
+                placeholder="Ej. IVA19"
                 disabled={hasTransactions}
                 required
                 style={{

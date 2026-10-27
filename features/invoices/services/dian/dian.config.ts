@@ -6,11 +6,13 @@
  *  - SECRETOS (solo variables de entorno del servidor, nunca BD ni navegador):
  *      DIAN_SOFTWARE_PIN, DIAN_TEST_TECHNICAL_KEY, DIAN_PRODUCTION_TECHNICAL_KEY,
  *      DIAN_CERTIFICATE_BASE64, DIAN_CERTIFICATE_PASSWORD
- *  - AMBIENTE: DIAN_ENVIRONMENT (HABILITACION | PRODUCCION). Producción bloqueada en esta fase.
+ *  - AMBIENTE: DIAN_ENVIRONMENT (HABILITACION | PRODUCCION). Producción solo transmite si la base de datos
+ *    tiene activa la configuración y la resolución de PRODUCCION (fn_dian_active_environment).
  *  - DATOS FISCALES (base de datos, editables por ADMIN):
  *      emisor → public.companies; resolución/prefijo/rango/vigencia → public.dian_resolutions;
  *      Software ID y TestSetId → public.dian_software_config.
- *  - ENDPOINTS OFICIALES: constantes de este archivo (sobrescribibles por variable de entorno).
+ *  - ENDPOINTS OFICIALES: constantes de este archivo (en habilitación sobrescribibles por variable de entorno;
+ *    en producción siempre los oficiales).
  *
  * Reglas de seguridad:
  *  1. Módulo exclusivo de servidor: lanza error si se ejecuta en el navegador.
@@ -77,7 +79,6 @@ export interface DianConfig {
   readonly environment: DianEnvironment
   /** '2' = pruebas/habilitación, '1' = producción (ProfileExecutionID y TipoAmb del CUFE) */
   readonly environmentCode: '1' | '2'
-  readonly isProductionBlocked: boolean
   readonly secrets: DianSecretsConfig
   readonly endpoints: DianEndpointsConfig
   readonly httpTimeoutMs: number
@@ -101,7 +102,6 @@ export interface DianConfigValidationReport {
 
 export interface DianSafeSummary {
   readonly environment: DianEnvironment
-  readonly isProductionBlocked: boolean
   readonly endpoints: { readonly wsUrl: string; readonly qrBaseUrl: string }
   readonly secrets: {
     readonly isPinConfigured: boolean
@@ -156,12 +156,26 @@ export function loadDianConfig(envOverrides?: Record<string, string | undefined>
     DIAN_HTTP_TIMEOUT_MS: clean(source.DIAN_HTTP_TIMEOUT_MS),
   })
 
-  // Bloqueo de producción durante la fase de habilitación (requiere autorización explícita para retirarlo).
+  const secretsBase = {
+    pin: parsed.DIAN_SOFTWARE_PIN,
+    certificateBase64: parsed.DIAN_CERTIFICATE_BASE64,
+    certificatePassword: parsed.DIAN_CERTIFICATE_PASSWORD,
+  }
+  const httpTimeoutMs = parsed.DIAN_HTTP_TIMEOUT_MS ? parseInt(parsed.DIAN_HTTP_TIMEOUT_MS, 10) : 60000
+
+  // Producción: endpoints oficiales fijos (sin sobrescritura) y clave técnica de la resolución real.
   if (parsed.DIAN_ENVIRONMENT === 'PRODUCCION') {
-    throw new Error(
-      'BLOQUEO FISCAL DE SEGURIDAD: el ambiente de PRODUCCIÓN está deshabilitado durante la fase de Habilitación. ' +
-        'DIAN_ENVIRONMENT debe ser HABILITACION.'
-    )
+    return {
+      environment: 'PRODUCCION',
+      environmentCode: '1',
+      secrets: { ...secretsBase, technicalKey: parsed.DIAN_PRODUCTION_TECHNICAL_KEY },
+      endpoints: {
+        wsUrl: DIAN_PRODUCCION_WS_ENDPOINT,
+        wsdlUrl: `${DIAN_PRODUCCION_WS_ENDPOINT}?wsdl`,
+        qrBaseUrl: DIAN_PRODUCCION_QR_BASE_URL,
+      },
+      httpTimeoutMs,
+    }
   }
 
   const wsUrl = parsed.DIAN_HABILITACION_WS_URL || DIAN_HABILITACION_WS_ENDPOINT
@@ -172,19 +186,13 @@ export function loadDianConfig(envOverrides?: Record<string, string | undefined>
   return {
     environment: 'HABILITACION',
     environmentCode: '2',
-    isProductionBlocked: true,
-    secrets: {
-      pin: parsed.DIAN_SOFTWARE_PIN,
-      technicalKey: parsed.DIAN_TEST_TECHNICAL_KEY,
-      certificateBase64: parsed.DIAN_CERTIFICATE_BASE64,
-      certificatePassword: parsed.DIAN_CERTIFICATE_PASSWORD,
-    },
+    secrets: { ...secretsBase, technicalKey: parsed.DIAN_TEST_TECHNICAL_KEY },
     endpoints: {
       wsUrl,
       wsdlUrl: `${wsUrl}?wsdl`,
       qrBaseUrl: parsed.DIAN_HABILITACION_QR_URL || DIAN_HABILITACION_QR_BASE_URL,
     },
-    httpTimeoutMs: parsed.DIAN_HTTP_TIMEOUT_MS ? parseInt(parsed.DIAN_HTTP_TIMEOUT_MS, 10) : 60000,
+    httpTimeoutMs,
   }
 }
 
@@ -196,7 +204,7 @@ export function validateDianConfiguration(config: DianConfig): DianConfigValidat
   const errors: string[] = []
   const warnings: string[] = []
 
-  const environmentConfigured = config.environment === 'HABILITACION'
+  const environmentConfigured = true
   const pinConfigured = Boolean(config.secrets.pin)
   const technicalKeyConfigured = Boolean(config.secrets.technicalKey)
   const certificateConfigured = Boolean(config.secrets.certificateBase64)
@@ -204,7 +212,8 @@ export function validateDianConfiguration(config: DianConfig): DianConfigValidat
 
   if (!pinConfigured) errors.push('DIAN_SOFTWARE_PIN no está configurado (requerido para el SoftwareSecurityCode).')
   if (!technicalKeyConfigured) {
-    errors.push('DIAN_TEST_TECHNICAL_KEY no está configurada (requerida para calcular el CUFE).')
+    const keyVar = config.environment === 'PRODUCCION' ? 'DIAN_PRODUCTION_TECHNICAL_KEY' : 'DIAN_TEST_TECHNICAL_KEY'
+    errors.push(`${keyVar} no está configurada (requerida para calcular el CUFE).`)
   } else if (!/^[0-9a-fA-F]{20,}$/.test(config.secrets.technicalKey!)) {
     warnings.push('La clave técnica no parece hexadecimal; verifique que la copió completa del portal DIAN.')
   }
@@ -237,7 +246,6 @@ export function getDianSafeSummary(config?: DianConfig): DianSafeSummary {
   const active = config || loadDianConfig()
   return {
     environment: active.environment,
-    isProductionBlocked: active.isProductionBlocked,
     endpoints: { wsUrl: active.endpoints.wsUrl, qrBaseUrl: active.endpoints.qrBaseUrl },
     secrets: {
       isPinConfigured: Boolean(active.secrets.pin),

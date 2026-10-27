@@ -8,6 +8,7 @@ import {
 } from '../schemas/warehouse.schema'
 import { warehouseRepository } from '../repositories/warehouse.repository'
 import { supabaseClient } from '@/lib/supabase/client'
+import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import {
   LocationWithMetrics,
   WarehouseFilters,
@@ -285,10 +286,12 @@ export class WarehouseService {
       throw new Error(`Stock insuficiente. El saldo actual es de ${currentQty} uds.`)
     }
 
+    const companyId = await resolveUserCompanyId(supabaseClient)
     const docRef = validated.documentRef || `AJ-${Date.now().toString().slice(-6)}`
     const { data: movRow, error: movError } = await supabaseClient
       .from('inventory_movements')
       .insert({
+        company_id: companyId,
         location_id: validated.locationId,
         product_id: validated.productId,
         movement_type: isPositive ? 'POSITIVE_ADJUSTMENT' : 'NEGATIVE_ADJUSTMENT',
@@ -310,15 +313,7 @@ export class WarehouseService {
       throw new Error(`Error registrando movimiento: ${movError.message}`)
     }
 
-    await supabaseClient
-      .from('stock_levels')
-      .upsert({
-        location_id: validated.locationId,
-        product_id: validated.productId,
-        quantity: newQty,
-        average_cost: avgCost,
-        updated_at: new Date().toISOString(),
-      })
+    // El trigger process_inventory_movement() actualiza stock_levels con el movimiento.
 
     const loc = await warehouseRepository.findById(validated.locationId)
 

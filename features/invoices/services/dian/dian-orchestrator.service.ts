@@ -88,6 +88,9 @@ const num = (v: any) => Number(v || 0)
 /** Respuesta de la DIAN cuando el set de pruebas ya fue aceptado y no valida más documentos. */
 const TEST_SET_CLOSED_PATTERN = /set de prueba con identificador .+ se encuentra aceptado/i
 
+/** Regla 90: la DIAN ya había recibido el documento. */
+const ALREADY_PROCESSED_PATTERN = /Regla:\s*90\b|procesad[oa] anteriormente|ya (fue|ha sido) procesad/i
+
 export class DianOrchestratorService {
   constructor(
     private readonly admin: SupabaseClient<any, 'public', any> = createAdminClient(),
@@ -449,6 +452,16 @@ export class DianOrchestratorService {
     }
     await this.event(actor, inv, 'DIAN_TRANSMISSION_ATTEMPT', res.fault ? 'ERROR' : 'SUCCESS', { file: inv.zip_file_name, operation: res.operation }, this.safeResponse(res))
     if (res.fault) return this.result(inv, inv.transmission_state, `La DIAN rechazó la solicitud: ${res.fault}`, [res.fault])
+    // Ya validado antes (regla 90): el resultado vigente se consulta por CUFE/CUDE.
+    if (res.isValid !== true && inv.cufe && ALREADY_PROCESSED_PATTERN.test(res.errorMessages.join(' '))) {
+      try {
+        const prior = await adapter.getStatus(inv.cufe)
+        await this.event(actor, inv, 'DIAN_STATUS_QUERY', prior.fault ? 'ERROR' : 'SUCCESS', { cufe: inv.cufe }, this.safeResponse(prior))
+        if (!prior.fault) return this.applyValidation(actor, inv, prior)
+      } catch (e: any) {
+        if (!(e instanceof DianCommunicationError)) throw e
+      }
+    }
     return this.applyValidation(actor, inv, res)
   }
 
@@ -466,7 +479,7 @@ export class DianOrchestratorService {
       return this.result({ ...inv, transmission_state: 'SENT', dian_status: 'SENT' }, 'SENT', 'La DIAN aún está validando el documento. Consulte el estado más tarde.')
     }
     // "Documento procesado anteriormente" (regla 90): la DIAN ya lo tiene; no se marca rechazado.
-    if (res.isValid !== true && /Regla:\s*90\b|procesad[oa] anteriormente|ya (fue|ha sido) procesad/i.test(text)) {
+    if (res.isValid !== true && ALREADY_PROCESSED_PATTERN.test(text)) {
       const msg = 'La DIAN indica que este documento ya había sido recibido. Se consultará su estado (por CUFE) en el próximo intento.'
       await this.update(inv.id, { transmission_state: 'COMMUNICATION_ERROR', last_error: msg, retry_count: Number(inv.retry_count || 0) + 1 })
       return this.result({ ...inv, transmission_state: 'COMMUNICATION_ERROR' }, 'COMMUNICATION_ERROR', msg, res.errorMessages)

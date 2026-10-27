@@ -6,6 +6,7 @@
  * REGLAS DE SEGURIDAD CRÍTICAS:
  * - Sanitiza y elimina costos, márgenes, compras, proveedores y existencias numéricas.
  * - Solo devuelve availability: AVAILABLE | LOW_STOCK | OUT_OF_STOCK.
+ * - Los precios se publican CON IVA (el producto guarda el precio antes de IVA).
  * - Resuelve el company_id activo sin requerir sesión administrativa del ERP.
  */
 
@@ -22,6 +23,7 @@ import {
 } from '../types'
 import { PUBLIC_CATALOG_DEFAULT_PAGE_SIZE, PUBLIC_CATALOG_MAX_PAGE_SIZE } from '../utils/request'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
+import { effectiveVatRatePercent, priceWithVat, ProductTaxRow } from '../utils/tax'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -66,6 +68,28 @@ export class PublicCatalogService {
     return enabled ? companyId : null
   }
 
+  /**
+   * IVA efectivo por producto (misma regla que la venta). Lee iva_treatment, que los
+   * repositorios de catálogo no cargan. Si falla se lanza el error: publicar precios
+   * sin IVA haría que la tienda muestre menos de lo que se cobra.
+   */
+  private async loadVatRates(productIds: string[]): Promise<Map<string, number>> {
+    const rates = new Map<string, number>()
+    if (productIds.length === 0) return rates
+
+    const { data, error } = await supabaseAdmin
+      .from('products')
+      .select('id, tax_rate_percent, is_tax_exempt, iva_treatment')
+      .in('id', productIds)
+    if (error) {
+      throw new Error(`Error al consultar el IVA de los productos: ${error.message}`)
+    }
+    for (const row of (data || []) as Array<ProductTaxRow & { id: string }>) {
+      rates.set(row.id, effectiveVatRatePercent(row))
+    }
+    return rates
+  }
+
   /** Página y tamaño de página acotados (defensa adicional a la validación de la ruta). */
   private normalizePaging(filters: PublicCatalogFilters): { page: number; pageSize: number } {
     const requestedSize = filters.pageSize && filters.pageSize > 0 ? filters.pageSize : PUBLIC_CATALOG_DEFAULT_PAGE_SIZE
@@ -78,7 +102,7 @@ export class PublicCatalogService {
   /**
    * Sanitiza un producto de Catálogo Super Más eliminando métricas internas y desglose de bodegas.
    */
-  private sanitizeSuperCatalogProduct(prod: SuperCatalogProduct): PublicSuperCatalogProduct {
+  private sanitizeSuperCatalogProduct(prod: SuperCatalogProduct, vatRatePercent: number): PublicSuperCatalogProduct {
     return {
       id: prod.id,
       sku: prod.sku,
@@ -91,10 +115,11 @@ export class PublicCatalogService {
       unitOfMeasure: prod.unitOfMeasure,
       imageUrl: prod.imageUrl,
       images: prod.images || [],
-      price: prod.price,
+      price: priceWithVat(prod.price, vatRatePercent),
+      priceBeforeTax: prod.price,
       showPrice: prod.showPrice,
-      vatRatePercent: prod.vatRatePercent,
-      isExempt: prod.isExempt,
+      vatRatePercent,
+      isExempt: vatRatePercent === 0,
       availability: prod.availability,
       availabilityLabel: prod.availabilityLabel,
       canBuyDirectly: prod.canBuyDirectly,
@@ -105,7 +130,10 @@ export class PublicCatalogService {
   /**
    * Sanitiza un producto de Catálogo Distribuidora eliminando cualquier metadato sensible interno.
    */
-  private sanitizeDistributorCatalogProduct(prod: DistributorCatalogProduct): PublicDistributorCatalogProduct {
+  private sanitizeDistributorCatalogProduct(
+    prod: DistributorCatalogProduct,
+    vatRatePercent: number
+  ): PublicDistributorCatalogProduct {
     return {
       id: prod.id,
       sku: prod.sku,
@@ -118,8 +146,10 @@ export class PublicCatalogService {
       unitOfMeasure: prod.unitOfMeasure,
       imageUrl: prod.imageUrl,
       images: prod.images || [],
-      distributorPrice: prod.distributorPrice,
-      normalPrice: prod.normalPrice,
+      distributorPrice: priceWithVat(prod.distributorPrice, vatRatePercent),
+      distributorPriceBeforeTax: prod.distributorPrice,
+      normalPrice: priceWithVat(prod.normalPrice, vatRatePercent),
+      vatRatePercent,
       availability: prod.availability,
       availabilityLabel: prod.availabilityLabel,
       canBuyDirectly: prod.canBuyDirectly,
@@ -173,7 +203,10 @@ export class PublicCatalogService {
     )
 
     const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
-    const sanitizedData = result.products.map((p) => this.sanitizeSuperCatalogProduct(p))
+    const vatRates = await this.loadVatRates(result.products.map((p) => p.id))
+    const sanitizedData = result.products.map((p) =>
+      this.sanitizeSuperCatalogProduct(p, vatRates.get(p.id) ?? (p.isExempt ? 0 : p.vatRatePercent))
+    )
 
     return {
       success: true,
@@ -212,7 +245,8 @@ export class PublicCatalogService {
     }
 
     if (!product || !product.webSuperMas) return null
-    return this.sanitizeSuperCatalogProduct(product)
+    const vatRates = await this.loadVatRates([product.id])
+    return this.sanitizeSuperCatalogProduct(product, vatRates.get(product.id) ?? (product.isExempt ? 0 : product.vatRatePercent))
   }
 
   /**
@@ -257,7 +291,10 @@ export class PublicCatalogService {
     )
 
     const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
-    const sanitizedData = result.products.map((p) => this.sanitizeDistributorCatalogProduct(p))
+    const vatRates = await this.loadVatRates(result.products.map((p) => p.id))
+    const sanitizedData = result.products.map((p) =>
+      this.sanitizeDistributorCatalogProduct(p, vatRates.get(p.id) ?? 0)
+    )
 
     return {
       success: true,
@@ -296,7 +333,8 @@ export class PublicCatalogService {
     }
 
     if (!product || !product.webDistribuidora) return null
-    return this.sanitizeDistributorCatalogProduct(product)
+    const vatRates = await this.loadVatRates([product.id])
+    return this.sanitizeDistributorCatalogProduct(product, vatRates.get(product.id) ?? 0)
   }
 
   /**

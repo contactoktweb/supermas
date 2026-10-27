@@ -86,12 +86,20 @@ async function runPublicCatalogTests() {
 
   // Sanitizar a través del método privado expuesto para test
   const sanitizedSuper = (publicCatalogService as any).sanitizeSuperCatalogProduct(
-    mockInternalSuperProduct
+    mockInternalSuperProduct,
+    19
   )
 
   // Verificaciones de privacidad
   assert.strictEqual(sanitizedSuper.id, 'prod-001')
-  assert.strictEqual(sanitizedSuper.price, 4500)
+  assert.strictEqual(sanitizedSuper.price, 5355, 'El precio público debe incluir el IVA (4500 + 19 %)')
+  assert.strictEqual(sanitizedSuper.priceBeforeTax, 4500)
+  assert.strictEqual(sanitizedSuper.vatRatePercent, 19)
+  assert.strictEqual(sanitizedSuper.isExempt, false)
+
+  const sanitizedExempt = (publicCatalogService as any).sanitizeSuperCatalogProduct(mockInternalSuperProduct, 0)
+  assert.strictEqual(sanitizedExempt.price, 4500, 'Un producto exento o excluido no suma IVA')
+  assert.strictEqual(sanitizedExempt.isExempt, true)
   assert.strictEqual(sanitizedSuper.availability, 'AVAILABLE')
   assert.strictEqual(sanitizedSuper.availabilityLabel, 'Disponible')
   assert.strictEqual(sanitizedSuper.canBuyDirectly, true)
@@ -161,12 +169,15 @@ async function runPublicCatalogTests() {
   }
 
   const sanitizedDist = (publicCatalogService as any).sanitizeDistributorCatalogProduct(
-    mockInternalDistProduct
+    mockInternalDistProduct,
+    19
   )
 
   assert.strictEqual(sanitizedDist.id, 'prod-002')
-  assert.strictEqual(sanitizedDist.distributorPrice, 28500)
-  assert.strictEqual(sanitizedDist.normalPrice, 32000)
+  assert.strictEqual(sanitizedDist.distributorPrice, 33915, 'El precio mayorista debe incluir el IVA')
+  assert.strictEqual(sanitizedDist.distributorPriceBeforeTax, 28500)
+  assert.strictEqual(sanitizedDist.normalPrice, 38080)
+  assert.strictEqual(sanitizedDist.vatRatePercent, 19)
   assert.strictEqual(sanitizedDist.availability, 'LOW_STOCK')
   assert.strictEqual(sanitizedDist.availabilityLabel, 'Pocas unidades')
   assert.strictEqual(sanitizedDist.canContactWhatsApp, true)

@@ -323,8 +323,8 @@ export class ProductImportService {
       if ((parsed.wholesalePrice ?? 0) < 0) {
         errors.push('El precio mayorista no puede ser negativo.')
       }
-      if ((parsed.costPrice ?? 0) < 0) {
-        errors.push('El costo unitario no puede ser negativo.')
+      if ((parsed.costPrice ?? 0) <= 0) {
+        errors.push('El costo unitario debe ser mayor a $0.')
       }
 
       // 4. Advertencias

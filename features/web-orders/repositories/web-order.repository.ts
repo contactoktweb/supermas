@@ -9,6 +9,7 @@
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { effectiveVatRatePercent } from '@/features/public-catalog/utils/tax'
 import type { SalePaymentInput } from '@/features/sales/repositories/sales.repository'
 import {
   WebOrderConversionResult,
@@ -44,11 +45,16 @@ export class WebOrderRepository {
    */
   private mapRowToWebOrder(row: any): WebOrder {
     const rawItems = Array.isArray(row.web_order_items) ? row.web_order_items : []
+    // El pedido guarda el subtotal antes de IVA y el total con IVA (086); los anteriores a 086 no llevan IVA.
+    const shippingFee = Number(row.shipping_fee || 0)
+    const orderTax = Math.max(0, Number(row.total || 0) - Number(row.subtotal || 0) - shippingFee)
     const items: WebOrderItem[] = rawItems.map((item: any) => {
       const prod = item.products || {}
       const qty = Number(item.quantity || 0)
       const uPrice = Number(item.unit_price || 0)
       const sub = Number(item.subtotal || qty * uPrice)
+      const taxRate = effectiveVatRatePercent(prod)
+      const lineTax = orderTax > 0 ? Math.round(sub * taxRate) / 100 : 0
       return {
         id: item.id,
         productId: item.product_id,
@@ -61,10 +67,10 @@ export class WebOrderRepository {
         unitPrice: uPrice,
         discountPercent: 0,
         discountAmount: 0,
-        taxRatePercent: Number(prod.tax_rate_percent || 0),
-        taxAmount: 0,
+        taxRatePercent: taxRate,
+        taxAmount: lineTax,
         subtotal: sub,
-        total: sub,
+        total: sub + lineTax,
       }
     })
 
@@ -104,8 +110,8 @@ export class WebOrderRepository {
       totalUnits,
       subtotal: Number(row.subtotal || 0),
       discountTotal: 0,
-      taxTotal: 0,
-      shippingCost: Number(row.shipping_fee || 0),
+      taxTotal: orderTax,
+      shippingCost: shippingFee,
       totalAmount: Number(row.total || 0),
       paymentMethod: 'ONLINE',
       paymentStatus,
@@ -152,7 +158,7 @@ export class WebOrderRepository {
         sales(id, sale_number),
         web_order_items(
           id, product_id, quantity, unit_price, subtotal,
-          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent, is_tax_exempt, iva_treatment)
         )
       `, { count: 'exact' })
       .eq('company_id', companyId)
@@ -234,7 +240,7 @@ export class WebOrderRepository {
         sales(id, sale_number),
         web_order_items(
           id, product_id, quantity, unit_price, subtotal,
-          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent, is_tax_exempt, iva_treatment)
         )
       `)
       .eq('id', id)
@@ -264,7 +270,7 @@ export class WebOrderRepository {
         sales(id, sale_number),
         web_order_items(
           id, product_id, quantity, unit_price, subtotal,
-          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent)
+          products(id, name, sku, barcode, unit_of_measure, primary_image_url, tax_rate_percent, is_tax_exempt, iva_treatment)
         )
       `)
       .eq('order_number', orderNumber.trim())

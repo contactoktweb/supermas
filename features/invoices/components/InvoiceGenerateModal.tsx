@@ -423,13 +423,13 @@ export function InvoiceGenerateModal({
 
               {/* Datos fiscales que asigna el servidor */}
               <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-slate-800 space-y-1">
-                <p className="font-bold text-blue-900">Factura Electrónica de Venta (DIAN) — ambiente de HABILITACIÓN</p>
+                <p className="font-bold text-blue-900">Factura Electrónica de Venta (DIAN)</p>
                 <p>
-                  El servidor asigna el prefijo y el consecutivo desde la resolución DIAN vigente, toma el medio de pago
-                  registrado en la venta, genera el XML UBL 2.1, el CUFE y el código QR, y lo transmite a la DIAN cuando el
-                  certificado digital esté cargado.
+                  El número de la factura se asigna automáticamente según la resolución DIAN vigente y se usa el medio de
+                  pago registrado en la venta. Al confirmar, la factura se envía a la DIAN y, cuando la acepta, al correo
+                  del cliente.
                 </p>
-                <p className="text-slate-600">Si un dato fiscal falta, la factura queda numerada y el detalle indica exactamente qué completar.</p>
+                <p className="text-slate-600">Si falta algún dato del cliente o de la empresa, el detalle de la factura indica qué completar.</p>
               </div>
             </form>
           )}

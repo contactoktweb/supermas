@@ -28,6 +28,7 @@
 import { Client } from 'pg'
 import * as fs from 'fs'
 import * as path from 'path'
+import { loadEnvLocal } from './load-env-local'
 
 const FILES = [
   'supabase/migrations/058_dian_habilitacion_numbering_and_guards.sql',
@@ -37,21 +38,6 @@ const FILES = [
 ]
 
 const LOCK_TIMEOUT = '5s'
-
-function loadEnvLocal(): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!fs.existsSync('.env.local')) return out
-  for (const line of fs.readFileSync('.env.local', 'utf8').split('\n')) {
-    const t = line.trim()
-    if (!t || t.startsWith('#')) continue
-    const i = t.indexOf('=')
-    if (i < 0) continue
-    let v = t.slice(i + 1).trim()
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
-    out[t.slice(0, i).trim()] = v
-  }
-  return out
-}
 
 /** Host de la cadena de conexión, sin usuario ni contraseña. */
 function hostOf(conn: string): string {

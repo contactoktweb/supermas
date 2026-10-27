@@ -17,26 +17,11 @@
  * Nunca imprime la contraseña ni la llave privada. No modifica la base de datos (consulta READ ONLY).
  */
 
-import * as fs from 'fs'
 import { Client } from 'pg'
 import { loadSigningCertificate, describeCertificate } from '../features/invoices/services/dian/dian-certificate'
 import { DianSoapAdapter } from '../features/invoices/services/dian/dian-soap.adapter'
 import { DIAN_HABILITACION_WS_ENDPOINT } from '../features/invoices/services/dian/dian.config'
-
-function loadEnvLocal(): Record<string, string> {
-  const out: Record<string, string> = {}
-  if (!fs.existsSync('.env.local')) return out
-  for (const line of fs.readFileSync('.env.local', 'utf8').split('\n')) {
-    const t = line.trim()
-    if (!t || t.startsWith('#')) continue
-    const i = t.indexOf('=')
-    if (i < 0) continue
-    let v = t.slice(i + 1).trim()
-    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1)
-    out[t.slice(0, i).trim()] = v
-  }
-  return out
-}
+import { loadEnvLocal } from './load-env-local'
 
 const env = { ...loadEnvLocal(), ...process.env } as Record<string, string | undefined>
 const args = process.argv.slice(2)

@@ -85,6 +85,9 @@ export class DianOrchestratorError extends Error {
 
 const num = (v: any) => Number(v || 0)
 
+/** Respuesta de la DIAN cuando el set de pruebas ya fue aceptado y no valida más documentos. */
+const TEST_SET_CLOSED_PATTERN = /set de prueba con identificador .+ se encuentra aceptado/i
+
 export class DianOrchestratorService {
   constructor(
     private readonly admin: SupabaseClient<any, 'public', any> = createAdminClient(),
@@ -420,6 +423,32 @@ export class DianOrchestratorService {
     if (res.isValid === null && !res.statusCode) {
       return this.result(inv, 'SENT', 'La DIAN aún está procesando el documento. Intente de nuevo en unos segundos.')
     }
+    if (this.config.environment === 'HABILITACION' && TEST_SET_CLOSED_PATTERN.test(res.statusDescription || '')) {
+      return this.validateAfterClosedTestSet(actor, inv, adapter)
+    }
+    return this.applyValidation(actor, inv, res)
+  }
+
+  /**
+   * Con el set de pruebas ya aceptado, la DIAN no valida lo que llega a SendTestSetAsync: solo responde
+   * que el set "se encuentra Aceptado". En habilitación el mismo documento firmado se valida con SendBillSync.
+   */
+  private async validateAfterClosedTestSet(actor: DianActor, inv: any, adapter: DianSoapAdapter): Promise<DianProcessResult> {
+    if (!inv.xml_signed || !inv.xml_file_name || !inv.zip_file_name) {
+      throw new DianOrchestratorError('El documento no tiene XML firmado para validarlo en la DIAN.', 409)
+    }
+    const zipB64 = zipSingleFile(inv.xml_file_name, inv.xml_signed).toString('base64')
+    let res: DianSoapResult
+    try {
+      res = await adapter.sendBillSync(inv.zip_file_name, zipB64)
+    } catch (e: any) {
+      if (e instanceof DianCommunicationError) {
+        return this.result(inv, inv.transmission_state, `No se pudo validar el documento: ${e.message}`, [e.message])
+      }
+      throw e
+    }
+    await this.event(actor, inv, 'DIAN_TRANSMISSION_ATTEMPT', res.fault ? 'ERROR' : 'SUCCESS', { file: inv.zip_file_name, operation: res.operation }, this.safeResponse(res))
+    if (res.fault) return this.result(inv, inv.transmission_state, `La DIAN rechazó la solicitud: ${res.fault}`, [res.fault])
     return this.applyValidation(actor, inv, res)
   }
 

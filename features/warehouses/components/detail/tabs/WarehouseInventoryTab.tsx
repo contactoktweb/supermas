@@ -7,6 +7,13 @@ import { WarehousePermissions } from '../../../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 import { SelectField } from '@/components/ui/SelectField'
 
+/** Fecha del último movimiento en hora Colombia; si no es una fecha (sin movimientos), se muestra el texto tal cual. */
+function formatLastMovement(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' })
+}
+
 interface WarehouseInventoryTabProps {
   warehouse: LocationWithMetrics
   inventory: WarehouseInventoryItem[]
@@ -191,7 +198,7 @@ export function WarehouseInventoryTab({
                       </strong>
                     </td>
                     <td>
-                      <span className="time-muted">{item.lastMovementAt}</span>
+                      <span className="time-muted">{formatLastMovement(item.lastMovementAt)}</span>
                     </td>
                     <td>
                       <div className="row-actions" style={{ opacity: 1 }}>

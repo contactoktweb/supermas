@@ -490,7 +490,7 @@ export function ProductFormDrawer({
 
         // Cambiar automáticamente a la pestaña correspondiente al primer error
         const firstField = issues[0]?.path?.[0]
-        if (firstField === 'prices' && activeTab !== 'prices') {
+        if ((firstField === 'prices' || firstField === 'costPrice') && activeTab !== 'prices') {
           setActiveTab('prices')
         } else if ((firstField === 'taxProfile' || firstField === 'vatRatePercent') && activeTab !== 'tax') {
           setActiveTab('tax')
@@ -1208,8 +1208,8 @@ export function ProductFormDrawer({
 
               {/* Costo estimado para simulación */}
               <div className="form-field">
-                <label>Costo promedio de referencia (Simulación)</label>
-                <div className="input-wrap">
+                <label>{mode === 'create' ? 'Costo unitario de compra *' : 'Costo promedio de referencia (Simulación)'}</label>
+                <div className={`input-wrap ${errors.costPrice ? 'is-invalid' : ''}`}>
                   <span className="input-prefix">$</span>
                   <input
                     type="number"
@@ -1220,6 +1220,7 @@ export function ProductFormDrawer({
                     step="any"
                   />
                 </div>
+                {errors.costPrice && <span className="field-error-text">{errors.costPrice}</span>}
                 <small className="field-hint">
                   * El costo real proviene de las facturas de compra y del Kardex por bodega.
                 </small>

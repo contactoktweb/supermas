@@ -158,10 +158,15 @@ const productBusinessRulesSchema = baseProductFormSchema.refine(
 })
 
 /** Alta de producto: la cuenta auxiliar de inventario es obligatoria (define su línea contable). */
-export const productFormSchema = productBusinessRulesSchema.refine((data) => Boolean(data.accountingAccountId), {
-  message: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
-  path: ['accountingAccountId'],
-})
+export const productFormSchema = productBusinessRulesSchema
+  .refine((data) => Boolean(data.accountingAccountId), {
+    message: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
+    path: ['accountingAccountId'],
+  })
+  .refine((data) => Number(data.costPrice) > 0, {
+    message: 'Ingrese el costo unitario de compra del producto (debe ser mayor a $0)',
+    path: ['costPrice'],
+  })
 
 /** Edición completa desde el formulario: los productos antiguos pueden seguir sin cuenta. */
 export const productEditFormSchema = productBusinessRulesSchema

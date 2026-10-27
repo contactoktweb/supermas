@@ -3,3 +3,4 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@next/*'
   - next
+  - node-forge@1.4.1

@@ -107,7 +107,7 @@ export class ProductService {
     const wholesalePrice =
       validated.prices.find((p) => p.code === 'MAYORISTA')?.price || normalPrice
 
-    const initialCost = (validated as any).estimatedCost || 0
+    const initialCost = Number((validated as any).estimatedCost || validated.costPrice || 0)
 
     const created = await productRepository.create({
       categoryId: validated.categoryId,

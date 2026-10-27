@@ -278,7 +278,16 @@ export class WarehouseService {
       .maybeSingle()
 
     const currentQty = Number(currentLevel?.quantity || 0)
-    const avgCost = Number(currentLevel?.average_cost || 0)
+    let avgCost = Number(currentLevel?.average_cost || 0)
+    // Sin costo promedio en la bodega (primera entrada), el movimiento se valora al costo del producto.
+    if (avgCost <= 0) {
+      const { data: product } = await supabaseClient
+        .from('products')
+        .select('cost_price')
+        .eq('id', validated.productId)
+        .maybeSingle()
+      avgCost = Number(product?.cost_price || 0)
+    }
     const isPositive = validated.type === 'AJUSTE_POSITIVO'
     const newQty = isPositive ? currentQty + validated.quantity : currentQty - validated.quantity
 

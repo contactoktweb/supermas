@@ -56,7 +56,10 @@ export const PRIMEROS_PASOS: Capitulo = {
               texto: 'En la pantalla de inicio de sesión haga clic en [[¿Olvidaste tu contraseña?]], escriba su correo y pulse [[Enviar enlace de recuperación]].',
               captura: { archivo: '01-acceso-03-recuperar.jpg', leyenda: 'Solicitud del enlace de recuperación.' },
             },
-            { texto: 'Abra el correo que le llega y haga clic en el enlace. Escriba la contraseña nueva dos veces con las mismas reglas del primer ingreso.' },
+            {
+              texto: 'Abra el correo que le llega y haga clic en el enlace. Escriba la contraseña nueva dos veces con las mismas reglas del primer ingreso y pulse [[Guardar Contraseña]].',
+              captura: { archivo: '01-acceso-03b-nueva-contrasena.jpg', leyenda: 'Pantalla para escribir la contraseña nueva.' },
+            },
             {
               texto: 'El enlace vence en poco tiempo. Si ya venció, el sistema lo indica: vuelva a la pantalla de inicio y pida uno nuevo.',
               captura: { archivo: '01-acceso-04-enlace-vencido.jpg', leyenda: 'Aviso de enlace vencido o inválido.' },
@@ -98,8 +101,8 @@ export const PRIMEROS_PASOS: Capitulo = {
           captura: { archivo: '01-inicio-01-dashboard.jpg', leyenda: 'Tablero de inicio con los indicadores principales.' },
         },
         {
-          texto: 'Más abajo están el estado de cada bodega (valor del inventario, productos, stock bajo y agotados) y el botón [[Ver más indicadores operativos y financieros]].',
-          captura: { archivo: '01-inicio-02-dashboard-bodegas.jpg', leyenda: 'Estado de las bodegas en el tablero.' },
+          texto: 'Más abajo están la evolución de ventas y compras, la **distribución del inventario** por bodega (qué parte del valor a costo está en cada una) y el estado de cada bodega: valor del inventario, productos, stock bajo y agotados.',
+          captura: { archivo: '01-inicio-02-dashboard-bodegas.jpg', leyenda: 'Distribución del inventario y estado de las bodegas en el tablero.' },
         },
       ],
       procedimientos: [
@@ -109,7 +112,7 @@ export const PRIMEROS_PASOS: Capitulo = {
           objetivo: 'Ir a cualquier módulo sin recorrer el menú.',
           pasos: [
             {
-              texto: 'Haga clic en [[Buscar en el sistema...]] (arriba a la derecha) o pulse **Ctrl + K**. Escriba el nombre del módulo, por ejemplo "kardex", y haga clic en el resultado.',
+              texto: 'Haga clic en [[Buscar en el sistema...]] (arriba a la derecha) o pulse **Ctrl + K**. Escriba el nombre de un módulo (por ejemplo "kardex"), de un producto, cliente, proveedor o bodega, o el número de una factura, y haga clic en el resultado.',
               captura: { archivo: '01-inicio-03-buscador.jpg', leyenda: 'Buscador global del sistema.' },
             },
           ],

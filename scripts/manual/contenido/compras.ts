@@ -33,7 +33,7 @@ export const COMPRAS: Capitulo = {
               captura: c('10-proveedores-03-nuevo-general', 'Información general del proveedor.'),
             },
             {
-              texto: 'En **Información Comercial & Crédito** indique el estado, los **días de crédito** que le dan y el **cupo autorizado**. Agregue acuerdos de entrega o descuentos en observaciones.',
+              texto: 'En **Información Comercial & Crédito** indique el estado, los **días de crédito** que le dan y el **cupo autorizado** (ambos empiezan en 0, es decir, compra de contado). Agregue acuerdos de entrega o descuentos en observaciones.',
               captura: c('10-proveedores-04-nuevo-comercial', 'Condiciones comerciales y de crédito.'),
               advertencia: 'El cupo viene con un valor de ejemplo: cámbielo por el cupo real que tiene con ese proveedor.',
             },

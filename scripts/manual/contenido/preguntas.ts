@@ -43,8 +43,8 @@ export const PREGUNTAS: TemaPreguntas[] = [
     tema: 'Inventario, bodegas y Kardex',
     preguntas: [
       { pregunta: '¿Cómo agrego unidades a una bodega?', destino: 'ajuste-bodega' },
-      { pregunta: '¿Cómo saco unidades dañadas, vencidas o perdidas?', destino: 'ajuste-bodega-paso-4' },
-      { pregunta: '¿Qué motivo elijo para un ajuste?', destino: 'ajuste-bodega-paso-5' },
+      { pregunta: '¿Cómo saco unidades dañadas, vencidas o perdidas?', destino: 'ajuste-bodega-paso-5' },
+      { pregunta: '¿Qué motivo elijo para un ajuste?', destino: 'ajuste-bodega-paso-6' },
       { pregunta: '¿Cómo hago un ajuste eligiendo bodega y producto?', destino: 'ajuste-inventario' },
       { pregunta: '¿Cómo hago un conteo físico de una bodega?', destino: 'conteo-fisico' },
       { pregunta: '¿Por qué dice que no hay saldo suficiente?', destino: 'problema-saldo-insuficiente' },

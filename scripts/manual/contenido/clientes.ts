@@ -32,7 +32,7 @@ export const CLIENTES: Capitulo = {
               captura: c('14-clientes-03-nuevo-basica', 'Información básica del cliente.'),
             },
             {
-              texto: 'En **Contacto & Ubicación** escriba el teléfono, el **correo para facturación** (ahí llega la factura electrónica), la dirección, la ciudad y el departamento.',
+              texto: 'En **Contacto & Ubicación** escriba el teléfono, el **correo para facturación** (ahí llega la factura electrónica) y la dirección. La ciudad y el departamento vienen con los de la empresa; cámbielos si el cliente está en otra ciudad.',
               captura: c('14-clientes-04-nuevo-contacto', 'Contacto y ubicación.'),
               advertencia: 'Revise la ciudad y el departamento: vienen con un valor de ejemplo. Deben ser los del cliente porque salen en la factura electrónica.',
             },

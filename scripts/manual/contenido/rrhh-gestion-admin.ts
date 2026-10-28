@@ -165,7 +165,7 @@ export const GESTION: Capitulo = {
       quienLoUsa: 'Administración y supervisores.',
       pantalla: [
         {
-          texto: 'Muestra alertas nuevas, críticas, pendientes y solucionadas, con filtros por módulo, prioridad, estado y sede. [[Escanear Sistema]] revisa de nuevo y [[Configurar Reglas]] define cuándo se crea una alerta.',
+          texto: 'Al abrir el módulo el sistema revisa las reglas (stock bajo, productos agotados, facturas de proveedor por vencer, cajas abiertas, etc.) y crea las alertas que falten. Muestra alertas nuevas, críticas, pendientes y solucionadas, con filtros por módulo, prioridad, estado y sede. El número rojo junto a **Alertas** en el menú indica cuántas hay sin leer. [[Escanear Sistema]] vuelve a revisar y [[Configurar Reglas]] define cuándo se crea una alerta.',
           captura: c('33-alertas-01', 'Módulo Alertas.'),
         },
       ],

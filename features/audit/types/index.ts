@@ -99,6 +99,8 @@ export interface AuditLogEntry {
   ipAddress?: string
   sessionId?: string
   changes?: AuditDiffField[]
+  /** Indica que el evento tiene campos modificados (la lista no trae el detalle completo). */
+  hasChanges?: boolean
 }
 
 export interface AuditStats {

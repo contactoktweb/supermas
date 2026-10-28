@@ -29,13 +29,12 @@ export function ReportDashboardView({
           value={kpis?.salesTotal ?? 0}
           format="currency"
           subtitle={`${kpis?.salesCount ?? 0} facturas procesadas`}
-          trendPercent={kpis?.salesChangePercent ?? 12.4}
           iconName="sales"
           tone="teal"
           loading={loading}
         />
         <ReportStatsCard
-          title="Valor del Inventario"
+          title="Inventario a precio de venta"
           value={kpis?.inventoryValueAtSale ?? 0}
           format="currency"
           subtitle={`${kpis?.availableProductsCount ?? 0} disponibles · ${

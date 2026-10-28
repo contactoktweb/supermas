@@ -8,6 +8,7 @@ import { DASHBOARD_ITEM, NAV_SECTIONS, NavSection, NavItem } from './modules'
 import { UserMini } from './UserMini'
 import { useAuth } from '@/features/auth'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { useUnreadAlertsCount } from '@/features/alerts/hooks/useUnreadAlertsCount'
 
 export interface SidebarProps {
   open?: boolean
@@ -44,6 +45,7 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
   const pathname = usePathname()
   const effectivePath = currentPath || pathname || '/'
   const { user, hasPermission, signOut } = useAuth()
+  const unreadAlerts = useUnreadAlertsCount(Boolean(user) && hasPermission('audit.read'))
   const navRef = React.useRef<HTMLElement>(null)
 
   // Determinar qué sección contiene la ruta activa para auto-expandirla
@@ -266,7 +268,11 @@ export function Sidebar({ open = false, onClose, currentPath, onLogout }: Sideba
                         >
                           <AppIcon name={item.icon} size={16} />
                           <span>{item.label}</span>
-                          {item.badge !== undefined && <b>{item.badge}</b>}
+                          {item.id === 'alertas' && unreadAlerts > 0 && (
+                            <b aria-label={`${unreadAlerts} alertas sin leer`}>
+                              {unreadAlerts > 99 ? '99+' : unreadAlerts}
+                            </b>
+                          )}
                         </Link>
                       )
                     })}

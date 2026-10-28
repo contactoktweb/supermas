@@ -36,6 +36,54 @@ function getDbClient() {
   return supabaseClient
 }
 
+/**
+ * Campos que la lista de auditoría necesita de new_value / previous_value.
+ * Se piden por ruta JSON para no descargar los registros completos: los de
+ * productos incluyen la imagen embebida y pesan unos 100 KB cada uno.
+ * El detalle completo se consulta por ID al abrir un evento (getLogById).
+ */
+const LIST_NEW_VALUE_KEYS = [
+  'level',
+  'result',
+  'userRole',
+  'entityReference',
+  'sku',
+  'name',
+  'code',
+  'invoice_number',
+  'purchase_number',
+  'document_number',
+  'details',
+  'locationName',
+] as const
+const LIST_PREVIOUS_VALUE_KEYS = ['id', 'sku', 'name', 'code', 'purchase_number', 'document_number'] as const
+
+const AUDIT_LIST_SELECT = [
+  'id, user_id, user_name, action, module, entity_name, entity_id, location_id, ip_address, created_at, company_id',
+  'nv_id:new_value->>id',
+  'nv_diff_after:new_value->diff_after',
+  'nv_diff_before:new_value->diff_before',
+  ...LIST_NEW_VALUE_KEYS.map((k) => `nv_${k}:new_value->>${k}`),
+  ...LIST_PREVIOUS_VALUE_KEYS.map((k) => `pv_${k}:previous_value->>${k}`),
+].join(', ')
+
+/** Reconstruye una fila con los campos livianos para reutilizar mapRowToEntry. */
+function toLightRow(row: any) {
+  const pick = (prefix: string, keys: readonly string[]) =>
+    Object.fromEntries(keys.filter((k) => row[`${prefix}${k}`] != null).map((k) => [k, row[`${prefix}${k}`]]))
+  const newValue: Record<string, unknown> = pick('nv_', LIST_NEW_VALUE_KEYS)
+  if (row.nv_diff_after) {
+    newValue.diff_after = row.nv_diff_after
+    newValue.diff_before = row.nv_diff_before
+  }
+  return {
+    ...row,
+    new_value: newValue,
+    previous_value: pick('pv_', LIST_PREVIOUS_VALUE_KEYS),
+    hasPreviousAndNew: row.pv_id != null && row.nv_id != null,
+  }
+}
+
 export class AuditRepository {
   /**
    * Resuelve el company_id activo de forma segura
@@ -200,7 +248,7 @@ export class AuditRepository {
     const client = getDbClient()
     const companyId = await this.getCompanyId(filters.companyId)
 
-    let query = client.from('audit_logs').select('*')
+    let query = client.from('audit_logs').select(AUDIT_LIST_SELECT)
 
     if (companyId) {
       query = query.eq('company_id', companyId)
@@ -256,7 +304,13 @@ export class AuditRepository {
       // Ignorar si falla lectura auxiliar de bodegas
     }
 
-    let entries = (rows || []).map((r: any) => this.mapRowToEntry(r, locationMap))
+    let entries = (rows || []).map((r: any) => {
+      const light = toLightRow(r)
+      const entry = this.mapRowToEntry(light, locationMap)
+      // Sin los valores completos solo se conocen los cambios guardados como diff.
+      const changes = light.new_value.diff_after ? entry.changes : undefined
+      return { ...entry, changes, hasChanges: Boolean(changes?.length) || light.hasPreviousAndNew }
+    })
 
     // Filtros secundarios en memoria para atributos derivados
     if (filters.userRole && filters.userRole !== 'ALL') {
@@ -276,7 +330,7 @@ export class AuditRepository {
     }
 
     if (filters.onlyWithChanges) {
-      entries = entries.filter((e) => Array.isArray(e.changes) && e.changes.length > 0)
+      entries = entries.filter((e) => e.hasChanges)
     }
 
     if (filters.searchQuery && filters.searchQuery.trim()) {

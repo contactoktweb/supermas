@@ -471,10 +471,13 @@ class ExogenaRepository {
    */
   async getConciliation(year: number): Promise<ExogenaConciliationItem[]> {
     const records = await this.consolidateRecords(year)
-    const { data: accData } = await supabaseClient
-      .from('accounting_entries')
-      .select('*, lines:accounting_entry_lines(*)')
-    const accounting = accData || []
+    const { data: lineData, error: linesError } = await supabaseClient
+      .from('accounting_entry_lines')
+      .select('debit_amount, credit_amount, accounting_accounts!inner(code), accounting_entries!inner(date, status)')
+      .eq('accounting_entries.status', 'POSTED')
+      .gte('accounting_entries.date', `${year}-01-01`)
+      .lte('accounting_entries.date', `${year}-12-31`)
+    if (linesError) throw new Error(`No se pudieron consultar los asientos contables: ${linesError.message}`)
 
     // Totales desde Asientos Contables
     let totalSalesAccounting = 0
@@ -484,16 +487,16 @@ class ExogenaRepository {
     let totalCxcAccounting = 0
     let totalCxpAccounting = 0
 
-    for (const entry of accounting) {
-      for (const line of entry.lines || []) {
-        const code = line.accountCode
-        if (code.startsWith('4135')) totalSalesAccounting += line.credit || 0
-        if (code.startsWith('240805') || code.startsWith('240806')) totalIvaGeneradoAccounting += line.credit || 0
-        if (code.startsWith('1435') || code.startsWith('6205')) totalPurchasesAccounting += line.debit || 0
-        if (code.startsWith('240810') || code.startsWith('240811')) totalIvaDescontableAccounting += line.debit || 0
-        if (code.startsWith('1305')) totalCxcAccounting += (line.debit || 0) - (line.credit || 0)
-        if (code.startsWith('2205')) totalCxpAccounting += (line.credit || 0) - (line.debit || 0)
-      }
+    for (const line of (lineData || []) as any[]) {
+      const code: string = line.accounting_accounts?.code ?? ''
+      const debit = Number(line.debit_amount || 0)
+      const credit = Number(line.credit_amount || 0)
+      if (code.startsWith('4135')) totalSalesAccounting += credit
+      if (code.startsWith('240805') || code.startsWith('240806')) totalIvaGeneradoAccounting += credit
+      if (code.startsWith('1435') || code.startsWith('6205')) totalPurchasesAccounting += debit
+      if (code.startsWith('240810') || code.startsWith('240811')) totalIvaDescontableAccounting += debit
+      if (code.startsWith('1305')) totalCxcAccounting += debit - credit
+      if (code.startsWith('2205')) totalCxpAccounting += credit - debit
     }
 
     // Totales desde Exógena

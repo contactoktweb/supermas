@@ -10,6 +10,7 @@ import {
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { computeStockHealth } from '@/features/products/utils/stock-health'
 
 export class InventoryRepository {
   /**
@@ -373,44 +374,42 @@ export class InventoryRepository {
    * Obtiene los KPIs operacionales reales desde PostgreSQL
    */
   public async getKPIs(): Promise<InventoryKPIs> {
-    const { data: stockData } = await supabaseClient
-      .from('stock_levels')
-      .select('product_id, quantity, average_cost, min_stock')
-
-    const { count: totalProductsCount } = await supabaseClient
-      .from('products')
-      .select('id', { count: 'exact', head: true })
-      .eq('is_active', true)
+    const [{ data: stockData }, { data: products }] = await Promise.all([
+      supabaseClient.from('stock_levels').select('product_id, quantity, average_cost'),
+      supabaseClient
+        .from('products')
+        .select('id, min_stock_threshold, critical_stock_threshold')
+        .eq('is_active', true),
+    ])
 
     let totalValueAtCost = 0
     let totalUnitsAvailable = 0
+    const stockByProduct = new Map<string, number>()
+
+    for (const row of stockData || []) {
+      const q = Number(row.quantity || 0)
+      totalValueAtCost += q * Number(row.average_cost || 0)
+      totalUnitsAvailable += q
+      stockByProduct.set(row.product_id, (stockByProduct.get(row.product_id) || 0) + q)
+    }
+
+    // Igual que Productos: un producto activo cuenta una vez, con su existencia total y sus umbrales.
+    let productsWithStock = 0
     let lowStockCount = 0
     let criticalStockCount = 0
     let outOfStockCount = 0
-    const productsWithStockSet = new Set<string>()
-
-    if (stockData) {
-      for (const row of stockData) {
-        const q = Number(row.quantity || 0)
-        const c = Number(row.average_cost || 0)
-        const min = Number(row.min_stock || 10)
-        const crit = Math.max(1, Math.round(min * 0.3))
-
-        totalValueAtCost += q * c
-        totalUnitsAvailable += q
-        if (q > 0) {
-          productsWithStockSet.add(row.product_id)
-        }
-        if (q === 0) outOfStockCount++
-        else if (q <= crit) criticalStockCount++
-        else if (q <= min) lowStockCount++
-      }
+    for (const product of products || []) {
+      const stock = stockByProduct.get(product.id) || 0
+      const health = computeStockHealth(
+        stock,
+        Number(product.critical_stock_threshold ?? 5),
+        Number(product.min_stock_threshold ?? 10)
+      )
+      if (stock > 0) productsWithStock++
+      if (health === 'OUT_OF_STOCK') outOfStockCount++
+      else if (health === 'CRITICAL') criticalStockCount++
+      else if (health === 'LOW_STOCK') lowStockCount++
     }
-
-    const totalProducts = totalProductsCount || 0
-    const productsWithStock = productsWithStockSet.size
-    const productsWithNoStockAtAll = Math.max(0, totalProducts - productsWithStock)
-    const effectiveOutOfStock = outOfStockCount + productsWithNoStockAtAll
 
     return {
       totalValueAtCost,
@@ -418,7 +417,7 @@ export class InventoryRepository {
       productsWithStock,
       lowStockCount,
       criticalStockCount,
-      outOfStockCount: effectiveOutOfStock,
+      outOfStockCount,
       isCostRedacted: false,
     }
   }

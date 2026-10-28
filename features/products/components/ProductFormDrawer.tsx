@@ -832,7 +832,7 @@ export function ProductFormDrawer({
               <div className="info-banner-compact">
                 <AppIcon name="sales" size={16} />
                 <span>
-                  Super Más utiliza un esquema extensible de listas de precios (public.product_prices).
+                  Cada producto puede tener varias listas de precios.
                   Puedes definir precio normal, mayorista, distribuidor y listas personalizadas con cantidades mínimas y vigencia.
                 </span>
               </div>
@@ -1425,7 +1425,7 @@ export function ProductFormDrawer({
                 <AppIcon name="receipt" size={16} />
                 <span>
                   Configura el régimen de IVA aplicable según el Estatuto Tributario
-                  colombiano. La tarifa no está quemada a un solo valor.
+                  colombiano. Puedes elegir la tarifa que corresponde a cada producto.
                 </span>
               </div>
 

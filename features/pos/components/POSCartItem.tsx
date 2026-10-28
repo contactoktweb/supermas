@@ -82,6 +82,7 @@ export function POSCartItem({
       >
         {/* Quantity Controls */}
         <div
+          className="qty-input-group"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -106,6 +107,7 @@ export function POSCartItem({
             min="1"
             max={item.availableStock}
             value={item.quantity}
+            aria-label={`Cantidad de ${item.productName}`}
             onChange={(e) =>
               onUpdateQuantity(item.productId, parseInt(e.target.value) || 0)
             }

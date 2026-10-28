@@ -17,6 +17,7 @@ import {
   UpdateProductInput,
   TaxRateConfig,
   ProductMovementSummary,
+  WarehouseStockDetail,
   PriceTier,
   ProductPrice,
   PriceChangeRequest,
@@ -31,6 +32,7 @@ import {
   isInventoryAccountCode,
   selectPostingAccounts,
 } from '@/features/accounting/utils/posting-accounts'
+import { computeStockHealth } from '../utils/stock-health'
 
 function mapDbToDomain(row: any): Product {
   const categoryRel = row.categories || row.category || null
@@ -54,31 +56,31 @@ function mapDbToDomain(row: any): Product {
   const profitMarginPercent = basePrice > 0 ? (profitMarginAmount / basePrice) * 100 : 0
 
   // Existencias calculadas si existen stock_levels unidos
-  let totalStock = 0
-  const warehouseStock: any[] = []
-  if (Array.isArray(row.stock_levels)) {
-    row.stock_levels.forEach((sl: any) => {
-      const qty = Number(sl.quantity || 0)
-      totalStock += qty
-      warehouseStock.push({
-        locationId: sl.location_id,
-        quantity: qty,
-        averageCost: costPrice,
-      })
-    })
-  }
-
   const minStock = Number(row.min_stock_threshold ?? 10)
   const criticalStock = Number(row.critical_stock_threshold ?? 5)
 
-  const stockHealth =
-    totalStock <= 0
-      ? 'OUT_OF_STOCK'
-      : totalStock <= criticalStock
-      ? 'CRITICAL'
-      : totalStock <= minStock
-      ? 'LOW_STOCK'
-      : 'AVAILABLE'
+  const levels: any[] = Array.isArray(row.stock_levels) ? row.stock_levels : []
+  const totalStock = levels.reduce((acc, sl) => acc + Number(sl.quantity || 0), 0)
+  const warehouseStock: WarehouseStockDetail[] = levels.map((sl) => {
+    const qty = Number(sl.quantity || 0)
+    const locationMinStock = Number(sl.min_stock ?? minStock)
+    const averageCost = Number(sl.average_cost) > 0 ? Number(sl.average_cost) : costPrice
+    return {
+      locationId: sl.location_id,
+      locationName: sl.locations?.name || 'Bodega',
+      locationCode: sl.locations?.code || '',
+      locationType: sl.locations?.type,
+      quantity: qty,
+      minStock: locationMinStock,
+      criticalStock,
+      averageCost,
+      inventoryValueAtCost: qty * averageCost,
+      stockHealth: computeStockHealth(qty, criticalStock, locationMinStock),
+      percentageOfTotalStock: totalStock > 0 ? Number(((qty / totalStock) * 100).toFixed(1)) : 0,
+    }
+  })
+
+  const stockHealth = computeStockHealth(totalStock, criticalStock, minStock)
 
   const webAvailability =
     totalStock <= 0 ? 'OUT_OF_STOCK' : totalStock <= 5 ? 'LOW_STOCK' : 'AVAILABLE'
@@ -284,7 +286,7 @@ export class ProductRepository {
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
         accounting_accounts ( id, code, name ),
-        stock_levels ( quantity, location_id ),
+        stock_levels ( quantity, location_id, min_stock, average_cost, locations ( name, code, type ) ),
         product_prices ( * )
       `,
       { count: 'exact' }
@@ -389,7 +391,7 @@ export class ProductRepository {
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
         accounting_accounts ( id, code, name ),
-        stock_levels ( quantity, location_id ),
+        stock_levels ( quantity, location_id, min_stock, average_cost, locations ( name, code, type ) ),
         product_prices ( * )
       `)
       .eq('id', id)
@@ -411,7 +413,7 @@ export class ProductRepository {
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
         accounting_accounts ( id, code, name ),
-        stock_levels ( quantity, location_id ),
+        stock_levels ( quantity, location_id, min_stock, average_cost, locations ( name, code, type ) ),
         product_prices ( * )
       `)
       .eq('company_id', resolvedCompanyId)
@@ -435,7 +437,7 @@ export class ProductRepository {
         categories ( id, name, slug, code ),
         brands ( id, name, slug ),
         accounting_accounts ( id, code, name ),
-        stock_levels ( quantity, location_id ),
+        stock_levels ( quantity, location_id, min_stock, average_cost, locations ( name, code, type ) ),
         product_prices ( * )
       `)
       .eq('company_id', resolvedCompanyId)
@@ -864,12 +866,16 @@ export class ProductRepository {
       if (Array.isArray(p.stock_levels)) {
         stock = p.stock_levels.reduce((acc: number, sl: any) => acc + Number(sl.quantity || 0), 0)
       }
-      if (stock === 0) {
-        outOfStockProducts++
-      } else if (stock <= Number(p.min_stock_threshold || 10)) {
-        lowStockProducts++
-      }
       totalInventoryValueAtCost += stock * Number(p.cost_price || 0)
+      if (!p.is_active) return
+
+      const health = computeStockHealth(
+        stock,
+        Number(p.critical_stock_threshold ?? 5),
+        Number(p.min_stock_threshold ?? 10)
+      )
+      if (health === 'OUT_OF_STOCK') outOfStockProducts++
+      else if (health !== 'AVAILABLE') lowStockProducts++
     })
 
     return {
@@ -964,7 +970,7 @@ export class ProductRepository {
   async getProductMovements(productId: string): Promise<ProductMovementSummary[]> {
     const { data, error } = await supabaseClient
       .from('inventory_movements')
-      .select('id, created_at, movement_type, quantity, unit_cost, previous_balance, new_balance, document_number, locations(name), users(full_name)')
+      .select('id, created_at, movement_type, quantity_in, quantity_out, unit_cost, previous_stock, new_stock, document_reference, locations(name), users(full_name)')
       .eq('product_id', productId)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -978,12 +984,12 @@ export class ProductRepository {
       id: m.id,
       timestamp: m.created_at,
       type: m.movement_type,
-      quantity: Number(m.quantity ?? 0),
+      quantity: Number(m.quantity_in ?? 0) - Number(m.quantity_out ?? 0),
       unitCost: Number(m.unit_cost ?? 0),
-      previousBalance: Number(m.previous_balance ?? 0),
-      newBalance: Number(m.new_balance ?? 0),
-      documentRef: m.document_number || 'N/A',
-      locationName: m.locations?.name || 'Bodega General',
+      previousBalance: Number(m.previous_stock ?? 0),
+      newBalance: Number(m.new_stock ?? 0),
+      documentRef: m.document_reference || 'N/A',
+      locationName: m.locations?.name || 'Bodega',
       userName: m.users?.full_name || 'Sistema',
     }))
   }

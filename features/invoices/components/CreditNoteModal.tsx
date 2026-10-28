@@ -11,6 +11,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { ModalPortal } from '@/components/ui/ModalPortal'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { Invoice } from '../types'
 import { CREDIT_NOTE_CONCEPTS, DEBIT_NOTE_CONCEPTS } from '../services/dian/dian-concepts'
@@ -265,257 +266,259 @@ export function CreditNoteModal({ isOpen, invoice, onClose, onCreateNote }: Cred
   }
 
   return (
-    <div className="drawer-backdrop modal-center" onClick={onClose}>
-      <div
-        className="modal-card animate-scale-up"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 14, overflow: 'hidden' }}
-      >
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>Nota crédito / débito electrónica</h2>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              Factura {invoice.invoiceNumber} · {invoice.customerName} · {formatCOP(invoice.total)}
-            </span>
-          </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar" style={{ width: 32, height: 32 }}>
-            <AppIcon name="close" size={16} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {!accepted && (
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
-              La DIAN aún no ha aceptado esta factura (estado: {invoice.transmissionState}). Las notas solo se emiten sobre facturas aceptadas.
-            </div>
-          )}
-          {error && (
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 12 }}>{error}</div>
-          )}
-          {done && (
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: 12 }}>
-              {done} Puede cerrar esta ventana; la nota aparece en el listado con su estado DIAN.
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+    <ModalPortal>
+      <div className="drawer-backdrop modal-center" onClick={onClose}>
+        <div
+          className="modal-card animate-scale-up"
+          onClick={(e) => e.stopPropagation()}
+          style={{ width: '100%', maxWidth: 760, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: '#fff', borderRadius: 14, overflow: 'hidden' }}
+        >
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <span style={label}>Tipo de nota *</span>
-              <CustomSelect
-                value={noteType}
-                onChange={(v) => {
-                  setNoteType(v as NoteType)
-                  setConcept('1')
-                }}
-                options={[
-                  { value: 'CREDIT_NOTE', label: 'Nota crédito (disminuye la factura)' },
-                  { value: 'DEBIT_NOTE', label: 'Nota débito (aumenta la factura)' },
-                ]}
-              />
+              <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--navy)', margin: 0 }}>Nota crédito / débito electrónica</h2>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                Factura {invoice.invoiceNumber} · {invoice.customerName} · {formatCOP(invoice.total)}
+              </span>
             </div>
-            <div>
-              <span style={label}>Concepto de corrección DIAN *</span>
-              <CustomSelect
-                value={concept}
-                onChange={setConcept}
-                options={Object.entries(concepts).map(([code, text]) => ({ value: code, label: `${code}. ${text}` }))}
-              />
-            </div>
+            <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar" style={{ width: 32, height: 32 }}>
+              <AppIcon name="close" size={16} />
+            </button>
           </div>
 
-          <div>
-            <span style={label}>Motivo (queda en la nota y en la auditoría) *</span>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              maxLength={500}
-              placeholder="Ej.: El cliente devolvió 2 unidades en mal estado."
-              style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, resize: 'vertical' }}
-            />
-          </div>
+          <form onSubmit={handleSubmit} style={{ padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {!accepted && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
+                La DIAN aún no ha aceptado esta factura (estado: {invoice.transmissionState}). Las notas solo se emiten sobre facturas aceptadas.
+              </div>
+            )}
+            {error && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 12 }}>{error}</div>
+            )}
+            {done && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', color: '#065f46', fontSize: 12 }}>
+                {done} Puede cerrar esta ventana; la nota aparece en el listado con su estado DIAN.
+              </div>
+            )}
 
-          {usesReturn && (
-            <div>
-              <span style={label}>Devolución registrada *</span>
-              {returnsLoading ? (
-                <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Cargando devoluciones de la venta…</p>
-              ) : returnsError ? (
-                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 12 }}>
-                  {returnsError}
-                </div>
-              ) : !invoice.saleId || eligibleReturns.length === 0 ? (
-                <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
-                  Esta venta no tiene devoluciones completadas pendientes de nota crédito. Registre primero la devolución en{' '}
-                  <b>Devoluciones</b> o elija otro concepto de corrección.
-                </div>
-              ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div>
+                <span style={label}>Tipo de nota *</span>
                 <CustomSelect
-                  value={returnId}
-                  onChange={setReturnId}
+                  value={noteType}
+                  onChange={(v) => {
+                    setNoteType(v as NoteType)
+                    setConcept('1')
+                  }}
                   options={[
-                    { value: '', label: 'Seleccione la devolución…' },
-                    ...eligibleReturns.map((r) => ({
-                      value: r.id,
-                      label: `Devolución ${r.code} · ${new Date(r.date).toLocaleDateString('es-CO')} · ${formatCOP(r.total)}`,
-                    })),
+                    { value: 'CREDIT_NOTE', label: 'Nota crédito (disminuye la factura)' },
+                    { value: 'DEBIT_NOTE', label: 'Nota débito (aumenta la factura)' },
                   ]}
                 />
-              )}
-              <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
-                La nota toma las cantidades de la devolución (que ya movió el inventario) y reversa el costo de ventas.
-              </p>
+              </div>
+              <div>
+                <span style={label}>Concepto de corrección DIAN *</span>
+                <CustomSelect
+                  value={concept}
+                  onChange={setConcept}
+                  options={Object.entries(concepts).map(([code, text]) => ({ value: code, label: `${code}. ${text}` }))}
+                />
+              </div>
             </div>
-          )}
 
-          {noteType === 'CREDIT_NOTE' && isAnnulment && (
-            <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 12, color: '#334155' }}>
-              La nota acredita la factura completa ({rows.length} líneas). Si la mercancía regresa, regístrela también en Devoluciones.
-            </div>
-          )}
-
-          {noteType === 'CREDIT_NOTE' && !isAnnulment && !usesReturn && (
             <div>
-              <span style={label}>{creditMode === 'QUANTITY' ? 'Unidades a acreditar por producto' : 'Valor a acreditar por producto (antes de IVA)'}</span>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-                {rows.map((r) => (
-                  <div key={r.saleItemId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(0,1fr) 120px 110px', gap: 10, alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid #f1f5f9' }}>
-                    <input type="checkbox" checked={r.selected} onChange={(e) => updateRow(r.saleItemId, { selected: e.target.checked })} />
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</div>
-                      <div style={{ fontSize: 11, color: '#64748b' }}>
-                        Facturado: {r.maxQuantity} × {formatCOP(r.unitPrice)} · neto {formatCOP(r.netAmount)} ·{' '}
-                        {r.taxRatePercent > 0 ? `IVA ${r.taxRatePercent}%` : r.taxCode === 'EXCLUIDO' ? 'Excluido' : 'Exento'}
+              <span style={label}>Motivo (queda en la nota y en la auditoría) *</span>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                maxLength={500}
+                placeholder="Ej.: El cliente devolvió 2 unidades en mal estado."
+                style={{ width: '100%', padding: 10, borderRadius: 8, border: '1px solid #cbd5e1', fontSize: 13, resize: 'vertical' }}
+              />
+            </div>
+
+            {usesReturn && (
+              <div>
+                <span style={label}>Devolución registrada *</span>
+                {returnsLoading ? (
+                  <p style={{ margin: 0, fontSize: 12, color: '#64748b' }}>Cargando devoluciones de la venta…</p>
+                ) : returnsError ? (
+                  <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', fontSize: 12 }}>
+                    {returnsError}
+                  </div>
+                ) : !invoice.saleId || eligibleReturns.length === 0 ? (
+                  <div style={{ padding: '10px 14px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12 }}>
+                    Esta venta no tiene devoluciones completadas pendientes de nota crédito. Registre primero la devolución en{' '}
+                    <b>Devoluciones</b> o elija otro concepto de corrección.
+                  </div>
+                ) : (
+                  <CustomSelect
+                    value={returnId}
+                    onChange={setReturnId}
+                    options={[
+                      { value: '', label: 'Seleccione la devolución…' },
+                      ...eligibleReturns.map((r) => ({
+                        value: r.id,
+                        label: `Devolución ${r.code} · ${new Date(r.date).toLocaleDateString('es-CO')} · ${formatCOP(r.total)}`,
+                      })),
+                    ]}
+                  />
+                )}
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
+                  La nota toma las cantidades de la devolución (que ya movió el inventario) y reversa el costo de ventas.
+                </p>
+              </div>
+            )}
+
+            {noteType === 'CREDIT_NOTE' && isAnnulment && (
+              <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 12, color: '#334155' }}>
+                La nota acredita la factura completa ({rows.length} líneas). Si la mercancía regresa, regístrela también en Devoluciones.
+              </div>
+            )}
+
+            {noteType === 'CREDIT_NOTE' && !isAnnulment && !usesReturn && (
+              <div>
+                <span style={label}>{creditMode === 'QUANTITY' ? 'Unidades a acreditar por producto' : 'Valor a acreditar por producto (antes de IVA)'}</span>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                  {rows.map((r) => (
+                    <div key={r.saleItemId} style={{ display: 'grid', gridTemplateColumns: '24px minmax(0,1fr) 120px 110px', gap: 10, alignItems: 'center', padding: '8px 10px', borderBottom: '1px solid #f1f5f9' }}>
+                      <input type="checkbox" checked={r.selected} onChange={(e) => updateRow(r.saleItemId, { selected: e.target.checked })} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</div>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
+                          Facturado: {r.maxQuantity} × {formatCOP(r.unitPrice)} · neto {formatCOP(r.netAmount)} ·{' '}
+                          {r.taxRatePercent > 0 ? `IVA ${r.taxRatePercent}%` : r.taxCode === 'EXCLUIDO' ? 'Excluido' : 'Exento'}
+                        </div>
                       </div>
+                      {creditMode === 'QUANTITY' ? (
+                        <input
+                          type="number"
+                          min={0}
+                          max={r.maxQuantity}
+                          step="0.01"
+                          value={r.quantity || ''}
+                          placeholder="0"
+                          onChange={(e) => updateRow(r.saleItemId, { quantity: Number(e.target.value) || 0, selected: Number(e.target.value) > 0 })}
+                          style={input}
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          min={0}
+                          max={r.netAmount}
+                          step="0.01"
+                          value={r.value || ''}
+                          placeholder="0"
+                          onChange={(e) => updateRow(r.saleItemId, { value: Number(e.target.value) || 0, selected: Number(e.target.value) > 0 })}
+                          style={input}
+                        />
+                      )}
+                      <span style={{ fontSize: 11, color: '#64748b', textAlign: 'right' }}>{creditMode === 'QUANTITY' ? `máx. ${r.maxQuantity}` : `máx. ${formatCOP(r.netAmount)}`}</span>
                     </div>
-                    {creditMode === 'QUANTITY' ? (
+                  ))}
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
+                  El servidor verifica que, sumando notas anteriores, no se acredite más de lo facturado.
+                </p>
+              </div>
+            )}
+
+            {noteType === 'DEBIT_NOTE' && (
+              <div>
+                <span style={label}>Cargos adicionales</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {debitRows.map((r, idx) => (
+                    <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 80px 120px 150px 32px', gap: 8, alignItems: 'center' }}>
+                      <input
+                        value={r.description}
+                        maxLength={300}
+                        placeholder="Descripción (ej. intereses de mora)"
+                        onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, description: e.target.value } : x)))}
+                        style={input}
+                      />
                       <input
                         type="number"
-                        min={0}
-                        max={r.maxQuantity}
+                        min={0.01}
                         step="0.01"
                         value={r.quantity || ''}
-                        placeholder="0"
-                        onChange={(e) => updateRow(r.saleItemId, { quantity: Number(e.target.value) || 0, selected: Number(e.target.value) > 0 })}
+                        onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) || 0 } : x)))}
                         style={input}
+                        aria-label="Cantidad"
                       />
-                    ) : (
                       <input
                         type="number"
-                        min={0}
-                        max={r.netAmount}
+                        min={0.01}
                         step="0.01"
-                        value={r.value || ''}
-                        placeholder="0"
-                        onChange={(e) => updateRow(r.saleItemId, { value: Number(e.target.value) || 0, selected: Number(e.target.value) > 0 })}
+                        value={r.unitPrice || ''}
+                        placeholder="Valor unitario"
+                        onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, unitPrice: Number(e.target.value) || 0 } : x)))}
                         style={input}
+                        aria-label="Valor unitario antes de IVA"
                       />
-                    )}
-                    <span style={{ fontSize: 11, color: '#64748b', textAlign: 'right' }}>{creditMode === 'QUANTITY' ? `máx. ${r.maxQuantity}` : `máx. ${formatCOP(r.netAmount)}`}</span>
-                  </div>
-                ))}
+                      <CustomSelect
+                        size="sm"
+                        value={r.iva}
+                        onChange={(v) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, iva: v as DebitRow['iva'] } : x)))}
+                        options={[
+                          { value: 'IVA_19', label: 'IVA 19%' },
+                          { value: 'IVA_5', label: 'IVA 5%' },
+                          { value: 'EXENTO', label: 'Exento (0%)' },
+                          { value: 'EXCLUIDO', label: 'Excluido' },
+                        ]}
+                      />
+                      <button
+                        type="button"
+                        className="icon-button"
+                        disabled={debitRows.length === 1}
+                        onClick={() => setDebitRows((p) => p.filter((_, i) => i !== idx))}
+                        aria-label="Quitar línea"
+                        style={{ width: 32, height: 32 }}
+                      >
+                        <AppIcon name="close" size={14} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="outline-button"
+                    onClick={() => setDebitRows((p) => [...p, { description: '', quantity: 1, unitPrice: 0, iva: 'IVA_19' }])}
+                    style={{ alignSelf: 'flex-start', height: 30, fontSize: 11, padding: '0 10px' }}
+                  >
+                    + Agregar línea
+                  </button>
+                </div>
               </div>
-              <p style={{ margin: '6px 0 0', fontSize: 11, color: '#64748b' }}>
-                El servidor verifica que, sumando notas anteriores, no se acredite más de lo facturado.
-              </p>
-            </div>
-          )}
-
-          {noteType === 'DEBIT_NOTE' && (
-            <div>
-              <span style={label}>Cargos adicionales</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {debitRows.map((r, idx) => (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 80px 120px 150px 32px', gap: 8, alignItems: 'center' }}>
-                    <input
-                      value={r.description}
-                      maxLength={300}
-                      placeholder="Descripción (ej. intereses de mora)"
-                      onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, description: e.target.value } : x)))}
-                      style={input}
-                    />
-                    <input
-                      type="number"
-                      min={0.01}
-                      step="0.01"
-                      value={r.quantity || ''}
-                      onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, quantity: Number(e.target.value) || 0 } : x)))}
-                      style={input}
-                      aria-label="Cantidad"
-                    />
-                    <input
-                      type="number"
-                      min={0.01}
-                      step="0.01"
-                      value={r.unitPrice || ''}
-                      placeholder="Valor unitario"
-                      onChange={(e) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, unitPrice: Number(e.target.value) || 0 } : x)))}
-                      style={input}
-                      aria-label="Valor unitario antes de IVA"
-                    />
-                    <CustomSelect
-                      size="sm"
-                      value={r.iva}
-                      onChange={(v) => setDebitRows((p) => p.map((x, i) => (i === idx ? { ...x, iva: v as DebitRow['iva'] } : x)))}
-                      options={[
-                        { value: 'IVA_19', label: 'IVA 19%' },
-                        { value: 'IVA_5', label: 'IVA 5%' },
-                        { value: 'EXENTO', label: 'Exento (0%)' },
-                        { value: 'EXCLUIDO', label: 'Excluido' },
-                      ]}
-                    />
-                    <button
-                      type="button"
-                      className="icon-button"
-                      disabled={debitRows.length === 1}
-                      onClick={() => setDebitRows((p) => p.filter((_, i) => i !== idx))}
-                      aria-label="Quitar línea"
-                      style={{ width: 32, height: 32 }}
-                    >
-                      <AppIcon name="close" size={14} />
-                    </button>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  className="outline-button"
-                  onClick={() => setDebitRows((p) => [...p, { description: '', quantity: 1, unitPrice: 0, iva: 'IVA_19' }])}
-                  style={{ alignSelf: 'flex-start', height: 30, fontSize: 11, padding: '0 10px' }}
-                >
-                  + Agregar línea
-                </button>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: 12, color: '#334155' }}>
-              {preview
-                ? `Base ${formatCOP(preview.net)} · IVA ${formatCOP(preview.tax)}`
-                : 'El valor se calcula con las cantidades de la devolución elegida.'}
-            </span>
-            <strong style={{ fontSize: 16, color: noteType === 'CREDIT_NOTE' ? 'var(--red)' : 'var(--navy)' }}>
-              {preview ? `${noteType === 'CREDIT_NOTE' ? '−' : '+'}${formatCOP(preview.total)}` : '—'}
-            </strong>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button type="button" className="outline-button" onClick={onClose} style={{ height: 36 }}>
-              {done ? 'Cerrar' : 'Cancelar'}
-            </button>
-            {!done && (
-              <button
-                type="submit"
-                className="primary-button"
-                disabled={submitting || !accepted || (noteType === 'CREDIT_NOTE' && !linesLoaded) || (usesReturn && !returnId)}
-                style={{ height: 36 }}
-              >
-                {submitting ? 'Emitiendo…' : `Emitir ${noteType === 'CREDIT_NOTE' ? 'nota crédito' : 'nota débito'}`}
-              </button>
             )}
-          </div>
-        </form>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+              <span style={{ fontSize: 12, color: '#334155' }}>
+                {preview
+                  ? `Base ${formatCOP(preview.net)} · IVA ${formatCOP(preview.tax)}`
+                  : 'El valor se calcula con las cantidades de la devolución elegida.'}
+              </span>
+              <strong style={{ fontSize: 16, color: noteType === 'CREDIT_NOTE' ? 'var(--red)' : 'var(--navy)' }}>
+                {preview ? `${noteType === 'CREDIT_NOTE' ? '−' : '+'}${formatCOP(preview.total)}` : '—'}
+              </strong>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" className="outline-button" onClick={onClose} style={{ height: 36 }}>
+                {done ? 'Cerrar' : 'Cancelar'}
+              </button>
+              {!done && (
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={submitting || !accepted || (noteType === 'CREDIT_NOTE' && !linesLoaded) || (usesReturn && !returnId)}
+                  style={{ height: 36 }}
+                >
+                  {submitting ? 'Emitiendo…' : `Emitir ${noteType === 'CREDIT_NOTE' ? 'nota crédito' : 'nota débito'}`}
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </ModalPortal>
   )
 }

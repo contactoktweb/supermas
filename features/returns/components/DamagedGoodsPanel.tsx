@@ -25,7 +25,7 @@ const DESTINATION_FILTERS: { value: DestinationFilter; label: string }[] = [
   { value: 'PRODUCCION', label: DAMAGED_DESTINATION_LABELS.PRODUCCION },
 ]
 
-const formatMoney = (value: number) => `$${value.toLocaleString('es-CO')}`
+const formatMoney = (value: number) => `$${Math.round(value).toLocaleString('es-CO')}`
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('es-CO', { timeZone: 'America/Bogota', year: 'numeric', month: 'short', day: '2-digit' })
 

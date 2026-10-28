@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { POSCartItem as POSCartItemType, POSCustomer, POSTotals } from '../types'
 import { POSCartItem } from './POSCartItem'
+import { ivaLabel } from '../utils/iva-label'
 
 interface POSCartProps {
   cart?: POSCartItemType[]
@@ -211,7 +212,7 @@ export function POSCart({
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
-            <span>IVA (19% / Exento)</span>
+            <span>{ivaLabel(activeCart)}</span>
             <strong style={{ color: 'var(--navy)' }}>{formatCOP(taxTotal)}</strong>
           </div>
         </div>

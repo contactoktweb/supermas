@@ -6648,6 +6648,8 @@ html, body {
 .pos-header-user-text small{font-size:10px;color:#94a3b8;white-space:nowrap}
 @media (max-width:1280px){.pos-header-hide-lg{display:none}}
 @media (max-width:1024px){.pos-header-hide-md{display:none}.pos-header-logo{display:none}}
+/* Celular: el encabezado del POS pasa a dos filas para que la sede y el estado de caja no se monten */
+@media (max-width:640px){.pos-header{height:auto;flex-wrap:wrap;row-gap:8px;padding:8px 10px}.pos-header-group:first-child{flex:1 1 100%}.pos-header-location{flex:1 1 auto}.pos-header-location .custom-select-container{width:100%}.pos-header-cash{flex-shrink:0}.pos-header-group:last-child{flex:1 1 100%;justify-content:flex-end}.pos-header-clock{margin-right:auto}}
 @media (prefers-reduced-motion:reduce){.pos-header-button,.pos-header-icon,.pos-header-cash{transition:none}}
 .pos-shortcuts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 14px;margin:16px 0 0;padding:0;list-style:none;font-size:11.5px;color:#475569;text-align:left}
 .pos-shortcuts kbd{display:inline-grid;place-items:center;min-width:28px;height:22px;margin-right:6px;padding:0 6px;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:6px;background:#fff;color:var(--navy);font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace}

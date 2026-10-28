@@ -794,11 +794,11 @@ export function ProductFormDrawer({
               <div className="form-field">
                 <FileUpload
                   label="Fotografía / Imagen del producto"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  accept="image/png,image/jpeg,image/webp"
                   value={imageUrl}
                   onChange={(dataUrl) => setImageUrl(dataUrl)}
                   onRemove={() => setImageUrl('')}
-                  helperText="Selecciona o arrastra una imagen (PNG, JPG, WEBP, SVG máx. 5MB)"
+                  helperText="Selecciona o arrastra una foto (PNG, JPG o WEBP, máx. 5MB)"
                 />
               </div>
 

@@ -368,6 +368,7 @@ export function ProductTable({
                         {product.imageUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
+                            decoding="async"
                             src={product.imageUrl}
                             alt={product.name}
                             className="product-mini-img"

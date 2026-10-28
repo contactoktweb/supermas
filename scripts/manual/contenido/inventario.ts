@@ -251,8 +251,8 @@ export const INVENTARIO: Capitulo = {
         },
         {
           id: 'crear-bodega',
-          titulo: 'Crear una bodega o punto de venta',
-          objetivo: 'Registrar una nueva ubicación física.',
+          titulo: 'Crear una bodega de almacenamiento',
+          objetivo: 'Registrar una nueva ubicación física para guardar mercancía. Para un local que vende, vea "Abrir un punto de venta nuevo".',
           pasos: [
             {
               texto: 'En Bodegas pulse [[Nueva bodega]]. En **Información general** escriba nombre, código único, tipo, dirección, ciudad, estado, contacto y responsable.',
@@ -263,6 +263,54 @@ export const INVENTARIO: Capitulo = {
               captura: c('05-bodegas-13-nueva-permisos', 'Permisos de operación de la bodega.'),
             },
             { texto: 'Guarde. Luego, en **Usuarios**, asigne la bodega a las personas que trabajarán en ella.' },
+          ],
+        },
+        {
+          id: 'abrir-punto-venta',
+          titulo: 'Abrir un punto de venta nuevo',
+          objetivo: 'Dejar listo un local para vender: crearlo, darle su caja, asignar sus cajeros y surtirlo de mercancía.',
+          pasos: [
+            {
+              texto: 'En **Bodegas** pulse [[Nueva bodega]]. En **Tipo de ubicación** elija [[Punto de venta (POS)]].',
+              captura: c('40-puntos-01-tipo', 'Tipo de ubicación: punto de venta.'),
+            },
+            {
+              texto: 'Escriba el **nombre** (por ejemplo Flecha o Quinta), un **código único** (por ejemplo PV-FLECHA), la **dirección** y el responsable. Si el local aún no abre, deje el **Estado inicial** en Inactiva.',
+              captura: c('40-puntos-02-datos', 'Datos del punto de venta.'),
+            },
+            {
+              texto: 'En **Configuración y permisos** deje marcados inventario, ventas y transferencias. Las compras solo si el punto recibe mercancía directamente de proveedores. Pulse [[Guardar]].',
+              captura: c('40-puntos-03-permisos', 'Permisos del punto de venta.'),
+            },
+            {
+              texto: 'En **Ventas > Cajas** pulse [[Nueva caja]], elija el punto en **Bodega / sede** y escriba el código y el nombre de la caja. Un punto puede tener varias cajas.',
+              captura: c('20-cajas-04-nueva', 'Caja nueva asociada al punto de venta.'),
+            },
+            {
+              texto: 'En **Administración > Usuarios** edite a cada cajero y, en **Sedes / Puntos de Venta Asignados**, marque su punto. Así el POS de esa persona vende con el inventario y la caja de su sede.',
+              captura: c('40-puntos-04-usuario-sede', 'Sede asignada a un colaborador.'),
+            },
+            {
+              texto: 'Surta el punto: en **Inventario > Transferencias** cree una transferencia desde la bodega (por ejemplo Planta 2) hacia el punto, con los productos y cantidades. Al recibirla, las unidades quedan disponibles para vender.',
+              captura: c('40-puntos-05-transferencia', 'Transferencia de mercancía de la bodega al punto de venta.'),
+            },
+            {
+              texto: 'El primer día, el cajero abre su turno en **Cajas** con la base de efectivo y vende desde el **POS**. Arriba del POS se ve y se puede cambiar el punto con que trabaja.',
+              captura: c('40-puntos-07-pos-sede', 'Selector del punto de venta en el POS.'),
+            },
+          ],
+          resultado: 'El punto aparece en Bodegas como Punto de venta, con su caja, sus cajeros y su propio inventario. Sus ventas y su caja se reportan por separado.',
+        },
+        {
+          id: 'activar-punto-venta',
+          titulo: 'Activar un punto que estaba inactivo',
+          objetivo: 'Poner a operar un local que se creó antes de abrir (por ejemplo, uno en construcción).',
+          pasos: [
+            {
+              texto: 'En **Bodegas** busque el punto (se ve atenuado y con la marca Inactiva), abra el menú de tres puntos de su tarjeta y pulse [[Activar bodega]].',
+              captura: c('40-puntos-06-activar', 'Activar un punto de venta inactivo.'),
+            },
+            { texto: 'Luego créele su caja, asigne los cajeros y transfiérale mercancía, como en "Abrir un punto de venta nuevo".' },
           ],
         },
       ],

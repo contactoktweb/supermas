@@ -9,6 +9,7 @@
     "test:dian": "tsx features/invoices/tests/dian-config.test.ts && tsx features/invoices/tests/dian-cufe-qr.test.ts && tsx features/invoices/tests/dian-xml-firma.test.ts",
     "dian:certificado": "tsx scripts/dian-verificar-certificado.ts",
     "dian:produccion": "tsx scripts/dian-activar-produccion.ts",
+    "manual:pdf": "tsx scripts/manual/generar-manual.ts",
     "audit:dian": "tsx scripts/dian-audit-db.ts"
   },
   "dependencies": {

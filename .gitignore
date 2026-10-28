@@ -40,3 +40,6 @@ tsconfig.tsbuildinfo
 
 # OS
 .DS_Store
+# Manual de usuario (capturas con datos reales y PDF generado: solo local)
+docs/manual/
+scratch/

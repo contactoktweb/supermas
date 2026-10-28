@@ -1,4 +1,4 @@
-import type { Capitulo, EntradaGlosario, Modulo, ProblemaComun, Procedimiento, TemaPreguntas } from '../tipos'
+import type { Capitulo, EntradaGlosario, GrupoNomenclatura, Modulo, ProblemaComun, Procedimiento, TemaPreguntas } from '../tipos'
 import { ESTILOS } from './estilos'
 import { Figuras, aviso, escapar, formato, paso, volverAPreguntas } from './componentes'
 
@@ -112,6 +112,18 @@ function procedimiento(p: Procedimiento, codigo: string, figuras: Figuras): stri
 </article>`
 }
 
+function nomenclatura(moduloId: string, grupos: GrupoNomenclatura[]): string {
+  const tablas = grupos
+    .map(
+      (g) => `<h4 class="nomenclatura-grupo">${escapar(g.titulo)}</h4>
+  <table class="nomenclatura"><tbody>${g.terminos
+    .map((t) => `<tr><td>${formato(t.termino)}</td><td>${formato(t.significado)}</td></tr>`)
+    .join('')}</tbody></table>`
+    )
+    .join('')
+  return `<div class="nomenclatura-bloque" id="${moduloId}-nomenclatura"><h3 class="seccion">Columnas, abreviaturas y estados</h3>${tablas}</div>`
+}
+
 function modulo(c: Capitulo, m: Modulo, im: number, figuras: Figuras): string {
   const pantalla = m.pantalla.length
     ? `<h3 class="seccion">La pantalla</h3>${m.pantalla
@@ -126,13 +138,14 @@ function modulo(c: Capitulo, m: Modulo, im: number, figuras: Figuras): string {
     ? `<h3 class="seccion">Procedimientos</h3>${m.procedimientos.map((p, ip) => procedimiento(p, codigoProcedimiento(c, im, ip), figuras)).join('')}`
     : ''
   const consejos = m.consejos?.map((t) => aviso('consejo', t)).join('') ?? ''
+  const glosarioModulo = m.nomenclatura?.length ? nomenclatura(m.id, m.nomenclatura) : ''
   return `<section class="modulo" id="${m.id}">
   <header><div class="menu">${escapar(m.menu)}</div><h2>${c.numero}.${im + 1} ${escapar(m.titulo)}</h2></header>
   <div class="ficha">
     <div><h4>Para qué sirve</h4><p>${formato(m.proposito)}</p></div>
     <div><h4>Quién lo usa</h4><p>${formato(m.quienLoUsa)}</p></div>
   </div>
-  ${pantalla}${procs}${consejos}
+  ${pantalla}${glosarioModulo}${procs}${consejos}
 </section>`
 }
 

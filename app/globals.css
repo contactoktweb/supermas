@@ -985,12 +985,14 @@ textarea:disabled {
 }
 
 .donut-center-label {
-  font-size: 10px;
+  /* Cabe dentro del hueco del anillo: se parte en dos líneas en vez de pisar el trazo. */
+  max-width: 68px;
+  font-size: 9px;
   font-weight: 700;
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  line-height: 1.2;
+  letter-spacing: 0.4px;
+  line-height: 1.25;
 }
 
 .donut-center-value {

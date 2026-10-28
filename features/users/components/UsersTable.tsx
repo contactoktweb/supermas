@@ -150,9 +150,6 @@ export function UsersTable({
                         <span style={{ fontWeight: 600, color: 'var(--text)', display: 'block', fontSize: 14 }}>
                           {user.name}
                         </span>
-                        <span style={{ fontSize: 12, color: 'var(--muted, #64748b)' }}>
-                          ID: {user.id}
-                        </span>
                       </div>
                     </div>
                   </td>

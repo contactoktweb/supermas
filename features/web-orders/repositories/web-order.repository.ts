@@ -416,6 +416,24 @@ export class WebOrderRepository {
   }
 
   /**
+   * Bodega que despacha los pedidos web: la marcada como fuente de ecommerce o, si no hay, la primera activa.
+   */
+  async getDispatchLocation(
+    preferredCompanyId?: string
+  ): Promise<{ id: string; name: string; code: string } | null> {
+    const companyId = await this.resolveCompanyId(preferredCompanyId)
+    const { data: locations } = await getDbClient()
+      .from('locations')
+      .select('id, name, code, is_ecommerce_source')
+      .eq('company_id', companyId)
+      .eq('status', 'ACTIVE')
+      .order('created_at', { ascending: true })
+
+    const location = (locations || []).find((l: any) => l.is_ecommerce_source) || locations?.[0]
+    return location ? { id: location.id, name: location.name, code: location.code } : null
+  }
+
+  /**
    * Valida disponibilidad de inventario consultando stock_levels en todas las bodegas desde PostgreSQL.
    */
   async checkStockAvailability(
@@ -425,15 +443,7 @@ export class WebOrderRepository {
     const client = getDbClient()
     const companyId = await this.resolveCompanyId(preferredCompanyId)
 
-    // Obtener bodega de ecommerce
-    const { data: locations } = await client
-      .from('locations')
-      .select('id, name, code, is_ecommerce_source, status')
-      .eq('company_id', companyId)
-      .eq('status', 'ACTIVE')
-
-    const ecommerceLocation = (locations || []).find((l: any) => l.is_ecommerce_source) || locations?.[0]
-    const ecommerceLocId = ecommerceLocation?.id
+    const ecommerceLocId = (await this.getDispatchLocation(companyId))?.id
 
     const results: InventoryCheckResult[] = []
 

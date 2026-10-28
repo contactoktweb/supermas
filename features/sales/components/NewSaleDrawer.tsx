@@ -9,7 +9,7 @@ import { MAX_SALE_DISCOUNT_PERCENT } from '../schemas/sales.schema'
 import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { SelectField } from '@/components/ui/SelectField'
-import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
+import { displayLabel, ID_DOCUMENT_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface NewSaleDrawerProps {
   isOpen: boolean
@@ -121,7 +121,7 @@ export function NewSaleDrawer({
         .order('first_name', { ascending: true }),
       supabaseClient
         .from('products')
-        .select('id, name, sku, barcode, public_sale_price, wholesale_price, primary_image_url, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt, iva_treatment')
+        .select('id, name, sku, barcode, public_sale_price, wholesale_price, unit_of_measure, is_active, tax_rate_percent, is_tax_exempt, iva_treatment')
         .eq('is_active', true)
         .order('name', { ascending: true }),
     ])
@@ -148,7 +148,7 @@ export function NewSaleDrawer({
               name: p.name,
               sku: p.sku,
               barcode: p.barcode || '',
-              imageUrl: p.primary_image_url || '',
+              imageUrl: '',
               unitOfMeasure: p.unit_of_measure || 'UND',
               status: 'ACTIVE',
               normalPrice: Number(p.public_sale_price ?? 0),
@@ -663,6 +663,14 @@ export function NewSaleDrawer({
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>
                   Clientes Disponibles
                 </span>
+                {loadingCatalog && allCustomers.length === 0 && (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>Cargando clientes...</span>
+                )}
+                {!loadingCatalog && filteredCustomers.length === 0 && (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    No hay clientes que coincidan con la búsqueda.
+                  </span>
+                )}
                 {filteredCustomers.map((cust) => {
                   const isSelected = selectedCustomerId === cust.id
                   return (
@@ -1178,7 +1186,7 @@ export function NewSaleDrawer({
                 </div>
                 <div>
                   <span style={{ color: 'var(--muted)' }}>Método de Pago: </span>
-                  <strong>{paymentMethod}</strong>
+                  <strong>{displayLabel(PAYMENT_METHOD_LABELS, paymentMethod)}</strong>
                 </div>
                 <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--line)' }}>
                   <span style={{ color: 'var(--muted)' }}>Total Venta: </span>

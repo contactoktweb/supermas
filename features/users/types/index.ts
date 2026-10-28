@@ -65,6 +65,7 @@ export interface UserStats {
   inactiveUsersCount: number
   recentlyConnectedCount: number
   usersByRole: Record<string, number>
+  rolesCount: number
 }
 
 export interface UserFilters {

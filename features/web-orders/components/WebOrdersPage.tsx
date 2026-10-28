@@ -28,6 +28,7 @@ export function WebOrdersPage() {
   const {
     orders,
     stats,
+    dispatchLocation,
     loading,
     statsLoading,
     actionLoading,
@@ -127,6 +128,7 @@ export function WebOrdersPage() {
 
       {/* Header con Semántica H1 y Acciones */}
       <WebOrderHeader
+        dispatchLocation={dispatchLocation}
         onRefresh={refresh}
         onExport={exportToCsv}
         canExport={permissions.canExport}

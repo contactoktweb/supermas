@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
+import { useCompanyLocation } from '@/hooks/useCompanyLocation'
 import {
   Customer,
   CustomerType,
@@ -54,6 +55,7 @@ export function CustomerFormDrawer({
   const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'commercial'>('basic')
 
   const [mounted, setMounted] = useState(false)
+  const companyLocation = useCompanyLocation()
   // Form States
   const [customerType, setCustomerType] = useState<CustomerType>('NATURAL')
   const [documentType, setDocumentType] = useState<CustomerDocumentType>('CC')
@@ -67,8 +69,8 @@ export function CustomerFormDrawer({
   const [mobile, setMobile] = useState('')
   const [email, setEmail] = useState('')
   const [address, setAddress] = useState('')
-  const [city, setCity] = useState('Cali')
-  const [department, setDepartment] = useState('Valle del Cauca')
+  const [city, setCity] = useState('')
+  const [department, setDepartment] = useState('')
   const [country, setCountry] = useState('Colombia')
   const [category, setCategory] = useState<CustomerCategory>('FREQUENT')
   const [priceList, setPriceList] = useState<CustomerPriceList>('DEFAULT')
@@ -96,8 +98,8 @@ export function CustomerFormDrawer({
       setMobile(customerToEdit.mobile || '')
       setEmail(customerToEdit.email || '')
       setAddress(customerToEdit.address || '')
-      setCity(customerToEdit.city || 'Cali')
-      setDepartment(customerToEdit.department || 'Valle del Cauca')
+      setCity(customerToEdit.city || '')
+      setDepartment(customerToEdit.department || '')
       setCountry(customerToEdit.country || 'Colombia')
       setCategory(customerToEdit.category || 'FREQUENT')
       setPriceList(customerToEdit.priceList || 'DEFAULT')
@@ -118,8 +120,8 @@ export function CustomerFormDrawer({
       setMobile('')
       setEmail('')
       setAddress('')
-      setCity('Cali')
-      setDepartment('Valle del Cauca')
+      setCity(companyLocation.city)
+      setDepartment(companyLocation.department)
       setCountry('Colombia')
       setCategory('FREQUENT')
       setPriceList('DEFAULT')
@@ -130,7 +132,7 @@ export function CustomerFormDrawer({
     }
     setActiveTab('basic')
     setError(null)
-  }, [customerToEdit, isOpen])
+  }, [customerToEdit, isOpen, companyLocation])
 
   if (!isOpen || !mounted) return null
 

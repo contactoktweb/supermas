@@ -470,7 +470,8 @@ export function GlobalSearch({
           style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
-            left: 0,
+            // Alineado a la derecha del buscador para que no se salga de la pantalla en 1280 px.
+            right: 0,
             width: 'min(92vw, 480px)',
             maxHeight: '440px',
             overflowY: 'auto',

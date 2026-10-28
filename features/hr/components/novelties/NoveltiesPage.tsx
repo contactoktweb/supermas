@@ -17,7 +17,7 @@ import { hrAbsenceService } from '../../services/hr-absence.service'
 import { NOVELTY_STATUS_LABELS, NOVELTY_TYPE_LABELS, UNPAID_NOVELTY_TYPES, toSelectOptions } from '../../constants'
 import { addDaysIso, firstDayOfMonthIso, todayIso } from '../../utils/hr-format'
 import type { NoveltyFilters } from '../../types'
-import { DatePicker } from '@/components/ui/DatePicker'
+import { DateRangeFilter } from '@/components/ui/DateRangeFilter'
 
 const SEARCH_DEBOUNCE_MS = 300
 
@@ -91,30 +91,21 @@ export function NoveltiesPage() {
       </section>
 
       <div className="toolbar inventory-toolbar page-enter" role="search" aria-label="Filtros de novedades">
-        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(200px,2fr)_repeat(4,minmax(0,1fr))]">
+        <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(200px,2fr)_repeat(2,minmax(0,1fr))_minmax(220px,1.3fr)]">
           <div className="search-box inventory-search-box w-full!">
             <AppIcon name="search" size={15} color="#94a3b8" />
             <input type="search" placeholder="Empleado o descripción" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Buscar novedad" />
           </div>
           <CustomSelect size="sm" value={filters.status} onChange={(v) => update({ status: v as NoveltyFilters['status'] })} options={STATUS_OPTIONS} />
           <CustomSelect size="sm" value={filters.noveltyType} onChange={(v) => update({ noveltyType: v as NoveltyFilters['noveltyType'] })} options={TYPE_OPTIONS} />
-          <label className="search-box w-full! text-[11px]">
-            <span className="whitespace-nowrap">Desde</span>
-            <DatePicker
-              value={filters.from}
-              aria-label="Desde"
-              onChange={(value) => update({ from: value })}
-            />
-          </label>
-          <label className="search-box w-full! text-[11px]">
-            <span className="whitespace-nowrap">Hasta</span>
-            <DatePicker
-              value={filters.to}
-              min={filters.from}
-              aria-label="Hasta"
-              onChange={(value) => update({ to: value })}
-            />
-          </label>
+          <DateRangeFilter
+            startDate={filters.from}
+            endDate={filters.to}
+            onChange={({ startDate, endDate }) => update({ from: startDate ?? '', to: endDate ?? '' })}
+            placeholder="Rango de fechas"
+            align="right"
+            size="sm"
+          />
         </div>
       </div>
 

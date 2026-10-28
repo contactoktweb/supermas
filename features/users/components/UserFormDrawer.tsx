@@ -457,7 +457,7 @@ export function UserFormDrawer({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                Rol del Colaborador (7 Roles Oficiales) *
+                Rol del colaborador *
               </label>
               {!canAssignRoles && (
                 <span style={{ fontSize: 11, color: '#64748b' }}>Solo un administrador puede cambiarlo</span>

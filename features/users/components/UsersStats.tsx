@@ -65,11 +65,11 @@ export function UsersStats({
           <AppIcon name="lock" size={20} />
         </div>
         <div className="stat-text">
-          <span className="stat-title">Roles predefinidos</span>
+          <span className="stat-title">Roles del sistema</span>
           <strong style={{ fontSize: 18, color: 'var(--text)', display: 'block', marginTop: 2 }}>
-            6 roles base
+            {stats.rolesCount} roles
           </strong>
-          <span className="stat-note">Matriz inmutable por código</span>
+          <span className="stat-note">Permisos definidos por rol</span>
         </div>
       </div>
     </section>

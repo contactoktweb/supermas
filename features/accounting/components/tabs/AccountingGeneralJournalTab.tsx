@@ -3,6 +3,7 @@
 import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry } from '../../types'
+import { formatIsoDateEs } from '../../utils/report-format'
 
 interface AccountingGeneralJournalTabProps {
   entries: AccountingEntry[]
@@ -10,18 +11,6 @@ interface AccountingGeneralJournalTabProps {
 }
 
 export function AccountingGeneralJournalTab({ entries, onExport }: AccountingGeneralJournalTabProps) {
-  const formatDate = (isoStr: string) => {
-    try {
-      const d = new Date(isoStr)
-      return d.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-      })
-    } catch {
-      return isoStr
-    }
-  }
 
   const grandTotalDebit = entries.reduce((acc, e) => acc + e.totalDebit, 0)
   const grandTotalCredit = entries.reduce((acc, e) => acc + e.totalCredit, 0)
@@ -86,7 +75,7 @@ export function AccountingGeneralJournalTab({ entries, onExport }: AccountingGen
                 <span className="font-mono font-bold text-blue-900 bg-blue-100/70 px-2 py-0.5 rounded">
                   {entry.entryNumber}
                 </span>
-                <span className="text-gray-600 font-medium">{formatDate(entry.date)}</span>
+                <span className="text-gray-600 font-medium">{formatIsoDateEs(entry.date)}</span>
                 <span className="text-gray-400">|</span>
                 <span className="text-gray-800 font-semibold">{entry.description}</span>
               </div>

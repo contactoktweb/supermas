@@ -176,7 +176,10 @@ export class UserRepository {
    * Consulta las estadísticas globales de usuarios.
    */
   async getStats(): Promise<UserStats> {
-    const users = await this.getUsers()
+    const [users, { count: rolesCount }] = await Promise.all([
+      this.getUsers(),
+      getDbClient().from('roles').select('id', { count: 'exact', head: true }),
+    ])
 
     const totalUsersCount = users.length
     const activeUsersCount = users.filter((u) => u.status === 'ACTIVE').length
@@ -200,6 +203,7 @@ export class UserRepository {
       inactiveUsersCount,
       recentlyConnectedCount,
       usersByRole,
+      rolesCount: rolesCount ?? 0,
     }
   }
 

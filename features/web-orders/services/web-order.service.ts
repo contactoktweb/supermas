@@ -122,6 +122,13 @@ export class WebOrderService {
   }
 
   /**
+   * Bodega configurada para despachar los pedidos web.
+   */
+  async getDispatchLocation(): Promise<{ id: string; name: string; code: string } | null> {
+    return webOrderRepository.getDispatchLocation()
+  }
+
+  /**
    * Valida la disponibilidad de los productos consultando stock_levels en todas las bodegas.
    */
   async checkAvailability(

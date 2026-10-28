@@ -6,6 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { AccountingEntry, AccountingVoucherType } from '../../types'
 import { VoucherTypeBadge } from '../VoucherTypeBadge'
 import { displayLabel, SOURCE_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
+import { formatIsoDateEs } from '../../utils/report-format'
 
 interface AccountingEntryDetailDrawerProps {
   entry: AccountingEntry | null
@@ -62,19 +63,6 @@ export function AccountingEntryDetailDrawer({
     }
   }
 
-  const formatDate = (isoStr: string) => {
-    try {
-      return new Date(isoStr).toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } catch {
-      return isoStr
-    }
-  }
 
   return createPortal(
     <div className="drawer-backdrop" onClick={onClose} aria-modal="true" role="dialog">
@@ -153,7 +141,7 @@ export function AccountingEntryDetailDrawer({
             </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Fecha Contable</span>
-              <strong className="text-gray-800 font-medium">{formatDate(entry.date)}</strong>
+              <strong className="text-gray-800 font-medium">{formatIsoDateEs(entry.date)}</strong>
             </div>
             <div>
               <span className="text-gray-400 block text-[11px]">Fecha de Vencimiento</span>

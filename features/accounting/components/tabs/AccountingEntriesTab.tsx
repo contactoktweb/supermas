@@ -6,6 +6,8 @@ import { AccountingEntry, AccountingFilters, AccountingVoucherType } from '../..
 import { VoucherTypeBadge } from '../VoucherTypeBadge'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
+import { displayLabel, SOURCE_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
+import { formatIsoDateEs } from '../../utils/report-format'
 
 interface AccountingEntriesTabProps {
   entries: AccountingEntry[]
@@ -45,8 +47,11 @@ export function AccountingEntriesTab({
         return <span className="badge badge-red">Pago Proveedor</span>
       case 'REVERSAL':
         return <span className="badge badge-purple">Reversión</span>
+      case 'CREDIT_NOTE':
+      case 'DEBIT_NOTE':
+        return <span className="badge badge-blue">{displayLabel(SOURCE_DOCUMENT_LABELS, sourceType)}</span>
       default:
-        return <span className="badge badge-gray">Manual</span>
+        return <span className="badge badge-gray">{displayLabel(SOURCE_DOCUMENT_LABELS, sourceType)}</span>
     }
   }
 
@@ -89,20 +94,6 @@ export function AccountingEntriesTab({
     onFilterChange({ dateFrom: `${value}-01`, dateTo: `${value}-${lastDay}`, page: 1 })
   }
 
-  const formatDate = (isoStr: string) => {
-    try {
-      const d = new Date(isoStr)
-      return d.toLocaleDateString('es-CO', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } catch {
-      return isoStr
-    }
-  }
 
   return (
     <div className="space-y-4 page-enter">
@@ -242,7 +233,7 @@ export function AccountingEntriesTab({
                     </td>
                     <td>
                       <div className="flex flex-col">
-                        <span className="text-xs text-gray-700">{formatDate(entry.date)}</span>
+                        <span className="text-xs text-gray-700">{formatIsoDateEs(entry.date)}</span>
                         {entry.dueDate && (
                           <span className="text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200 w-fit mt-0.5 font-medium" title="Fecha límite de vencimiento">
                             Vence: {entry.dueDate}

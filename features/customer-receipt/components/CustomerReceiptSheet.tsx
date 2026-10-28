@@ -60,7 +60,7 @@ export function CustomerReceiptSheet({ data }: Props) {
 
       {saleNotice && <p className="cr-notice cr-notice-strong" role="status">{saleNotice}</p>}
       {!fiscal && (
-        <p className="cr-notice">Comprobante interno de venta. Este documento no es una factura electrónica de venta.</p>
+        <p className="cr-notice">Tiquete de venta. Si necesita factura electrónica a su nombre, solicítela en caja.</p>
       )}
       {fiscal && fiscal.environment !== 'PRODUCCION' && (
         <p className="cr-notice cr-notice-strong">Documento de prueba — ambiente de habilitación DIAN. Sin validez fiscal.</p>

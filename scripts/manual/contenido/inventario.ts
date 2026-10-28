@@ -197,6 +197,10 @@ export const INVENTARIO: Capitulo = {
           texto: 'Dentro de una bodega hay pestañas: Resumen, Inventario, Movimientos, Ventas, Compras, Clientes, Proveedores y Transferencias. Arriba están [[Editar]], [[Transferencia]] y [[Ver Kardex]].',
           captura: c('05-bodegas-03-detalle', 'Detalle de una bodega.'),
         },
+        {
+          texto: 'Más abajo, en **Actividad reciente en Kardex**, están los últimos movimientos de la bodega: producto, tipo de movimiento, documento, usuario, unidades y fecha. El encabezado muestra la fecha del último movimiento.',
+          captura: c('05-bodegas-04-actividad', 'Actividad reciente de la bodega.'),
+        },
       ],
       procedimientos: [
         {

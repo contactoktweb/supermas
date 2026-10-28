@@ -38,6 +38,14 @@ export interface Modulo {
   pantalla: { texto: string; captura: Captura; elementos?: string[] }[]
   procedimientos: Procedimiento[]
   consejos?: string[]
+  /** Significado de columnas, abreviaturas y estados que se ven en las tablas del módulo. */
+  nomenclatura?: GrupoNomenclatura[]
+}
+
+export interface GrupoNomenclatura {
+  /** Título del grupo, por ejemplo "Columnas de la tabla" o "Estados del stock". */
+  titulo: string
+  terminos: { termino: string; significado: string }[]
 }
 
 export interface Capitulo {

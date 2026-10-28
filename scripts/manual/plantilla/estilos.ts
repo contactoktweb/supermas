@@ -102,6 +102,11 @@ table { width: 100%; border-collapse: collapse; margin: 3mm 0; font-size: 9pt; }
 th { background: #001b5c; color: #fff; text-align: left; padding: 2mm 3mm; }
 td { border-bottom: 1px solid #e2e8f0; padding: 2mm 3mm; vertical-align: top; }
 tr { break-inside: avoid; }
+/* Columnas, abreviaturas y estados de cada módulo */
+h4.nomenclatura-grupo { font-size: 9.5pt; color: #001b5c; margin: 4mm 0 1.5mm; break-after: avoid; }
+table.nomenclatura { margin: 0 0 3mm; font-size: 8.8pt; border: 1px solid #e2e8f0; border-radius: 4px; }
+table.nomenclatura td { padding: 1.6mm 3mm; }
+table.nomenclatura td:first-child { width: 30%; font-weight: 700; color: #10213f; background: #f6f8fc; }
 .problema { border: 1px solid #e2e8f0; border-radius: 6px; padding: 3.5mm 4mm; margin-bottom: 4mm; break-inside: avoid; }
 .problema h3 { margin: 0 0 2mm; font-size: 11pt; }
 .problema p { margin: 1mm 0; }

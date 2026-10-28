@@ -41,6 +41,7 @@ function validar(): string[] {
     registrar(c.id)
     for (const m of c.modulos) {
       registrar(m.id)
+      if (m.nomenclatura?.length) anclas.add(`${m.id}-nomenclatura`)
       m.pantalla.forEach((v) => capturas.push(v.captura.archivo))
       for (const p of m.procedimientos) {
         registrar(p.id)

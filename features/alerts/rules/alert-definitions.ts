@@ -416,7 +416,8 @@ export class AlertDefinitions {
         credits += Number(l.credit) || 0
       })
 
-      const diff = Math.abs(debits - credits)
+      // Se compara en centavos: sumar valores con decimales deja residuos de punto flotante.
+      const diff = Math.abs(Math.round(debits * 100) - Math.round(credits * 100)) / 100
       if (diff > 0) {
         candidates.push({
           ruleId: unbalancedRule.id,

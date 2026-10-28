@@ -4,15 +4,9 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { APP_MODULES } from './modules'
+import { searchRecords, type SearchResultItem } from './global-search-sources'
 
 // Mock database sources
-import productsData from '@/lib/supabase/mock-db/products.json'
-import customersData from '@/lib/supabase/mock-db/customers.json'
-import suppliersData from '@/lib/supabase/mock-db/suppliers.json'
-import invoicesData from '@/lib/supabase/mock-db/invoices.json'
-import remissionsData from '@/lib/supabase/mock-db/remissions.json'
-import locationsData from '@/lib/supabase/mock-db/locations.json'
-import alertsData from '@/lib/supabase/mock-db/alerts.json'
 
 interface GlobalSearchProps {
   onNavigate?: (view: string) => void
@@ -20,19 +14,6 @@ interface GlobalSearchProps {
   placeholder?: string
 }
 
-interface SearchResultItem {
-  id: string
-  category: 'modules' | 'products' | 'customers' | 'suppliers' | 'invoices' | 'remissions' | 'locations' | 'alerts'
-  categoryLabel: string
-  title: string
-  subtitle: string
-  badge?: string
-  badgeTone?: 'blue' | 'green' | 'amber' | 'red' | 'gray'
-  iconName: LightIconName
-  destinationView: string
-  destinationRoute: string
-  meta?: string
-}
 
 const MODULE_KEYWORDS: Record<string, string> = {
   'Dashboard': 'inicio resumen métricas indicadores ventas compras',
@@ -72,6 +53,8 @@ const MODULE_KEYWORDS: Record<string, string> = {
   'Estado de cuenta': 'extracto cliente balance historial cartera movimientos',
   'Configuración': 'ajustes empresa datos generales consecutivo parámetros',
 }
+
+const SEARCH_DEBOUNCE_MS = 250
 
 function normalize(text: string): string {
   return (text || '')
@@ -120,14 +103,14 @@ export function GlobalSearch({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Search logic across all entities
-  const results = useMemo(() => {
+  // Módulos del menú (búsqueda local, inmediata)
+  const moduleResults = useMemo(() => {
     const q = normalize(query)
     if (!q) return []
 
     const list: SearchResultItem[] = []
 
-    // 1. Search in Modules
+    // Módulos cuyo nombre o palabras clave coinciden
     APP_MODULES.forEach(([name, icon, route]) => {
       const keywords = MODULE_KEYWORDS[name] || ''
       const matchScore =
@@ -149,178 +132,34 @@ export function GlobalSearch({
       }
     })
 
-    // 2. Search in Products (max 4)
-    let prodCount = 0
-    for (const p of productsData) {
-      if (prodCount >= 4) break
-      const nameMatch = normalize(p.name).includes(q)
-      const skuMatch = normalize(p.sku).includes(q)
-      const barMatch = normalize(p.barcode || '').includes(q)
-      const catMatch = normalize(p.category || '').includes(q)
-
-      if (nameMatch || skuMatch || barMatch || catMatch) {
-        const normalPrice = p.prices?.find((pr: any) => pr.code === 'NORMAL')?.price || p.prices?.[0]?.price
-        const formattedPrice = normalPrice ? `$${Number(normalPrice).toLocaleString('es-CO')}` : ''
-        list.push({
-          id: `prod-${p.id}`,
-          category: 'products',
-          categoryLabel: 'Productos',
-          title: p.name,
-          subtitle: `SKU: ${p.sku} • ${p.category}`,
-          badge: formattedPrice || p.unitOfMeasure,
-          badgeTone: 'green',
-          iconName: 'products',
-          destinationView: 'Inventario',
-          destinationRoute: `/inventario?q=${encodeURIComponent(p.sku)}`,
-        })
-        prodCount++
-      }
-    }
-
-    // 3. Search in Customers (max 3)
-    let custCount = 0
-    for (const c of customersData) {
-      if (custCount >= 3) break
-      const name = c.displayName || c.businessName || ''
-      const doc = c.documentNumber || ''
-      const city = c.city || ''
-      if (normalize(name).includes(q) || normalize(doc).includes(q) || normalize(city).includes(q)) {
-        list.push({
-          id: `cust-${c.id}`,
-          category: 'customers',
-          categoryLabel: 'Clientes',
-          title: name,
-          subtitle: `${c.documentType || 'DOC'}: ${doc} • ${city}`,
-          badge: c.category === 'WHOLESALE' ? 'Mayorista' : 'Cliente',
-          badgeTone: 'blue',
-          iconName: 'customers',
-          destinationView: 'Clientes',
-          destinationRoute: `/clientes?q=${encodeURIComponent(doc || name)}`,
-        })
-        custCount++
-      }
-    }
-
-    // 4. Search in Suppliers (max 3)
-    let supCount = 0
-    for (const s of suppliersData) {
-      if (supCount >= 3) break
-      const name = s.supplierName || s.businessName || ''
-      const doc = s.documentNumber || s.nit || ''
-      const contact = s.contactName || ''
-      if (normalize(name).includes(q) || normalize(doc).includes(q) || normalize(contact).includes(q)) {
-        list.push({
-          id: `sup-${s.id}`,
-          category: 'suppliers',
-          categoryLabel: 'Proveedores',
-          title: name,
-          subtitle: `NIT: ${doc} • Contacto: ${contact}`,
-          badge: s.city || 'Proveedor',
-          badgeTone: 'amber',
-          iconName: 'suppliers',
-          destinationView: 'Proveedores',
-          destinationRoute: `/proveedores?q=${encodeURIComponent(doc || name)}`,
-        })
-        supCount++
-      }
-    }
-
-    // 5. Search in Invoices (max 3)
-    let invCount = 0
-    for (const inv of invoicesData) {
-      if (invCount >= 3) break
-      const num = inv.invoiceNumber || inv.internalNumber || ''
-      const cust = inv.customerName || ''
-      if (normalize(num).includes(q) || normalize(cust).includes(q)) {
-        list.push({
-          id: `inv-${inv.id}`,
-          category: 'invoices',
-          categoryLabel: 'Facturación',
-          title: `Factura ${inv.invoiceNumber}`,
-          subtitle: `Cliente: ${cust} • Total: $${Number(inv.total).toLocaleString('es-CO')}`,
-          badge: inv.status === 'PAID' ? 'Pagada' : 'Pendiente',
-          badgeTone: inv.status === 'PAID' ? 'green' : 'amber',
-          iconName: 'invoices',
-          destinationView: 'Facturación',
-          destinationRoute: `/facturacion?q=${encodeURIComponent(inv.invoiceNumber)}`,
-        })
-        invCount++
-      }
-    }
-
-    // 6. Search in Remissions (max 3)
-    let remCount = 0
-    for (const rem of remissionsData) {
-      if (remCount >= 3) break
-      const num = rem.remissionNumber || ''
-      const cust = rem.customerName || ''
-      if (normalize(num).includes(q) || normalize(cust).includes(q)) {
-        list.push({
-          id: `rem-${rem.id}`,
-          category: 'remissions',
-          categoryLabel: 'Remisiones',
-          title: `Remisión ${num}`,
-          subtitle: `Cliente: ${cust} • Despacho logístico`,
-          badge: rem.status === 'DELIVERED' ? 'Entregada' : 'En Ruta',
-          badgeTone: 'blue',
-          iconName: 'remisiones',
-          destinationView: 'Remisiones',
-          destinationRoute: `/remisiones?q=${encodeURIComponent(num)}`,
-        })
-        remCount++
-      }
-    }
-
-    // 7. Search in Warehouses / Locations (max 3)
-    let locCount = 0
-    for (const loc of locationsData) {
-      if (locCount >= 3) break
-      const name = loc.name || ''
-      const code = loc.code || ''
-      const city = loc.city || ''
-      if (normalize(name).includes(q) || normalize(code).includes(q) || normalize(city).includes(q)) {
-        list.push({
-          id: `loc-${loc.id}`,
-          category: 'locations',
-          categoryLabel: 'Bodegas',
-          title: name,
-          subtitle: `Código: ${code} • Ciudad: ${city}`,
-          badge: loc.type === 'WAREHOUSE' ? 'Almacén' : 'Punto de Venta',
-          badgeTone: 'gray',
-          iconName: 'warehouse',
-          destinationView: 'Bodegas',
-          destinationRoute: `/bodegas/${loc.id}`,
-        })
-        locCount++
-      }
-    }
-
-    // 8. Search in Alerts (max 3)
-    let altCount = 0
-    for (const alt of alertsData) {
-      if (altCount >= 3) break
-      const title = alt.title || ''
-      const code = alt.code || ''
-      const desc = alt.description || ''
-      if (normalize(title).includes(q) || normalize(code).includes(q) || normalize(desc).includes(q)) {
-        list.push({
-          id: `alt-${alt.id}`,
-          category: 'alerts',
-          categoryLabel: 'Alertas',
-          title: title,
-          subtitle: `${code} • ${desc.slice(0, 50)}...`,
-          badge: alt.priority,
-          badgeTone: alt.priority === 'CRITICA' || alt.priority === 'ALTA' ? 'red' : 'amber',
-          iconName: 'alerts',
-          destinationView: 'Alertas',
-          destinationRoute: '/alertas',
-        })
-        altCount++
-      }
-    }
-
     return list
   }, [query])
+
+  // Registros de la base (productos, clientes, proveedores, facturas, remisiones y bodegas)
+  const [recordResults, setRecordResults] = useState<SearchResultItem[]>([])
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setRecordResults([])
+      return
+    }
+    let active = true
+    const timer = setTimeout(() => {
+      searchRecords(q)
+        .then((found) => {
+          if (active) setRecordResults(found)
+        })
+        .catch(() => {
+          if (active) setRecordResults([])
+        })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [query])
+
+  const results = useMemo(() => [...moduleResults, ...recordResults], [moduleResults, recordResults])
 
   // Quick shortcuts when query is empty
   const quickModules = useMemo(() => {
@@ -470,7 +309,8 @@ export function GlobalSearch({
           style={{
             position: 'absolute',
             top: 'calc(100% + 8px)',
-            left: 0,
+            // Alineado a la derecha del buscador para que no se salga de la pantalla en 1280 px.
+            right: 0,
             width: 'min(92vw, 480px)',
             maxHeight: '440px',
             overflowY: 'auto',

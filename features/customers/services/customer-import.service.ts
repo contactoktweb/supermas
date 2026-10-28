@@ -71,8 +71,8 @@ export class CustomerImportService {
       '3101234567',
       'compras@eltriunfo.com',
       'Calle 45 # 23-10',
-      'Medellín',
-      'Antioquia',
+      'Cúcuta',
+      'Norte de Santander',
       '10000000',
       '30',
       'Cliente mayorista con facturación quincenal',
@@ -90,8 +90,8 @@ export class CustomerImportService {
       '3159876543',
       'maria.gomez@gmail.com',
       'Carrera 70 # 12-40',
-      'Medellín',
-      'Antioquia',
+      'Cúcuta',
+      'Norte de Santander',
       '500000',
       '15',
       'Cliente frecuente mostrador',
@@ -187,11 +187,11 @@ export class CustomerImportService {
 
     const city = normalized['ciudad'] || normalized['municipio']
       ? String(normalized['ciudad'] || normalized['municipio']).trim()
-      : 'Medellín'
+      : undefined
 
     const department = normalized['departamento'] || normalized['depto']
       ? String(normalized['departamento'] || normalized['depto']).trim()
-      : 'Antioquia'
+      : undefined
 
     const creditLimit = parseCleanNumber(normalized['cupocredito'] || normalized['cupo'] || 0)
     const creditDays = parseCleanNumber(normalized['diascredito'] || normalized['dias'] || 0)
@@ -345,8 +345,8 @@ export class CustomerImportService {
           phone: row.phone || null,
           email: row.email || null,
           address: row.address || null,
-          city: row.city || 'Medellín',
-          department: row.department || 'Antioquia',
+          city: row.city || null,
+          department: row.department || null,
           credit_limit: Number(row.creditLimit || 0),
           credit_days: Number(row.creditDays || 0),
           current_balance: 0,

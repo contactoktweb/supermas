@@ -10,6 +10,7 @@ import {
   MOVEMENT_TYPE_LABELS,
   SOURCE_DOCUMENT_LABELS,
 } from '@/lib/labels/display-labels'
+import { useEscapeKey } from '@/hooks/useEscapeKey'
 
 interface KardexDetailDrawerProps {
   movement: InventoryMovement | null
@@ -35,6 +36,8 @@ export function KardexDetailDrawer({
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !movement || !mounted) return null
 

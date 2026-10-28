@@ -212,7 +212,8 @@ export const VENTAS: Capitulo = {
           titulo: 'Consultar el estado y reenviar una factura',
           objetivo: 'Saber si la DIAN aceptó o rechazó un documento y volver a enviarlo si hizo falta.',
           pasos: [
-            { texto: 'En la lista haga clic en la factura. En el panel de detalle, la sección **Datos fiscales DIAN** muestra el estado, la resolución, el CUFE, el QR y la respuesta de la DIAN.' },
+            { texto: 'En la lista haga clic en la factura. Se abre el panel de detalle con el cliente, los productos, los totales y los botones de acción.', captura: c('21-facturacion-04-detalle', 'Panel de detalle de una factura.') },
+            { texto: 'Baje hasta la sección **Datos fiscales DIAN**: muestra el estado, la resolución, el CUFE, el QR y la respuesta de la DIAN.', captura: c('21-facturacion-05-detalle-dian', 'Datos fiscales DIAN de la factura.') },
             { texto: 'Si dice **Enviada**, pulse [[Consultar estado en la DIAN]] para traer el resultado.' },
             { texto: 'Si dice **Rechazada** o hubo un error de comunicación, lea el **Detalle** del error, corrija lo que indique y pulse [[Reintentar envío a la DIAN]].' },
             { texto: 'Con [[Ver XML]] descarga el archivo firmado y con [[Representación gráfica]] abre la factura para imprimirla o guardarla en PDF.' },
@@ -233,7 +234,7 @@ export const VENTAS: Capitulo = {
           objetivo: 'Disminuir o anular el valor de una factura aceptada (devolución, descuento, error de precio).',
           pasos: [
             { texto: 'Abra el detalle de la factura aceptada y pulse [[Nota crédito / débito]].' },
-            { texto: 'En **Tipo de nota** deje **Nota crédito (disminuye la factura)**.' },
+            { texto: 'En **Tipo de nota** deje **Nota crédito (disminuye la factura)**.', captura: c('21-facturacion-06-nota-credito', 'Ventana para emitir una nota crédito.') },
             {
               texto: 'Elija el **concepto DIAN**: 1 Devolución parcial, 2 Anulación de la factura, 3 Rebaja o descuento, 4 Ajuste de precio, 5 Descuento por pronto pago, 6 Descuento por volumen.',
               nota: 'Para el concepto 1 (devolución) primero debe registrar la devolución de la mercancía en el módulo Devoluciones; la nota toma esas cantidades.',
@@ -250,7 +251,7 @@ export const VENTAS: Capitulo = {
           pasos: [
             { texto: 'Abra el detalle de la factura aceptada, pulse [[Nota crédito / débito]] y elija **Nota débito (aumenta la factura)**.' },
             { texto: 'Elija el concepto: 1 Intereses, 2 Gastos por cobrar, 3 Cambio del valor u 4 Otros. Escriba el motivo.' },
-            { texto: 'En **Cargos adicionales** escriba la descripción, cantidad, valor unitario e IVA de cada cargo. Con [[+ Agregar línea]] suma más cargos.' },
+            { texto: 'En **Cargos adicionales** escriba la descripción, cantidad, valor unitario e IVA de cada cargo. Con [[+ Agregar línea]] suma más cargos.', captura: c('21-facturacion-07-nota-debito', 'Ventana para emitir una nota débito.') },
             { texto: 'Pulse [[Emitir nota débito]].' },
           ],
         },

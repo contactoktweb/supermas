@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { LocationWithMetrics } from '../../types'
 import { WarehousePermissions } from '../../hooks/useWarehousePermissions'
+import { formatDateTimeCO } from '@/lib/utils'
 
 interface WarehouseDetailHeaderProps {
   warehouse: LocationWithMetrics
@@ -108,7 +109,7 @@ export function WarehouseDetailHeader({
               )}
               <span>
                 <AppIcon name="clock" size={13} />
-                Última actividad: {warehouse.lastActivityAt}
+                Última actividad: {formatDateTimeCO(warehouse.lastActivityAt, 'Sin actividad reciente')}
               </span>
             </div>
           </div>

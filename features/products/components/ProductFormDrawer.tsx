@@ -652,7 +652,7 @@ export function ProductFormDrawer({
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ej. Arroz Diana Premium Extra 5kg"
+                    placeholder="Ej. Vaselina pura 80 g"
                     required
                   />
                 </div>
@@ -832,7 +832,7 @@ export function ProductFormDrawer({
               <div className="info-banner-compact">
                 <AppIcon name="sales" size={16} />
                 <span>
-                  Super Más utiliza un esquema extensible de listas de precios (public.product_prices).
+                  Cada producto puede tener varias listas de precios.
                   Puedes definir precio normal, mayorista, distribuidor y listas personalizadas con cantidades mínimas y vigencia.
                 </span>
               </div>
@@ -1425,7 +1425,7 @@ export function ProductFormDrawer({
                 <AppIcon name="receipt" size={16} />
                 <span>
                   Configura el régimen de IVA aplicable según el Estatuto Tributario
-                  colombiano. La tarifa no está quemada a un solo valor.
+                  colombiano. Puedes elegir la tarifa que corresponde a cada producto.
                 </span>
               </div>
 
@@ -1487,10 +1487,10 @@ export function ProductFormDrawer({
                   </strong>
                 </div>
                 <div className="tax-summary-row">
-                  <span>Impacto en precio de $20,000:</span>
+                  <span>Impacto en un precio de $ 20.000 (IVA incluido):</span>
                   <span>
-                    IVA recaudado: $
-                    {((20000 * vatRatePercent) / (100 + vatRatePercent)).toFixed(0)}
+                    IVA recaudado: ${' '}
+                    {Math.round((20000 * vatRatePercent) / (100 + vatRatePercent)).toLocaleString('es-CO')}
                   </span>
                 </div>
               </div>

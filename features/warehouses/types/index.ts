@@ -105,16 +105,18 @@ export interface WarehouseInventoryItem {
   updatedAt: string
 }
 
+/** Valores de inventory_movement_type, más INVENTARIO_INICIAL para la carga inicial de un producto. */
 export type MovementType =
-  | 'COMPRA'
-  | 'VENTA'
-  | 'ENTRADA'
-  | 'SALIDA'
-  | 'TRANSFERENCIA_ENTRADA'
-  | 'TRANSFERENCIA_SALIDA'
-  | 'AJUSTE_POSITIVO'
-  | 'AJUSTE_NEGATIVO'
-  | 'DEVOLUCION'
+  | 'PURCHASE_ENTRY'
+  | 'SALE_OUT'
+  | 'TRANSFER_IN'
+  | 'TRANSFER_OUT'
+  | 'POSITIVE_ADJUSTMENT'
+  | 'NEGATIVE_ADJUSTMENT'
+  | 'CUSTOMER_RETURN'
+  | 'SUPPLIER_RETURN'
+  | 'DAMAGED_RETURN'
+  | 'INVENTARIO_INICIAL'
 
 export interface WarehouseMovement {
   id: string

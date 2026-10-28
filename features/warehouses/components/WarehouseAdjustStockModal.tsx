@@ -9,7 +9,10 @@ import { extractErrorMessage } from '@/lib/utils'
 interface WarehouseAdjustStockModalProps {
   locationId: string
   locationName: string
+  /** Producto preseleccionado (desde el lápiz de una fila). */
   item: WarehouseInventoryItem | null
+  /** Inventario de la bodega; permite elegir el producto cuando no viene preseleccionado. */
+  inventory?: WarehouseInventoryItem[]
   isOpen: boolean
   onClose: () => void
   onSubmit: (data: StockAdjustmentFormData) => Promise<void>
@@ -18,7 +21,8 @@ interface WarehouseAdjustStockModalProps {
 export function WarehouseAdjustStockModal({
   locationId,
   locationName,
-  item,
+  item: initialItem,
+  inventory = [],
   isOpen,
   onClose,
   onSubmit,
@@ -43,10 +47,26 @@ export function WarehouseAdjustStockModal({
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedProductId, setSelectedProductId] = useState('')
 
-  if (!isOpen || !item || !mounted) return null
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedProductId(initialItem?.productId ?? '')
+      setErrors({})
+    }
+  }, [isOpen, initialItem])
 
-  const currentStock = item.currentStock
+  if (!isOpen || !mounted) return null
+
+  const item = inventory.find((i) => i.productId === selectedProductId) ?? initialItem
+  const canChooseProduct = !initialItem && inventory.length > 0
+  const productOptions = inventory.map((i) => ({
+    value: i.productId,
+    label: `${i.productName} (${i.sku})`,
+    description: `Existencia: ${i.currentStock} uds`,
+  }))
+
+  const currentStock = item?.currentStock ?? 0
   const qtyNumber = Number(formData.quantity) || 0
   const resultingStock =
     formData.type === 'AJUSTE_POSITIVO'
@@ -56,6 +76,10 @@ export function WarehouseAdjustStockModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSubmitting) return
+    if (!item) {
+      setErrors({ productId: 'Seleccione el producto que va a ajustar' })
+      return
+    }
 
     try {
       const payload: StockAdjustmentFormData = {
@@ -131,40 +155,63 @@ export function WarehouseAdjustStockModal({
           </button>
         </div>
 
-        <div className="adjust-product-summary">
-          <div>
-            <strong>{item.productName}</strong>
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              <span className="code-badge">{item.sku}</span>
-              {item.barcode && <span className="time-muted">{item.barcode}</span>}
-              <span className="time-muted">{item.category}</span>
+        {canChooseProduct && (
+          <div className="input-field-block" style={{ marginBottom: 16 }}>
+            <label htmlFor="adjust-product">
+              Producto a ajustar <span className="req">*</span>
+            </label>
+            <CustomSelect
+              id="adjust-product"
+              value={selectedProductId}
+              onChange={(val) => {
+                setSelectedProductId(val)
+                setErrors((prev) => ({ ...prev, productId: '' }))
+              }}
+              options={productOptions}
+              placeholder="Buscar producto por nombre o SKU"
+              searchable
+              error={errors.productId}
+            />
+            {errors.productId && <span className="field-error">{errors.productId}</span>}
+          </div>
+        )}
+
+        {item && (
+          <div className="adjust-product-summary">
+            <div>
+              <strong>{item.productName}</strong>
+              <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                <span className="code-badge">{item.sku}</span>
+                {item.barcode && <span className="time-muted">{item.barcode}</span>}
+                <span className="time-muted">{item.category}</span>
+              </div>
+            </div>
+            <div className="adjust-stock-preview">
+              <div>
+                <span>Existencia actual</span>
+                <b>{currentStock} uds</b>
+              </div>
+              <div className="arrow-sep" aria-hidden="true">
+                <AppIcon name="arrowRight" size={18} />
+              </div>
+              <div>
+                <span>Saldo resultante</span>
+                <b
+                  style={{
+                    color:
+                      resultingStock < 0
+                        ? 'var(--red)'
+                        : resultingStock < item.minStock
+                        ? 'var(--amber)'
+                        : 'var(--green)',
+                  }}
+                >
+                  {resultingStock} uds
+                </b>
+              </div>
             </div>
           </div>
-          <div className="adjust-stock-preview">
-            <div>
-              <span>Existencia actual</span>
-              <b>{currentStock} uds</b>
-            </div>
-            <div className="arrow-sep" aria-hidden="true">
-              <AppIcon name="arrowRight" size={18} />
-            </div>
-            <div>
-              <span>Saldo resultante</span>
-              <b
-                style={{
-                  color:
-                    resultingStock < 0
-                      ? 'var(--red)'
-                      : resultingStock < item.minStock
-                      ? 'var(--amber)'
-                      : 'var(--green)',
-                }}
-              >
-                {resultingStock} uds
-              </b>
-            </div>
-          </div>
-        </div>
+        )}
 
         <form onSubmit={handleSubmit}>
           {errors.general && (

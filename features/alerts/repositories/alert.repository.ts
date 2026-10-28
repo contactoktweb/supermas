@@ -171,7 +171,8 @@ export class AlertRepository {
     }
 
     if (criteria?.onlyUnread) {
-      query = query.or('status.eq.NEW,read_at.is.null')
+      // Sin leer = nueva o sin fecha de lectura, siempre que siga abierta.
+      query = query.or('status.eq.NEW,read_at.is.null').not('status', 'in', '(RESOLVED,CLOSED)')
     }
 
     if (criteria?.assignedUserId && criteria.assignedUserId !== 'ALL') {

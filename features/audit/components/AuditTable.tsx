@@ -128,7 +128,8 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
             {paginatedLogs.map((log) => {
               const level = getLevelBadge(log.level)
               const res = getResultBadge(log.result)
-              const hasDiff = Array.isArray(log.changes) && log.changes.length > 0
+              const changedFields = log.changes?.length ?? 0
+              const hasDiff = changedFields > 0 || Boolean(log.hasChanges)
 
               return (
                 <tr
@@ -211,7 +212,8 @@ export function AuditTable({ logs, onSelectLog, isLoading }: AuditTableProps) {
                           gap: 3,
                         }}
                       >
-                        <AppIcon name="edit" size={11} /> {log.changes?.length} campo(s) modificado(s)
+                        <AppIcon name="edit" size={11} />{' '}
+                        {changedFields > 0 ? `${changedFields} campo(s) modificado(s)` : 'Con campos modificados'}
                       </span>
                     )}
                   </td>

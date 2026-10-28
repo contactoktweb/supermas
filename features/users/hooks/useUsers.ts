@@ -21,6 +21,7 @@ const DEFAULT_STATS: UserStats = {
     SELLER: 0,
     CASHIER: 0,
   },
+  rolesCount: 0,
 }
 
 export function useUsers(userRole: UserRole = 'SUPERADMIN') {

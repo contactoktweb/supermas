@@ -8,7 +8,6 @@ export interface NavItem {
   icon: LightIconName
   path: string
   permission?: string
-  badge?: string | number
 }
 
 export interface NavSection {
@@ -113,7 +112,7 @@ export const NAV_SECTIONS: NavSection[] = [
     title: 'GESTIÓN Y CONTROL',
     items: [
       { id: 'reportes', label: 'Reportes', icon: 'reports', path: '/reportes', permission: 'reports.read' },
-      { id: 'alertas', label: 'Alertas', icon: 'alerts', path: '/alertas', permission: 'audit.read', badge: 3 },
+      { id: 'alertas', label: 'Alertas', icon: 'alerts', path: '/alertas', permission: 'audit.read' },
       { id: 'auditoria', label: 'Auditoría', icon: 'audit', path: '/auditoria', permission: 'audit.read' },
     ],
   },

@@ -81,6 +81,7 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isDeactivateOpen, setIsDeactivateOpen] = useState(false)
   const [adjustItem, setAdjustItem] = useState<WarehouseInventoryItem | null>(null)
+  const [isAdjustOpen, setIsAdjustOpen] = useState(false)
   const [isTransferOpen, setIsTransferOpen] = useState(false)
   const [toasts, setToasts] = useState<ToastMessage[]>([])
 
@@ -389,7 +390,10 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
             inventory={inventory}
             permissions={permissions}
             canReadCost={permissions.canReadCost}
-            onAdjustStock={(item) => setAdjustItem(item)}
+            onAdjustStock={(item) => {
+              setAdjustItem(item)
+              setIsAdjustOpen(true)
+            }}
             onTransferStock={(item) => setIsTransferOpen(true)}
             onViewKardex={(productId) => setActiveTab('MOVIMIENTOS')}
           />
@@ -460,8 +464,12 @@ export function WarehouseDetailPage({ warehouseId, onBack }: WarehouseDetailPage
         locationId={warehouse.id}
         locationName={warehouse.name}
         item={adjustItem}
-        isOpen={Boolean(adjustItem)}
-        onClose={() => setAdjustItem(null)}
+        inventory={inventory}
+        isOpen={isAdjustOpen}
+        onClose={() => {
+          setIsAdjustOpen(false)
+          setAdjustItem(null)
+        }}
         onSubmit={handleAdjustStock}
       />
 

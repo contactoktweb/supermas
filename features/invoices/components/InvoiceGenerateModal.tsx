@@ -156,14 +156,9 @@ export function InvoiceGenerateModal({
               <AppIcon name="invoices" size={20} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h2 id="invoice-modal-title" className="text-base font-bold text-slate-900 m-0">
-                  Facturar Venta Comercial
-                </h2>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 font-mono">
-                  DIAN Anexo 1.9
-                </span>
-              </div>
+              <h2 id="invoice-modal-title" className="text-base font-bold text-slate-900 m-0">
+                Facturar venta
+              </h2>
               <p className="text-xs text-slate-500 m-0 mt-0.5">
                 Genera el documento fiscal oficial sobre una venta registrada y transmite a la DIAN.
               </p>

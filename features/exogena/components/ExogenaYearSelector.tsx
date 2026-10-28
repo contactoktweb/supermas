@@ -105,15 +105,15 @@ export function ExogenaYearSelector({
 
           <div style={{ borderLeft: '1px solid var(--line)', paddingLeft: 20 }}>
             <span style={{ display: 'block', color: 'var(--muted)', fontSize: 10 }}>Fecha Límite DIAN</span>
-            <strong style={{ color: 'var(--red)', fontSize: 12 }}>
-              {normativa.dueDate}
+            <strong style={{ color: normativa.dueDate ? 'var(--red)' : 'var(--muted)', fontSize: 12 }}>
+              {normativa.dueDate || 'Por definir en Configuración'}
             </strong>
           </div>
 
           <div style={{ borderLeft: '1px solid var(--line)', paddingLeft: 20 }}>
             <span style={{ display: 'block', color: 'var(--muted)', fontSize: 10 }}>Responsable</span>
-            <strong style={{ color: 'var(--navy)', fontSize: 12 }}>
-              {normativa.responsibleName}
+            <strong style={{ color: normativa.responsibleName ? 'var(--navy)' : 'var(--muted)', fontSize: 12 }}>
+              {normativa.responsibleName || 'Sin asignar'}
             </strong>
           </div>
         </div>

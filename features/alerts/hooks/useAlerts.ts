@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { alertService, DEFAULT_ALERT_USER } from '../services/alert.service'
 import {
   AlertItem,
@@ -63,6 +63,21 @@ export function useAlerts(userContext: UserAlertContext = DEFAULT_ALERT_USER) {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // Al abrir el módulo se evalúan las reglas para que las alertas reflejen el estado actual
+  // (stock bajo, facturas vencidas, etc.); las alertas ya activas no se duplican.
+  const hasEvaluatedRef = useRef(false)
+  useEffect(() => {
+    const canEvaluate = userContext.role === 'SUPERADMIN' || userContext.permissions.includes('alerts.manage')
+    if (hasEvaluatedRef.current || !canEvaluate) return
+    hasEvaluatedRef.current = true
+    alertService
+      .scanAndEvaluate(userContext)
+      .then((res) => {
+        if (res.newAlertsCreated > 0) loadData()
+      })
+      .catch((err) => console.error('Error al evaluar las reglas de alerta:', err))
+  }, [userContext, loadData])
 
   const setFilter = useCallback((key: keyof AlertFilterCriteria, value: any) => {
     setFilters((prev) => ({

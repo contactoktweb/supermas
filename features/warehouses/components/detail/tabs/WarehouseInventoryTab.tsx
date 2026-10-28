@@ -6,20 +6,14 @@ import { WarehouseInventoryItem, LocationWithMetrics } from '../../../types'
 import { WarehousePermissions } from '../../../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 import { SelectField } from '@/components/ui/SelectField'
-
-/** Fecha del último movimiento en hora Colombia; si no es una fecha (sin movimientos), se muestra el texto tal cual. */
-function formatLastMovement(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' })
-}
+import { formatDateTimeCO } from '@/lib/utils'
 
 interface WarehouseInventoryTabProps {
   warehouse: LocationWithMetrics
   inventory: WarehouseInventoryItem[]
   permissions: WarehousePermissions
   canReadCost: boolean
-  onAdjustStock: (item: WarehouseInventoryItem) => void
+  onAdjustStock: (item: WarehouseInventoryItem | null) => void
   onTransferStock: (item: WarehouseInventoryItem) => void
   onViewKardex: (productId: string) => void
 }
@@ -101,9 +95,8 @@ export function WarehouseInventoryTab({
           <button
             type="button"
             className="primary-button compact export"
-            onClick={() => {
-              if (inventory.length > 0) onAdjustStock(inventory[0])
-            }}
+            onClick={() => onAdjustStock(null)}
+            disabled={inventory.length === 0}
             title="Realizar ajuste de existencias mediante Kardex"
           >
             <AppIcon name="plus" size={15} />
@@ -198,7 +191,7 @@ export function WarehouseInventoryTab({
                       </strong>
                     </td>
                     <td>
-                      <span className="time-muted">{formatLastMovement(item.lastMovementAt)}</span>
+                      <span className="time-muted">{formatDateTimeCO(item.lastMovementAt, item.lastMovementAt)}</span>
                     </td>
                     <td>
                       <div className="row-actions" style={{ opacity: 1 }}>

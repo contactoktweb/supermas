@@ -6,6 +6,7 @@ import { LocationWithMetrics, WarehouseSortOption } from '../types'
 import { WarehousePermissions } from '../hooks/useWarehousePermissions'
 import { WarehouseEmptyState } from './WarehouseEmptyState'
 import { SelectField } from '@/components/ui/SelectField'
+import { formatDateTimeCO } from '@/lib/utils'
 
 interface WarehouseTableProps {
   warehouses: LocationWithMetrics[]
@@ -221,7 +222,7 @@ export function WarehouseTable({
                   </span>
                 </td>
                 <td>
-                  <span className="time-muted">{wh.lastActivityAt}</span>
+                  <span className="time-muted">{formatDateTimeCO(wh.lastActivityAt, 'Sin actividad reciente')}</span>
                 </td>
                 <td onClick={(e) => e.stopPropagation()}>
                   <div className="table-actions-cell">

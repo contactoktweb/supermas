@@ -104,6 +104,7 @@ textarea:disabled {
 
 /* Explicit resets for inputs inside specialized components */
 .search-box input,
+.custom-select-search input,
 .filter-search input,
 .products-search-box input,
 .inventory-search-box input,
@@ -123,6 +124,7 @@ textarea:disabled {
 }
 
 .search-box input:focus,
+.custom-select-search input:focus,
 .filter-search input:focus,
 .products-search-box input:focus,
 .inventory-search-box input:focus,
@@ -521,7 +523,7 @@ textarea:disabled {
    ========================================================================= */
 
 /* Hero Header */
-.dashboard-hero-header{position:relative;z-index:40;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;padding:24px 28px;border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:24px;box-shadow:0 6px 18px rgba(16,33,63,0.04)}
+.dashboard-hero-header{position:relative;z-index:20;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px;padding:24px 28px;border:1px solid var(--line);border-radius:14px;background:#fff;margin-bottom:24px;box-shadow:0 6px 18px rgba(16,33,63,0.04)}
 .hero-left-section{display:flex;align-items:center;gap:18px}
 .hero-salutation{display:flex;align-items:center;gap:16px}
 .hero-salutation-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:#fe110c12;flex-shrink:0}
@@ -2633,6 +2635,25 @@ textarea:disabled {
   gap: 2px;
   font-size: 11px;
 }
+.movement-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--navy);
+  background: #e9eef8;
+  white-space: nowrap;
+}
+.movement-badge.in {
+  color: #059669;
+  background: #ecfdf5;
+}
+.movement-badge.out {
+  color: #b91c1c;
+  background: #fef2f2;
+}
 
 .web-public-preview-card {
   padding: 16px;
@@ -4715,7 +4736,7 @@ textarea:disabled {
 
 /* Physical Count Modal */
 .physical-count-modal {
-  width: min(100%, 740px);
+  width: min(100%, 960px);
 }
 
 .physical-count-body {
@@ -4748,13 +4769,14 @@ textarea:disabled {
 
 .count-items-table-wrap {
   max-height: 320px;
-  overflow-y: auto;
+  overflow: auto;
   border: 1px solid var(--line);
   border-radius: 10px;
 }
 
 .count-comparison-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
 }
 
@@ -4773,6 +4795,18 @@ textarea:disabled {
   padding: 10px 12px;
   border-top: 1px solid var(--line);
   font-size: 11px;
+}
+
+.count-comparison-table td > small {
+  display: block;
+  margin-top: 2px;
+}
+
+.count-session-badge,
+.count-discrepancy-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .row-with-discrepancy {
@@ -5933,6 +5967,7 @@ html, body {
   }
   .global-search-dropdown {
     width: min(94vw, 360px) !important;
+    right: auto !important;
     left: -40px !important;
   }
 }

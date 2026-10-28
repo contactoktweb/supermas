@@ -7,10 +7,25 @@ import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import {
   Product,
   ProductMovementSummary,
+  ProductStockHealth,
   UserPermissionContext,
 } from '../types'
 import { productService } from '../services/product.service'
-import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
+import { displayLabel, ivaRateLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
+
+const STOCK_HEALTH_DISPLAY: Record<ProductStockHealth, { className: string; label: string }> = {
+  AVAILABLE: { className: 'disponible', label: 'Óptimo' },
+  LOW_STOCK: { className: 'stock-bajo', label: 'Stock bajo' },
+  CRITICAL: { className: 'critico', label: 'Crítico' },
+  OUT_OF_STOCK: { className: 'agotado', label: 'Agotado' },
+}
+
+const MOVEMENT_DATE_FORMAT = new Intl.DateTimeFormat('es-CO', {
+  timeZone: 'America/Bogota',
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+})
 
 interface ProductDetailDrawerProps {
   product: Product | null
@@ -204,7 +219,7 @@ export function ProductDetailDrawer({
               </div>
 
               <div>
-                <span>Costo Promedio (RBAC)</span>
+                <span>Costo promedio</span>
                 {isCostRedacted ? (
                   <span className="redacted-pill">••••••••</span>
                 ) : (
@@ -216,7 +231,7 @@ export function ProductDetailDrawer({
               </div>
 
               <div>
-                <span>Margen de Utilidad (RBAC)</span>
+                <span>Margen de utilidad</span>
                 {isCostRedacted ? (
                   <span className="redacted-pill">••••</span>
                 ) : (
@@ -256,7 +271,9 @@ export function ProductDetailDrawer({
                 <p>
                   <span>Régimen de IVA:</span>
                   <b>
-                    {product.taxProfile} ({product.vatRatePercent}%)
+                    {product.taxProfile === 'CUSTOM'
+                      ? `IVA ${product.vatRatePercent}%`
+                      : ivaRateLabel(product.taxProfile)}
                   </b>
                 </p>
                 <p>
@@ -335,14 +352,8 @@ export function ProductDetailDrawer({
                     </div>
                     <div className="distribution-subtext-row">
                       <span>Mín: {wh.minStock} | Crítico: {wh.criticalStock}</span>
-                      <span className={`state ${wh.stockHealth.toLowerCase().replace('_', '-')}`}>
-                        {wh.stockHealth === 'AVAILABLE'
-                          ? 'Óptimo'
-                          : wh.stockHealth === 'LOW_STOCK'
-                          ? 'Stock bajo'
-                          : wh.stockHealth === 'CRITICAL'
-                          ? 'Crítico'
-                          : 'Agotado'}
+                      <span className={`state ${STOCK_HEALTH_DISPLAY[wh.stockHealth].className}`}>
+                        {STOCK_HEALTH_DISPLAY[wh.stockHealth].label}
                       </span>
                     </div>
                   </div>
@@ -497,18 +508,14 @@ export function ProductDetailDrawer({
                   {movements.map((mov) => (
                     <div key={mov.id} className="kardex-mini-item">
                       <div className="kardex-mini-head">
-                        <span
-                          className={`movement-badge ${mov.type
-                            .toLowerCase()
-                            .replace('_', '-')}`}
-                        >
+                        <span className={`movement-badge ${mov.quantity >= 0 ? 'in' : 'out'}`}>
                           {displayLabel(MOVEMENT_TYPE_LABELS, mov.type)}
                         </span>
-                        <time>{new Date(mov.timestamp).toLocaleDateString()}</time>
+                        <time dateTime={mov.timestamp}>{MOVEMENT_DATE_FORMAT.format(new Date(mov.timestamp))}</time>
                       </div>
                       <div className="kardex-mini-details">
                         <span>
-                          <strong>{mov.quantity} uds</strong> en {mov.locationName}
+                          <strong>{mov.quantity > 0 ? `+${mov.quantity}` : mov.quantity} uds</strong> en {mov.locationName}
                         </span>
                         <small>Doc: {mov.documentRef} · Por: {mov.userName}</small>
                       </div>

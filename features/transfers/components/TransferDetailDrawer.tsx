@@ -289,7 +289,7 @@ export function TransferDetailDrawer({
               )}
 
               <div className="info-kv-item">
-                <span>Valorización (RBAC):</span>
+                <span>Valorización:</span>
                 <strong>
                   {isCostRedacted ? '••••••••' : `$${transfer.totalValueAtCost.toLocaleString('es-CO')}`}
                 </strong>

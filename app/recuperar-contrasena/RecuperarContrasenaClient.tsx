@@ -176,7 +176,7 @@ export function RecuperarContrasenaClient() {
           <div className="visual-metrics">
             <div>
               <strong>Seguro</strong>
-              <span>Cifrado bcrypt / JWT</span>
+              <span>Contraseñas cifradas</span>
             </div>
             <div>
               <strong>Auditable</strong>

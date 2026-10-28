@@ -94,6 +94,13 @@ export function useAudit(userRole: UserRole = 'SUPERADMIN', userLocationId?: str
   const handleSelectLog = (log: AuditLogEntry) => {
     setSelectedLog(log)
     setIsDetailOpen(true)
+    // La lista trae solo campos livianos; el detalle completo (cambios campo a campo) se consulta aparte.
+    auditService
+      .getById(log.id, userRole)
+      .then((full) => {
+        if (full) setSelectedLog((current) => (current?.id === full.id ? full : current))
+      })
+      .catch((err) => console.error('Error al cargar el detalle de auditoría:', err))
   }
 
   const handleCloseDetail = () => {

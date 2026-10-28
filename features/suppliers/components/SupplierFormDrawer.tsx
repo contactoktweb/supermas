@@ -65,8 +65,8 @@ export function SupplierFormDrawer({
 
   // Form Fields - Información Comercial
   const [status, setStatus] = useState<SupplierStatus>('ACTIVE')
-  const [creditDays, setCreditDays] = useState<number>(30)
-  const [creditLimit, setCreditLimit] = useState<number>(10000000)
+  const [creditDays, setCreditDays] = useState<number>(0)
+  const [creditLimit, setCreditLimit] = useState<number>(0)
   const [notes, setNotes] = useState('')
 
   useEffect(() => {
@@ -111,8 +111,8 @@ export function SupplierFormDrawer({
       setDepartment('')
       setCountry('Colombia')
       setStatus('ACTIVE')
-      setCreditDays(30)
-      setCreditLimit(20000000)
+      setCreditDays(0)
+      setCreditLimit(0)
       setNotes('')
       setError(null)
     }
@@ -639,7 +639,7 @@ export function SupplierFormDrawer({
                       type="text"
                       className="filter-date-input"
                       style={{ width: '100%' }}
-                      placeholder="Ej. Cali"
+                      placeholder="Ej. Cúcuta"
                       value={city}
                       onChange={(e) => setCity(e.target.value)}
                       required
@@ -662,7 +662,7 @@ export function SupplierFormDrawer({
                       type="text"
                       className="filter-date-input"
                       style={{ width: '100%' }}
-                      placeholder="Ej. Valle del Cauca"
+                      placeholder="Ej. Norte de Santander"
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
                       required

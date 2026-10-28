@@ -23,6 +23,7 @@ export function useWebOrders() {
   const [stats, setStats] = useState<WebOrderStats | null>(null)
   const [loading, setLoading] = useState<boolean>(true)
   const [statsLoading, setStatsLoading] = useState<boolean>(true)
+  const [dispatchLocation, setDispatchLocation] = useState<{ name: string; code: string } | null>(null)
   const [actionLoading, setActionLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -97,6 +98,13 @@ export function useWebOrders() {
   useEffect(() => {
     fetchStats()
   }, [fetchStats])
+
+  useEffect(() => {
+    webOrderService
+      .getDispatchLocation()
+      .then(setDispatchLocation)
+      .catch((err) => console.error('Error al obtener la bodega de despacho:', err))
+  }, [])
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setFeedback({ type, message })
@@ -255,6 +263,7 @@ export function useWebOrders() {
   return {
     orders,
     stats,
+    dispatchLocation,
     loading,
     statsLoading,
     actionLoading,

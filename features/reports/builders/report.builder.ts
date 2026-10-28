@@ -319,7 +319,6 @@ export class ReportBuilder {
         salesTotal,
         salesCount,
         averageTicket,
-        salesChangePercent: 12.4,
         inventoryValueAtCost: canViewFinancials ? inventoryValueAtCost : null,
         inventoryValueAtSale,
         availableProductsCount,

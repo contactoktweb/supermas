@@ -103,10 +103,12 @@ export const INVENTARIO: Capitulo = {
         {
           id: 'ver-detalle-producto',
           titulo: 'Consultar el detalle de un producto',
-          objetivo: 'Ver existencias, precios, costo, margen y canales de un producto sin editarlo.',
+          objetivo: 'Ver existencias por bodega, precios, costo, margen, movimientos y canales de un producto sin editarlo.',
           pasos: [
             { texto: 'En el menú de acciones elija [[Ver detalle]]. La pestaña **Resumen** muestra stock total, precio, costo promedio, margen y la ficha técnica.', captura: c('02-productos-05-detalle', 'Detalle del producto, pestaña Resumen.') },
+            { texto: 'La pestaña **Inventario** muestra cuántas unidades hay en cada bodega, qué porcentaje del total representa y si está en nivel óptimo, bajo, crítico o agotado.', captura: c('02-productos-05b-detalle-inventario', 'Detalle del producto, pestaña Inventario.') },
             { texto: 'La pestaña **Precios** muestra las listas vigentes y el desglose de IVA y margen.', captura: c('02-productos-06-detalle-precios', 'Detalle del producto, pestaña Precios.') },
+            { texto: 'La pestaña **Movimientos** lista las últimas entradas y salidas del producto (compras, ventas, ajustes, traslados) con la fecha, la bodega, el documento y quién lo hizo. Para ver el historial completo pulse [[Ver Kardex completo]].', captura: c('02-productos-06b-detalle-movimientos', 'Detalle del producto, pestaña Movimientos.') },
             { texto: 'La pestaña **Web** indica si el producto está disponible en las vitrinas públicas.', captura: c('02-productos-07-detalle-web', 'Detalle del producto, pestaña Web.') },
             { texto: 'Desde el pie del panel puede ir al [[Kardex]] del producto, [[Eliminar]] o [[Editar producto]].' },
           ],
@@ -204,9 +206,12 @@ export const INVENTARIO: Capitulo = {
           pasos: [
             { texto: 'Entre a la bodega con [[Ver bodega]] y abra la pestaña **Inventario**. Verá cada producto con su existencia, estado, costo promedio, valor y último movimiento.', captura: c('05-bodegas-05-inventario', 'Inventario de la bodega.') },
             {
-              texto: 'Desplace la tabla a la derecha y, en **Acciones rápidas**, pulse el **lápiz** del producto que va a ajustar.',
+              texto: 'Pulse el botón rojo [[Ajustar inventario]] y, en **Producto a ajustar**, busque el producto por nombre o SKU. La lista muestra la existencia de cada uno en la bodega.',
+              captura: c('05-bodegas-06b-ajuste-elegir', 'Ajuste con el producto elegido: existencia actual y saldo resultante.'),
+            },
+            {
+              texto: 'También puede desplazar la tabla a la derecha y, en **Acciones rápidas**, pulsar el **lápiz** del producto: el ajuste se abre con ese producto ya elegido.',
               captura: c('05-bodegas-10-acciones-rapidas', 'Acciones rápidas: ajustar, transferir y ver Kardex.'),
-              advertencia: 'Use el lápiz de la fila del producto. El botón rojo superior [[Ajustar inventario]] abre el ajuste con el primer producto de la lista ya elegido.',
             },
             { texto: 'Se abre la ventana del ajuste con el producto, su **existencia actual** y el **saldo resultante**.', captura: c('05-bodegas-06-ajuste-vacio', 'Ventana de ajuste de inventario.') },
             {
@@ -299,7 +304,7 @@ export const INVENTARIO: Capitulo = {
           pasos: [
             { texto: 'Pulse [[Conteo físico]] y elija la **bodega a auditar**. El sistema abre una sesión de conteo con todos los productos.', captura: c('06-inventario-05-conteo', 'Sesión de conteo físico.') },
             {
-              texto: 'Desplace la tabla a la derecha hasta ver las columnas **Sistema**, **Físico** y **Diferencia**. En **Físico** escriba lo que contó de cada producto; la diferencia se calcula sola.',
+              texto: 'La tabla muestra para cada producto las columnas **Sistema**, **Físico** y **Diferencia**. En **Físico** escriba lo que contó; la diferencia se calcula sola y se resalta en rojo cuando no coincide.',
               captura: c('06-inventario-06-conteo-columnas', 'Columnas de existencia en sistema, conteo físico y diferencia.'),
             },
             { texto: 'Escriba las **observaciones** de la sesión (quién contó y cuándo) y pulse [[Ajustar discrepancias]]. Solo se ajustan los productos con diferencia.' },

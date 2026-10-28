@@ -14,6 +14,9 @@ import { warehouseRepository } from '@/features/warehouses/repositories/warehous
 import { transferRepository } from '@/features/transfers/repositories/transfer.repository'
 import { db } from '@/lib/supabase'
 
+/** Colores de la marca para las porciones del gráfico de distribución por bodega. */
+const DISTRIBUTION_COLORS = ['#001b5c', '#fe110c', '#d99117', '#159a67', '#5871b0', '#64748b']
+
 class DashboardRepository {
   private loginAudits: LoginAuditItem[] = [
     {
@@ -129,7 +132,7 @@ class DashboardRepository {
       id: loc.id,
       name: loc.name,
       code: loc.code,
-      city: loc.city || 'Medellín',
+      city: loc.city,
       type: loc.type,
       status: loc.status,
       inventoryAtCost: loc.inventoryValueAtCost || 0,
@@ -154,9 +157,15 @@ class DashboardRepository {
   }
 
   async getInventoryDistribution(): Promise<InventoryDistributionItem[]> {
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    // Cero existencias de inventario en instalación limpia
-    return []
+    const { data: locations } = await warehouseRepository.findAll()
+    return locations.map((loc, index) => ({
+      locationId: loc.id,
+      locationName: loc.name,
+      units: loc.availableUnits || 0,
+      value: loc.inventoryValueAtCost || 0,
+      percentage: 0,
+      color: DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length],
+    }))
   }
 
   async getActivityFeed(

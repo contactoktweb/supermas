@@ -1,6 +1,7 @@
 import {
   warehouseFormSchema,
   stockAdjustmentSchema,
+  STOCK_ADJUSTMENT_REASON_LABELS,
   createTransferSchema,
   WarehouseFormData,
   StockAdjustmentFormData,
@@ -312,7 +313,7 @@ export class WarehouseService {
         total_cost: validated.quantity * avgCost,
         document_type: 'ADJUSTMENT',
         document_reference: docRef,
-        reason: `[${validated.reason}] ${validated.notes}`,
+        reason: `${STOCK_ADJUSTMENT_REASON_LABELS[validated.reason]} — ${validated.notes}`,
         user_id: isRealUuid(user.id) ? user.id : null,
       })
       .select()
@@ -333,7 +334,7 @@ export class WarehouseService {
       productId: validated.productId,
       productName: 'Producto',
       sku: 'SKU',
-      type: validated.type,
+      type: isPositive ? 'POSITIVE_ADJUSTMENT' : 'NEGATIVE_ADJUSTMENT',
       documentRef: docRef,
       quantityIn: isPositive ? validated.quantity : 0,
       quantityOut: isPositive ? 0 : validated.quantity,

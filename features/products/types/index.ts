@@ -61,7 +61,7 @@ export interface WarehouseStockDetail {
   locationId: string
   locationName: string
   locationCode: string
-  locationType: 'PHYSICAL_STORE' | 'MAIN_WAREHOUSE' | 'SATELLITE_WAREHOUSE' | 'CROSS_DOCK'
+  locationType: 'WAREHOUSE' | 'STORE_POINT' | 'DISTRIBUTION_CENTER'
   quantity: number
   minStock: number
   criticalStock: number
@@ -74,7 +74,9 @@ export interface WarehouseStockDetail {
 export interface ProductMovementSummary {
   id: string
   timestamp: string
-  type: 'VENTA' | 'COMPRA' | 'TRANSFERENCIA_ENTRADA' | 'TRANSFERENCIA_SALIDA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO'
+  /** Valor de inventory_movement_type (PURCHASE_ENTRY, SALE_OUT, ...). */
+  type: string
+  /** Positivo para entradas y negativo para salidas. */
   quantity: number
   unitCost: number
   previousBalance: number

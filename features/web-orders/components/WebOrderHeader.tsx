@@ -4,6 +4,7 @@ import React from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 
 interface WebOrderHeaderProps {
+  dispatchLocation: { name: string; code: string } | null
   onRefresh: () => void
   onExport: () => void
   canExport: boolean
@@ -11,6 +12,7 @@ interface WebOrderHeaderProps {
 }
 
 export function WebOrderHeader({
+  dispatchLocation,
   onRefresh,
   onExport,
   canExport,
@@ -21,10 +23,12 @@ export function WebOrderHeader({
       <div>
         <div className="flex items-center gap-2 mb-1">
           <p className="eyebrow">Ecommerce & Canales Digitales</p>
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-            Bodega Despacho: CEDI Principal (BOD-001)
-          </span>
+          {dispatchLocation && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 motion-safe:animate-pulse" />
+              Bodega de despacho: {dispatchLocation.name} ({dispatchLocation.code})
+            </span>
+          )}
         </div>
         <h1>Pedidos Web</h1>
         <p className="welcome-subtitle">

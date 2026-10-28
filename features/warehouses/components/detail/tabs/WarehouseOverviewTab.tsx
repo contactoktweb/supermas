@@ -5,6 +5,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { LocationWithMetrics, WarehouseInventoryItem, WarehouseTransfer, WarehouseMovement } from '../../../types'
 import { warehouseService } from '../../../services/warehouse.service'
 import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
+import { formatDateTimeCO } from '@/lib/utils'
 
 interface WarehouseOverviewTabProps {
   warehouse: LocationWithMetrics
@@ -684,23 +685,28 @@ export function WarehouseOverviewTab({
             {movements.slice(0, 4).map((m) => (
               <article className="activity-row" key={m.id}>
                 <div className="activity-icon">
-                  {m.type.includes('SALIDA') || m.type === 'VENTA' ? (
+                  {m.quantityOut > 0 ? (
                     <AppIcon name="arrowUpRight" size={15} color="#fe110c" />
                   ) : (
                     <AppIcon name="arrowDownLeft" size={15} color="#159a67" />
                   )}
                 </div>
-                <div>
-                  <strong>{m.productName}</strong>
-                  <span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ display: 'block' }}>{m.productName}</strong>
+                  <span style={{ display: 'block' }}>
                     {displayLabel(MOVEMENT_TYPE_LABELS, m.type)} ({m.documentRef}) · Por {m.userName}
                   </span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <b className={m.quantityIn > 0 ? 'positive-text' : 'negative-text'}>
+                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <b
+                    className={m.quantityIn > 0 ? 'positive-text' : 'negative-text'}
+                    style={{ display: 'block' }}
+                  >
                     {m.quantityIn > 0 ? `+${m.quantityIn}` : `-${m.quantityOut}`} uds
                   </b>
-                  <small className="time-muted">{m.createdAt}</small>
+                  <small className="time-muted" style={{ display: 'block' }}>
+                    {formatDateTimeCO(m.createdAt)}
+                  </small>
                 </div>
               </article>
             ))}

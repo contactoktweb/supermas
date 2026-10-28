@@ -9,6 +9,7 @@ import {
 } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
+import { STOCK_ADJUSTMENT_REASON_LABELS } from '@/features/warehouses/schemas/warehouse.schema'
 
 function mapDbMovementTypeToDomain(type: string): MovementType {
   switch (type) {
@@ -52,6 +53,17 @@ function mapDomainMovementTypeToDb(type: string): string {
     default:
       return type
   }
+}
+
+/** Los ajustes antiguos guardaban el motivo como "[CONTEO_FISICO] texto"; se muestra con su nombre. */
+function readableReason(reason: string | null | undefined): string {
+  if (!reason) return ''
+  const match = reason.match(/^\[([A-Z_]+)\]\s*([\s\S]*)$/)
+  if (!match) return reason
+  const [, code, rest] = match
+  const label = STOCK_ADJUSTMENT_REASON_LABELS[code as keyof typeof STOCK_ADJUSTMENT_REASON_LABELS]
+  if (!label) return reason
+  return rest ? `${label} — ${rest}` : label
 }
 
 function mapDbDocumentTypeToDomain(docType: string): SourceDocumentType {
@@ -222,7 +234,7 @@ export class KardexRepository {
         userId: row.user_id || '',
         userName: u.full_name || u.email || 'Sistema',
         userRole: u.roles?.name || 'ADMIN',
-        notes: row.reason || '',
+        notes: readableReason(row.reason),
         isReversion: row.reason?.toLowerCase().includes('reversión') || false,
       }
     })
@@ -348,7 +360,7 @@ export class KardexRepository {
       userId: data.user_id || '',
       userName: u.full_name || u.email || 'Sistema',
       userRole: u.roles?.name || 'ADMIN',
-      notes: data.reason || '',
+      notes: readableReason(data.reason),
       isReversion: data.reason?.toLowerCase().includes('reversión') || false,
     }
   }

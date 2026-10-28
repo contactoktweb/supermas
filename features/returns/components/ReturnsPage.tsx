@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { ModalPortal } from '@/components/ui/ModalPortal'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import { returnService } from '../services/return.service'
 import { ReturnDispositionOptions, ReturnRecord, ReturnStats, ReturnType } from '../types'
@@ -509,7 +510,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                           <td className="px-4 py-3 font-semibold text-slate-900">{ret.code}</td>
                           <td className="px-4 py-3">
                             {ret.returnType === 'CUSTOMER_RETURN' ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                              <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-[var(--navy)]">
                                 <AppIcon name="arrowDownLeft" size={12} />
                                 Cliente
                               </span>
@@ -532,7 +533,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
                             )}
                           </td>
                           <td className="px-4 py-3 text-right font-medium text-slate-900">
-                            ${Number(ret.totalAmount || 0).toLocaleString('es-CO')}
+                            {formatCOP(Number(ret.totalAmount || 0))}
                           </td>
                           <td className="max-w-xs truncate px-4 py-3 text-slate-500" title={ret.reason}>
                             {ret.reason}
@@ -564,391 +565,397 @@ export function ReturnsPage(_props: ReturnsPageProps) {
 
       {/* DETAIL MODAL */}
       {selectedRecord && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="return-detail-title"
-            className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-3xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
-          >
-            <div className="flex items-center justify-between border-b pb-4">
-              <div className="flex items-center gap-2">
-                <AppIcon name="fileText" size={20} className="text-blue-600" />
-                <h3 id="return-detail-title" className="text-lg font-bold text-slate-900">
-                  Detalle de Devolución {selectedRecord.code}
-                </h3>
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="return-detail-title"
+              className="max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-3xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+            >
+              <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center gap-2">
+                  <AppIcon name="fileText" size={20} className="text-blue-600" />
+                  <h3 id="return-detail-title" className="text-lg font-bold text-slate-900">
+                    Detalle de Devolución {selectedRecord.code}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRecord(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Cerrar detalle"
+                >
+                  <AppIcon name="closeSimple" size={20} />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedRecord(null)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Cerrar detalle"
-              >
-                <AppIcon name="closeSimple" size={20} />
-              </button>
-            </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
-              <div>
-                <p className="text-xs text-slate-400">Tipo de Devolución</p>
-                <p className="font-semibold text-slate-800">
-                  {selectedRecord.returnType === 'CUSTOMER_RETURN' ? 'Cliente' : 'A proveedor'}
-                </p>
+              <div className="mt-4 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-slate-400">Tipo de Devolución</p>
+                  <p className="font-semibold text-slate-800">
+                    {selectedRecord.returnType === 'CUSTOMER_RETURN' ? 'Cliente' : 'A proveedor'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Documento Origen</p>
+                  <p className="font-mono font-semibold text-slate-800">{selectedRecord.sourceDocumentCode}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Tercero</p>
+                  <p className="font-semibold text-slate-800">{selectedRecord.customerName || selectedRecord.supplierName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Bodega Afectada</p>
+                  <p className="font-semibold text-slate-800">{selectedRecord.locationName}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-slate-400">Motivo</p>
+                  <p className="rounded-lg border bg-slate-50 p-2.5 text-slate-800">{selectedRecord.reason}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-slate-400">Documento Origen</p>
-                <p className="font-mono font-semibold text-slate-800">{selectedRecord.sourceDocumentCode}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">Tercero</p>
-                <p className="font-semibold text-slate-800">{selectedRecord.customerName || selectedRecord.supplierName}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-400">Bodega Afectada</p>
-                <p className="font-semibold text-slate-800">{selectedRecord.locationName}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-xs text-slate-400">Motivo</p>
-                <p className="rounded-lg border bg-slate-50 p-2.5 text-slate-800">{selectedRecord.reason}</p>
-              </div>
-            </div>
 
-            <div className="mt-5 border-t pt-4">
-              <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Productos Devueltos</h4>
-              <div className="max-h-72 overflow-auto rounded-lg border">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 uppercase text-slate-500">
-                    <tr>
-                      <th scope="col" className="p-2.5">Producto</th>
-                      <th scope="col" className="p-2.5 text-right">Cantidad</th>
-                      {selectedRecord.returnType === 'CUSTOMER_RETURN' && (
-                        <th scope="col" className="p-2.5">Condición / destino</th>
-                      )}
-                      <th scope="col" className="p-2.5 text-right">Precio/Costo</th>
-                      <th scope="col" className="p-2.5 text-right">Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y text-slate-700">
-                    {(selectedRecord.items || []).map((it) => (
-                      <tr key={it.id} className="align-top">
-                        <td className="p-2.5 font-medium">
-                          {it.productName} ({it.sku})
-                        </td>
-                        <td className="p-2.5 text-right font-semibold">{it.quantity}</td>
+              <div className="mt-5 border-t pt-4">
+                <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Productos Devueltos</h4>
+                <div className="max-h-72 overflow-auto rounded-lg border">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 uppercase text-slate-500">
+                      <tr>
+                        <th scope="col" className="p-2.5">Producto</th>
+                        <th scope="col" className="p-2.5 text-right">Cantidad</th>
                         {selectedRecord.returnType === 'CUSTOMER_RETURN' && (
-                          <td className="p-2.5">
-                            <span
-                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
-                                it.condition === 'MAL_ESTADO'
-                                  ? 'border-amber-200 bg-amber-50 text-amber-800'
-                                  : 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              }`}
-                            >
-                              <AppIcon name={it.condition === 'MAL_ESTADO' ? 'warning' : 'check'} size={12} />
-                              {RETURN_ITEM_CONDITION_LABELS[it.condition]}
-                            </span>
-                            {it.condition === 'MAL_ESTADO' && it.destination && (
-                              <p className="mt-1 text-slate-600">
-                                {DAMAGED_DESTINATION_LABELS[it.destination]}
-                                {it.destination === 'PROVEEDOR' && it.dispositionSupplierName ? `: ${it.dispositionSupplierName}` : ''}
-                                {it.destination === 'PRODUCCION' && it.dispositionLocationName ? `: ${it.dispositionLocationName}` : ''}
-                                {it.dispositionStatus ? ` · ${DAMAGED_STATUS_LABELS[it.dispositionStatus]}` : ''}
-                              </p>
-                            )}
-                            {it.condition === 'MAL_ESTADO' && it.dispositionNotes && (
-                              <p className="text-slate-500">{it.dispositionNotes}</p>
-                            )}
-                          </td>
+                          <th scope="col" className="p-2.5">Condición / destino</th>
                         )}
-                        <td className="p-2.5 text-right">${(it.unitPrice || it.unitCost).toLocaleString('es-CO')}</td>
-                        <td className="p-2.5 text-right font-bold">${it.totalAmount.toLocaleString('es-CO')}</td>
+                        <th scope="col" className="p-2.5 text-right">Precio/Costo</th>
+                        <th scope="col" className="p-2.5 text-right">Subtotal</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y text-slate-700">
+                      {(selectedRecord.items || []).map((it) => (
+                        <tr key={it.id} className="align-top">
+                          <td className="p-2.5 font-medium">
+                            {it.productName} ({it.sku})
+                          </td>
+                          <td className="p-2.5 text-right font-semibold">{it.quantity}</td>
+                          {selectedRecord.returnType === 'CUSTOMER_RETURN' && (
+                            <td className="p-2.5">
+                              <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-semibold ${
+                                  it.condition === 'MAL_ESTADO'
+                                    ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                }`}
+                              >
+                                <AppIcon name={it.condition === 'MAL_ESTADO' ? 'warning' : 'check'} size={12} />
+                                {RETURN_ITEM_CONDITION_LABELS[it.condition]}
+                              </span>
+                              {it.condition === 'MAL_ESTADO' && it.destination && (
+                                <p className="mt-1 text-slate-600">
+                                  {DAMAGED_DESTINATION_LABELS[it.destination]}
+                                  {it.destination === 'PROVEEDOR' && it.dispositionSupplierName ? `: ${it.dispositionSupplierName}` : ''}
+                                  {it.destination === 'PRODUCCION' && it.dispositionLocationName ? `: ${it.dispositionLocationName}` : ''}
+                                  {it.dispositionStatus ? ` · ${DAMAGED_STATUS_LABELS[it.dispositionStatus]}` : ''}
+                                </p>
+                              )}
+                              {it.condition === 'MAL_ESTADO' && it.dispositionNotes && (
+                                <p className="text-slate-500">{it.dispositionNotes}</p>
+                              )}
+                            </td>
+                          )}
+                          <td className="p-2.5 text-right">{formatCOP(it.unitPrice || it.unitCost)}</td>
+                          <td className="p-2.5 text-right font-bold">{formatCOP(it.totalAmount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedRecord(null)}
-                className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
-              >
-                Cerrar
-              </button>
+              <div className="mt-6 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRecord(null)}
+                  className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* CUSTOMER RETURN MODAL */}
       {isCustomerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="customer-return-title"
-            className="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
-          >
-            <div className="flex items-center justify-between border-b pb-4">
-              <div className="flex items-center gap-2">
-                <AppIcon name="arrowDownLeft" size={20} className="text-indigo-600" />
-                <h3 id="customer-return-title" className="text-lg font-bold text-slate-900">
-                  Registrar Devolución de Cliente
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsCustomerModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Cerrar formulario"
-              >
-                <AppIcon name="closeSimple" size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitCustomerReturn} className="mt-4 space-y-4">
-              {formError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
-                  {formError}
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="customer-return-title"
+              className="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-2xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+            >
+              <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center gap-2">
+                  <AppIcon name="arrowDownLeft" size={20} className="text-[var(--navy)]" />
+                  <h3 id="customer-return-title" className="text-lg font-bold text-slate-900">
+                    Registrar Devolución de Cliente
+                  </h3>
                 </div>
-              )}
-
-              <div>
-                <label htmlFor="customer-return-sale" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Seleccionar Venta
-                </label>
-                <SelectField
-                  id="customer-return-sale"
-                  value={selectedSaleId}
-                  className="w-full"
-                  size="sm"
-                  onChange={(value) => handleSaleSelect(value)}
-                >
-                  <option value="">Seleccione una venta...</option>
-                  {returnableSales.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.saleNumber} - {s.customerName} (${s.totalAmount?.toLocaleString('es-CO')})
-                    </option>
-                  ))}
-                </SelectField>
-                {returnableSales.length === 0 && (
-                  <p className="mt-1 text-xs text-slate-500">No hay ventas disponibles para devolución.</p>
-                )}
-              </div>
-
-              {customerLines.length > 0 && (
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                    Cantidades y condición de cada producto
-                  </p>
-                  {customerLines.map((line) => {
-                    const otherUnits = (unitsByProduct.get(line.productId) || 0) - (Number(line.quantity) || 0)
-                    return (
-                      <CustomerReturnLineEditor
-                        key={line.key}
-                        line={line}
-                        maxForLine={Math.max(0, line.soldQuantity - otherUnits)}
-                        options={dispositionOptions}
-                        optionsLoading={optionsLoading}
-                        optionsError={optionsError}
-                        suggestion={suggestionFor(line.productId)}
-                        isSplitLine={firstLineKeyByProduct.get(line.productId) !== line.key}
-                        onChange={(patch) => updateCustomerLine(line.key, patch)}
-                        onSplit={() => splitCustomerLine(line.key)}
-                        onRemove={() => removeCustomerLine(line.key)}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="customer-return-reason" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Motivo de la Devolución *
-                </label>
-                <input
-                  id="customer-return-reason"
-                  type="text"
-                  placeholder="Ej: Producto en mal estado, cambio de referencia..."
-                  value={formReason}
-                  onChange={(e) => setFormReason(e.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-2.5 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="customer-return-notes" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Notas Adicionales
-                </label>
-                <textarea
-                  id="customer-return-notes"
-                  rows={2}
-                  placeholder="Observaciones de almacén o comerciales..."
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsCustomerModalOpen(false)}
-                  className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Cerrar formulario"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white transition-colors hover:bg-indigo-700 active:scale-[0.98] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
-                >
-                  {submitting ? 'Procesando...' : 'Confirmar Devolución'}
+                  <AppIcon name="closeSimple" size={20} />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSubmitCustomerReturn} className="mt-4 space-y-4">
+                {formError && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+                    {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="customer-return-sale" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Seleccionar Venta
+                  </label>
+                  <SelectField
+                    id="customer-return-sale"
+                    value={selectedSaleId}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => handleSaleSelect(value)}
+                  >
+                    <option value="">Seleccione una venta...</option>
+                    {returnableSales.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.saleNumber} - {s.customerName} ({formatCOP(s.totalAmount ?? 0)})
+                      </option>
+                    ))}
+                  </SelectField>
+                  {returnableSales.length === 0 && (
+                    <p className="mt-1 text-xs text-slate-500">No hay ventas disponibles para devolución.</p>
+                  )}
+                </div>
+
+                {customerLines.length > 0 && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Cantidades y condición de cada producto
+                    </p>
+                    {customerLines.map((line) => {
+                      const otherUnits = (unitsByProduct.get(line.productId) || 0) - (Number(line.quantity) || 0)
+                      return (
+                        <CustomerReturnLineEditor
+                          key={line.key}
+                          line={line}
+                          maxForLine={Math.max(0, line.soldQuantity - otherUnits)}
+                          options={dispositionOptions}
+                          optionsLoading={optionsLoading}
+                          optionsError={optionsError}
+                          suggestion={suggestionFor(line.productId)}
+                          isSplitLine={firstLineKeyByProduct.get(line.productId) !== line.key}
+                          onChange={(patch) => updateCustomerLine(line.key, patch)}
+                          onSplit={() => splitCustomerLine(line.key)}
+                          onRemove={() => removeCustomerLine(line.key)}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="customer-return-reason" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Motivo de la Devolución *
+                  </label>
+                  <input
+                    id="customer-return-reason"
+                    type="text"
+                    placeholder="Ej: Producto en mal estado, cambio de referencia..."
+                    value={formReason}
+                    onChange={(e) => setFormReason(e.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-2.5 text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="customer-return-notes" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Notas Adicionales
+                  </label>
+                  <textarea
+                    id="customer-return-notes"
+                    rows={2}
+                    placeholder="Observaciones de almacén o comerciales..."
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsCustomerModalOpen(false)}
+                    className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="h-10 rounded-lg bg-[var(--navy)] px-4 text-sm font-medium text-white transition-colors hover:bg-[var(--navy-2)] active:scale-[0.98] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
+                  >
+                    {submitting ? 'Procesando...' : 'Confirmar Devolución'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
 
       {/* SUPPLIER RETURN MODAL */}
       {isSupplierModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="supplier-return-title"
-            className="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
-          >
-            <div className="flex items-center justify-between border-b pb-4">
-              <div className="flex items-center gap-2">
-                <AppIcon name="arrowUpRight" size={20} className="text-amber-600" />
-                <h3 id="supplier-return-title" className="text-lg font-bold text-slate-900">
-                  Registrar Devolución a Proveedor
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSupplierModalOpen(false)}
-                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                aria-label="Cerrar formulario"
-              >
-                <AppIcon name="closeSimple" size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitSupplierReturn} className="mt-4 space-y-4">
-              {formError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
-                  {formError}
+        <ModalPortal>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 backdrop-blur-sm sm:items-center sm:p-4">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="supplier-return-title"
+              className="max-h-[94vh] w-full overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl sm:max-w-xl sm:rounded-2xl sm:p-6 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-95"
+            >
+              <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center gap-2">
+                  <AppIcon name="arrowUpRight" size={20} className="text-amber-600" />
+                  <h3 id="supplier-return-title" className="text-lg font-bold text-slate-900">
+                    Registrar Devolución a Proveedor
+                  </h3>
                 </div>
-              )}
-
-              <div>
-                <label htmlFor="supplier-return-purchase" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Seleccionar Compra Recibida
-                </label>
-                <SelectField
-                  id="supplier-return-purchase"
-                  value={selectedPurchaseId}
-                  className="w-full"
-                  size="sm"
-                  onChange={(value) => handlePurchaseSelect(value)}
-                >
-                  <option value="">Seleccione una compra recibida...</option>
-                  {returnablePurchases.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.purchaseNumber} - {p.supplierName} (${p.totalAmount?.toLocaleString('es-CO')})
-                    </option>
-                  ))}
-                </SelectField>
-                {returnablePurchases.length === 0 && (
-                  <p className="mt-1 text-xs text-slate-500">No hay compras recibidas disponibles para devolución.</p>
-                )}
-              </div>
-
-              {supplierItems.length > 0 && (
-                <div className="space-y-2 border-t pt-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cantidades a devolver a proveedor</p>
-                  {supplierItems.map((it, idx) => (
-                    <div key={it.productId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-900">{it.name}</p>
-                        <p className="text-slate-500">Máximo disponible: {it.maxQuantity}</p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label htmlFor={`supplier-item-${idx}`} className="text-slate-600">
-                          Cant.
-                        </label>
-                        <input
-                          id={`supplier-item-${idx}`}
-                          type="number"
-                          min={0}
-                          max={it.maxQuantity}
-                          value={it.quantity}
-                          onChange={(e) => {
-                            const val = Math.max(0, Number(e.target.value) || 0)
-                            setSupplierItems((items) => items.map((x, i) => (i === idx ? { ...x, quantity: val } : x)))
-                          }}
-                          className="h-9 w-20 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-800"
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div>
-                <label htmlFor="supplier-return-reason" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Motivo de la Devolución a Proveedor *
-                </label>
-                <input
-                  id="supplier-return-reason"
-                  type="text"
-                  placeholder="Ej: Fecha corta de vencimiento, producto no solicitado, avería..."
-                  value={formReason}
-                  onChange={(e) => setFormReason(e.target.value)}
-                  className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-2.5 text-sm"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="supplier-return-notes" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
-                  Notas Adicionales
-                </label>
-                <textarea
-                  id="supplier-return-notes"
-                  rows={2}
-                  placeholder="Número de acta, transportador o detalles..."
-                  value={formNotes}
-                  onChange={(e) => setFormNotes(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
-                />
-              </div>
-
-              <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setIsSupplierModalOpen(false)}
-                  className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Cerrar formulario"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="h-10 rounded-lg bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 active:scale-[0.98] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
-                >
-                  {submitting ? 'Procesando...' : 'Confirmar Devolución a Proveedor'}
+                  <AppIcon name="closeSimple" size={20} />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSubmitSupplierReturn} className="mt-4 space-y-4">
+                {formError && (
+                  <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+                    {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="supplier-return-purchase" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Seleccionar Compra Recibida
+                  </label>
+                  <SelectField
+                    id="supplier-return-purchase"
+                    value={selectedPurchaseId}
+                    className="w-full"
+                    size="sm"
+                    onChange={(value) => handlePurchaseSelect(value)}
+                  >
+                    <option value="">Seleccione una compra recibida...</option>
+                    {returnablePurchases.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.purchaseNumber} - {p.supplierName} ({formatCOP(p.totalAmount ?? 0)})
+                      </option>
+                    ))}
+                  </SelectField>
+                  {returnablePurchases.length === 0 && (
+                    <p className="mt-1 text-xs text-slate-500">No hay compras recibidas disponibles para devolución.</p>
+                  )}
+                </div>
+
+                {supplierItems.length > 0 && (
+                  <div className="space-y-2 border-t pt-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cantidades a devolver a proveedor</p>
+                    {supplierItems.map((it, idx) => (
+                      <div key={it.productId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 text-xs">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-slate-900">{it.name}</p>
+                          <p className="text-slate-500">Máximo disponible: {it.maxQuantity}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label htmlFor={`supplier-item-${idx}`} className="text-slate-600">
+                            Cant.
+                          </label>
+                          <input
+                            id={`supplier-item-${idx}`}
+                            type="number"
+                            min={0}
+                            max={it.maxQuantity}
+                            value={it.quantity}
+                            onChange={(e) => {
+                              const val = Math.max(0, Number(e.target.value) || 0)
+                              setSupplierItems((items) => items.map((x, i) => (i === idx ? { ...x, quantity: val } : x)))
+                            }}
+                            className="h-9 w-20 rounded-md border border-slate-300 bg-white text-center font-bold text-slate-800"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="supplier-return-reason" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Motivo de la Devolución a Proveedor *
+                  </label>
+                  <input
+                    id="supplier-return-reason"
+                    type="text"
+                    placeholder="Ej: Fecha corta de vencimiento, producto no solicitado, avería..."
+                    value={formReason}
+                    onChange={(e) => setFormReason(e.target.value)}
+                    className="mt-1 h-10 w-full rounded-lg border border-slate-300 px-2.5 text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="supplier-return-notes" className="text-xs font-semibold uppercase tracking-wider text-slate-600">
+                    Notas Adicionales
+                  </label>
+                  <textarea
+                    id="supplier-return-notes"
+                    rows={2}
+                    placeholder="Número de acta, transportador o detalles..."
+                    value={formNotes}
+                    onChange={(e) => setFormNotes(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 p-2.5 text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 border-t pt-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setIsSupplierModalOpen(false)}
+                    className="h-10 rounded-lg bg-slate-100 px-4 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200 motion-reduce:transition-none"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="h-10 rounded-lg bg-amber-600 px-4 text-sm font-medium text-white transition-colors hover:bg-amber-700 active:scale-[0.98] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100"
+                  >
+                    {submitting ? 'Procesando...' : 'Confirmar Devolución a Proveedor'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        </ModalPortal>
       )}
     </div>
   )

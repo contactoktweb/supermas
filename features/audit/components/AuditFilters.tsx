@@ -105,53 +105,60 @@ export function AuditFilters({
         </div>
 
         {/* Nivel de Severidad */}
-        <SelectField
-          value={filters.level || 'ALL'}
-          disabled={isLoading}
-          size="md"
-          onChange={(value) => onUpdateFilter('level', value)}
-        >
-          <option value="ALL">Todas las severidades</option>
-          <option value="CRITICAL">Solo Críticas</option>
-          <option value="WARNING">Advertencias</option>
-          <option value="INFO">Informativas</option>
-        </SelectField>
+        <div style={{ flex: '0 1 200px', minWidth: 170 }}>
+          <SelectField
+            value={filters.level || 'ALL'}
+            disabled={isLoading}
+            size="md"
+            onChange={(value) => onUpdateFilter('level', value)}
+          >
+            <option value="ALL">Todas las severidades</option>
+            <option value="CRITICAL">Solo Críticas</option>
+            <option value="WARNING">Advertencias</option>
+            <option value="INFO">Informativas</option>
+          </SelectField>
+        </div>
 
         {/* Módulo */}
-        <SelectField
-          value={filters.module || 'ALL'}
-          disabled={isLoading}
-          size="md"
-          onChange={(value) => onUpdateFilter('module', value)}
-        >
-          <option value="ALL">Todos los módulos</option>
-          <option value="INVENTORY">Inventario</option>
-          <option value="SALES">Ventas</option>
-          <option value="PURCHASES">Compras</option>
-          <option value="INVOICING">Facturación</option>
-          <option value="CASH">Cajas</option>
-          <option value="TRANSFERS">Transferencias</option>
-          <option value="PRODUCTS">Productos</option>
-          <option value="SECURITY">Seguridad</option>
-          <option value="TAXES">Impuestos</option>
-          <option value="WAREHOUSES">Bodegas</option>
-          <option value="EXOGENA">Exógena</option>
-        </SelectField>
+        <div style={{ flex: '0 1 200px', minWidth: 170 }}>
+          <SelectField
+            value={filters.module || 'ALL'}
+            disabled={isLoading}
+            size="md"
+            onChange={(value) => onUpdateFilter('module', value)}
+          >
+            <option value="ALL">Todos los módulos</option>
+            <option value="INVENTORY">Inventario</option>
+            <option value="SALES">Ventas</option>
+            <option value="PURCHASES">Compras</option>
+            <option value="INVOICING">Facturación</option>
+            <option value="CASH">Cajas</option>
+            <option value="TRANSFERS">Transferencias</option>
+            <option value="PRODUCTS">Productos</option>
+            <option value="CATALOG">Catálogo</option>
+            <option value="SECURITY">Seguridad</option>
+            <option value="TAXES">Impuestos</option>
+            <option value="WAREHOUSES">Bodegas</option>
+            <option value="EXOGENA">Exógena</option>
+          </SelectField>
+        </div>
 
         {/* Bodega */}
-        <SelectField
-          value={filters.locationId || 'ALL'}
-          disabled={isLoading}
-          size="md"
-          onChange={(value) => onUpdateFilter('locationId', value)}
-        >
-          <option value="ALL">Todas las bodegas</option>
-          {locations.map((loc) => (
-            <option key={loc.id} value={loc.id}>
-              {loc.name}
-            </option>
-          ))}
-        </SelectField>
+        <div style={{ flex: '0 1 200px', minWidth: 170 }}>
+          <SelectField
+            value={filters.locationId || 'ALL'}
+            disabled={isLoading}
+            size="md"
+            onChange={(value) => onUpdateFilter('locationId', value)}
+          >
+            <option value="ALL">Todas las bodegas</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>
+                {loc.name}
+              </option>
+            ))}
+          </SelectField>
+        </div>
 
         {/* Limpiar Filtros */}
         <button

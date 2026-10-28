@@ -33,7 +33,7 @@ function mapDbLocationToDomain(row: any, metrics?: Partial<LocationWithMetrics>)
     status: (row.status || 'ACTIVE') as LocationStatus,
     address: row.address || '',
     city: row.city || '',
-    department: row.department || 'Antioquia',
+    department: row.department || '',
     phone: row.phone || '',
     email: row.email || '',
     managerName: row.manager_name || '',
@@ -68,7 +68,7 @@ function mapDbLocationToDomain(row: any, metrics?: Partial<LocationWithMetrics>)
     activeAlertsCount: metrics?.activeAlertsCount ?? 0,
     assignedUsersCount: metrics?.assignedUsersCount ?? 0,
     openCashRegistersCount: metrics?.openCashRegistersCount ?? 0,
-    lastActivityAt: metrics?.lastActivityAt ?? 'Sin actividad reciente',
+    lastActivityAt: metrics?.lastActivityAt ?? '',
   }
 }
 
@@ -123,7 +123,7 @@ export class WarehouseRepository {
 
     // Agregación de métricas reales para las bodegas retornadas
     const userCountsByLoc: Record<string, number> = {}
-    const stockMetricsByLoc: Record<string, { count: number; units: number; valCost: number; low: number; out: number }> = {}
+    const stockMetricsByLoc: Record<string, { count: number; units: number; valCost: number; low: number; out: number; lastMovementAt: string }> = {}
 
     if (locIds.length > 0) {
       // 1. Usuarios asignados
@@ -141,14 +141,14 @@ export class WarehouseRepository {
       // 2. Existencias y costos reales desde public.stock_levels
       const { data: stockLevels } = await supabaseClient
         .from('stock_levels')
-        .select('location_id, quantity, average_cost, min_stock')
+        .select('location_id, quantity, average_cost, min_stock, last_movement_at')
         .in('location_id', locIds)
 
       if (stockLevels) {
         stockLevels.forEach((sl: any) => {
           const lid = sl.location_id
           if (!stockMetricsByLoc[lid]) {
-            stockMetricsByLoc[lid] = { count: 0, units: 0, valCost: 0, low: 0, out: 0 }
+            stockMetricsByLoc[lid] = { count: 0, units: 0, valCost: 0, low: 0, out: 0, lastMovementAt: '' }
           }
           const qty = Number(sl.quantity || 0)
           const cost = Number(sl.average_cost || 0)
@@ -158,6 +158,9 @@ export class WarehouseRepository {
           stockMetricsByLoc[lid].valCost += qty * cost
           if (qty === 0) stockMetricsByLoc[lid].out += 1
           else if (qty <= minStock) stockMetricsByLoc[lid].low += 1
+          if (sl.last_movement_at && sl.last_movement_at > stockMetricsByLoc[lid].lastMovementAt) {
+            stockMetricsByLoc[lid].lastMovementAt = sl.last_movement_at
+          }
         })
       }
     }
@@ -172,6 +175,7 @@ export class WarehouseRepository {
         lowStockProductsCount: m?.low || 0,
         outOfStockProductsCount: m?.out || 0,
         assignedUsersCount: uCount,
+        lastActivityAt: m?.lastMovementAt || '',
       })
     })
 
@@ -220,7 +224,7 @@ export class WarehouseRepository {
     // Stock y valoración real
     const { data: stockLevels } = await supabaseClient
       .from('stock_levels')
-      .select('quantity, average_cost, min_stock')
+      .select('quantity, average_cost, min_stock, last_movement_at')
       .eq('location_id', id)
 
     let productsCount = 0
@@ -228,6 +232,7 @@ export class WarehouseRepository {
     let inventoryValueAtCost = 0
     let lowStockProductsCount = 0
     let outOfStockProductsCount = 0
+    let lastActivityAt = ''
 
     if (stockLevels) {
       productsCount = stockLevels.length
@@ -239,6 +244,7 @@ export class WarehouseRepository {
         inventoryValueAtCost += q * c
         if (q === 0) outOfStockProductsCount++
         else if (q <= min) lowStockProductsCount++
+        if (sl.last_movement_at && sl.last_movement_at > lastActivityAt) lastActivityAt = sl.last_movement_at
       }
     }
 
@@ -249,6 +255,7 @@ export class WarehouseRepository {
       lowStockProductsCount,
       outOfStockProductsCount,
       assignedUsersCount: userCount || 0,
+      lastActivityAt,
     })
   }
 
@@ -609,6 +616,7 @@ export class WarehouseRepository {
         new_stock,
         unit_cost,
         total_cost,
+        document_type,
         document_reference,
         reason,
         user_id,
@@ -637,7 +645,7 @@ export class WarehouseRepository {
       productId: m.product_id,
       productName: m.products?.name || 'Producto',
       sku: m.products?.sku || 'SKU',
-      type: m.movement_type as any,
+      type: m.document_type === 'INVENTARIO_INICIAL' ? 'INVENTARIO_INICIAL' : m.movement_type,
       documentRef: m.document_reference || '',
       quantityIn: Number(m.quantity_in || 0),
       quantityOut: Number(m.quantity_out || 0),

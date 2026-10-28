@@ -88,7 +88,6 @@ export interface ReportDashboardKPIs {
   salesTotal: number
   salesCount: number
   averageTicket: number
-  salesChangePercent: number
 
   // Inventario
   inventoryValueAtCost?: number | null // null si no tiene permisos financieros

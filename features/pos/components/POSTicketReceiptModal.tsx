@@ -8,6 +8,7 @@ import { Heart } from 'lucide-react'
 import { customerReceiptHref } from '@/features/customer-receipt'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
+import { ivaLabel } from '../utils/iva-label'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -223,7 +224,7 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>IVA (19% / Exento):</span>
+                <span>{ivaLabel(receipt.items)}:</span>
                 <span>{formatCOP(taxAmount)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 13, color: 'var(--navy)', paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>

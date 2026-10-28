@@ -34,6 +34,30 @@ import {
 } from '@/features/accounting/utils/posting-accounts'
 import { computeStockHealth } from '../utils/stock-health'
 
+const PRODUCT_IMAGES_BUCKET = 'products'
+const PRODUCT_IMAGE_EXTENSIONS: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+
+/**
+ * Si la imagen llega embebida (data URL desde el formulario), la sube al almacenamiento
+ * de productos y devuelve su dirección pública. Así la foto no viaja en cada consulta de productos.
+ */
+async function storeProductImage(image: string | null | undefined, companyId: string): Promise<string | null> {
+  const value = image?.trim()
+  if (!value) return null
+  const match = /^data:([^;]+);base64,([\s\S]*)$/.exec(value)
+  if (!match) return value
+
+  const extension = PRODUCT_IMAGE_EXTENSIONS[match[1]]
+  if (!extension) throw new Error('Formato de imagen no permitido. Use una foto JPG, PNG o WEBP.')
+  const bytes = Uint8Array.from(atob(match[2]), (ch) => ch.charCodeAt(0))
+  const path = `${companyId}/${crypto.randomUUID()}.${extension}`
+  const { error } = await supabaseClient.storage
+    .from(PRODUCT_IMAGES_BUCKET)
+    .upload(path, bytes, { contentType: match[1], cacheControl: '31536000' })
+  if (error) throw new Error(`No se pudo guardar la foto del producto: ${error.message}`)
+  return supabaseClient.storage.from(PRODUCT_IMAGES_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
 function mapDbToDomain(row: any): Product {
   const categoryRel = row.categories || row.category || null
   const brandRel = row.brands || row.brand || null
@@ -507,8 +531,10 @@ export class ProductRepository {
       tax_rate_percent: ivaColumns.tax_rate_percent,
       is_tax_exempt: Boolean(ivaColumns.is_tax_exempt),
       iva_treatment: ivaColumns.iva_treatment,
-      primary_image_url:
-        (data as any).primaryImageUrl?.trim() || (data as any).imageUrl?.trim() || null,
+      primary_image_url: await storeProductImage(
+        (data as any).primaryImageUrl || (data as any).imageUrl,
+        resolvedCompanyId
+      ),
       secondary_images: (data as any).secondaryImages || (data as any).images || [],
       min_stock_threshold: (data as any).minStockThreshold ?? 10,
       critical_stock_threshold: (data as any).criticalStockThreshold ?? 5,
@@ -688,10 +714,12 @@ export class ProductRepository {
       updatePayload.is_tax_exempt = u.isTaxExempt
     }
 
-    if (u.primaryImageUrl !== undefined)
-      updatePayload.primary_image_url = u.primaryImageUrl?.trim() || null
-    else if (u.imageUrl !== undefined)
-      updatePayload.primary_image_url = u.imageUrl?.trim() || null
+    if (u.primaryImageUrl !== undefined || u.imageUrl !== undefined) {
+      updatePayload.primary_image_url = await storeProductImage(
+        u.primaryImageUrl !== undefined ? u.primaryImageUrl : u.imageUrl,
+        await this.resolveCompanyId()
+      )
+    }
 
     if (u.secondaryImages !== undefined)
       updatePayload.secondary_images = u.secondaryImages

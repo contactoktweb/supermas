@@ -192,6 +192,8 @@ export function DistributorCatalogTable({
                     <div className="flex items-center gap-3 min-w-0">
                       {prod.imageUrl ? (
                         <img
+                          loading="lazy"
+                          decoding="async"
                           src={prod.imageUrl}
                           alt={prod.name}
                           className="w-11 h-11 rounded-lg object-cover border border-slate-200 shrink-0 bg-slate-50"

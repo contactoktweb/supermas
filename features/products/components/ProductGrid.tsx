@@ -48,6 +48,7 @@ export function ProductGrid({
               {product.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
+                  decoding="async"
                   src={product.imageUrl}
                   alt={product.name}
                   className="product-card-hero-img"

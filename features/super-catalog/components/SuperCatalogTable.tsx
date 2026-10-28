@@ -221,6 +221,8 @@ export function SuperCatalogTable({
                         <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center text-slate-400">
                           {p.imageUrl ? (
                             <img
+                              loading="lazy"
+                              decoding="async"
                               src={p.imageUrl}
                               alt={p.name}
                               className="w-full h-full object-cover"

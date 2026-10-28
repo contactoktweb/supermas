@@ -183,7 +183,20 @@ export const GESTION: Capitulo = {
           captura: c('34-auditoria-01', 'Pista de auditoría.'),
         },
       ],
-      procedimientos: [],
+      procedimientos: [
+        {
+          id: 'ver-evento-auditoria',
+          titulo: 'Ver el detalle de un evento',
+          objetivo: 'Saber exactamente qué cambió en un registro, quién lo hizo y desde dónde.',
+          pasos: [
+            { texto: 'Busque el evento por usuario, documento o producto. Los eventos que modificaron datos muestran debajo de la acción la marca **campos modificados**.' },
+            {
+              texto: 'Haga clic en el evento. El panel muestra el usuario, el rol, la bodega, la fecha y, en **Cambios**, el valor anterior y el nuevo de cada campo.',
+              captura: c('34-auditoria-02-detalle', 'Detalle de un evento de auditoría.'),
+            },
+          ],
+        },
+      ],
       consejos: ['Marque **Solo cambios con antes y después** para ver exactamente qué valor cambió en cada registro.'],
     },
   ],

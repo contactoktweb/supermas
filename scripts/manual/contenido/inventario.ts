@@ -103,10 +103,12 @@ export const INVENTARIO: Capitulo = {
         {
           id: 'ver-detalle-producto',
           titulo: 'Consultar el detalle de un producto',
-          objetivo: 'Ver existencias, precios, costo, margen y canales de un producto sin editarlo.',
+          objetivo: 'Ver existencias por bodega, precios, costo, margen, movimientos y canales de un producto sin editarlo.',
           pasos: [
             { texto: 'En el menú de acciones elija [[Ver detalle]]. La pestaña **Resumen** muestra stock total, precio, costo promedio, margen y la ficha técnica.', captura: c('02-productos-05-detalle', 'Detalle del producto, pestaña Resumen.') },
+            { texto: 'La pestaña **Inventario** muestra cuántas unidades hay en cada bodega, qué porcentaje del total representa y si está en nivel óptimo, bajo, crítico o agotado.', captura: c('02-productos-05b-detalle-inventario', 'Detalle del producto, pestaña Inventario.') },
             { texto: 'La pestaña **Precios** muestra las listas vigentes y el desglose de IVA y margen.', captura: c('02-productos-06-detalle-precios', 'Detalle del producto, pestaña Precios.') },
+            { texto: 'La pestaña **Movimientos** lista las últimas entradas y salidas del producto (compras, ventas, ajustes, traslados) con la fecha, la bodega, el documento y quién lo hizo. Para ver el historial completo pulse [[Ver Kardex completo]].', captura: c('02-productos-06b-detalle-movimientos', 'Detalle del producto, pestaña Movimientos.') },
             { texto: 'La pestaña **Web** indica si el producto está disponible en las vitrinas públicas.', captura: c('02-productos-07-detalle-web', 'Detalle del producto, pestaña Web.') },
             { texto: 'Desde el pie del panel puede ir al [[Kardex]] del producto, [[Eliminar]] o [[Editar producto]].' },
           ],

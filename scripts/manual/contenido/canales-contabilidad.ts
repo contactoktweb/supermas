@@ -136,8 +136,11 @@ export const CONTABILIDAD: Capitulo = {
       pantalla: [
         {
           texto: 'Se elige el **año fiscal** (2024, 2025, 2026) y se trabaja con [[Configuración]], [[Conciliación]], [[Historial]], [[Validar información]] y [[Generar archivos]]. Los indicadores muestran los registros a reportar, los terceros, los formatos y los errores.',
-          captura: c('30-exogena-01-error', 'Módulo Exógena.'),
-          elementos: ['Si al abrir el módulo aparece un mensaje de error en la parte superior, avise al administrador del sistema antes de generar archivos.'],
+          captura: c('30-exogena-01', 'Módulo Exógena.'),
+        },
+        {
+          texto: 'La pestaña [[Conciliación]] compara los saldos contables del año (ventas, IVA, compras, cartera y cuentas por pagar) con lo que se va a reportar en cada formato, para detectar diferencias antes de generar los archivos.',
+          captura: c('30-exogena-02-conciliacion', 'Conciliación contable de exógena.'),
         },
       ],
       procedimientos: [],

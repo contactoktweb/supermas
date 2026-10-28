@@ -5,6 +5,7 @@ import { LocationWithMetrics, LocationType, LocationStatus } from '../types'
 import { warehouseFormSchema, WarehouseFormData } from '../schemas/warehouse.schema'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { extractErrorMessage } from '@/lib/utils'
+import { useCompanyLocation } from '@/hooks/useCompanyLocation'
 
 interface WarehouseFormDrawerProps {
   mode: 'create' | 'edit'
@@ -22,6 +23,7 @@ export function WarehouseFormDrawer({
   onSubmit,
 }: WarehouseFormDrawerProps) {
   const [mounted, setMounted] = useState(false)
+  const companyLocation = useCompanyLocation()
   useEffect(() => {
     setMounted(true)
   }, [])
@@ -31,8 +33,8 @@ export function WarehouseFormDrawer({
     type: 'WAREHOUSE',
     status: 'ACTIVE',
     address: '',
-    city: 'Medellín',
-    department: 'Antioquia',
+    city: '',
+    department: '',
     phone: '',
     email: '',
     managerName: '',
@@ -65,7 +67,7 @@ export function WarehouseFormDrawer({
         status: warehouse.status,
         address: warehouse.address,
         city: warehouse.city,
-        department: warehouse.department || 'Antioquia',
+        department: warehouse.department || '',
         phone: warehouse.phone || '',
         email: warehouse.email || '',
         managerName: warehouse.managerName || '',
@@ -91,8 +93,8 @@ export function WarehouseFormDrawer({
         type: 'WAREHOUSE',
         status: 'ACTIVE',
         address: '',
-        city: 'Medellín',
-        department: 'Antioquia',
+        city: companyLocation.city,
+        department: companyLocation.department,
         phone: '',
         email: '',
         managerName: '',
@@ -114,7 +116,7 @@ export function WarehouseFormDrawer({
     }
     setErrors({})
     setActiveTab('GENERAL')
-  }, [warehouse, mode, isOpen])
+  }, [warehouse, mode, isOpen, companyLocation])
 
   // Escape key handler
   useEffect(() => {
@@ -280,9 +282,6 @@ export function WarehouseFormDrawer({
                       required
                     />
                   </div>
-                  <small className="field-helper">
-                    El formato definitivo de códigos será definido durante la parametrización.
-                  </small>
                   {errors.code && <span className="field-error">{errors.code}</span>}
                 </div>
 
@@ -343,7 +342,7 @@ export function WarehouseFormDrawer({
                       type="text"
                       value={formData.city}
                       onChange={(e) => handleInputChange('city', e.target.value)}
-                      placeholder="Ej. Medellín"
+                      placeholder="Ej. Cúcuta"
                       required
                     />
                   </div>

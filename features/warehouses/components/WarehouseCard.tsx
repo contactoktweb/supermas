@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { LocationWithMetrics } from '../types'
 import { WarehousePermissions } from '../hooks/useWarehousePermissions'
+import { formatDateTimeCO } from '@/lib/utils'
 
 interface WarehouseCardProps {
   warehouse: LocationWithMetrics
@@ -312,7 +313,7 @@ export function WarehouseCard({
             </span>
           )}
 
-          <span className="footer-activity">{warehouse.lastActivityAt}</span>
+          <span className="footer-activity">{formatDateTimeCO(warehouse.lastActivityAt, 'Sin actividad reciente')}</span>
         </div>
 
         <button

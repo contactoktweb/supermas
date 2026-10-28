@@ -2,10 +2,24 @@
 
 import React, { useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
-import { WarehouseMovement } from '../../../types'
+import { MovementType, WarehouseMovement } from '../../../types'
 import { WarehouseEmptyState } from '../../WarehouseEmptyState'
 import { SelectField } from '@/components/ui/SelectField'
 import { displayLabel, MOVEMENT_TYPE_LABELS } from '@/lib/labels/display-labels'
+import { formatDateTimeCO } from '@/lib/utils'
+
+const MOVEMENT_FILTER_TYPES: MovementType[] = [
+  'PURCHASE_ENTRY',
+  'SALE_OUT',
+  'TRANSFER_IN',
+  'TRANSFER_OUT',
+  'POSITIVE_ADJUSTMENT',
+  'NEGATIVE_ADJUSTMENT',
+  'INVENTARIO_INICIAL',
+  'CUSTOMER_RETURN',
+  'SUPPLIER_RETURN',
+  'DAMAGED_RETURN',
+]
 
 interface WarehouseMovementsTabProps {
   movements: WarehouseMovement[]
@@ -56,14 +70,11 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
             onChange={(value) => setTypeFilter(value)}
           >
             <option value="ALL">Tipo de movimiento: Todos</option>
-            <option value="COMPRA">Compra</option>
-            <option value="VENTA">Venta</option>
-            <option value="ENTRADA">Entrada de almacén</option>
-            <option value="SALIDA">Salida de almacén</option>
-            <option value="TRANSFERENCIA_ENTRADA">Transferencia (Entrada)</option>
-            <option value="TRANSFERENCIA_SALIDA">Transferencia (Salida)</option>
-            <option value="AJUSTE_POSITIVO">Ajuste positivo</option>
-            <option value="AJUSTE_NEGATIVO">Ajuste negativo</option>
+            {MOVEMENT_FILTER_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {displayLabel(MOVEMENT_TYPE_LABELS, type)}
+              </option>
+            ))}
           </SelectField>
         </div>
 
@@ -109,7 +120,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
                 {filtered.map((m) => (
                   <tr key={m.id}>
                     <td>
-                      <span className="time-muted">{m.createdAt}</span>
+                      <span className="time-muted">{formatDateTimeCO(m.createdAt)}</span>
                     </td>
                     <td>
                       <strong>{m.productName}</strong>
@@ -117,9 +128,7 @@ export function WarehouseMovementsTab({ movements, locationName }: WarehouseMove
                     </td>
                     <td>
                       <span
-                        className={`movement-badge ${m.type
-                          .toLowerCase()
-                          .replaceAll('_', '-')}`}
+                        className={`movement-badge ${m.quantityIn > 0 ? 'in' : 'out'}`}
                       >
                         {displayLabel(MOVEMENT_TYPE_LABELS, m.type)}
                       </span>

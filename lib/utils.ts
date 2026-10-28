@@ -105,3 +105,11 @@ export function extractErrorMessage(
 
   return String(err)
 }
+
+/** Fecha y hora en hora Colombia (dd/mm/aa h:mm). Si el valor no es una fecha válida devuelve `fallback`. */
+export function formatDateTimeCO(value: string | null | undefined, fallback = '—'): string {
+  if (!value) return fallback
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return fallback
+  return date.toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' })
+}

@@ -35,7 +35,7 @@ export function InventoryAdjustModal({
   const [selectedProductId, setSelectedProductId] = useState<string>(productId || '')
   const [selectedLocationId, setSelectedLocationId] = useState<string>(locationId || '')
   const [adjustmentType, setAdjustmentType] = useState<'IN' | 'OUT'>('IN')
-  const [quantity, setQuantity] = useState<number>(1)
+  const [quantityText, setQuantityText] = useState<string>('1')
   const [reason, setReason] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
   const [evidenceUrl, setEvidenceUrl] = useState<string>('')
@@ -100,15 +100,21 @@ export function InventoryAdjustModal({
 
   if (!isOpen || !mounted) return null
 
-  // Compute current stock for selected product and location
+  const quantity = Number.parseInt(quantityText, 10) || 0
+
+  // Saldo actual del producto en la bodega elegida. En la vista Consolidado no hay
+  // filas por bodega cargadas, así que se toma del desglose por bodega del producto.
   const currentLevel = stockLevels.find(
     (s) => s.productId === selectedProductId && s.locationId === selectedLocationId
   )
-  const currentStock = currentLevel ? currentLevel.currentStock : 0
+  const consolidatedBreakdown = consolidatedProducts
+    .find((p) => p.productId === selectedProductId)
+    ?.locationBreakdown.find((b) => b.locationId === selectedLocationId)
+  const currentStock = currentLevel?.currentStock ?? consolidatedBreakdown?.stock ?? 0
 
   // Compute resulting stock
   const resultingStock =
-    adjustmentType === 'IN' ? currentStock + (quantity || 0) : currentStock - (quantity || 0)
+    adjustmentType === 'IN' ? currentStock + quantity : currentStock - quantity
 
   const productOptions: SelectOption[] = consolidatedProducts.map((p) => ({
     value: p.productId,
@@ -258,8 +264,10 @@ export function InventoryAdjustModal({
                   type="number"
                   min="1"
                   className="custom-form-input"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  step="1"
+                  inputMode="numeric"
+                  value={quantityText}
+                  onChange={(e) => setQuantityText(e.target.value.replace(/[^\d]/g, ''))}
                   required
                 />
               </div>

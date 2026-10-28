@@ -72,6 +72,25 @@ export const warehouseFormSchema = z.object({
 
 export type WarehouseFormData = z.infer<typeof warehouseFormSchema>
 
+export const STOCK_ADJUSTMENT_REASONS = [
+  'CONTEO_FISICO',
+  'MERMA_ROTURA',
+  'PRODUCTO_VENCIDO',
+  'ERROR_REGISTRO',
+  'DEVOLUCION_INTERNA',
+  'OTRO',
+] as const
+
+/** Nombre del motivo tal como se guarda en el Kardex. */
+export const STOCK_ADJUSTMENT_REASON_LABELS: Record<(typeof STOCK_ADJUSTMENT_REASONS)[number], string> = {
+  CONTEO_FISICO: 'Conteo físico',
+  MERMA_ROTURA: 'Merma o rotura',
+  PRODUCTO_VENCIDO: 'Producto vencido',
+  ERROR_REGISTRO: 'Corrección de registro',
+  DEVOLUCION_INTERNA: 'Devolución interna',
+  OTRO: 'Otro motivo',
+}
+
 export const stockAdjustmentSchema = z.object({
   locationId: z.string().min(1, 'La bodega es obligatoria'),
   productId: z.string().min(1, 'El producto es obligatorio'),
@@ -82,17 +101,7 @@ export const stockAdjustmentSchema = z.object({
     .number({ message: 'La cantidad debe ser un número' })
     .positive('La cantidad debe ser mayor a 0')
     .int('La cantidad debe ser un número entero'),
-  reason: z.enum(
-    [
-      'CONTEO_FISICO',
-      'MERMA_ROTURA',
-      'PRODUCTO_VENCIDO',
-      'ERROR_REGISTRO',
-      'DEVOLUCION_INTERNA',
-      'OTRO',
-    ],
-    { message: 'Selecciona el motivo del ajuste' }
-  ),
+  reason: z.enum(STOCK_ADJUSTMENT_REASONS, { message: 'Selecciona el motivo del ajuste' }),
   documentRef: z.string().trim().max(30).optional().or(z.literal('')),
   notes: z
     .string()

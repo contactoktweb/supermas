@@ -246,10 +246,10 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
       )}
 
       {/* 2. Main POS Workspace: Split Screen */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Side: Product Catalog, Search & Quick Filters */}
         <section 
-          className="flex-1 flex flex-col overflow-hidden bg-slate-50 border-r border-slate-200"
+          className="flex-1 min-h-0 flex flex-col overflow-hidden bg-slate-50 border-r border-slate-200"
           aria-label="Catálogo de productos"
         >
           <POSProductGrid
@@ -267,7 +267,7 @@ export const POSView: React.FC<POSViewProps> = ({ onExit }) => {
 
         {/* Right Side: Active Cart & Total Summary */}
         <aside 
-          className="w-full lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col overflow-hidden bg-white shadow-xl z-10"
+          className="w-full max-h-[50dvh] md:max-h-none md:w-[340px] lg:w-[420px] xl:w-[460px] shrink-0 flex flex-col overflow-hidden bg-white shadow-xl z-10"
           aria-label="Carrito de compras"
         >
           <POSCart

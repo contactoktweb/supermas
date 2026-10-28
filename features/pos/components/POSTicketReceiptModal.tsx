@@ -155,8 +155,8 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
                   {company?.phone ? ` · Tel: ${company.phone}` : ''}
                 </div>
               )}
-              <div style={{ fontSize: 9, color: '#b91c1c', textTransform: 'uppercase', marginTop: 2 }}>
-                Comprobante interno de venta — no es factura electrónica
+              <div style={{ fontSize: 9, color: '#475569', fontWeight: 700, textTransform: 'uppercase', marginTop: 2 }}>
+                Tiquete de venta · Si necesita factura electrónica, solicítela en caja
               </div>
             </div>
 

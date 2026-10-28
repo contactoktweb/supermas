@@ -116,7 +116,7 @@ export function NewSaleDrawer({
     Promise.all([
       supabaseClient
         .from('customers')
-        .select('id, first_name, last_name, company_name, document_number, phone, email, is_active, credit_limit, current_balance')
+        .select('id, first_name, last_name, company_name, document_type, document_number, city, phone, email, is_active, credit_limit, current_balance')
         .eq('is_active', true)
         .order('first_name', { ascending: true }),
       supabaseClient
@@ -130,7 +130,9 @@ export function NewSaleDrawer({
           const mappedCusts = (custRes.data || []).map((c: any) => ({
             id: c.id,
             displayName: c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente',
+            documentType: c.document_type || '',
             documentNumber: c.document_number,
+            city: c.city || '',
             phone: c.phone || '',
             email: c.email || '',
             creditLimit: Number(c.credit_limit || 0),
@@ -696,8 +698,12 @@ export function NewSaleDrawer({
                         </strong>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
                           <span>{displayLabel(ID_DOCUMENT_LABELS, cust.documentType, '')} {cust.documentNumber}</span>
-                          <span>•</span>
-                          <span>{cust.city}</span>
+                          {cust.city && (
+                            <>
+                              <span>•</span>
+                              <span>{cust.city}</span>
+                            </>
+                          )}
                           <span>•</span>
                           <span style={{ color: 'var(--navy)', fontWeight: 600 }}>
                             Lista: {cust.priceList === 'WHOLESALE' ? 'Mayorista' : cust.priceList === 'VIP' ? 'VIP' : 'Normal'}
@@ -755,7 +761,7 @@ export function NewSaleDrawer({
                   <input
                     value={productSearch}
                     onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="Ej. Arroz Diana, Aceite Premier, SKU..."
+                    placeholder="Nombre, SKU o código de barras..."
                     autoFocus
                   />
                 </div>

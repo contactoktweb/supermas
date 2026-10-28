@@ -652,7 +652,7 @@ export function ProductFormDrawer({
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Ej. Arroz Diana Premium Extra 5kg"
+                    placeholder="Ej. Vaselina pura 80 g"
                     required
                   />
                 </div>
@@ -1487,10 +1487,10 @@ export function ProductFormDrawer({
                   </strong>
                 </div>
                 <div className="tax-summary-row">
-                  <span>Impacto en precio de $20,000:</span>
+                  <span>Impacto en un precio de $ 20.000 (IVA incluido):</span>
                   <span>
-                    IVA recaudado: $
-                    {((20000 * vatRatePercent) / (100 + vatRatePercent)).toFixed(0)}
+                    IVA recaudado: ${' '}
+                    {Math.round((20000 * vatRatePercent) / (100 + vatRatePercent)).toLocaleString('es-CO')}
                   </span>
                 </div>
               </div>

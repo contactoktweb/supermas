@@ -59,7 +59,7 @@ export function ReportDashboardView({
           format={typeof kpis?.grossMarginPercent === 'number' ? 'percent' : 'raw'}
           subtitle={
             kpis?.grossProfit !== null && kpis?.grossProfit !== undefined
-              ? `Utilidad: $${kpis.grossProfit.toLocaleString('es-CO')}`
+              ? `Utilidad: $${Math.round(kpis.grossProfit).toLocaleString('es-CO')}`
               : 'Acceso financiero restringido'
           }
           iconName="accounting"

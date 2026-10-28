@@ -436,8 +436,6 @@ export function AccountingPage() {
               voucherTypes={voucherTypes}
               onFilterChange={updateFilters}
               onSelectEntry={(e) => setSelectedEntry(e)}
-              onOpenNewEntry={() => setIsNewEntryOpen(true)}
-              canCreateEntry={permissions.canCreateEntries}
             />
           )}
 

@@ -54,6 +54,7 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   phone: 'Teléfono',
   address: 'Dirección',
   city: 'Ciudad',
+  department: 'Departamento',
   city_code: 'Código de ciudad',
   document_type: 'Tipo de documento',
   document_number: 'Número de documento',

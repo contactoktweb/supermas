@@ -970,7 +970,7 @@ export class ProductRepository {
   async getProductMovements(productId: string): Promise<ProductMovementSummary[]> {
     const { data, error } = await supabaseClient
       .from('inventory_movements')
-      .select('id, created_at, movement_type, quantity_in, quantity_out, unit_cost, previous_stock, new_stock, document_reference, locations(name), users(full_name)')
+      .select('id, created_at, movement_type, quantity_in, quantity_out, unit_cost, previous_stock, new_stock, document_type, document_reference, locations(name), users(full_name)')
       .eq('product_id', productId)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -983,7 +983,7 @@ export class ProductRepository {
     return (data || []).map((m: any) => ({
       id: m.id,
       timestamp: m.created_at,
-      type: m.movement_type,
+      type: m.document_type === 'INVENTARIO_INICIAL' ? 'INVENTARIO_INICIAL' : m.movement_type,
       quantity: Number(m.quantity_in ?? 0) - Number(m.quantity_out ?? 0),
       unitCost: Number(m.unit_cost ?? 0),
       previousBalance: Number(m.previous_stock ?? 0),

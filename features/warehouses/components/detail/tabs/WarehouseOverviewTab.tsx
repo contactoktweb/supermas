@@ -691,17 +691,22 @@ export function WarehouseOverviewTab({
                     <AppIcon name="arrowDownLeft" size={15} color="#159a67" />
                   )}
                 </div>
-                <div>
-                  <strong>{m.productName}</strong>
-                  <span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ display: 'block' }}>{m.productName}</strong>
+                  <span style={{ display: 'block' }}>
                     {displayLabel(MOVEMENT_TYPE_LABELS, m.type)} ({m.documentRef}) · Por {m.userName}
                   </span>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <b className={m.quantityIn > 0 ? 'positive-text' : 'negative-text'}>
+                <div style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <b
+                    className={m.quantityIn > 0 ? 'positive-text' : 'negative-text'}
+                    style={{ display: 'block' }}
+                  >
                     {m.quantityIn > 0 ? `+${m.quantityIn}` : `-${m.quantityOut}`} uds
                   </b>
-                  <small className="time-muted">{formatDateTimeCO(m.createdAt)}</small>
+                  <small className="time-muted" style={{ display: 'block' }}>
+                    {formatDateTimeCO(m.createdAt)}
+                  </small>
                 </div>
               </article>
             ))}

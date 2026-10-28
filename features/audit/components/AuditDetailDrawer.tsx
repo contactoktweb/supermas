@@ -246,7 +246,7 @@ export function AuditDetailDrawer({ isOpen, onClose, log }: AuditDetailDrawerPro
               </div>
 
               <div className="table-wrapper" style={{ border: '1px solid var(--line, #e2e8f0)', borderRadius: 6 }}>
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <table className="data-table" style={{ width: '100%', minWidth: 0, borderCollapse: 'collapse', fontSize: 12.5 }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9' }}>
                       <th style={{ textAlign: 'left', padding: '8px 12px' }}>Campo</th>

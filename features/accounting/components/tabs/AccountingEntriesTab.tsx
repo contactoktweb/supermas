@@ -16,8 +16,6 @@ interface AccountingEntriesTabProps {
   voucherTypes: AccountingVoucherType[]
   onFilterChange: (filters: Partial<AccountingFilters>) => void
   onSelectEntry: (entry: AccountingEntry) => void
-  onOpenNewEntry: () => void
-  canCreateEntry: boolean
 }
 
 export function AccountingEntriesTab({
@@ -26,8 +24,6 @@ export function AccountingEntriesTab({
   voucherTypes,
   onFilterChange,
   onSelectEntry,
-  onOpenNewEntry,
-  canCreateEntry,
 }: AccountingEntriesTabProps) {
   // El filtro lista los tipos activos; si el seleccionado se desactivó, se conserva para poder quitarlo.
   const selectedVoucherType = filters.voucherTypeCode && filters.voucherTypeCode !== 'ALL' ? filters.voucherTypeCode : ''
@@ -98,8 +94,8 @@ export function AccountingEntriesTab({
   return (
     <div className="space-y-4 page-enter">
       {/* Barra de Filtros */}
-      <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
-        <div className="search-box flex-1 max-w-md">
+      <div className="filters-bar grid w-full grid-cols-1 items-center gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(200px,1.5fr)_minmax(160px,1fr)_repeat(3,minmax(170px,1fr))]">
+        <div className="search-box w-full!">
           <AppIcon name="search" size={16} />
           <input
             placeholder="Buscar por comprobante (ej: FC o FC-000012), tercero o descripción..."
@@ -109,10 +105,8 @@ export function AccountingEntriesTab({
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="filter-select-wrap flex items-center gap-1.5 text-xs" title="Filtrar asientos por mes">
-            <AppIcon name="calendar" size={14} />
-            <span className="sr-only">Mes de los asientos</span>
+        <div className="flex items-center gap-1.5" title="Filtrar asientos por mes">
+          <div className="min-w-0 flex-1">
             <DatePicker
               mode="month"
               value={selectedMonth}
@@ -120,70 +114,64 @@ export function AccountingEntriesTab({
               size="sm"
               onChange={(value) => handleMonthChange(value)}
             />
-          </label>
+          </div>
           {selectedMonth && (
             <button
               type="button"
-              className="outline-button text-xs py-1.5"
+              className="icon-button"
               onClick={() => handleMonthChange('')}
               aria-label="Quitar filtro de mes"
+              title="Todos los meses"
             >
               <AppIcon name="closeSimple" size={12} />
-              <span>Todos los meses</span>
-            </button>
-          )}
-
-          <SelectField
-            value={selectedVoucherType || 'ALL'}
-            aria-label="Filtrar por tipo de comprobante"
-            size="sm"
-            onChange={(value) => onFilterChange({ voucherTypeCode: value })}
-          >
-            <option value="ALL">Todos los comprobantes</option>
-            {voucherTypeOptions.map((vt) => (
-              <option key={vt.id} value={vt.code}>
-                {vt.code} — {vt.name}
-              </option>
-            ))}
-          </SelectField>
-
-          <SelectField
-            value={filters.sourceType || 'ALL'}
-            size="sm"
-            onChange={(value) => onFilterChange({ sourceType: value as any })}
-          >
-            <option value="ALL">Todos los orígenes</option>
-            <option value="SALE">Ventas / Facturación</option>
-            <option value="PURCHASE">Compras de Mercancía</option>
-            <option value="COST_OF_SALES">Costo de Ventas</option>
-            <option value="CUSTOMER_PAYMENT">Recaudos de Clientes</option>
-            <option value="SUPPLIER_PAYMENT">Pagos a Proveedores</option>
-            <option value="MANUAL">Asientos Manuales</option>
-            <option value="REVERSAL">Reversiones</option>
-          </SelectField>
-
-          <SelectField
-            value={filters.entryStatus || 'ALL'}
-            size="sm"
-            onChange={(value) => onFilterChange({ entryStatus: value as any })}
-          >
-            <option value="ALL">Todos los estados</option>
-            <option value="POSTED">Confirmados</option>
-            <option value="DRAFT">Borradores</option>
-            <option value="REVERSED">Reversados / Anulados</option>
-          </SelectField>
-
-          {canCreateEntry && (
-            <button
-              type="button"
-              className="primary-button text-xs py-1.5"
-              onClick={onOpenNewEntry}
-            >
-              <AppIcon name="plus" size={14} />
-              <span>Nuevo Asiento</span>
             </button>
           )}
         </div>
+
+        <SelectField
+          value={selectedVoucherType || 'ALL'}
+          aria-label="Filtrar por tipo de comprobante"
+          size="sm"
+          onChange={(value) => onFilterChange({ voucherTypeCode: value })}
+        >
+          <option value="ALL">Todos los comprobantes</option>
+          {voucherTypeOptions.map((vt) => (
+            <option key={vt.id} value={vt.code}>
+              {vt.code} — {vt.name}
+            </option>
+          ))}
+        </SelectField>
+
+        <SelectField
+          value={filters.sourceType || 'ALL'}
+          aria-label="Filtrar por origen"
+          size="sm"
+          onChange={(value) => onFilterChange({ sourceType: value as any })}
+        >
+          <option value="ALL">Todos los orígenes</option>
+          <option value="SALE">Ventas / Facturación</option>
+          <option value="CREDIT_NOTE">Notas crédito</option>
+          <option value="DEBIT_NOTE">Notas débito</option>
+          <option value="PURCHASE">Compras de Mercancía</option>
+          <option value="COST_OF_SALES">Costo de Ventas</option>
+          <option value="CUSTOMER_PAYMENT">Recaudos de Clientes</option>
+          <option value="SUPPLIER_PAYMENT">Pagos a Proveedores</option>
+          <option value="MANUAL">Asientos Manuales</option>
+          <option value="REVERSAL">Reversiones</option>
+        </SelectField>
+
+        <SelectField
+          value={filters.entryStatus || 'ALL'}
+          aria-label="Filtrar por estado"
+          size="sm"
+          onChange={(value) => onFilterChange({ entryStatus: value as any })}
+        >
+          <option value="ALL">Todos los estados</option>
+          <option value="POSTED">Confirmados</option>
+          <option value="DRAFT">Borradores</option>
+          <option value="REVERSED">Reversados / Anulados</option>
+        </SelectField>
+
       </div>
 
       {/* Tabla de Asientos Contables */}

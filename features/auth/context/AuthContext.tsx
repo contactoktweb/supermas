@@ -13,6 +13,7 @@ import { supabaseClient } from '@/lib/supabase/client'
 import { invalidateCachedUserProfile } from '@/lib/supabase/session-context'
 import { authService } from '../services/auth.service'
 import { AuthUser, LoginCredentials, UserRoleCode } from '../types'
+import type { ChangePasswordInput } from '../schemas/password-policy.schema'
 
 interface AuthContextValue {
   user: AuthUser | null
@@ -22,8 +23,8 @@ interface AuthContextValue {
   signIn: (credentials: LoginCredentials) => Promise<AuthUser>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
-  requestPasswordReset: (email: string, redirectTo?: string) => Promise<void>
-  updatePassword: (newPassword: string) => Promise<void>
+  requestPasswordReset: (email: string) => Promise<void>
+  updatePassword: (input: ChangePasswordInput) => Promise<void>
   hasPermission: (permissionCode: string) => boolean
   hasAnyPermission: (permissionCodes: string[]) => boolean
   hasRole: (roles: UserRoleCode[]) => boolean
@@ -120,11 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Solicitud de restablecimiento de contraseña
-  const requestPasswordReset = useCallback(async (email: string, redirectTo?: string) => {
+  const requestPasswordReset = useCallback(async (email: string) => {
     setIsLoading(true)
     setError(null)
     try {
-      await authService.requestPasswordReset(email, redirectTo)
+      await authService.requestPasswordReset(email)
     } catch (err: any) {
       setError(err?.message || 'Error al solicitar restablecimiento de contraseña.')
       throw err
@@ -134,11 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   // Actualización de contraseña tras recuperación
-  const updatePassword = useCallback(async (newPassword: string) => {
+  const updatePassword = useCallback(async (input: ChangePasswordInput) => {
     setIsLoading(true)
     setError(null)
     try {
-      await authService.updatePassword(newPassword)
+      await authService.updatePassword(input)
       await refreshUser()
     } catch (err: any) {
       setError(err?.message || 'Error al actualizar contraseña.')

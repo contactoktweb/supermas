@@ -471,6 +471,21 @@ export class UserRepository {
   }
 
   /**
+   * Borra definitivamente un usuario. El servidor verifica que quien llama sea SUPERADMIN y registra la auditoría.
+   */
+  async deleteUser(id: string): Promise<void> {
+    const response = await fetch('/api/users', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+    const result = await response.json().catch(() => null)
+    if (!response.ok || !result?.success) {
+      throw new Error(result?.error || 'No se pudo borrar el usuario.')
+    }
+  }
+
+  /**
    * Consulta la actividad histórica reciente de un usuario desde public.audit_logs.
    */
   async getUserActivity(userId: string): Promise<AuditLogEntry[]> {

@@ -63,6 +63,9 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
   const [isDeactivateDialogOpen, setIsDeactivateDialogOpen] = useState<boolean>(false)
   const [userToToggleStatus, setUserToToggleStatus] = useState<User | null>(null)
 
+  // Diálogo de borrado definitivo (solo SUPERADMIN)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+
   // Carga inicial y por cambio de filtros
   const loadData = useCallback(async () => {
     try {
@@ -179,6 +182,17 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
     }
   }
 
+  const handlePromptDelete = (user: User) => setUserToDelete(user)
+  const handleCloseDeleteDialog = () => setUserToDelete(null)
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return
+    await userService.deleteUser(userToDelete.id)
+    if (selectedUser?.id === userToDelete.id) handleCloseDetail()
+    setUserToDelete(null)
+    await loadData()
+  }
+
   // Exportar a CSV
   const handleExportCSV = async () => {
     const res = await userService.exportUsers(filters, actor, userRole)
@@ -208,6 +222,7 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
     editingUser,
     isDeactivateDialogOpen,
     userToToggleStatus,
+    userToDelete,
     handleUpdateFilter,
     handleResetFilters,
     handleOpenCreate,
@@ -219,6 +234,9 @@ export function useUsers(userRole: UserRole = 'SUPERADMIN') {
     handlePromptToggleStatus,
     handleConfirmToggleStatus,
     handleCloseDeactivateDialog,
+    handlePromptDelete,
+    handleCloseDeleteDialog,
+    handleConfirmDelete,
     handleExportCSV,
     reload: loadData,
   }

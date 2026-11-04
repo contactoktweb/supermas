@@ -16,6 +16,8 @@ export const CHANGE_PASSWORD_PATH = '/cambiar-contrasena'
 
 /** API que aplica el cambio (excluida del bloqueo; valida la sesión por sí misma). */
 export const CHANGE_PASSWORD_API_PATH = '/api/auth/cambiar-contrasena'
+export const PASSWORD_RECOVERY_API_PATH = '/api/auth/recuperar-contrasena'
+export const PASSWORD_RESET_API_PATH = '/api/auth/restablecer-contrasena'
 
 export const PASSWORD_CHANGE_REQUIRED_CODE = 'PASSWORD_CHANGE_REQUIRED'
 

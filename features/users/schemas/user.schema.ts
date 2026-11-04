@@ -59,11 +59,16 @@ export const UpdateUserSchema = z.object({
   status: UserStatusSchema.optional(),
 })
 
+const UserIdSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Usuario inválido')
+
 /** Cuerpo de PATCH /api/users. La contraseña y el usuario no se editan por esta vía. */
 export const UpdateUserRequestSchema = z.object({
-  id: z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Usuario inválido'),
+  id: UserIdSchema,
   updates: UpdateUserSchema.omit({ password: true, username: true }),
 })
+
+/** Cuerpo de DELETE /api/users. */
+export const DeleteUserRequestSchema = z.object({ id: UserIdSchema })
 
 export const UserFilterSchema = z.object({
   role: z.string().optional(),

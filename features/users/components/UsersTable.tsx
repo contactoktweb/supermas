@@ -11,8 +11,11 @@ interface UsersTableProps {
   onEditUser: (user: User) => void
   onToggleStatus: (user: User) => void
   onViewActivity: (user: User) => void
+  onDelete: (user: User) => void
   canUpdate: boolean
   canActivate: boolean
+  canDelete: boolean
+  currentUserId: string | null
   isLoading?: boolean
 }
 
@@ -22,8 +25,11 @@ export function UsersTable({
   onEditUser,
   onToggleStatus,
   onViewActivity,
+  onDelete,
   canUpdate,
   canActivate,
+  canDelete,
+  currentUserId,
   isLoading,
 }: UsersTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
@@ -284,6 +290,20 @@ export function UsersTable({
                           aria-label={user.status === 'ACTIVE' ? `Desactivar a ${user.name}` : `Activar a ${user.name}`}
                         >
                           <AppIcon name={user.status === 'ACTIVE' ? 'close' : 'check'} size={14} />
+                        </button>
+                      )}
+
+                      {/* Borrar definitivamente */}
+                      {canDelete && user.id !== currentUserId && (
+                        <button
+                          type="button"
+                          className="outline-button"
+                          style={{ padding: '6px 8px', minHeight: 'unset', color: '#b91c1c', borderColor: '#fecaca' }}
+                          onClick={() => onDelete(user)}
+                          title="Borrar usuario"
+                          aria-label={`Borrar a ${user.name}`}
+                        >
+                          <AppIcon name="trash" size={14} />
                         </button>
                       )}
                     </div>

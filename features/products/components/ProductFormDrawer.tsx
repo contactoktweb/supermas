@@ -36,6 +36,9 @@ interface ProductFormDrawerProps {
   onSubmit: (data: CreateProductInput | UpdateProductInput) => Promise<void>
 }
 
+// Línea general de mercancías no fabricadas (migración 088): cuenta sugerida para productos nuevos.
+const DEFAULT_INVENTORY_ACCOUNT_CODE = '143505.01'
+
 const UNIT_OPTIONS = [
   { value: 'UND', label: 'Unidad (UND)' },
   { value: 'KG', label: 'Kilogramo (KG)' },
@@ -72,6 +75,7 @@ export function ProductFormDrawer({
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
   const [accountingAccountId, setAccountingAccountId] = useState('')
   const [pucAccountOptions, setPucAccountOptions] = useState<SelectOption[]>([])
+  const [defaultInventoryAccountId, setDefaultInventoryAccountId] = useState('')
   const [pucLoadError, setPucLoadError] = useState<string | null>(null)
   const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
   const [loadingCatalogs, setLoadingCatalogs] = useState(true)
@@ -167,6 +171,7 @@ export function ProductFormDrawer({
         setCategoryOptions(cats)
         setBrandOptions(brands)
         setPucAccountOptions(pucOptions)
+        setDefaultInventoryAccountId(inventoryAccounts.find((acc) => acc.code === DEFAULT_INVENTORY_ACCOUNT_CODE)?.id || '')
         setTaxRates(taxesRes || [])
         if (locsRes?.data) {
           setActiveWarehouses(locsRes.data)
@@ -175,6 +180,8 @@ export function ProductFormDrawer({
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
           if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
+          const defaultAccount = inventoryAccounts.find((acc) => acc.code === DEFAULT_INVENTORY_ACCOUNT_CODE)
+          if (defaultAccount) setAccountingAccountId((prev) => prev || defaultAccount.id)
         }
       })
       .catch((err) => {
@@ -273,12 +280,11 @@ export function ProductFormDrawer({
         setStatus('ACTIVE')
         setMinStockThreshold(stockDefaults.defaultMinStockThreshold)
         setCriticalStockThreshold(stockDefaults.criticalLowStockThreshold)
-        // Sin preselección: quien crea el producto elige su línea de inventario.
-        setAccountingAccountId('')
+        setAccountingAccountId(defaultInventoryAccountId)
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions, defaultInventoryAccountId])
 
   // La configuración se carga en segundo plano: al llegar, ajusta solo los umbrales del producto nuevo.
   useEffect(() => {

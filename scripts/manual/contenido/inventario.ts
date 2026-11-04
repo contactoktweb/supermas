@@ -52,7 +52,7 @@ export const INVENTARIO: Capitulo = {
               captura: c('02-productos-10-info-llena', 'Pestaña Información diligenciada.'),
             },
             {
-              texto: 'Elija la **Cuenta Contable PUC**: es la cuenta de inventario a la que se lleva el producto. Para mercancía comprada para revender use las cuentas **1435 — Mercancías no fabricadas** según el tipo de producto. Si tiene dudas, pregunte al contador.',
+              texto: 'La **Cuenta Contable PUC** es la cuenta de inventario a la que se lleva el producto. Viene elegida la **143505.01 — Mercancías no fabricadas - General**, que sirve para toda la mercancía comprada para revender. Cámbiela solo si el contador le indica otra línea.',
               captura: c('02-productos-09-cuenta-puc', 'Selección de la cuenta auxiliar de inventario.'),
               advertencia: 'La cuenta contable es obligatoria para crear el producto: define cómo se contabilizan su inventario, su costo y sus ventas.',
             },

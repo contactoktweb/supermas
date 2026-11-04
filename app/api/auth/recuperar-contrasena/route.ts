@@ -3,9 +3,10 @@
  *
  * El enlace se genera con la Admin API de Supabase (no envía correo por sí misma) y se entrega
  * con Resend usando la plantilla de la empresa. La respuesta es siempre la misma exista o no el
- * correo, para no revelar qué cuentas hay registradas. Solo se envía a usuarios activos.
+ * correo, para no revelar qué cuentas hay registradas: el enlace se genera y envía después de
+ * responder, así el tiempo de respuesta tampoco lo delata. Solo se envía a usuarios activos.
  */
-import { NextRequest, NextResponse } from 'next/server'
+import { after, NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createAttemptLimiter } from '@/lib/auth/attempt-limiter'
@@ -31,6 +32,35 @@ function tooManyAttempts(retryAfterSeconds: number) {
   )
 }
 
+async function sendRecoveryLink(email: string): Promise<void> {
+  try {
+    const admin = createAdminClient()
+    const { data: profile } = await admin
+      .from('users')
+      .select('id, full_name, company_id, is_active')
+      .eq('email', email)
+      .maybeSingle()
+    if (!profile?.is_active) return
+
+    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email })
+    const tokenHash = linkData?.properties?.hashed_token
+    if (linkError || !tokenHash) {
+      console.error('[recuperar-contrasena] No se pudo generar el enlace:', linkError?.message)
+      return
+    }
+
+    const link = `${getAppBaseUrl()}/recuperar-contrasena?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
+    await sendPasswordRecoveryEmail({
+      to: email,
+      userName: profile.full_name || email,
+      companyId: profile.company_id,
+      link,
+    })
+  } catch (e) {
+    console.error('[recuperar-contrasena] Error inesperado:', e instanceof Error ? e.message : e)
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'desconocida'
   const ipWait = ipAttempts.consume(ip)
@@ -45,32 +75,6 @@ export async function POST(request: NextRequest) {
   const emailWait = emailAttempts.consume(email)
   if (emailWait > 0) return tooManyAttempts(emailWait)
 
-  try {
-    const admin = createAdminClient()
-    const { data: profile } = await admin
-      .from('users')
-      .select('id, full_name, company_id, is_active')
-      .eq('email', email)
-      .maybeSingle()
-    if (!profile?.is_active) return genericOk()
-
-    const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({ type: 'recovery', email })
-    const tokenHash = linkData?.properties?.hashed_token
-    if (linkError || !tokenHash) {
-      console.error('[recuperar-contrasena] No se pudo generar el enlace:', linkError?.message)
-      return genericOk()
-    }
-
-    const link = `${getAppBaseUrl()}/recuperar-contrasena?token_hash=${encodeURIComponent(tokenHash)}&type=recovery`
-    await sendPasswordRecoveryEmail({
-      to: email,
-      userName: profile.full_name || email,
-      companyId: profile.company_id,
-      link,
-    })
-  } catch (e) {
-    console.error('[recuperar-contrasena] Error inesperado:', e instanceof Error ? e.message : e)
-  }
-
+  after(() => sendRecoveryLink(email))
   return genericOk()
 }

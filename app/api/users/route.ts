@@ -508,9 +508,34 @@ export async function PATCH(request: NextRequest) {
 }
 
 /**
+ * Tablas cuyo autor se perdería al borrar (sus FK son SET NULL o RESTRICT). Toda acción del ERP
+ * queda en audit_logs, así que esa tabla cubre el resto del historial.
+ */
+const USER_HISTORY_REFERENCES: ReadonlyArray<[table: string, column: string]> = [
+  ['audit_logs', 'user_id'],
+  ['sales', 'seller_user_id'],
+  ['cash_sessions', 'user_id'],
+  ['inventory_movements', 'user_id'],
+  ['accounting_entries', 'created_by_user_id'],
+  ['purchases', 'confirmed_by_user_id'],
+  ['transfers', 'created_by_user_id'],
+  ['customer_payments', 'created_by_user_id'],
+]
+
+/** true si el usuario tiene operaciones registradas; ante un error de consulta, también (no se borra). */
+async function userHasHistory(userId: string): Promise<boolean> {
+  const results = await Promise.all(
+    USER_HISTORY_REFERENCES.map(([table, column]) =>
+      supabaseAdmin.from(table).select('id', { count: 'exact', head: true }).eq(column, userId)
+    )
+  )
+  return results.some(({ count, error }) => !!error || (count ?? 0) > 0)
+}
+
+/**
  * Borra definitivamente un usuario. Solo un SUPERADMIN, y nunca su propia cuenta.
- * Si el usuario tiene operaciones registradas (ventas, cajas, movimientos, auditoría…), la base
- * impide el borrado para conservar el historial: en ese caso se debe desactivar.
+ * Si el usuario tiene operaciones registradas (ventas, cajas, movimientos, auditoría…) no se borra,
+ * para que esos registros no pierdan a su autor: en ese caso se debe desactivar.
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -535,6 +560,13 @@ export async function DELETE(request: NextRequest) {
     if (!targetRow) return jsonError('Usuario no encontrado.', 404)
     const target = mapDbUserToDomain(targetRow)
 
+    if (await userHasHistory(id)) {
+      return jsonError(
+        `${target.name} tiene operaciones registradas (ventas, cajas, movimientos o auditoría) y no se puede borrar sin perder ese historial. Desactívelo para quitarle el acceso.`,
+        409
+      )
+    }
+
     const { error: deleteError } = await supabaseAdmin
       .from('users')
       .delete()
@@ -542,10 +574,7 @@ export async function DELETE(request: NextRequest) {
       .eq('company_id', caller.companyId)
     if (deleteError) {
       console.error('No se pudo borrar el usuario del ERP:', deleteError.message)
-      return jsonError(
-        `${target.name} tiene operaciones registradas (ventas, cajas, movimientos o auditoría) y no se puede borrar sin perder ese historial. Desactívelo para quitarle el acceso.`,
-        409
-      )
+      return jsonError('No se pudo borrar el usuario. Desactívelo para quitarle el acceso.', 409)
     }
 
     const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)

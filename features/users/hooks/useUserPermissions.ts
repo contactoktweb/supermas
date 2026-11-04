@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { useAuth } from '@/features/auth'
 import { UserRole } from '../types'
-import { getAssignableRoles } from '../services/role-assignment'
+import { getAssignableRoles, PROTECTED_ROLE } from '../services/role-assignment'
 
 export function useUserPermissions(role?: UserRole) {
   const { user, hasPermission } = useAuth()
@@ -20,10 +20,13 @@ export function useUserPermissions(role?: UserRole) {
       canAssignRoles,
       canUpdate: hasPermission('users.update'),
       canActivate: hasPermission('users.activate'),
+      // Borrar usuarios es exclusivo del SUPERADMIN (el servidor lo vuelve a verificar).
+      canDelete: actorRoleCode === PROTECTED_ROLE,
+      currentUserId: user?.id ?? null,
       canAssign: hasPermission('users.assign'),
       canViewActivity: hasPermission('users.view_activity'),
       canExport: hasPermission('users.export'),
       role: effectiveRole,
     }
-  }, [hasPermission, effectiveRole, actorRoleCode])
+  }, [hasPermission, effectiveRole, actorRoleCode, user?.id])
 }

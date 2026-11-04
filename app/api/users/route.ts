@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { requireServerUser, requireAnyPermission, AuthError, ServerUser } from '@/lib/auth/server-auth'
-import { CreateUserSchema, UpdateUserRequestSchema } from '@/features/users/schemas/user.schema'
+import { CreateUserSchema, DeleteUserRequestSchema, UpdateUserRequestSchema } from '@/features/users/schemas/user.schema'
 import { canAssignRole, isAdminRole, PROTECTED_ROLE } from '@/features/users/services/role-assignment'
 import { User, UserRole, UserStatus } from '@/features/users/types'
 import { MUST_CHANGE_PASSWORD_KEY } from '@/lib/auth/password-change-flag'
@@ -397,8 +397,12 @@ export async function PATCH(request: NextRequest) {
     const statusChanged = updates.status !== undefined && updates.status !== current.status
 
     // Reglas de autorización
+    // Las cuentas SUPERADMIN solo las toca otro SUPERADMIN, y únicamente para activarlas o desactivarlas.
     if (current.role === PROTECTED_ROLE && !isSelf) {
-      return jsonError('Las cuentas SUPERADMIN no se modifican desde la aplicación.', 403)
+      const statusOnlyBySuperadmin = caller.roleCode === PROTECTED_ROLE && statusChanged && !profileChanged && !roleChanged
+      if (!statusOnlyBySuperadmin) {
+        return jsonError('Las cuentas SUPERADMIN solo las puede activar o desactivar otro superadministrador.', 403)
+      }
     }
     if (isSelf && (roleChanged || statusChanged)) {
       return jsonError('No puede cambiar su propio rol ni su estado.', 403)
@@ -500,5 +504,74 @@ export async function PATCH(request: NextRequest) {
   } catch (err) {
     console.error('Error inesperado en PATCH /api/users:', err)
     return jsonError('Error interno del servidor al actualizar el colaborador.', 500)
+  }
+}
+
+/**
+ * Borra definitivamente un usuario. Solo un SUPERADMIN, y nunca su propia cuenta.
+ * Si el usuario tiene operaciones registradas (ventas, cajas, movimientos, auditoría…), la base
+ * impide el borrado para conservar el historial: en ese caso se debe desactivar.
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    let caller: ServerUser
+    try {
+      caller = await requireServerUser(request)
+    } catch (e) {
+      if (e instanceof AuthError) return jsonError(e.message, e.status)
+      throw e
+    }
+    if (caller.roleCode !== PROTECTED_ROLE) {
+      return jsonError('Solo un superadministrador puede borrar usuarios.', 403)
+    }
+
+    const parsed = DeleteUserRequestSchema.safeParse(await request.json().catch(() => null))
+    if (!parsed.success) return jsonError('Usuario inválido.', 400)
+    const { id } = parsed.data
+
+    if (id === caller.userId) return jsonError('No puede borrar su propia cuenta.', 403)
+
+    const targetRow = await fetchCompanyUser(id, caller.companyId)
+    if (!targetRow) return jsonError('Usuario no encontrado.', 404)
+    const target = mapDbUserToDomain(targetRow)
+
+    const { error: deleteError } = await supabaseAdmin
+      .from('users')
+      .delete()
+      .eq('id', id)
+      .eq('company_id', caller.companyId)
+    if (deleteError) {
+      console.error('No se pudo borrar el usuario del ERP:', deleteError.message)
+      return jsonError(
+        `${target.name} tiene operaciones registradas (ventas, cajas, movimientos o auditoría) y no se puede borrar sin perder ese historial. Desactívelo para quitarle el acceso.`,
+        409
+      )
+    }
+
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(id)
+    if (authError) {
+      console.error('Usuario borrado del ERP, pero no de Supabase Auth:', authError.message)
+      await setAuthBan(id, true)
+    }
+
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || null
+    const { error: auditError } = await supabaseAdmin.from('audit_logs').insert({
+      user_id: caller.userId,
+      user_name: caller.fullName || caller.email,
+      action: 'USER_DELETED',
+      module: 'USERS',
+      entity_name: 'users',
+      entity_id: id,
+      company_id: caller.companyId,
+      previous_value: { name: target.name, email: target.email, role: target.role, locationIds: target.locationIds },
+      new_value: { details: `Usuario ${target.name} (${target.email}) borrado definitivamente.` },
+      ip_address: ip,
+    })
+    if (auditError) console.error('No se pudo registrar la auditoría del borrado:', auditError.message)
+
+    return NextResponse.json({ success: true }, { headers: NO_STORE })
+  } catch (err) {
+    console.error('Error inesperado en DELETE /api/users:', err)
+    return jsonError('Error interno del servidor al borrar el colaborador.', 500)
   }
 }

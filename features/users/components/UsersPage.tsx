@@ -10,6 +10,7 @@ import { UsersTable } from './UsersTable'
 import { UserFormDrawer } from './UserFormDrawer'
 import { UserDetailDrawer } from './UserDetailDrawer'
 import { UserDeactivateDialog } from './UserDeactivateDialog'
+import { UserDeleteDialog } from './UserDeleteDialog'
 import { UsersSkeleton } from './UsersSkeleton'
 import { UsersErrorState } from './UsersErrorState'
 import { UserToastContainer, UserToastMessage } from './UsersToast'
@@ -38,6 +39,7 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
     editingUser,
     isDeactivateDialogOpen,
     userToToggleStatus,
+    userToDelete,
     handleUpdateFilter,
     handleResetFilters,
     handleOpenCreate,
@@ -49,6 +51,9 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
     handlePromptToggleStatus,
     handleConfirmToggleStatus,
     handleCloseDeactivateDialog,
+    handlePromptDelete,
+    handleCloseDeleteDialog,
+    handleConfirmDelete,
     handleExportCSV,
     reload,
   } = useUsers(currentRole)
@@ -99,6 +104,17 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
       )
     } catch (err: any) {
       showToast('Error al cambiar estado', err.message || 'Ocurrió un error inesperado.', 'error')
+    }
+  }
+
+  const onConfirmDeleteWithToast = async () => {
+    if (!userToDelete) return
+    const userName = userToDelete.name
+    try {
+      await handleConfirmDelete()
+      showToast('Usuario borrado', `${userName} fue borrado del sistema y ya no puede iniciar sesión.`, 'success')
+    } catch (err: any) {
+      showToast('No se pudo borrar', err.message || 'Ocurrió un error inesperado.', 'error')
     }
   }
 
@@ -155,8 +171,11 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
             onEditUser={handleOpenEdit}
             onToggleStatus={handlePromptToggleStatus}
             onViewActivity={handleOpenDetail}
+            onDelete={handlePromptDelete}
             canUpdate={permissions.canUpdate}
             canActivate={permissions.canActivate}
+            canDelete={permissions.canDelete}
+            currentUserId={permissions.currentUserId}
             isLoading={isLoading}
           />
         </div>
@@ -192,6 +211,8 @@ export function UsersPage({ currentRole = 'SUPERADMIN' }: UsersPageProps) {
         onConfirm={onConfirmToggleStatusWithToast}
         user={userToToggleStatus}
       />
+
+      <UserDeleteDialog user={userToDelete} onClose={handleCloseDeleteDialog} onConfirm={onConfirmDeleteWithToast} />
 
       <TemporaryPasswordDialog
         password={issuedPassword?.password ?? null}

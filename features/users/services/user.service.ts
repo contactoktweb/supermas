@@ -220,6 +220,13 @@ export class UserService {
   }
 
   /**
+   * Borra definitivamente un usuario sin historial. Solo SUPERADMIN (lo verifica el servidor).
+   */
+  async deleteUser(id: string): Promise<void> {
+    return userRepository.deleteUser(id)
+  }
+
+  /**
    * Consulta la actividad histórica reciente de un usuario.
    */
   async getUserActivity(userId: string, userRole: UserRole = 'SUPERADMIN') {

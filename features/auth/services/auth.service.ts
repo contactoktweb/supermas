@@ -8,7 +8,12 @@
 
 import { supabaseClient } from '@/lib/supabase/client'
 import { getCachedUserProfile, invalidateSessionContext } from '@/lib/supabase/session-context'
-import { CHANGE_PASSWORD_API_PATH, isPasswordChangeRequired } from '@/lib/auth/password-change-flag'
+import {
+  CHANGE_PASSWORD_API_PATH,
+  PASSWORD_RECOVERY_API_PATH,
+  PASSWORD_RESET_API_PATH,
+  isPasswordChangeRequired,
+} from '@/lib/auth/password-change-flag'
 import { AuthUser, LoginCredentials, UserRoleCode } from '../types'
 import type { ChangePasswordInput } from '../schemas/password-policy.schema'
 
@@ -121,49 +126,63 @@ export class AuthService {
   }
 
   /**
-   * Solicita el restablecimiento de contraseña enviando un enlace seguro a través de Supabase Auth.
+   * Pide al servidor el correo con el enlace para crear una nueva contraseña (Resend, plantilla de la empresa).
+   * La respuesta no revela si el correo existe.
    */
-  async requestPasswordReset(email: string, redirectTo?: string): Promise<void> {
+  async requestPasswordReset(email: string): Promise<void> {
     const cleanEmail = email.trim().toLowerCase()
     if (!cleanEmail) {
       throw new Error('Debe ingresar un correo electrónico válido.')
     }
 
-    let targetRedirect = redirectTo
-    if (!targetRedirect) {
-      if (typeof window !== 'undefined') {
-        targetRedirect = `${window.location.origin}/recuperar-contrasena`
-      } else {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || 'http://localhost:3000'
-        targetRedirect = `${appUrl.replace(/\/$/, '')}/recuperar-contrasena`
-      }
+    let result: { success?: boolean; error?: string } | null = null
+    try {
+      const response = await fetch(PASSWORD_RECOVERY_API_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail }),
+      })
+      result = await response.json().catch(() => null)
+    } catch {
+      throw new Error('No hay conexión con el servidor. Verifique su red e intente de nuevo.')
     }
-
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: targetRedirect,
-    })
-
-    if (error) {
-      console.error('Error al solicitar recuperación de contraseña en Supabase Auth:', error)
-      throw new Error(error.message || 'No fue posible procesar la solicitud de recuperación.')
+    if (!result?.success) {
+      throw new Error(result?.error || 'No fue posible procesar la solicitud de recuperación.')
     }
   }
 
   /**
-   * Actualiza la contraseña del usuario en Supabase Auth tras verificar el token de recuperación.
+   * Abre la sesión de recuperación a partir del enlace del correo (token_hash de un solo uso).
    */
-  async updatePassword(newPassword: string): Promise<void> {
-    if (!newPassword || newPassword.length < 6) {
-      throw new Error('La contraseña debe tener al menos 6 caracteres.')
+  async verifyRecoveryToken(tokenHash: string): Promise<boolean> {
+    const { data, error } = await supabaseClient.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    return !error && !!data.session
+  }
+
+  /**
+   * Guarda la nueva contraseña con la sesión de recuperación. El servidor valida la política,
+   * registra auditoría y avisa por correo del cambio.
+   */
+  async updatePassword(input: ChangePasswordInput): Promise<void> {
+    const { data: sessionData } = await supabaseClient.auth.getSession()
+    const accessToken = sessionData.session?.access_token
+    if (!accessToken) {
+      throw new Error('El enlace de recuperación expiró o ya se usó. Solicite uno nuevo.')
     }
 
-    const { error } = await supabaseClient.auth.updateUser({
-      password: newPassword,
-    })
-
-    if (error) {
-      console.error('Error al actualizar contraseña en Supabase Auth:', error)
-      throw new Error(error.message || 'Error al actualizar la contraseña.')
+    let result: { success?: boolean; error?: string } | null = null
+    try {
+      const response = await fetch(PASSWORD_RESET_API_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(input),
+      })
+      result = await response.json().catch(() => null)
+    } catch {
+      throw new Error('No hay conexión con el servidor. Verifique su red e intente de nuevo.')
+    }
+    if (!result?.success) {
+      throw new Error(result?.error || 'No fue posible actualizar la contraseña.')
     }
   }
 

@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { supabaseClient } from '@/lib/supabase/client'
 import { authService } from '@/features/auth/services/auth.service'
 import { AppIcon } from '@/components/ui/Icon'
+import { PasswordStrengthMeter } from '@/features/auth/components/PasswordStrengthMeter'
+import { changePasswordSchema, evaluatePasswordStrength } from '@/features/auth/schemas/password-policy.schema'
+
+const STRENGTH_METER_ID = 'reset-password-strength'
 
 export function RecuperarContrasenaClient() {
   const router = useRouter()
@@ -23,7 +27,21 @@ export function RecuperarContrasenaClient() {
 
     async function checkRecoverySession() {
       try {
-        // 1. Escuchar eventos de autenticación (evento PASSWORD_RECOVERY de Supabase)
+        // 1. Enlace del correo de recuperación: token de un solo uso en la URL. Se valida antes que
+        //    cualquier sesión previa para que un enlace vencido nunca se dé por bueno.
+        const params = new URLSearchParams(window.location.search)
+        const tokenHash = params.get('token_hash')
+        if (tokenHash && params.get('type') === 'recovery') {
+          const verified = await authService.verifyRecoveryToken(tokenHash)
+          window.history.replaceState(null, '', window.location.pathname)
+          if (isMounted) {
+            setHasValidSession(verified)
+            setIsVerifying(false)
+          }
+          return
+        }
+
+        // 2. Escuchar eventos de autenticación (evento PASSWORD_RECOVERY de Supabase)
         const { data: authListener } = supabaseClient.auth.onAuthStateChange(
           async (event, session) => {
             if (!isMounted) return
@@ -34,7 +52,7 @@ export function RecuperarContrasenaClient() {
           }
         )
 
-        // 2. Verificar si ya existe una sesión en el cliente o tokens en el hash
+        // 3. Verificar si ya existe una sesión en el cliente o tokens en el hash
         const { data: sessionData } = await supabaseClient.auth.getSession()
         if (sessionData?.session) {
           if (isMounted) {
@@ -86,24 +104,15 @@ export function RecuperarContrasenaClient() {
     e.preventDefault()
     setErrorMessage(null)
 
-    if (!password) {
-      setErrorMessage('Por favor ingrese una nueva contraseña.')
-      return
-    }
-
-    if (password.length < 6) {
-      setErrorMessage('La contraseña debe tener un mínimo de 6 caracteres.')
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setErrorMessage('Las contraseñas no coinciden. Verifique e intente de nuevo.')
+    const parsed = changePasswordSchema.safeParse({ newPassword: password, confirmPassword })
+    if (!parsed.success) {
+      setErrorMessage(parsed.error.issues[0]?.message || 'Revise la nueva contraseña.')
       return
     }
 
     setIsSubmitting(true)
     try {
-      await authService.updatePassword(password)
+      await authService.updatePassword(parsed.data)
       // Cerrar sesión fiduciaria para forzar login limpio con las nuevas credenciales
       try {
         await supabaseClient.auth.signOut()
@@ -369,9 +378,10 @@ export function RecuperarContrasenaClient() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 10 caracteres"
                       required
                       autoComplete="new-password"
+                      aria-describedby={STRENGTH_METER_ID}
                       disabled={isSubmitting}
                       style={{ width: '100%', paddingRight: '36px' }}
                     />
@@ -393,6 +403,7 @@ export function RecuperarContrasenaClient() {
                       <AppIcon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
                     </button>
                   </div>
+                  <PasswordStrengthMeter id={STRENGTH_METER_ID} strength={evaluatePasswordStrength(password)} />
                 </div>
 
                 <div style={{ marginBottom: '18px' }}>

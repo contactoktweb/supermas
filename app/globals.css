@@ -6665,3 +6665,16 @@ html, body {
   .print-area button, .print-area .drawer-footer { display: none !important; }
   .drawer-backdrop { background: none !important; backdrop-filter: none !important; }
 }
+
+/* Selector de cantidad (QuantityStepper): botones -/+ con área táctil cómoda y número centrado */
+.qty-stepper{display:inline-flex;align-items:stretch;height:38px;border:1.5px solid var(--line);border-radius:10px;background:#fff;overflow:hidden;transition:border-color .18s ease,box-shadow .18s ease}
+.qty-stepper:focus-within{border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,27,92,.12)}
+.qty-stepper[data-disabled="true"]{background:#f1f5f9;opacity:.7}
+.qty-stepper-btn{width:38px;display:grid;place-items:center;border:0;background:#f8fafc;color:var(--navy);cursor:pointer;transition:background-color .15s ease,transform .1s ease}
+.qty-stepper-btn:hover:not(:disabled){background:#e8eefb}
+.qty-stepper-btn:active:not(:disabled){transform:scale(.92)}
+.qty-stepper-btn:focus-visible{outline:2px solid var(--navy);outline-offset:-2px}
+.qty-stepper-btn:disabled{color:#cbd5e1;cursor:not-allowed}
+.qty-stepper-input{width:64px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-size:14px;font-weight:800;color:var(--navy);outline:0;background:transparent;-moz-appearance:textfield}
+.qty-stepper-input::-webkit-outer-spin-button,.qty-stepper-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+@media (prefers-reduced-motion: reduce){.qty-stepper,.qty-stepper-btn{transition:none}.qty-stepper-btn:active:not(:disabled){transform:none}}

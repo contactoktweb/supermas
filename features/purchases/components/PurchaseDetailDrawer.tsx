@@ -7,6 +7,7 @@ import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
 import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
 import { purchaseService } from '../services/purchase.service'
+import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface PurchaseDetailDrawerProps {
@@ -42,6 +43,7 @@ export function PurchaseDetailDrawer({
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<'items' | 'payments' | 'documents'>('items')
   const [attachmentError, setAttachmentError] = useState<string | null>(null)
+  const [isOrderPdfOpen, setIsOrderPdfOpen] = useState(false)
 
   useEffect(() => {
     setMounted(true)
@@ -182,7 +184,19 @@ export function PurchaseDetailDrawer({
             gap: 10,
           }}
         >
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {!isCostRedacted && !isCancelledPurchase(purchase.status) && (
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => setIsOrderPdfOpen(true)}
+                title="Ver, descargar o enviar la orden de compra en PDF al proveedor"
+              >
+                <AppIcon name="fileText" size={15} />
+                <span>Orden en PDF</span>
+              </button>
+            )}
+
             {/* Botón Ver Kardex */}
             {onViewKardex && (
               <button
@@ -850,6 +864,7 @@ export function PurchaseDetailDrawer({
           </button>
         </div>
       </div>
+      {isOrderPdfOpen && <PurchaseOrderPdfModal purchase={purchase} onClose={() => setIsOrderPdfOpen(false)} />}
     </div>,
     document.body
   )

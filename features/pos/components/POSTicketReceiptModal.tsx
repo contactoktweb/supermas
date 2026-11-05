@@ -1,14 +1,14 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { supabaseClient } from '@/lib/supabase/client'
+import React, { useEffect, useRef, useState } from 'react'
 import { POSTicketReceipt } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
-import { Heart } from 'lucide-react'
-import { customerReceiptHref } from '@/features/customer-receipt'
+import { customerReceiptHref, CustomerReceiptData } from '@/features/customer-receipt'
+import { customerReceiptService } from '@/features/customer-receipt/services/customer-receipt.service'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
-import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
-import { ivaLabel } from '../utils/iva-label'
+import { POSThermalTicket } from './ticket/POSThermalTicket'
+import { posThermalTicketStyles } from './ticket/posThermalTicketStyles'
+import { printThermalTicket } from '../utils/print-thermal-ticket'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -16,53 +16,58 @@ interface POSTicketReceiptModalProps {
   receipt: POSTicketReceipt | null
 }
 
-function formatCOP(amount: number): string {
-  return new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
+type TicketState =
+  | { status: 'loading' }
+  | { status: 'error'; message: string }
+  | { status: 'ready'; data: CustomerReceiptData }
 
 export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
   isOpen,
   onClose,
   receipt,
 }) => {
-  // Datos reales del emisor (tabla companies), no valores fijos en el código
-  const [company, setCompany] = useState<any>(null)
+  const ticketRef = useRef<HTMLDivElement>(null)
+  const [state, setState] = useState<TicketState>({ status: 'loading' })
+  const saleId = receipt?.saleId ?? null
+  const cashReceived = receipt?.paymentMethod === 'EFECTIVO' ? receipt.amountPaid : undefined
+
+  // La tirilla se arma con los datos guardados de la venta (y su documento DIAN si existe), no con el carrito.
   useEffect(() => {
-    if (!isOpen) return
-    supabaseClient
-      .from('companies')
-      .select('business_name, tax_id, verification_digit, address, city, phone, tax_regime')
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => setCompany(data || null))
-  }, [isOpen])
+    if (!isOpen || !saleId) return
+    let alive = true
+    setState({ status: 'loading' })
+    customerReceiptService
+      .getBySaleId(saleId, { cashReceived })
+      .then((data) => {
+        if (!alive) return
+        setState(data ? { status: 'ready', data } : { status: 'error', message: 'No se encontró la venta para armar la tirilla.' })
+      })
+      .catch((e: unknown) => {
+        if (alive) setState({ status: 'error', message: e instanceof Error ? e.message : 'No se pudo cargar la tirilla.' })
+      })
+    return () => {
+      alive = false
+    }
+  }, [isOpen, saleId, cashReceived])
+
+  const handlePrint = () => {
+    if (ticketRef.current) void printThermalTicket(ticketRef.current)
+  }
 
   // Configuración → Punto de Venta: impresión automática de la tirilla al cobrar.
-  const receiptId = receipt?.saleId ?? receipt?.saleNumber ?? null
+  const isReady = state.status === 'ready'
   useEffect(() => {
-    if (!isOpen || !receiptId || !company) return
+    if (!isOpen || !isReady) return
     let cancelled = false
     getRuntimeSettings().then((settings) => {
-      if (!cancelled && settings.pos.autoPrintReceipt) window.print()
+      if (!cancelled && settings.pos.autoPrintReceipt && ticketRef.current) void printThermalTicket(ticketRef.current)
     })
     return () => {
       cancelled = true
     }
-  }, [isOpen, receiptId, company])
+  }, [isOpen, isReady])
 
   if (!isOpen || !receipt) return null
-
-  const handlePrint = () => {
-    window.print()
-  }
-
-  const changeAmount = receipt.changeAmount ?? receipt.change ?? 0
-  const discountAmount = receipt.discountTotal || receipt.discountAmount || 0
-  const taxAmount = receipt.taxTotal || receipt.taxAmount || 0
 
   return (
     <div className="drawer-backdrop modal-center" onClick={onClose}>
@@ -122,154 +127,23 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
           </button>
         </div>
 
-        {/* Printable Thermal Receipt Container */}
         <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid var(--line)' }}>
-          <div
-            id="thermal-receipt"
-            style={{
-              background: '#ffffff',
-              padding: 16,
-              boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-              border: '1px dashed #cbd5e1',
-              borderRadius: 8,
-              fontFamily: 'monospace',
-              fontSize: 11,
-              lineHeight: 1.45,
-              color: '#1e293b',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
-          >
-            {/* Store Header */}
-            <div style={{ textAlign: 'center', borderBottom: '1px dashed #94a3b8', paddingBottom: 8 }}>
-              <strong style={{ fontSize: 13, fontWeight: 900, color: 'var(--navy)', display: 'block', fontFamily: 'sans-serif' }}>
-                {company?.business_name || '—'}
-              </strong>
-              <div style={{ fontWeight: 700, color: '#475569' }}>
-                NIT: {company?.tax_id ? `${company.tax_id}-${company.verification_digit}` : '—'}
-              </div>
-              <div style={{ color: '#64748b' }}>{receipt.locationName}</div>
-              {(company?.address || company?.phone) && (
-                <div style={{ color: '#64748b' }}>
-                  {[company?.address, company?.city].filter(Boolean).join(', ')}
-                  {company?.phone ? ` · Tel: ${company.phone}` : ''}
-                </div>
-              )}
-              <div style={{ fontSize: 9, color: '#475569', fontWeight: 700, textTransform: 'uppercase', marginTop: 2 }}>
-                Tiquete de venta · Si necesita factura electrónica, solicítela en caja
-              </div>
+          <style>{posThermalTicketStyles}</style>
+          {state.status === 'ready' && (
+            <div style={{ background: '#ffffff', padding: '12px 8px', border: '1px dashed #cbd5e1', borderRadius: 8 }}>
+              <POSThermalTicket ref={ticketRef} data={state.data} voucherNumber={receipt.invoiceNumber} cashierName={receipt.cashierName} />
             </div>
-
-            {/* Metadata */}
-            <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, color: 'var(--navy)' }}>
-                <span>COMPROBANTE:</span>
-                <span>{receipt.invoiceNumber}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Venta No:</span>
-                <span>{receipt.saleNumber}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Fecha / Hora:</span>
-                <span>{receipt.issuedAtBogota || new Date(receipt.date).toLocaleString('es-CO')}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Cajero / Caja:</span>
-                <span>{receipt.cashierName} / {receipt.cashRegisterNumber || 'CAJA-01'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 4, borderTop: '1px dashed #e2e8f0' }}>
-                <span>Cliente:</span>
-                <strong style={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {receipt.customerName}
-                </strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Doc / NIT:</span>
-                <span>{receipt.customerDoc}</span>
-              </div>
-            </div>
-
-            {/* Items Table */}
-            <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '6fr 2fr 4fr', fontWeight: 800, borderBottom: '1px solid #e2e8f0', paddingBottom: 4, marginBottom: 4 }}>
-                <span>Desc</span>
-                <span style={{ textAlign: 'center' }}>Cant</span>
-                <span style={{ textAlign: 'right' }}>Total</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {receipt.items.map((item, idx) => (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '6fr 2fr 4fr' }}>
-                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.name}
-                    </div>
-                    <div style={{ textAlign: 'center', fontWeight: 700 }}>{item.quantity}</div>
-                    <div style={{ textAlign: 'right', fontWeight: 800 }}>{formatCOP(item.total)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Financial Summary */}
-            <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Subtotal:</span>
-                <span>{formatCOP(receipt.subtotal)}</span>
-              </div>
-              {discountAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700 }}>
-                  <span>Descuento:</span>
-                  <span>-{formatCOP(discountAmount)}</span>
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{ivaLabel(receipt.items)}:</span>
-                <span>{formatCOP(taxAmount)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 900, fontSize: 13, color: 'var(--navy)', paddingTop: 4, borderTop: '1px solid #e2e8f0' }}>
-                <span>TOTAL A PAGAR:</span>
-                <span>{formatCOP(receipt.totalAmount)}</span>
-              </div>
-            </div>
-
-            {/* Payment Details */}
-            <div style={{ borderBottom: '1px dashed #94a3b8', paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Método de Pago:</span>
-                <strong style={{ color: 'var(--navy)' }}>{displayLabel(PAYMENT_METHOD_LABELS, receipt.paymentMethod)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Monto Recibido:</span>
-                <span>{formatCOP(receipt.amountPaid)}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
-                <span>Cambio / Vuelto:</span>
-                <strong style={{ color: '#15803d' }}>{formatCOP(changeAmount)}</strong>
-              </div>
-            </div>
-
-            {/* Footer Notes & K&T Attribution */}
-            <div style={{ textAlign: 'center', paddingTop: 4, fontFamily: 'sans-serif', color: '#64748b' }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 11, color: 'var(--navy)' }}>
-                ¡Gracias por su compra en Super Más!
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: 10 }}>Conserve este comprobante.</p>
-
-              {/* Dynamic Branding & Attribution */}
-              <div style={{ marginTop: 8, paddingTop: 6, borderTop: '1px solid #e2e8f0', fontSize: 10, color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
-                <span>© {new Date().getFullYear()} Super Más.</span>
-                <a
-                  href="https://www.kytcode.lat"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontWeight: 700, color: '#334155', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 3 }}
-                >
-                  Desarrollado por K&T <Heart style={{ width: 10, height: 10, fill: '#0f172a', color: '#0f172a' }} />
-                </a>
-              </div>
-            </div>
-          </div>
+          )}
+          {state.status === 'loading' && (
+            <p role="status" style={{ margin: 0, padding: 24, textAlign: 'center', fontSize: 13, color: '#64748b' }}>
+              Cargando tirilla...
+            </p>
+          )}
+          {state.status === 'error' && (
+            <p role="alert" style={{ margin: 0, padding: 24, textAlign: 'center', fontSize: 13, color: '#b91c1c', fontWeight: 600 }}>
+              {state.message}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
@@ -289,6 +163,7 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
           <button
             type="button"
             onClick={handlePrint}
+            disabled={!isReady}
             className="outline-button"
             style={{ flex: 1, height: 42, fontSize: 13, fontWeight: 700, gap: 6 }}
           >

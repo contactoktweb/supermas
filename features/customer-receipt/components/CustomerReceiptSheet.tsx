@@ -6,7 +6,6 @@ import { CustomerReceiptData } from '../types'
 import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 const DEFAULT_LOGO = '/logo-distribuidora.png'
-const KYT_URL = 'https://www.kytcode.lat'
 
 const money = (v: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(v)
@@ -197,12 +196,6 @@ export function CustomerReceiptSheet({ data }: Props) {
 
       <footer className="cr-foot">
         <p className="cr-thanks">Gracias por su compra</p>
-        <a className="cr-kyt" href={KYT_URL} target="_blank" rel="noopener noreferrer">
-          <span>Desarrollado por K&amp;T</span>
-          <svg viewBox="0 0 24 24" width="10" height="10" fill="#000000" aria-hidden="true" focusable="false">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
-          </svg>
-        </a>
       </footer>
     </article>
   )

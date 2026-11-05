@@ -67,6 +67,7 @@ export interface RawReceiptCompany {
   department: string | null
   phone: string | null
   logo_url: string | null
+  tax_regime: string | null
 }
 
 export interface RawCustomerReceipt {
@@ -87,7 +88,7 @@ const SALE_SELECT = `
   users ( full_name )
 `
 
-const COMPANY_SELECT = 'business_name, trade_name, tax_id, verification_digit, address, city, department, phone, logo_url'
+const COMPANY_SELECT = 'business_name, trade_name, tax_id, verification_digit, address, city, department, phone, logo_url, tax_regime'
 
 export class CustomerReceiptRepository {
   /** Devuelve null si la venta no existe o el usuario no tiene acceso a ella (RLS). */

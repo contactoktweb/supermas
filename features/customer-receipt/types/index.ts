@@ -16,6 +16,8 @@ export interface CustomerReceiptIssuer {
   department?: string
   phone?: string
   logoUrl?: string
+  /** Régimen tributario legible (p. ej. "Responsable de IVA"). */
+  taxRegime?: string
 }
 
 export interface CustomerReceiptCustomer {

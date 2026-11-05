@@ -170,6 +170,11 @@ export function parsePurchaseDatabaseError(error: any): Error {
   const msg = error.message || String(error)
   const code = error.code || ''
 
+  // PGRST202: la función no existe en la base de datos (migración pendiente).
+  if (code === 'PGRST202' || msg.includes('Could not find the function')) {
+    return new Error('Esta operación aún no está disponible. Comuníquese con el administrador del sistema.')
+  }
+
   if (msg.includes('proveedor no existe o pertenece a otra empresa')) {
     return new Error('El proveedor seleccionado no existe o pertenece a otra empresa.')
   }

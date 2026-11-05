@@ -12,6 +12,8 @@ interface PurchaseShortageCloseModalProps {
   isCostRedacted?: boolean
   onClose: () => void
   onConfirm: (purchaseId: string, reason: string) => Promise<void>
+  /** Motivo ya escrito al recibir la entrega incompleta. */
+  initialReason?: string
 }
 
 const formatCurrency = (value: number) =>
@@ -27,6 +29,7 @@ export function PurchaseShortageCloseModal({
   isCostRedacted = false,
   onClose,
   onConfirm,
+  initialReason = '',
 }: PurchaseShortageCloseModalProps) {
   const [mounted, setMounted] = useState(false)
   const [reason, setReason] = useState('')
@@ -39,10 +42,10 @@ export function PurchaseShortageCloseModal({
 
   useEffect(() => {
     if (purchase) {
-      setReason('')
+      setReason(initialReason)
       setError(null)
     }
-  }, [purchase])
+  }, [purchase, initialReason])
 
   useEscapeKey(isOpen && !isSubmitting, onClose)
 
@@ -117,12 +120,21 @@ export function PurchaseShortageCloseModal({
           )}
 
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-main)' }}>
-            La orden <strong>{purchase.purchaseNumber}</strong> de <strong>{purchase.supplierName}</strong> quedará cerrada con lo que
-            realmente llegó. Úselo cuando el proveedor no va a enviar lo que falta.
+            {initialReason ? (
+              <>
+                La entrega de <strong>{purchase.purchaseNumber}</strong> ({purchase.supplierName}) llegó incompleta. Si el proveedor
+                no enviará lo que falta, cierre la orden con lo recibido; si lo enviará después, elija esperar.
+              </>
+            ) : (
+              <>
+                La orden <strong>{purchase.purchaseNumber}</strong> de <strong>{purchase.supplierName}</strong> quedará cerrada con lo que
+                realmente llegó. Úselo cuando el proveedor no va a enviar lo que falta.
+              </>
+            )}
           </p>
 
           <div style={{ border: '1px solid var(--line)', borderRadius: 10, overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', minWidth: 0, borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f8fafc', color: '#64748b', textAlign: 'left' }}>
                   <th scope="col" style={{ padding: '8px 10px' }}>Producto</th>
@@ -183,7 +195,7 @@ export function PurchaseShortageCloseModal({
           style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10, background: '#fff' }}
         >
           <button type="button" className="outline-button" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {initialReason ? 'Esperar lo que falta' : 'Cancelar'}
           </button>
           <button type="button" className="primary-button" onClick={handleConfirm} disabled={isSubmitting}>
             <AppIcon name="check" size={14} />

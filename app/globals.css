@@ -6665,3 +6665,18 @@ html, body {
   .print-area button, .print-area .drawer-footer { display: none !important; }
   .drawer-backdrop { background: none !important; backdrop-filter: none !important; }
 }
+
+/* Celdas de tablas de módulos: nombre arriba y dato secundario abajo; acciones en una sola fila */
+.product-info-cell{display:flex;flex-direction:column;gap:2px;min-width:0}
+.product-name-text{display:block;color:var(--navy);line-height:1.3;word-break:break-word}
+.sku-meta-text{display:block;font-size:11px;color:var(--muted)}
+.action-buttons-group{display:inline-flex;align-items:center;flex-wrap:nowrap;gap:4px}
+.action-buttons-group .icon-button{width:32px;height:32px;flex:0 0 auto;transition:transform .15s ease,background-color .15s ease}
+.action-buttons-group .icon-button:hover{transform:translateY(-1px)}
+.action-buttons-group .icon-button:active{transform:scale(.94)}
+.products-table-panel .sticky-left-col,.products-table-panel .sticky-right-col{position:sticky;background:#fff;z-index:2}
+.products-table-panel .sticky-left-col{left:0;box-shadow:2px 0 6px rgba(0,0,0,.04)}
+.products-table-panel .sticky-right-col{right:0;box-shadow:-2px 0 6px rgba(0,0,0,.04)}
+.products-table-panel thead .sticky-left-col,.products-table-panel thead .sticky-right-col{background:#fafbfc;z-index:3}
+.products-table-panel tbody tr:hover .sticky-left-col,.products-table-panel tbody tr:hover .sticky-right-col{background:#f8fafc}
+@media (prefers-reduced-motion: reduce){.action-buttons-group .icon-button{transition:none}.action-buttons-group .icon-button:hover,.action-buttons-group .icon-button:active{transform:none}}

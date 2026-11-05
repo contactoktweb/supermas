@@ -231,6 +231,14 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
                             Mayorista
                           </span>
                         )}
+                        {customer.selfRegistered && (
+                          <span
+                            title="Se registró con el QR: confirma su documento antes de facturar"
+                            style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#fee2e2', color: '#b91c1c', whiteSpace: 'nowrap' }}
+                          >
+                            Verificar documento
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', gap: 8 }}>
                         <span>{displayLabel(ID_DOCUMENT_LABELS, customer.documentType, '')}: {customer.documentNumber}</span>

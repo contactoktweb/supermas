@@ -18,7 +18,19 @@ export function nitVerificationDigit(nit: string): string {
   return String(mod > 1 ? 11 - mod : mod)
 }
 
-const text = (max: number) => z.string().trim().max(max)
+/** Caracteres de control: rompen el XML de la factura electrónica (XML 1.0). */
+const CONTROL_CHARS = /\p{Cc}/u
+const text = (max: number, min = 0, minMessage?: string) =>
+  z
+    .string()
+    .transform((v) => v.normalize('NFC').trim())
+    .pipe(
+      z
+        .string()
+        .min(min, minMessage)
+        .max(max)
+        .refine((v) => !CONTROL_CHARS.test(v), 'Hay caracteres no permitidos.')
+    )
 
 export const selfRegistrationSchema = z
   .object({
@@ -27,16 +39,17 @@ export const selfRegistrationSchema = z
     documentNumber: z
       .string()
       .trim()
-      .regex(/^[A-Za-z0-9]{5,15}$/, 'El número de documento debe tener entre 5 y 15 letras o números, sin puntos ni guiones.'),
+      .toUpperCase()
+      .regex(/^[A-Z0-9]{5,15}$/, 'El número de documento debe tener entre 5 y 15 letras o números, sin puntos ni guiones.'),
     verificationDigit: z.string().trim().max(1).optional().or(z.literal('')),
     firstName: text(80).optional().or(z.literal('')),
     lastName: text(80).optional().or(z.literal('')),
     businessName: text(150).optional().or(z.literal('')),
     email: z.string().trim().toLowerCase().email('Escribe un correo válido: ahí llegará tu factura electrónica.').max(120),
     phone: z.string().trim().regex(/^[0-9+\s-]{7,20}$/, 'Escribe un teléfono válido.'),
-    address: text(160).min(4, 'Escribe tu dirección.'),
-    city: text(80).min(2, 'Escribe tu ciudad.'),
-    department: text(80).min(2, 'Escribe tu departamento.'),
+    address: text(160, 4, 'Escribe tu dirección.'),
+    city: text(80, 2, 'Escribe tu ciudad.'),
+    department: text(80, 2, 'Escribe tu departamento.'),
     acceptsDataPolicy: z.literal(true, { error: 'Debes autorizar el tratamiento de tus datos.' }),
     /** Campo trampa: las personas no lo ven; si llega con contenido, el envío es automático. */
     website: z.string().max(0).optional().or(z.literal('')),
@@ -44,6 +57,9 @@ export const selfRegistrationSchema = z
   .superRefine((data, ctx) => {
     if (data.documentNumber === FINAL_CONSUMER_DOCUMENT) {
       ctx.addIssue({ code: 'custom', path: ['documentNumber'], message: 'Ese número no corresponde a un cliente.' })
+    }
+    if (data.personType === 'COMPANY' && data.documentType !== 'NIT') {
+      ctx.addIssue({ code: 'custom', path: ['documentType'], message: 'Las empresas se registran con NIT.' })
     }
     if (data.documentType === 'NIT') {
       if (!/^\d+$/.test(data.documentNumber)) {

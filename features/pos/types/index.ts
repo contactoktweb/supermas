@@ -78,6 +78,8 @@ export interface POSCustomer {
   isWholesale?: boolean
   name?: string
   isActive?: boolean
+  /** Se registró por el QR: el cajero debe verificar su documento antes de facturar. */
+  selfRegistered?: boolean
 }
 
 export interface POSCartItem {

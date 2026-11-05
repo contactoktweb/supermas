@@ -86,7 +86,7 @@ export function CustomerSelfRegistrationForm() {
           <AppIcon name="check" size={30} color="#059669" />
         </span>
         <h2>¡Datos recibidos!</h2>
-        <p>Avísale al cajero que ya te registraste: buscará tu documento para emitir tu factura electrónica.</p>
+        <p>Avísale al cajero que ya te registraste y ten a mano tu documento: lo verificará antes de emitir tu factura electrónica.</p>
       </div>
     )
   }

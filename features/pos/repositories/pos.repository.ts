@@ -9,6 +9,7 @@ import {
   POSExecuteSaleInput,
   POSExecuteSaleResult,
 } from '../types'
+import { SELF_REGISTERED_CUSTOMER_NOTE } from '@/features/customer-self-registration/routes'
 
 function mapPaymentMethodToDb(pm: POSPaymentMethod): 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'CREDIT' | 'MIXED' {
   switch (pm) {
@@ -182,7 +183,7 @@ export class POSRepository {
   async searchCustomers(query?: string): Promise<POSCustomer[]> {
     let qBuilder = supabaseClient
       .from('customers')
-      .select('id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active')
+      .select('id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active, notes')
       .eq('is_active', true)
       .limit(20)
 
@@ -212,6 +213,7 @@ export class POSRepository {
         priceList,
         creditLimit: Number(c.credit_limit || 0),
         currentBalance: Number(c.current_balance || 0),
+        selfRegistered: c.notes === SELF_REGISTERED_CUSTOMER_NOTE,
       }
     })
   }

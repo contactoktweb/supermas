@@ -3,6 +3,7 @@ import { resolveUserCompanyId } from '@/lib/supabase/tenant'
 import { SupabaseClient } from '@supabase/supabase-js'
 import {
   Purchase,
+  PurchaseShortageCloseResult,
   PurchaseFilterParams,
   PurchaseStats,
   PurchaseItem,
@@ -786,6 +787,32 @@ export class PurchaseRepository {
       updated.receptionInfo.receptionNumber = rpcResult.reception_number
     }
     return updated
+  }
+
+  /**
+   * Cierra una orden recibida parcialmente con lo que realmente llegó (fn_close_purchase_with_shortage):
+   * ajusta cantidades y montos a lo recibido, la deja RECIBIDA y la causa en contabilidad por ese valor.
+   */
+  async closeWithShortage(purchaseId: string, reason: string): Promise<{ purchase: Purchase; result: PurchaseShortageCloseResult }> {
+    const { data, error } = await this.client.rpc('fn_close_purchase_with_shortage', {
+      p_purchase_id: purchaseId,
+      p_reason: reason,
+    })
+    if (error) {
+      console.error('Error ejecutando fn_close_purchase_with_shortage:', error)
+      throw parsePurchaseDatabaseError(error)
+    }
+    const purchase = await this.findById(purchaseId)
+    if (!purchase) throw new Error('Error recuperando la compra cerrada con faltante.')
+    return {
+      purchase,
+      result: {
+        originalTotal: Number(data?.original_total ?? 0),
+        newTotal: Number(data?.new_total ?? 0),
+        accountingEntryNumber: data?.accounting_entry_number ?? null,
+        accountingError: data?.accounting_error ?? null,
+      },
+    }
   }
 
   /**

@@ -241,6 +241,15 @@ export interface ReceivePurchaseItemInput {
   quantityReceived: number
 }
 
+/** Resultado de cerrar una orden con faltante (fn_close_purchase_with_shortage). */
+export interface PurchaseShortageCloseResult {
+  originalTotal: number
+  newTotal: number
+  /** Comprobante contable de la causación (null si no se pudo causar). */
+  accountingEntryNumber: string | null
+  accountingError: string | null
+}
+
 export interface ReceivePurchaseInput {
   purchaseId: string
   notes?: string

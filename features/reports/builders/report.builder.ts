@@ -100,6 +100,20 @@ export class ReportBuilder {
     return Number(sale.totalAmount) || Number(sale.total) || 0
   }
 
+  /** Venta neta sin impuestos (después de descuentos): base para la utilidad. */
+  getSaleNetRevenue(sale: any): number {
+    return this.getSaleTotal(sale) - (Number(sale.taxAmount) || Number(sale.taxTotal) || 0)
+  }
+
+  /** Costo de lo vendido: el que fijó el servidor en la venta, o la suma de las líneas. */
+  getSaleCost(sale: any): number {
+    if (Number(sale.totalCost)) return Number(sale.totalCost)
+    return (sale.items || []).reduce(
+      (sum: number, i: any) => sum + (Number(i.quantity) || 0) * (Number(i.unitCost) || 0),
+      0
+    )
+  }
+
   /**
    * Helper para obtener la cantidad de stock disponible de un registro de stock
    */
@@ -207,9 +221,10 @@ export class ReportBuilder {
       }
     })
 
-    const grossProfit = salesTotal - totalCostOfGoodsSold
+    const netSalesTotal = sales.reduce((acc, s) => acc + this.getSaleNetRevenue(s), 0)
+    const grossProfit = netSalesTotal - totalCostOfGoodsSold
     const grossMarginPercent =
-      salesTotal > 0 ? Number(((grossProfit / salesTotal) * 100).toFixed(1)) : 0
+      netSalesTotal > 0 ? Number(((grossProfit / netSalesTotal) * 100).toFixed(1)) : 0
 
     // 5. Ecommerce
     const webOrdersCount = webOrders.length
@@ -851,7 +866,8 @@ export class ReportBuilder {
       if (s.items && Array.isArray(s.items)) {
         s.items.forEach((item: any) => {
           const qty = Number(item.quantity) || 0
-          const rev = Number(item.total) || qty * Number(item.unitPrice) || 0
+          // Ingreso sin IVA: la utilidad se mide sobre la base gravable, no sobre el total cobrado.
+          const rev = Number(item.subtotal) || qty * Number(item.unitPrice) || 0
           const unitCost = Number(item.unitCost) || 0
           const cogs = qty * unitCost
 
@@ -987,7 +1003,7 @@ export class ReportBuilder {
       params
 
     const warehouseMetrics = locations.map((loc) => {
-      const locSales = sales.filter((s) => s.locationId === loc.id)
+      const locSales = sales.filter((s) => s.locationId === loc.id && s.status !== 'CANCELLED')
       const locPurchases = purchases.filter(
         (p) => p.destinationLocationId === loc.id || p.locationId === loc.id
       )
@@ -1016,16 +1032,12 @@ export class ReportBuilder {
         inventoryValueAtSale += units * price
       })
 
-      let cogs = 0
-      locSales.forEach((s) => {
-        s.items?.forEach((i: any) => {
-          cogs += (Number(i.quantity) || 0) * (Number(i.unitCost) || 0)
-        })
-      })
-
-      const grossProfit = salesTotal - cogs
+      const netSalesTotal = locSales.reduce((sum, s) => sum + this.getSaleNetRevenue(s), 0)
+      const cogs = locSales.reduce((sum, s) => sum + this.getSaleCost(s), 0)
+      const grossProfit = netSalesTotal - cogs
       const grossMarginPercent =
-        salesTotal > 0 ? Number(((grossProfit / salesTotal) * 100).toFixed(1)) : 0
+        netSalesTotal > 0 ? Number(((grossProfit / netSalesTotal) * 100).toFixed(1)) : 0
+      const returnOnCostPercent = cogs > 0 ? Number(((grossProfit / cogs) * 100).toFixed(1)) : 0
 
       const customersSet = new Set(locSales.map((s) => s.customerId).filter(Boolean))
       const suppliersSet = new Set(locPurchases.map((p) => p.supplierId).filter(Boolean))
@@ -1042,8 +1054,12 @@ export class ReportBuilder {
         inventoryUnits,
         inventoryValueAtCost: canViewFinancials ? inventoryValueAtCost : null,
         inventoryValueAtSale,
+        netSalesTotal,
+        taxTotal: salesTotal - netSalesTotal,
+        costOfSales: canViewFinancials ? cogs : null,
         grossProfit: canViewFinancials ? grossProfit : null,
         grossMarginPercent: canViewFinancials ? grossMarginPercent : null,
+        returnOnCostPercent: canViewFinancials ? returnOnCostPercent : null,
         activeCustomersCount: customersSet.size,
         activeSuppliersCount: suppliersSet.size,
         movementsCount: locMovements.length,

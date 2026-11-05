@@ -51,39 +51,6 @@ export function AccountingAccountsTab({
   }
   return (
     <div className="space-y-4 page-enter">
-      {/* Selector de Clases del PUC Colombia */}
-      <div className="flex flex-wrap items-center gap-2 pb-2 border-b border-gray-100">
-        <button
-          type="button"
-          className={`px-3 py-1.5 text-xs rounded-full font-medium transition-all ${
-            filters.accountClass === 'ALL'
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => onFilterChange({ accountClass: 'ALL' })}
-        >
-          Todas las clases
-        </button>
-        {PUC_CLASSES.map((cls) => {
-          const isActive = filters.accountClass === cls.classNum
-          return (
-            <button
-              key={cls.classNum}
-              type="button"
-              className={`px-3 py-1.5 text-xs rounded-full font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              onClick={() => onFilterChange({ accountClass: cls.classNum })}
-            >
-              <span className="font-bold mr-1">{cls.label}:</span>
-              <span>{cls.name}</span>
-            </button>
-          )
-        })}
-      </div>
-
       {/* Barra de Filtros y Búsqueda */}
       <div className="filters-bar flex flex-wrap items-center justify-between gap-3">
         <div className="search-box flex-1 max-w-md">
@@ -95,7 +62,23 @@ export function AccountingAccountsTab({
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <SelectField
+            value={String(filters.accountClass ?? 'ALL')}
+            size="sm"
+            aria-label="Clase del PUC"
+            onChange={(value) =>
+              onFilterChange({ accountClass: value === 'ALL' ? 'ALL' : (Number(value) as AccountClass) })
+            }
+          >
+            <option value="ALL">Todas las clases</option>
+            {PUC_CLASSES.map((cls) => (
+              <option key={cls.classNum} value={String(cls.classNum)}>
+                {cls.label}: {cls.name}
+              </option>
+            ))}
+          </SelectField>
+
           <SelectField
             value={filters.level || 'ALL'}
             size="sm"

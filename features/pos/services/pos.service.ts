@@ -330,7 +330,8 @@ export class POSService {
 
     // 5. Validar monto entregado, calcular cambio y armar los pagos con su cuenta destino
     let amountPaid = validated.amountPaid
-    if (validated.paymentMethod === 'EFECTIVO' && amountPaid < totalAmount) {
+    // El efectivo se recibe en pesos enteros; el total puede traer centavos porque los precios se guardan sin IVA.
+    if (validated.paymentMethod === 'EFECTIVO' && amountPaid < Math.round(totalAmount)) {
       throw new Error(
         `El valor recibido ($${amountPaid.toLocaleString('es-CO')}) no cubre el total de la venta ($${totalAmount.toLocaleString('es-CO')}).`
       )

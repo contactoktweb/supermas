@@ -74,8 +74,10 @@ export function POSPaymentModal({
 
   const isCash = paymentMethod === 'EFECTIVO'
   const totalAmount = totals.totalAmount || 0
-  const change = Math.max(0, amountPaid - totalAmount)
-  const isInsufficient = isCash && amountPaid < totalAmount
+  // Los precios se guardan sin IVA, así que el total puede traer centavos (9.000,03): el efectivo se cuenta en pesos.
+  const amountDue = Math.round(totalAmount)
+  const change = Math.max(0, amountPaid - amountDue)
+  const isInsufficient = isCash && amountPaid < amountDue
   const needsBank = paymentMethod === 'TARJETA' || paymentMethod === 'TRANSFERENCIA' || paymentMethod === 'MIXTO'
   const usableAccounts = bankAccounts.filter((a) => a.hasLedger)
   const mixedInvalid = paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totalAmount)
@@ -459,7 +461,7 @@ export function POSPaymentModal({
                   }}
                 >
                   <AppIcon name="warning" size={16} color="#b91c1c" />
-                  <span>Faltan {formatCOP(totalAmount - amountPaid)}</span>
+                  <span>Faltan {formatCOP(amountDue - amountPaid)}</span>
                 </div>
               )}
             </div>

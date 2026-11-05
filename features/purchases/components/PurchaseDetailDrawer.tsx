@@ -8,6 +8,7 @@ import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
 import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
 import { purchaseService } from '../services/purchase.service'
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal'
+import { PurchaseCostTracePanel } from './PurchaseCostTracePanel'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface PurchaseDetailDrawerProps {
@@ -534,6 +535,8 @@ export function PurchaseDetailDrawer({
                   </tbody>
                 </table>
               </div>
+
+              {!isCostRedacted && <PurchaseCostTracePanel purchase={purchase} userContext={userContext} />}
 
               {/* Totales Resumen */}
               <div

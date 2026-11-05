@@ -6665,3 +6665,19 @@ html, body {
   .print-area button, .print-area .drawer-footer { display: none !important; }
   .drawer-backdrop { background: none !important; backdrop-filter: none !important; }
 }
+
+/* Franjas de antigüedad de cartera (Cuentas por Cobrar) */
+.aging-bucket-card{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#fafbfc;text-align:left;cursor:pointer;transition:border-color .18s ease,background-color .18s ease,transform .15s ease}
+.aging-bucket-card:hover{border-color:#a8b6cc;transform:translateY(-1px)}
+.aging-bucket-card:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
+.aging-bucket-card[aria-pressed="true"]{border:2px solid var(--navy);background:#eef2fb}
+.aging-bucket-label{font-size:10px;font-weight:800;letter-spacing:.4px;color:var(--muted);text-transform:uppercase}
+.aging-bucket-amount{font-size:15px;color:var(--navy)}
+.aging-bucket-count{font-size:11px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){.aging-bucket-card{transition:none}.aging-bucket-card:hover{transform:none}}
+.aging-bucket-card.is-static{cursor:default}
+.aging-bucket-card.is-static:hover{border-color:var(--line);transform:none}
+.statement-overview-grid{display:grid;grid-template-columns:1fr;gap:14px}
+@media (min-width:1024px){.statement-overview-grid{grid-template-columns:minmax(280px,1fr) 2fr}}
+.statement-contact-list{list-style:none;margin:12px 0 0;padding:12px 0 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--muted)}
+.statement-contact-list li{display:flex;align-items:center;gap:6px;word-break:break-word}

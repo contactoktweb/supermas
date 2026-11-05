@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { KpiCard } from '@/components/ui/KpiCard'
 import { supabaseClient } from '@/lib/supabase/client'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
@@ -117,91 +119,142 @@ export function CustomerPaymentsListPage() {
     )
   })
 
+  const monthPrefix = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }).slice(0, 7)
+  const collectedThisMonth = payments
+    .filter((p) => (p.paymentDate || '').slice(0, 7) === monthPrefix)
+    .reduce((acc, p) => acc + p.amount, 0)
+  const customersCount = new Set(payments.map((p) => p.customerDoc)).size
+
   return (
-    <div className="customer-payments-list-page page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--navy)', margin: 0, letterSpacing: '-0.5px' }}>
-            Pagos Recibidos de Clientes
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Registro histórico de comprobantes de recaudo y abonos aplicados a cartera.
-          </p>
-        </div>
+    <div className="products-module-wrapper customer-payments-module-wrapper page-enter">
+      <PageHeader
+        eyebrow="Clientes y cartera"
+        title="Pagos Recibidos"
+        subtitle="Comprobantes de recaudo y abonos que los clientes aplicaron a su cartera."
+        actions={
+          <button type="button" className="outline-button" onClick={() => loadPayments()} disabled={loading}>
+            <AppIcon name="refresh" size={15} className={loading ? 'spin' : ''} />
+            <span>Actualizar</span>
+          </button>
+        }
+      />
 
-        <div style={{ padding: '10px 18px', background: '#ecfdf5', borderRadius: 10, border: '1px solid #a7f3d0' }}>
-          <span style={{ fontSize: 11, color: '#065f46', fontWeight: 600 }}>Total Recaudado Histórico:</span>
-          <strong style={{ display: 'block', fontSize: 18, color: '#047857' }}>{formatCOP(totalAmount)}</strong>
-        </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div style={{ display: 'flex', gap: 10, padding: 12, background: '#ffffff', borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
-        <input
-          type="text"
-          className="filter-input"
-          placeholder="Buscar por comprobante, cliente, documento, venta..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          style={{ width: '100%', maxWidth: 450 }}
+      <section className="stats-grid dashboard-primary-grid page-enter" aria-label="Métricas de pagos recibidos">
+        <KpiCard
+          title="Total recaudado"
+          value={loading ? '...' : formatCOP(totalAmount)}
+          iconName="wallet"
+          tone="blue"
+          badge="Histórico"
+          note={`${payments.length} comprobantes`}
+          subtext="Abonos aplicados a cartera"
+          index={1}
         />
+        <KpiCard
+          title="Recaudado este mes"
+          value={loading ? '...' : formatCOP(collectedThisMonth)}
+          iconName="receipt"
+          tone="teal"
+          badge="Mes actual"
+          note="Ingresos a caja y bancos"
+          subtext="Comprobantes del mes"
+          index={2}
+        />
+        <KpiCard
+          title="Clientes que pagaron"
+          value={loading ? '...' : customersCount}
+          iconName="users"
+          tone="purple"
+          badge="Clientes"
+          note="Con al menos un abono"
+          subtext="En el histórico"
+          index={3}
+        />
+        <KpiCard
+          title="Abono promedio"
+          value={loading ? '...' : formatCOP(payments.length ? totalAmount / payments.length : 0)}
+          iconName="pieChart"
+          tone="amber"
+          badge="Promedio"
+          note="Por comprobante"
+          subtext="Valor medio recaudado"
+          index={4}
+        />
+      </section>
+
+      <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
+        <div className="products-search-box search-box flex-1 min-w-[220px]">
+          <AppIcon name="search" size={16} className="search-icon" />
+          <input
+            type="text"
+            aria-label="Buscar pagos recibidos"
+            placeholder="Buscar por comprobante, cliente, documento o venta..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button type="button" className="search-clear-btn" onClick={() => setQuery('')} title="Limpiar búsqueda">
+              <AppIcon name="close" size={13} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="table-container" style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
+      <div className="table-panel products-table-panel page-enter">
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Cargando comprobantes de pago...</div>
+          <p role="status" style={{ margin: 0, padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+            Cargando comprobantes de pago...
+          </p>
         ) : filtered.length === 0 ? (
           <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>
             <AppIcon name="receipt" size={32} />
             <p style={{ marginTop: 8, fontSize: 14 }}>No se encontraron comprobantes de recaudo.</p>
           </div>
         ) : (
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                <th style={{ padding: '12px 16px' }}>Comprobante / Fecha</th>
-                <th style={{ padding: '12px 16px' }}>Cliente</th>
-                <th style={{ padding: '12px 16px' }}>Venta Asociada</th>
-                <th style={{ padding: '12px 16px' }}>Medio de Pago</th>
-                <th style={{ padding: '12px 16px' }}>Referencia</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Valor Recaudado</th>
-                <th style={{ padding: '12px 16px' }}>Registrado Por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((row) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                  <td style={{ padding: '14px 16px' }}>
-                    <strong style={{ color: 'var(--navy)', display: 'block' }}>{row.paymentNumber}</strong>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(row.paymentDate)}</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <strong style={{ display: 'block', color: 'var(--navy)' }}>{row.customerName}</strong>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{row.customerDoc}</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <span style={{ fontWeight: 600, color: '#0369a1' }}>{row.saleNumber}</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <span className="status-badge" style={{ background: '#f1f5f9', color: '#334155' }}>
-                      {displayLabel(PAYMENT_METHOD_LABELS, row.paymentMethod)}
-                    </span>
-                  </td>
-                  <td style={{ padding: '14px 16px', color: '#64748b' }}>
-                    {row.reference || '—'}
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                    <strong style={{ color: '#047857', fontSize: 14 }}>{formatCOP(row.amount)}</strong>
-                  </td>
-                  <td style={{ padding: '14px 16px', color: 'var(--muted)', fontSize: 12 }}>
-                    {row.userName}
-                  </td>
+          <div className="table-scroll" tabIndex={0} aria-label="Tabla de pagos recibidos">
+            <table className="products-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 150 }}>Comprobante</th>
+                  <th style={{ minWidth: 200 }}>Cliente</th>
+                  <th style={{ minWidth: 140 }}>Venta asociada</th>
+                  <th style={{ minWidth: 130 }}>Medio de pago</th>
+                  <th style={{ minWidth: 120 }}>Referencia</th>
+                  <th style={{ minWidth: 130, textAlign: 'right' }}>Valor recaudado</th>
+                  <th style={{ minWidth: 140 }}>Registrado por</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filtered.map((row) => (
+                  <tr key={row.id} className="table-row-hover">
+                    <td className="product-code-col">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span className="sku-badge" style={{ fontWeight: 700 }}>{row.paymentNumber}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(row.paymentDate)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="product-info-cell">
+                        <strong className="product-name-text" style={{ fontSize: 13 }}>{row.customerName}</strong>
+                        <span className="sku-meta-text">{row.customerDoc}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: '#0369a1', fontSize: 12 }}>{row.saleNumber}</span>
+                    </td>
+                    <td>
+                      <span className="kardex-type-badge type-badge-blue">{displayLabel(PAYMENT_METHOD_LABELS, row.paymentMethod)}</span>
+                    </td>
+                    <td style={{ color: '#64748b', fontSize: 12 }}>{row.reference || '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <strong style={{ color: '#047857', fontSize: 14 }}>{formatCOP(row.amount)}</strong>
+                    </td>
+                    <td style={{ color: 'var(--muted)', fontSize: 12 }}>{row.userName}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

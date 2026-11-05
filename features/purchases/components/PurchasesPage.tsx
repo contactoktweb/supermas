@@ -24,6 +24,7 @@ import { PurchaseTable } from './PurchaseTable'
 import { PurchaseNewDrawer } from './PurchaseNewDrawer'
 import { PurchaseDetailDrawer } from './PurchaseDetailDrawer'
 import { PurchaseReceiveModal } from './PurchaseReceiveModal'
+import { PurchaseReceiveSelectModal } from './PurchaseReceiveSelectModal'
 import { PurchasePaymentModal } from './PurchasePaymentModal'
 import { PurchaseCancelModal } from './PurchaseCancelModal'
 import { PurchaseExportModal } from './PurchaseExportModal'
@@ -36,9 +37,11 @@ import { canReceivePurchase } from '../utils/purchase-status'
 interface PurchasesPageProps {
   onNavigate?: (view: string) => void
   userContext?: UserPermissionContext
+  /** Abre el selector de recepción al cargar (enlace "Recibir una orden" de Recepciones). */
+  openReceiveSelector?: boolean
 }
 
-export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
+export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = false }: PurchasesPageProps) {
   const { user } = useAuth()
   const permissionsKey = Array.isArray(user?.permissions) ? user.permissions.join(',') : ''
   const effectiveUserContext = useMemo<UserPermissionContext | undefined>(() => {
@@ -86,6 +89,7 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
   const [isNewDrawerOpen, setIsNewDrawerOpen] = useState(false)
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [receiveModalPurchase, setReceiveModalPurchase] = useState<Purchase | null>(null)
+  const [isReceiveSelectOpen, setIsReceiveSelectOpen] = useState(false)
   const [paymentModalPurchase, setPaymentModalPurchase] = useState<Purchase | null>(null)
   const [cancelModalPurchase, setCancelModalPurchase] = useState<Purchase | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
@@ -281,11 +285,10 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
     loadData()
   }
 
-  // Action: Quick Receive (open first pending reception)
+  // Action: Registrar recepción (elegir cuál orden pendiente se recibe)
   const handleQuickReceive = () => {
-    const firstPending = purchases.find((p) => canReceivePurchase(p.status))
-    if (firstPending) {
-      setReceiveModalPurchase(firstPending)
+    if (purchases.some((p) => canReceivePurchase(p.status))) {
+      setIsReceiveSelectOpen(true)
     } else {
       addToast(
         'Sin compras pendientes',
@@ -294,6 +297,13 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
       )
     }
   }
+
+  const [receiveSelectorHandled, setReceiveSelectorHandled] = useState(false)
+  useEffect(() => {
+    if (!openReceiveSelector || receiveSelectorHandled || loading) return
+    setReceiveSelectorHandled(true)
+    handleQuickReceive()
+  }, [openReceiveSelector, receiveSelectorHandled, loading])
 
   // Action: Navigate to Kardex filtered by document
   const handleViewKardex = (purchaseNumber: string, locationId: string) => {
@@ -428,6 +438,17 @@ export function PurchasesPage({ onNavigate, userContext }: PurchasesPageProps) {
           setCancelModalPurchase(p)
         }}
         onViewKardex={handleViewKardex}
+      />
+
+      <PurchaseReceiveSelectModal
+        isOpen={isReceiveSelectOpen}
+        purchases={purchases}
+        isCostRedacted={isCostRedacted}
+        onClose={() => setIsReceiveSelectOpen(false)}
+        onSelect={(p) => {
+          setIsReceiveSelectOpen(false)
+          setReceiveModalPurchase(p)
+        }}
       />
 
       {/* Modal Confirmar Recepción Física */}

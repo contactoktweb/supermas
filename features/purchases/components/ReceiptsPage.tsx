@@ -109,6 +109,9 @@ function ReceiptStatCard({
   )
 }
 
+/** Abre Órdenes de compra con el selector de la orden que se va a recibir. */
+const RECEIVE_ORDER_PATH = '/compras?recibir=1'
+
 export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
   // 1. Data States
   const [receipts, setReceipts] = useState<PurchaseReceipt[]>([])
@@ -319,7 +322,7 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
               <span>Actualizar</span>
             </button>
             {onNavigate && (
-              <button type="button" className="primary-button" onClick={() => onNavigate('/compras')}>
+              <button type="button" className="primary-button" onClick={() => onNavigate(RECEIVE_ORDER_PATH)}>
                 <AppIcon name="warehouse" size={15} />
                 <span>Recibir una orden</span>
               </button>

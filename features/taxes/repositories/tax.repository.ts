@@ -35,6 +35,23 @@ function getDbClient() {
   return supabaseClient
 }
 
+/** Orden del resumen: igual al de las cuentas de inventario por IVA (migración 094). */
+const IVA_CLASS_ORDER = ['IVA_19', 'IVA_5', 'EXENTO', 'EXCLUIDO', 'SIN_CLASIFICAR']
+
+/**
+ * Tipo de IVA de una línea: exento y excluido van al 0 % pero se declaran por separado,
+ * por eso se distinguen por el tratamiento del producto y no por la tarifa.
+ */
+function classifyIvaLine(ratePercent: number, ivaTreatment?: string | null): { code: string; label: string } {
+  const treatment = (ivaTreatment || '').toUpperCase()
+  if (treatment === 'EXCLUIDO') return { code: 'EXCLUIDO', label: 'Excluido' }
+  if (treatment === 'EXENTO') return { code: 'EXENTO', label: 'Exento' }
+  if (ratePercent === 19) return { code: 'IVA_19', label: 'Gravado al 19%' }
+  if (ratePercent === 5) return { code: 'IVA_5', label: 'Gravado al 5%' }
+  if (ratePercent > 0) return { code: `IVA_${ratePercent}`, label: `Gravado al ${ratePercent}%` }
+  return { code: 'SIN_CLASIFICAR', label: 'Tarifa 0 % sin clasificar' }
+}
+
 export class TaxRepository {
   private getTodayStr(): string {
     return new Date().toISOString().split('T')[0]
@@ -718,7 +735,7 @@ export class TaxRepository {
           id, sale_number, created_at, location_id, total_amount, tax_amount, subtotal_amount,
           customers(id, company_name, first_name, last_name, document_number),
           locations(name),
-          sale_items(id, tax_rate_percent, tax_amount, subtotal, total)
+          sale_items(id, tax_rate_percent, tax_amount, subtotal, total, iva_treatment)
         `)
 
       if (companyId) salesQuery = salesQuery.eq('company_id', companyId)
@@ -742,6 +759,7 @@ export class TaxRepository {
             s.sale_items.forEach((item: any) => {
               const tax = Number(item.tax_amount) || 0
               const rate = Number(item.tax_rate_percent) || 0
+              const ivaClass = classifyIvaLine(rate, item.iva_treatment)
               reportItems.push({
                 id: `rep-sale-${s.id}-${item.id}`,
                 documentNumber: s.sale_number,
@@ -751,8 +769,8 @@ export class TaxRepository {
                 locationName: locName,
                 thirdPartyDoc: custDoc,
                 thirdPartyName: custName,
-                taxConfigCode: rate === 19 ? 'IVA_19' : rate === 5 ? 'IVA_5' : 'EXENTO',
-                taxConfigName: rate === 19 ? 'IVA General 19%' : rate === 5 ? 'IVA Reducido 5%' : 'Exento',
+                taxConfigCode: ivaClass.code,
+                taxConfigName: ivaClass.label,
                 ratePercent: rate,
                 baseAmount: Number(item.subtotal) || 0,
                 taxAmount: tax,
@@ -773,7 +791,7 @@ export class TaxRepository {
           id, purchase_number, issue_date, location_id, total_amount, tax_amount, subtotal_amount,
           suppliers(name, legal_name, tax_id),
           locations(name),
-          purchase_items(id, tax_rate_percent, tax_amount, subtotal, total)
+          purchase_items(id, tax_rate_percent, tax_amount, subtotal, total, products(iva_treatment))
         `)
 
       if (companyId) purQuery = purQuery.eq('company_id', companyId)
@@ -797,6 +815,7 @@ export class TaxRepository {
             p.purchase_items.forEach((item: any) => {
               const tax = Number(item.tax_amount) || 0
               const rate = Number(item.tax_rate_percent) || 0
+              const ivaClass = classifyIvaLine(rate, item.products?.iva_treatment)
               reportItems.push({
                 id: `rep-pur-${p.id}-${item.id}`,
                 documentNumber: p.purchase_number,
@@ -806,8 +825,8 @@ export class TaxRepository {
                 locationName: locName,
                 thirdPartyDoc: suppDoc,
                 thirdPartyName: suppName,
-                taxConfigCode: rate === 19 ? 'IVA_19' : rate === 5 ? 'IVA_5' : 'EXENTO',
-                taxConfigName: rate === 19 ? 'IVA General 19%' : rate === 5 ? 'IVA Reducido 5%' : 'Exento',
+                taxConfigCode: ivaClass.code,
+                taxConfigName: ivaClass.label,
                 ratePercent: rate,
                 baseAmount: Number(item.subtotal) || 0,
                 taxAmount: tax,
@@ -835,7 +854,10 @@ export class TaxRepository {
     let totalBasePurchases = 0
 
     const locationMap = new Map<string, { generated: number; deductible: number }>()
-    const rateMap = new Map<number, { generated: number; deductible: number; label: string }>()
+    const rateMap = new Map<
+      string,
+      { ratePercent: number; label: string; baseSales: number; basePurchases: number; generated: number; deductible: number }
+    >()
 
     for (const item of finalItems) {
       const locName = item.locationName || 'Sin ubicación'
@@ -844,25 +866,30 @@ export class TaxRepository {
       }
       const locStat = locationMap.get(locName)!
 
-      if (!rateMap.has(item.ratePercent)) {
-        rateMap.set(item.ratePercent, {
+      if (!rateMap.has(item.taxConfigCode)) {
+        rateMap.set(item.taxConfigCode, {
+          ratePercent: item.ratePercent,
+          label: item.taxConfigName,
+          baseSales: 0,
+          basePurchases: 0,
           generated: 0,
           deductible: 0,
-          label: `Tarifa ${item.ratePercent}%`,
         })
       }
-      const rateStat = rateMap.get(item.ratePercent)!
+      const rateStat = rateMap.get(item.taxConfigCode)!
 
       if (item.operationType === 'GENERATED') {
         generatedTaxes += item.taxAmount
         totalBaseSales += item.baseAmount
         locStat.generated += item.taxAmount
         rateStat.generated += item.taxAmount
+        rateStat.baseSales += item.baseAmount
       } else {
         deductibleTaxes += item.taxAmount
         totalBasePurchases += item.baseAmount
         locStat.deductible += item.taxAmount
         rateStat.deductible += item.taxAmount
+        rateStat.basePurchases += item.baseAmount
       }
     }
 
@@ -878,12 +905,9 @@ export class TaxRepository {
         generated: vals.generated,
         deductible: vals.deductible,
       })),
-      byRate: Array.from(rateMap.entries()).map(([ratePercent, vals]) => ({
-        ratePercent,
-        label: vals.label,
-        generated: vals.generated,
-        deductible: vals.deductible,
-      })),
+      byRate: Array.from(rateMap.entries())
+        .map(([key, vals]) => ({ key, ...vals }))
+        .sort((a, b) => IVA_CLASS_ORDER.indexOf(a.key) - IVA_CLASS_ORDER.indexOf(b.key)),
     }
 
     return {

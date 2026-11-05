@@ -289,6 +289,12 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     loadData()
   }
 
+  const handleSupplierInvoiceRegistered = (updated: Purchase) => {
+    addToast('Factura registrada', `La factura ${updated.supplierInvoiceNumber} quedó asociada a la orden ${updated.purchaseNumber}.`, 'success')
+    setSelectedPurchase(updated)
+    loadData()
+  }
+
   const handleConfirmShortageClose = async (purchaseId: string, reason: string) => {
     const { purchase: closed, result } = await purchaseService.closeWithShortage(purchaseId, reason, effectiveUserContext)
     addToast(
@@ -442,6 +448,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
           setIsNewDrawerOpen(true)
         }}
         onConfirm={handleConfirmOrder}
+        onSupplierInvoiceRegistered={handleSupplierInvoiceRegistered}
         onReceive={(p) => {
           setSelectedPurchase(null)
           setReceiveModalPurchase(p)

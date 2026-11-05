@@ -4,7 +4,7 @@ import React from 'react'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { Purchase, PurchaseStatus, PurchasePaymentType } from '../types'
 import { SelectField } from '@/components/ui/SelectField'
-import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isSupplierInvoicePending } from '../utils/purchase-status'
 
 type PurchaseSortField = 'date' | 'total' | 'purchaseNumber' | 'pendingBalance' | 'createdAt'
 
@@ -80,6 +80,15 @@ export function getPurchaseStatusBadge(status: PurchaseStatus) {
     <span className={`kardex-type-badge ${badgeClass}`}>
       <AppIcon name={icon} size={13} />
       <span>{label}</span>
+    </span>
+  )
+}
+
+export function SupplierInvoicePendingBadge() {
+  return (
+    <span className="kardex-type-badge type-badge-amber" title="El proveedor aún no ha enviado su factura">
+      <AppIcon name="clock" size={12} />
+      <span>Pendiente por factura</span>
     </span>
   )
 }
@@ -339,9 +348,13 @@ export function PurchaseTable({
 
                   {/* 2. Factura Proveedor */}
                   <td>
-                    <span className="secondary-meta" style={{ fontWeight: 600 }}>
-                      {p.supplierInvoiceNumber || '—'}
-                    </span>
+                    {isSupplierInvoicePending(p) ? (
+                      <SupplierInvoicePendingBadge />
+                    ) : (
+                      <span className="secondary-meta" style={{ fontWeight: 600 }}>
+                        {p.supplierInvoiceNumber || '—'}
+                      </span>
+                    )}
                   </td>
 
                   {/* 3. Fecha */}

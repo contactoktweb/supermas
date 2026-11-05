@@ -96,6 +96,10 @@ export interface PurchaseReceptionInfo {
   receivedByUserName: string
   notes?: string
   receptionNumber?: string
+  /** Asiento con el que se causó la compra al completar la recepción. */
+  accountingEntryNumber?: string | null
+  /** Motivo por el que no se pudo causar la compra al completarse la recepción. */
+  accountingError?: string | null
 }
 
 export interface PurchaseCancellationInfo {

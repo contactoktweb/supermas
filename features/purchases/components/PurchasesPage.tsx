@@ -33,7 +33,8 @@ import { PurchaseStatsSkeleton, PurchaseTableSkeleton } from './PurchaseSkeleton
 import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
 import { PurchaseToastContainer, usePurchaseToasts } from './PurchaseToast'
-import { canReceivePurchase } from '../utils/purchase-status'
+import { canReceivePurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
+import { PURCHASE_ACCOUNTING_PENDING_MESSAGE } from './PurchaseAccountingPendingNote'
 import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface PurchasesPageProps {
@@ -249,12 +250,21 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
       effectiveUserContext
     )
     const recNum = received.receptionInfo?.receptionNumber
+    const entryNumber = received.receptionInfo?.accountingEntryNumber
+    const accountingError = received.receptionInfo?.accountingError
+    const accountingNote = entryNumber
+      ? ` La compra se causó en contabilidad (${entryNumber}).`
+      : accountingError
+        ? ` No se pudo causar en contabilidad: ${accountingError}`
+        : isPartiallyReceivedPurchase(received.status)
+          ? ` ${PURCHASE_ACCOUNTING_PENDING_MESSAGE}`
+          : ''
     addToast(
       'Mercancía Recibida',
-      recNum
+      (recNum
         ? `Acta ${recNum} generada con éxito. Inventario ingresado a Kardex en ${received.destinationLocationName}.`
-        : `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`,
-      'success'
+        : `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`) + accountingNote,
+      accountingError ? 'warning' : 'success'
     )
     // Update active drawer if open
     if (selectedPurchase?.id === purchaseId) {

@@ -71,6 +71,11 @@ export const dianApiClient = {
     })
   },
 
+  /** Factura electrónica automática de una venta del POS (el servidor valida que la venta sea del cajero). */
+  emitPosSale(saleId: string) {
+    return call<DianProcessResponse>(`/api/pos/sales/${saleId}/electronic-invoice`, { method: 'POST' })
+  },
+
   emitFromSale(saleId: string) {
     return call<DianProcessResponse>('/api/dian/invoices', {
       method: 'POST',

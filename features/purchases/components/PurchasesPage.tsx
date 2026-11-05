@@ -25,6 +25,7 @@ import { PurchaseNewDrawer } from './PurchaseNewDrawer'
 import { PurchaseDetailDrawer } from './PurchaseDetailDrawer'
 import { PurchaseReceiveModal } from './PurchaseReceiveModal'
 import { PurchaseReceiveSelectModal } from './PurchaseReceiveSelectModal'
+import { PurchaseShortageCloseModal } from './PurchaseShortageCloseModal'
 import { PurchasePaymentModal } from './PurchasePaymentModal'
 import { PurchaseCancelModal } from './PurchaseCancelModal'
 import { PurchaseExportModal } from './PurchaseExportModal'
@@ -92,6 +93,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [receiveModalPurchase, setReceiveModalPurchase] = useState<Purchase | null>(null)
   const [isReceiveSelectOpen, setIsReceiveSelectOpen] = useState(false)
+  const [shortageModalPurchase, setShortageModalPurchase] = useState<Purchase | null>(null)
   const [paymentModalPurchase, setPaymentModalPurchase] = useState<Purchase | null>(null)
   const [cancelModalPurchase, setCancelModalPurchase] = useState<Purchase | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
@@ -287,6 +289,19 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     loadData()
   }
 
+  const handleConfirmShortageClose = async (purchaseId: string, reason: string) => {
+    const { purchase: closed, result } = await purchaseService.closeWithShortage(purchaseId, reason, effectiveUserContext)
+    addToast(
+      'Orden cerrada con faltante',
+      result.accountingEntryNumber
+        ? `La orden ${closed.purchaseNumber} quedó en lo recibido y se causó en contabilidad (${result.accountingEntryNumber}).`
+        : `La orden ${closed.purchaseNumber} quedó en lo recibido. No se pudo causar en contabilidad: ${result.accountingError || 'cáusela desde Contabilidad.'}`,
+      result.accountingEntryNumber ? 'success' : 'warning'
+    )
+    if (selectedPurchase?.id === purchaseId) setSelectedPurchase(closed)
+    loadData()
+  }
+
   // Action: Registrar recepción (elegir cuál orden pendiente se recibe)
   const handleQuickReceive = () => {
     if (purchases.some((p) => canReceivePurchase(p.status))) {
@@ -439,6 +454,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
           setSelectedPurchase(null)
           setCancelModalPurchase(p)
         }}
+        onCloseShortage={(p) => setShortageModalPurchase(p)}
         onViewKardex={handleViewKardex}
       />
 
@@ -451,6 +467,14 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
           setIsReceiveSelectOpen(false)
           setReceiveModalPurchase(p)
         }}
+      />
+
+      <PurchaseShortageCloseModal
+        purchase={shortageModalPurchase}
+        isOpen={Boolean(shortageModalPurchase)}
+        isCostRedacted={isCostRedacted}
+        onClose={() => setShortageModalPurchase(null)}
+        onConfirm={handleConfirmShortageClose}
       />
 
       {/* Modal Confirmar Recepción Física */}

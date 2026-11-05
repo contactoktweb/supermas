@@ -273,6 +273,18 @@ export class PurchaseService {
   }
 
   /**
+   * Cierra una orden recibida parcialmente cuando el proveedor no enviará lo que falta.
+   */
+  async closeWithShortage(id: string, reason: string, userContext?: UserPermissionContext) {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para cerrar órdenes de compra.')
+    }
+    const trimmed = reason.trim()
+    if (trimmed.length < 5) throw new Error('Escriba el motivo del faltante (mínimo 5 caracteres).')
+    return this.repository.closeWithShortage(id, trimmed)
+  }
+
+  /**
    * Consulta las actas de recepción física de mercancía.
    */
   async getReceipts(purchaseId?: string, userContext?: UserPermissionContext): Promise<PurchaseReceipt[]> {

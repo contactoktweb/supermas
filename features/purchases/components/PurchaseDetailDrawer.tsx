@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
-import { canReceivePurchase, isCancelledPurchase, isDraftPurchase } from '../utils/purchase-status'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
 import { purchaseService } from '../services/purchase.service'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
@@ -20,6 +20,8 @@ interface PurchaseDetailDrawerProps {
   onReceive?: (purchase: Purchase) => void
   onRegisterPayment?: (purchase: Purchase) => void
   onCancel?: (purchase: Purchase) => void
+  /** Cierra una orden recibida parcialmente cuando el proveedor no enviará lo que falta. */
+  onCloseShortage?: (purchase: Purchase) => void
   onViewKardex?: (purchaseNumber: string, locationId: string) => void
 }
 
@@ -34,6 +36,7 @@ export function PurchaseDetailDrawer({
   onReceive,
   onRegisterPayment,
   onCancel,
+  onCloseShortage,
   onViewKardex,
 }: PurchaseDetailDrawerProps) {
   const [mounted, setMounted] = useState(false)
@@ -235,6 +238,19 @@ export function PurchaseDetailDrawer({
               >
                 <AppIcon name="warehouse" size={15} />
                 <span>Recibir compra</span>
+              </button>
+            )}
+
+            {isPartiallyReceivedPurchase(purchase.status) && onCloseShortage && (
+              <button
+                type="button"
+                className="outline-button"
+                onClick={() => onCloseShortage(purchase)}
+                title="El proveedor no enviará lo que falta: cerrar la orden con lo recibido"
+                style={{ color: '#b45309', borderColor: '#fcd34d' }}
+              >
+                <AppIcon name="warning" size={15} />
+                <span>Cerrar con faltante</span>
               </button>
             )}
 

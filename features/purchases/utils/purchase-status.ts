@@ -31,6 +31,7 @@ const has = (group: readonly string[], status: string | null | undefined) =>
 export const isDraftPurchase = (status?: string | null) => has(INVENTORY_STATUS.DRAFT, status)
 export const isCancelledPurchase = (status?: string | null) => has(INVENTORY_STATUS.CANCELLED, status)
 export const isReceivedPurchase = (status?: string | null) => has(INVENTORY_STATUS.RECEIVED, status)
+export const isPartiallyReceivedPurchase = (status?: string | null) => has(INVENTORY_STATUS.PARTIALLY_RECEIVED, status)
 
 /** Ya entró mercancía a bodega (recepción total o parcial). */
 export const hasReceivedGoods = (status?: string | null) =>

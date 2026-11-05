@@ -10,6 +10,8 @@ import { customerService } from '../services/customer.service'
 import { Customer } from '../types'
 import { CustomerPaymentModal } from './CustomerPaymentModal'
 import { SelectField } from '@/components/ui/SelectField'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { KpiCard } from '@/components/ui/KpiCard'
 import { displayLabel, PAYMENT_STATUS_LABELS, PAYMENT_METHOD_LABELS, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
 
 function formatCOP(val: number): string {
@@ -44,7 +46,7 @@ export function CustomerStatementPage() {
   // Payment Modal
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [selectedSaleForPayment, setSelectedSaleForPayment] = useState<any | null>(null)
-  const [successToast, setSuccessToast] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
   // Cargar lista de clientes para el selector
   useEffect(() => {
@@ -90,7 +92,7 @@ export function CustomerStatementPage() {
     if (!statement) return
     const targetSaleId = selectedSaleForPayment?.saleId || statement.receivables.find((r) => r.pendingBalance > 0)?.saleId
     if (!targetSaleId) {
-      alert('No hay ventas con saldo pendiente para aplicar este abono.')
+      setToast({ tone: 'error', message: 'No hay ventas con saldo pendiente para aplicar este abono.' })
       return
     }
 
@@ -104,8 +106,8 @@ export function CustomerStatementPage() {
 
     setIsPaymentModalOpen(false)
     setSelectedSaleForPayment(null)
-    setSuccessToast(`Abono ${res.paymentNumber} registrado con éxito. Nuevo saldo: ${formatCOP(res.newPendingBalance)}`)
-    setTimeout(() => setSuccessToast(null), 5000)
+    setToast({ tone: 'success', message: `Abono ${res.paymentNumber} registrado con éxito. Nuevo saldo: ${formatCOP(res.newPendingBalance)}` })
+    setTimeout(() => setToast(null), 5000)
 
     await loadStatement()
   }
@@ -136,66 +138,111 @@ export function CustomerStatementPage() {
       } as Customer)
     : null
 
+  const overdue = statement ? statement.summary.totalOverdueBalance : 0
+
   return (
-    <div className="customer-statement-page page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Toast */}
-      {successToast && (
-        <div style={{ padding: '12px 18px', borderRadius: 10, background: '#ecfdf5', border: '1.5px solid #a7f3d0', color: '#065f46', fontSize: 13, fontWeight: 600 }}>
-          {successToast}
+    <div className="products-module-wrapper customer-statement-module-wrapper page-enter">
+      {toast && (
+        <div className={`toast-banner ${toast.tone === 'success' ? 'toast-success' : 'toast-error'} toast-pop-in`} role="status" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AppIcon name={toast.tone === 'success' ? 'check' : 'warning'} size={16} />
+          <span style={{ flex: 1 }}>{toast.message}</span>
+          <button type="button" className="icon-button" onClick={() => setToast(null)} aria-label="Cerrar aviso">
+            <AppIcon name="close" size={14} />
+          </button>
         </div>
       )}
 
-      {/* Header & Customer Selector */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--navy)', margin: 0, letterSpacing: '-0.5px' }}>
-            Estado de Cuenta del Cliente
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Ficha financiera integral, cupo de crédito disponible y movimientos.
-          </p>
-        </div>
+      <PageHeader
+        eyebrow="Clientes y cartera"
+        title="Estado de Cuenta"
+        subtitle="Ficha financiera del cliente: cupo de crédito, ventas pendientes y abonos registrados."
+        actions={
+          statement && statement.summary.totalPendingBalance > 0 ? (
+            <button type="button" className="primary-button" onClick={() => handleOpenPayment()}>
+              <AppIcon name="plus" size={15} color="#fff" />
+              <span>Registrar abono</span>
+            </button>
+          ) : undefined
+        }
+      />
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--navy)' }}>Cliente:</label>
+      <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
+        <div className="filter-select-group filter-select-item flex-1 min-w-[260px]">
+          <label htmlFor="statement-customer" className="sr-only">Cliente</label>
           <SelectField
+            id="statement-customer"
             value={selectedCustomerId}
             size="sm"
             onChange={(value) => setSelectedCustomerId(value)}
           >
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.displayName} ({c.documentNumber}) {c.currentBalance > 0 ? `• Saldo: ${formatCOP(c.currentBalance)}` : ''}
+                {c.displayName} ({c.documentNumber}) {c.currentBalance > 0 ? `- Saldo: ${formatCOP(c.currentBalance)}` : ''}
               </option>
             ))}
           </SelectField>
-
-          {statement && statement.summary.totalPendingBalance > 0 && (
-            <button type="button" className="primary-button" onClick={() => handleOpenPayment()}>
-              <AppIcon name="plus" size={15} color="#fff" />
-              <span>Registrar Abono</span>
-            </button>
-          )}
         </div>
       </div>
 
       {loading || !statement ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--muted)' }}>Cargando estado de cuenta...</div>
+        <p role="status" className="table-panel products-table-panel" style={{ margin: 0, padding: 60, textAlign: 'center', color: 'var(--muted)' }}>
+          {customers.length === 0 && !loading ? 'No hay clientes registrados.' : 'Cargando estado de cuenta...'}
+        </p>
       ) : (
         <>
-          {/* Customer Profile & Credit Overview */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
-            {/* Info Card */}
-            <div style={{ padding: '18px 22px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>
-                    Ficha del Cliente
-                  </span>
-                  <strong style={{ display: 'block', fontSize: 18, color: 'var(--navy)', marginTop: 4 }}>
+          <section className="stats-grid dashboard-primary-grid page-enter" aria-label="Resumen financiero del cliente">
+            <KpiCard
+              title="Saldo actual"
+              value={formatCOP(statement.customer.currentBalance)}
+              iconName="wallet"
+              tone="blue"
+              badge="Deuda"
+              note={`${statement.receivables.filter((r) => r.pendingBalance > 0).length} ventas con saldo`}
+              subtext="Pendiente por cobrar"
+              index={1}
+            />
+            <KpiCard
+              title="Crédito disponible"
+              value={formatCOP(statement.customer.availableCredit)}
+              iconName="creditCard"
+              tone="teal"
+              badge="Cupo"
+              note={`Límite ${formatCOP(statement.customer.creditLimit)}`}
+              subtext={`Plazo de ${statement.customer.creditDays} días`}
+              index={2}
+            />
+            <KpiCard
+              title="Cartera vencida"
+              value={formatCOP(overdue)}
+              iconName="alertTriangle"
+              tone="red"
+              badge={overdue > 0 ? 'En mora' : 'Al día'}
+              isPositive={overdue === 0}
+              note={overdue > 0 ? 'Requiere gestión de cobro' : 'Sin facturas vencidas'}
+              subtext="Saldo después del vencimiento"
+              index={3}
+            />
+            <KpiCard
+              title="Abonos registrados"
+              value={formatCOP(statement.payments.reduce((acc, p) => acc + p.amount, 0))}
+              iconName="receipt"
+              tone="purple"
+              badge="Pagos"
+              note={`${statement.payments.length} comprobantes`}
+              subtext="Histórico del cliente"
+              index={4}
+            />
+          </section>
+
+          <div className="statement-overview-grid">
+            <section className="table-panel products-table-panel page-enter" aria-labelledby="statement-customer-title" style={{ padding: '16px 18px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                <div className="product-info-cell">
+                  <span className="aging-bucket-label">Ficha del cliente</span>
+                  <h2 id="statement-customer-title" style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: 'var(--navy)' }}>
                     {statement.customer.displayName}
-                  </strong>
-                  <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  </h2>
+                  <span className="sku-meta-text">
                     {displayLabel(ID_DOCUMENT_LABELS, statement.customer.documentType, '')} {statement.customer.documentNumber}
                   </span>
                 </div>
@@ -203,219 +250,167 @@ export function CustomerStatementPage() {
                   {statement.customer.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
                 </span>
               </div>
-
-              <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'var(--muted)' }}>
+              <ul className="statement-contact-list">
                 {statement.customer.phone && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <li>
                     <AppIcon name="phone" size={14} aria-hidden="true" />
                     <span><span className="sr-only">Teléfono: </span>{statement.customer.phone}</span>
-                  </div>
+                  </li>
                 )}
                 {statement.customer.email && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <li>
                     <AppIcon name="mail" size={14} aria-hidden="true" />
                     <span><span className="sr-only">Correo: </span>{statement.customer.email}</span>
-                  </div>
+                  </li>
                 )}
                 {statement.customer.address && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <li>
                     <AppIcon icon="solar:map-point-linear" size={14} aria-hidden="true" />
-                    <span><span className="sr-only">Dirección: </span>{statement.customer.address}, {statement.customer.city}</span>
-                  </div>
+                    <span><span className="sr-only">Dirección: </span>{statement.customer.address}{statement.customer.city ? `, ${statement.customer.city}` : ''}</span>
+                  </li>
                 )}
+              </ul>
+            </section>
+
+            <section className="table-panel products-table-panel page-enter" aria-labelledby="statement-aging-title" style={{ padding: '16px 18px' }}>
+              <h2 id="statement-aging-title" style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>
+                Antigüedad del saldo
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
+                {statement.aging.map((b) => (
+                  <div key={b.bucket} className="aging-bucket-card is-static">
+                    <span className="aging-bucket-label">{b.bucket}</span>
+                    <strong className="aging-bucket-amount">{formatCOP(b.amount)}</strong>
+                    <span className="aging-bucket-count">{b.count} documentos</span>
+                  </div>
+                ))}
               </div>
-            </div>
+            </section>
+          </div>
 
-            {/* Credit Financial Health Card */}
-            <div style={{ padding: '18px 22px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>
-                Control de Crédito y Cupo
-              </span>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
-                <div>
-                  <small style={{ fontSize: 11, color: 'var(--muted)' }}>Límite Aprobado:</small>
-                  <strong style={{ display: 'block', fontSize: 16, color: 'var(--navy)' }}>
-                    {formatCOP(statement.customer.creditLimit)}
-                  </strong>
-                </div>
-
-                <div>
-                  <small style={{ fontSize: 11, color: 'var(--muted)' }}>Plazo Concedido:</small>
-                  <strong style={{ display: 'block', fontSize: 16, color: 'var(--navy)' }}>
-                    {statement.customer.creditDays} días
-                  </strong>
-                </div>
-
-                <div>
-                  <small style={{ fontSize: 11, color: '#b45309' }}>Saldo Actual (Deuda):</small>
-                  <strong style={{ display: 'block', fontSize: 18, color: statement.customer.currentBalance > 0 ? '#b45309' : '#15803d' }}>
-                    {formatCOP(statement.customer.currentBalance)}
-                  </strong>
-                </div>
-
-                <div>
-                  <small style={{ fontSize: 11, color: '#047857' }}>Crédito Disponible:</small>
-                  <strong style={{ display: 'block', fontSize: 18, color: '#047857' }}>
-                    {formatCOP(statement.customer.availableCredit)}
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* Balances Summary Card */}
-            <div style={{ padding: '18px 22px', borderRadius: 14, background: statement.summary.totalOverdueBalance > 0 ? '#fff1f2' : '#f0fbf6', border: `1.5px solid ${statement.summary.totalOverdueBalance > 0 ? '#fecdd3' : '#a7f3d0'}` }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: statement.summary.totalOverdueBalance > 0 ? '#be123c' : '#047857' }}>
-                {statement.summary.totalOverdueBalance > 0 ? 'Cartera Vencida en Mora' : 'Cliente al Día'}
-              </span>
-              <strong style={{ display: 'block', fontSize: 24, color: statement.summary.totalOverdueBalance > 0 ? '#be123c' : '#047857', marginTop: 6 }}>
-                {formatCOP(statement.summary.totalPendingBalance)}
-              </strong>
-              <small style={{ display: 'block', marginTop: 4, fontSize: 12, color: statement.summary.totalOverdueBalance > 0 ? '#be123c' : '#047857' }}>
-                {statement.summary.totalOverdueBalance > 0
-                  ? `Vencido en mora: ${formatCOP(statement.summary.totalOverdueBalance)}`
-                  : 'No presenta facturas vencidas'}
-              </small>
+          <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
+            <div className="period-segmented-tabs" role="tablist" aria-label="Movimientos del cliente">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'receivables'}
+                className={`period-tab-btn ${activeTab === 'receivables' ? 'selected' : ''}`}
+                onClick={() => setActiveTab('receivables')}
+              >
+                Ventas y saldos ({statement.receivables.length})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'payments'}
+                className={`period-tab-btn ${activeTab === 'payments' ? 'selected' : ''}`}
+                onClick={() => setActiveTab('payments')}
+              >
+                Abonos y pagos ({statement.payments.length})
+              </button>
             </div>
           </div>
 
-          {/* Aging Distribution */}
-          <div style={{ display: 'flex', gap: 10, padding: 14, background: '#ffffff', borderRadius: 12, border: '1.5px solid #cbd5e1', overflowX: 'auto' }}>
-            {statement.aging.map((b) => (
-              <div key={b.bucket} style={{ flex: 1, minWidth: 120, padding: 10, borderRadius: 8, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{b.bucket}</span>
-                <strong style={{ display: 'block', fontSize: 14, color: 'var(--navy)', marginTop: 2 }}>{formatCOP(b.amount)}</strong>
-                <small style={{ fontSize: 10, color: 'var(--muted)' }}>{b.count} doc.</small>
-              </div>
-            ))}
-          </div>
-
-          {/* Tabs for Statement Tables */}
-          <div style={{ display: 'flex', gap: 12, borderBottom: '2px solid #e2e8f0' }}>
-            <button
-              type="button"
-              onClick={() => setActiveTab('receivables')}
-              style={{
-                padding: '10px 16px',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: 14,
-                color: activeTab === 'receivables' ? 'var(--navy)' : 'var(--muted)',
-                borderBottom: activeTab === 'receivables' ? '2px solid var(--navy)' : 'none',
-                marginBottom: -2,
-              }}
-            >
-              Ventas y Cuentas por Cobrar ({statement.receivables.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('payments')}
-              style={{
-                padding: '10px 16px',
-                border: 'none',
-                background: 'none',
-                cursor: 'pointer',
-                fontWeight: 700,
-                fontSize: 14,
-                color: activeTab === 'payments' ? 'var(--navy)' : 'var(--muted)',
-                borderBottom: activeTab === 'payments' ? '2px solid var(--navy)' : 'none',
-                marginBottom: -2,
-              }}
-            >
-              Comprobantes de Abono / Pago ({statement.payments.length})
-            </button>
-          </div>
-
-          {/* Table Content */}
-          <div className="table-container" style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
+          <div className="table-panel products-table-panel page-enter">
             {activeTab === 'receivables' ? (
               statement.receivables.length === 0 ? (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No se registran ventas para este cliente.</div>
+                <p style={{ margin: 0, padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No se registran ventas para este cliente.</p>
               ) : (
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="table-scroll" tabIndex={0} aria-label="Ventas y saldos del cliente">
+                  <table className="products-table">
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: 150 }}>Venta</th>
+                        <th style={{ minWidth: 120 }}>Vencimiento</th>
+                        <th style={{ minWidth: 120, textAlign: 'right' }}>Total</th>
+                        <th style={{ minWidth: 120, textAlign: 'right' }}>Abonado</th>
+                        <th style={{ minWidth: 130, textAlign: 'right' }}>Saldo pendiente</th>
+                        <th style={{ minWidth: 110, textAlign: 'center' }}>Estado</th>
+                        <th style={{ width: 90, textAlign: 'center' }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statement.receivables.map((r) => (
+                        <tr key={r.id} className="table-row-hover">
+                          <td className="product-code-col">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span className="sku-badge" style={{ fontWeight: 700 }}>{r.saleNumber}</span>
+                              <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(r.issueDate)}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: 13 }}>{formatDate(r.dueDate)}</span>
+                            {r.isOverdue && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>Vencida</span>}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCOP(r.originalAmount)}</td>
+                          <td style={{ textAlign: 'right', color: '#0369a1' }}>{formatCOP(r.paidAmount)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <strong style={{ color: r.pendingBalance > 0 ? '#b45309' : '#15803d' }}>{formatCOP(r.pendingBalance)}</strong>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <span className={`status-badge ${r.status === 'PAGADA' ? 'status-active' : r.status === 'VENCIDA' ? 'status-rejected' : 'status-pending'}`}>
+                              {displayLabel(PAYMENT_STATUS_LABELS, r.status)}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div className="action-buttons-group" style={{ justifyContent: 'center' }}>
+                              {r.pendingBalance > 0 ? (
+                                <button
+                                  type="button"
+                                  className="icon-button"
+                                  onClick={() => handleOpenPayment(r)}
+                                  title={`Registrar abono a ${r.saleNumber}`}
+                                  aria-label={`Registrar abono a ${r.saleNumber}`}
+                                >
+                                  <AppIcon name="wallet" size={16} />
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: 12, color: 'var(--muted)' }}>—</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : statement.payments.length === 0 ? (
+              <p style={{ margin: 0, padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No se registran abonos ni pagos para este cliente.</p>
+            ) : (
+              <div className="table-scroll" tabIndex={0} aria-label="Abonos y pagos del cliente">
+                <table className="products-table">
                   <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                      <th style={{ padding: '12px 16px' }}>Venta / Fecha</th>
-                      <th style={{ padding: '12px 16px' }}>Vencimiento</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Abonado</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Saldo Pendiente</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Estado</th>
-                      <th style={{ padding: '12px 16px', textAlign: 'center' }}>Acción</th>
+                    <tr>
+                      <th style={{ minWidth: 150 }}>Comprobante</th>
+                      <th style={{ minWidth: 140 }}>Venta</th>
+                      <th style={{ minWidth: 130 }}>Medio de pago</th>
+                      <th style={{ minWidth: 120 }}>Referencia</th>
+                      <th style={{ minWidth: 130, textAlign: 'right' }}>Valor abonado</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {statement.receivables.map((r) => (
-                      <tr key={r.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                        <td style={{ padding: '12px 16px' }}>
-                          <strong style={{ color: 'var(--navy)', display: 'block' }}>{r.saleNumber}</strong>
-                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(r.issueDate)}</span>
+                    {statement.payments.map((p) => (
+                      <tr key={p.id} className="table-row-hover">
+                        <td className="product-code-col">
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            <span className="sku-badge" style={{ fontWeight: 700 }}>{p.paymentNumber}</span>
+                            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.date)}</span>
+                          </div>
                         </td>
-                        <td style={{ padding: '12px 16px' }}>
-                          <span>{formatDate(r.dueDate)}</span>
-                          {r.isOverdue && <span style={{ display: 'block', fontSize: 10, color: 'var(--red)' }}>Vencida</span>}
+                        <td style={{ color: '#0369a1', fontWeight: 600, fontSize: 12 }}>{p.saleNumber || '—'}</td>
+                        <td>
+                          <span className="kardex-type-badge type-badge-blue">{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</span>
                         </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 600 }}>{formatCOP(r.originalAmount)}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right', color: '#0369a1' }}>{formatCOP(r.paidAmount)}</td>
-                        <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                          <strong style={{ color: r.pendingBalance > 0 ? '#b45309' : '#15803d' }}>
-                            {formatCOP(r.pendingBalance)}
-                          </strong>
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          <span className={`status-badge ${r.status === 'PAGADA' ? 'status-active' : r.status === 'VENCIDA' ? 'status-rejected' : 'status-pending'}`}>
-                            {displayLabel(PAYMENT_STATUS_LABELS, r.status)}
-                          </span>
-                        </td>
-                        <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                          {r.pendingBalance > 0 && (
-                            <button
-                              type="button"
-                              className="primary-button"
-                              style={{ padding: '5px 10px', fontSize: 11 }}
-                              onClick={() => handleOpenPayment(r)}
-                            >
-                              Abonar
-                            </button>
-                          )}
+                        <td style={{ color: '#64748b', fontSize: 12 }}>{p.reference || '—'}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <strong style={{ color: '#047857', fontSize: 14 }}>{formatCOP(p.amount)}</strong>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              )
-            ) : statement.payments.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No se registran abonos ni pagos para este cliente.</div>
-            ) : (
-              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                    <th style={{ padding: '12px 16px' }}>Comprobante / Fecha</th>
-                    <th style={{ padding: '12px 16px' }}>Venta</th>
-                    <th style={{ padding: '12px 16px' }}>Medio de Pago</th>
-                    <th style={{ padding: '12px 16px' }}>Referencia</th>
-                    <th style={{ padding: '12px 16px', textAlign: 'right' }}>Valor Abonado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {statement.payments.map((p) => (
-                    <tr key={p.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                      <td style={{ padding: '12px 16px' }}>
-                        <strong style={{ color: 'var(--navy)', display: 'block' }}>{p.paymentNumber}</strong>
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(p.date)}</span>
-                      </td>
-                      <td style={{ padding: '12px 16px', color: '#0369a1', fontWeight: 600 }}>{p.saleNumber || '—'}</td>
-                      <td style={{ padding: '12px 16px' }}>{displayLabel(PAYMENT_METHOD_LABELS, p.paymentMethod)}</td>
-                      <td style={{ padding: '12px 16px', color: '#64748b' }}>{p.reference || '—'}</td>
-                      <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: '#047857' }}>
-                        {formatCOP(p.amount)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              </div>
             )}
           </div>
         </>

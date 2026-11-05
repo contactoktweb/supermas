@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { AppIcon, LightIconName } from '@/components/ui/Icon'
+import { AppIcon } from '@/components/ui/Icon'
 import {
   accountsReceivableService,
   AccountReceivableItem,
@@ -11,7 +11,8 @@ import {
 } from '../services/accounts-receivable.service'
 import { CustomerPaymentModal } from './CustomerPaymentModal'
 import { Customer } from '../types'
-import { SelectField } from '@/components/ui/SelectField'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { KpiCard } from '@/components/ui/KpiCard'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 function formatCOP(val: number): string {
@@ -198,308 +199,301 @@ export function AccountsReceivablePage() {
     }
   }
 
+  const statusTabs = [
+    { key: 'ALL', label: 'Todas' },
+    { key: 'PENDIENTE', label: 'Pendientes' },
+    { key: 'PAGO_PARCIAL', label: 'Abonadas' },
+    { key: 'VENCIDA', label: 'Vencidas' },
+    { key: 'PAGADA', label: 'Pagadas' },
+  ] as const
+  const activeFilterCount = [Boolean(filters.query), filters.status !== 'ALL', filters.agingBucket !== 'ALL'].filter(Boolean).length
+  const kpiValue = (value?: number) => (statsLoading ? '...' : formatCOP(value || 0))
+  const page = filters.page || 1
+  const pageSize = filters.pageSize || 15
+
   return (
-    <div className="accounts-receivable-page page-enter" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* Toast */}
+    <div className="products-module-wrapper accounts-receivable-module-wrapper page-enter">
       {successToast && (
-        <div
-          style={{
-            padding: '12px 18px',
-            borderRadius: 10,
-            background: '#ecfdf5',
-            border: '1.5px solid #a7f3d0',
-            color: '#065f46',
-            fontSize: 13,
-            fontWeight: 600,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span>{successToast}</span>
-          <button type="button" onClick={() => setSuccessToast(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontWeight: 700 }}>
-            ×
+        <div className="toast-banner toast-success toast-pop-in" role="status" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <AppIcon name="check" size={16} />
+          <span style={{ flex: 1 }}>{successToast}</span>
+          <button type="button" className="icon-button" onClick={() => setSuccessToast(null)} aria-label="Cerrar aviso">
+            <AppIcon name="close" size={14} />
           </button>
         </div>
       )}
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--navy)', margin: 0, letterSpacing: '-0.5px' }}>
-            Cuentas por Cobrar (CxC)
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--muted)' }}>
-            Gestión de cartera, franjas de vencimiento y recaudos de clientes.
-          </p>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
+      <PageHeader
+        eyebrow="Clientes y cartera"
+        title="Cuentas por Cobrar"
+        subtitle="Ventas a crédito de clientes: vencimientos, abonos y saldo pendiente."
+        actions={
           <button
             type="button"
-            className="secondary-button"
+            className="outline-button"
             onClick={() => {
               loadData()
               loadStats()
             }}
+            disabled={loading}
           >
-            <AppIcon name="refresh" size={15} />
+            <AppIcon name="refresh" size={15} className={loading ? 'spin' : ''} />
             <span>Actualizar</span>
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* KPIs Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>
-            Cartera Total Pendiente
-          </span>
-          <strong style={{ display: 'block', fontSize: 22, color: 'var(--navy)', marginTop: 6, letterSpacing: '-0.5px' }}>
-            {statsLoading ? '...' : formatCOP(stats?.totalPendingBalance || 0)}
-          </strong>
-          <small style={{ fontSize: 11, color: 'var(--muted)' }}>
-            {stats?.pendingInvoicesCount || 0} obligaciones con saldo
-          </small>
-        </div>
+      <section className="stats-grid dashboard-primary-grid page-enter" aria-label="Métricas de cuentas por cobrar">
+        <KpiCard
+          title="Cartera total pendiente"
+          value={kpiValue(stats?.totalPendingBalance)}
+          iconName="wallet"
+          tone="blue"
+          badge="Cartera"
+          note={`${stats?.pendingInvoicesCount || 0} obligaciones con saldo`}
+          subtext="Total por cobrar a clientes"
+          index={1}
+        />
+        <KpiCard
+          title="Cartera corriente"
+          value={kpiValue(stats?.totalCurrentBalance)}
+          iconName="clock"
+          tone="teal"
+          badge="Al día"
+          note="Dentro del plazo"
+          subtext="Obligaciones sin vencer"
+          index={2}
+        />
+        <KpiCard
+          title="Cartera vencida"
+          value={kpiValue(stats?.totalOverdueBalance)}
+          iconName="warning"
+          tone="red"
+          badge="En mora"
+          note={`${stats?.overdueInvoicesCount || 0} facturas · ${stats?.customersOverdueCount || 0} clientes`}
+          isPositive={false}
+          subtext="Plazo de crédito superado"
+          index={3}
+        />
+        <KpiCard
+          title="Recaudado este mes"
+          value={kpiValue(stats?.totalCollectedThisMonth)}
+          iconName="receipt"
+          tone="purple"
+          badge="Ingresos"
+          note="Abonos recibidos"
+          subtext="Ingresos a caja y bancos"
+          index={4}
+        />
+      </section>
 
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#15803d' }}>
-            Cartera Corriente (Al Día)
-          </span>
-          <strong style={{ display: 'block', fontSize: 22, color: '#15803d', marginTop: 6, letterSpacing: '-0.5px' }}>
-            {statsLoading ? '...' : formatCOP(stats?.totalCurrentBalance || 0)}
-          </strong>
-          <small style={{ fontSize: 11, color: 'var(--muted)' }}>
-            Obligaciones sin vencer
-          </small>
+      <section className="table-panel products-table-panel page-enter" aria-labelledby="aging-title" style={{ padding: '16px 18px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          <h2 id="aging-title" style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--navy)' }}>
+            Antigüedad de la cartera
+          </h2>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Según la fecha de vencimiento. Toque una franja para filtrar.</span>
         </div>
-
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: '#fff1f2', border: '1.5px solid #fecdd3' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#be123c' }}>
-            Cartera Vencida (En Mora)
-          </span>
-          <strong style={{ display: 'block', fontSize: 22, color: '#be123c', marginTop: 6, letterSpacing: '-0.5px' }}>
-            {statsLoading ? '...' : formatCOP(stats?.totalOverdueBalance || 0)}
-          </strong>
-          <small style={{ fontSize: 11, color: '#be123c' }}>
-            {stats?.overdueInvoicesCount || 0} facturas vencidas ({stats?.customersOverdueCount || 0} clientes)
-          </small>
-        </div>
-
-        <div style={{ padding: '16px 20px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>
-            Total Recaudado Este Mes
-          </span>
-          <strong style={{ display: 'block', fontSize: 22, color: '#0284c7', marginTop: 6, letterSpacing: '-0.5px' }}>
-            {statsLoading ? '...' : formatCOP(stats?.totalCollectedThisMonth || 0)}
-          </strong>
-          <small style={{ fontSize: 11, color: 'var(--muted)' }}>
-            Ingresos a Caja y Bancos
-          </small>
-        </div>
-      </div>
-
-      {/* Aging Distribution Bar */}
-      <div style={{ padding: '14px 20px', borderRadius: 14, background: '#ffffff', border: '1.5px solid #cbd5e1' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy)', textTransform: 'uppercase' }}>
-            Clasificación Dinámica de Cartera (Aging)
-          </span>
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-            Basado en fecha de vencimiento y saldo pendiente
-          </span>
-        </div>
-
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
-          {agingSummary.map((b) => (
+          {agingSummary.map((b) => {
+            const selected = filters.agingBucket === b.bucket
+            return (
+              <button
+                key={b.bucket}
+                type="button"
+                className="aging-bucket-card"
+                aria-pressed={selected}
+                onClick={() => setFilters((prev) => ({ ...prev, agingBucket: prev.agingBucket === b.bucket ? 'ALL' : b.bucket, page: 1 }))}
+              >
+                <span className="aging-bucket-label">{b.bucket}</span>
+                <strong className="aging-bucket-amount">{formatCOP(b.amount)}</strong>
+                <span className="aging-bucket-count">{b.count} documentos</span>
+              </button>
+            )
+          })}
+        </div>
+      </section>
+
+      <div className="products-toolbar toolbar inventory-toolbar flex-wrap">
+        <div className="period-segmented-tabs" role="tablist" aria-label="Filtrar por estado">
+          {statusTabs.map((tab) => (
             <button
-              key={b.bucket}
+              key={tab.key}
               type="button"
-              onClick={() => setFilters((prev) => ({ ...prev, agingBucket: prev.agingBucket === b.bucket ? 'ALL' : b.bucket, page: 1 }))}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 8,
-                textAlign: 'left',
-                border: filters.agingBucket === b.bucket ? '2px solid var(--navy)' : '1px solid #e2e8f0',
-                background: filters.agingBucket === b.bucket ? '#f1f5f9' : '#fafafa',
-                cursor: 'pointer',
-              }}
+              role="tab"
+              aria-selected={filters.status === tab.key}
+              className={`period-tab-btn ${filters.status === tab.key ? 'selected' : ''}`}
+              onClick={() => setFilters((prev) => ({ ...prev, status: tab.key, page: 1 }))}
             >
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)' }}>{b.bucket}</div>
-              <strong style={{ display: 'block', fontSize: 14, color: 'var(--navy)', marginTop: 2 }}>
-                {formatCOP(b.amount)}
-              </strong>
-              <small style={{ fontSize: 10, color: 'var(--muted)' }}>{b.count} doc.</small>
+              {tab.label}
             </button>
           ))}
         </div>
-      </div>
 
-      {/* Filter Bar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#ffffff', borderRadius: 12, border: '1.5px solid #cbd5e1' }}>
-        <div style={{ display: 'flex', gap: 10, flex: 1, minWidth: 260 }}>
+        <div className="products-search-box search-box flex-1 min-w-[220px]">
+          <AppIcon name="search" size={16} className="search-icon" />
           <input
             type="text"
-            className="filter-input"
-            placeholder="Buscar por cliente, documento, venta..."
+            aria-label="Buscar cuentas por cobrar"
+            placeholder="Buscar por cliente, documento o venta..."
             value={filters.query || ''}
             onChange={(e) => setFilters((prev) => ({ ...prev, query: e.target.value, page: 1 }))}
-            style={{ width: '100%' }}
           />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <SelectField
-            value={filters.status || 'ALL'}
-            size="sm"
-            onChange={(value) => setFilters((prev) => ({ ...prev, status: value as any, page: 1 }))}
-          >
-            <option value="ALL">Todos los Estados</option>
-            <option value="PENDIENTE">Pendientes de Pago</option>
-            <option value="PAGO_PARCIAL">Con Abonos Parciales</option>
-            <option value="VENCIDA">Vencidas en Mora</option>
-            <option value="PAGADA">Totalmente Pagadas</option>
-            <option value="ANULADA">Anuladas</option>
-          </SelectField>
-
-          {(filters.query || filters.status !== 'ALL' || filters.agingBucket !== 'ALL') && (
+          {filters.query && (
             <button
               type="button"
-              className="text-button"
-              onClick={() => setFilters({ page: 1, pageSize: 15, status: 'ALL', agingBucket: 'ALL', query: '' })}
-              style={{ fontSize: 12 }}
+              className="search-clear-btn"
+              onClick={() => setFilters((prev) => ({ ...prev, query: '', page: 1 }))}
+              title="Limpiar búsqueda"
             >
-              Limpiar Filtros
+              <AppIcon name="close" size={13} />
             </button>
           )}
         </div>
+
+        {activeFilterCount > 0 && (
+          <div className="filter-select-group">
+            <button
+              type="button"
+              className="reset-filters-pill"
+              onClick={() => setFilters({ page: 1, pageSize, status: 'ALL', agingBucket: 'ALL', query: '' })}
+              title="Restablecer filtros"
+            >
+              <AppIcon name="close" size={12} />
+              <span>Limpiar filtros</span>
+              <span className="active-filter-badge">{activeFilterCount}</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Main Receivables Table */}
-      <div className="table-container" style={{ background: '#ffffff', borderRadius: 14, border: '1.5px solid #cbd5e1', overflow: 'hidden' }}>
+      <div className="table-panel products-table-panel page-enter">
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+          <p role="status" style={{ margin: 0, padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
             Cargando cartera...
-          </div>
+          </p>
         ) : error ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--red)' }}>
-            Error: {error}
-          </div>
+          <p role="alert" style={{ margin: 0, padding: 40, textAlign: 'center', color: 'var(--red)' }}>
+            {error}
+          </p>
         ) : items.length === 0 ? (
           <div style={{ padding: 50, textAlign: 'center', color: 'var(--muted)' }}>
             <AppIcon name="wallet" size={32} />
-            <p style={{ marginTop: 8, fontSize: 14, fontWeight: 500 }}>No se encontraron obligaciones de cartera con los filtros actuales.</p>
+            <p style={{ marginTop: 8, fontSize: 14, fontWeight: 500 }}>No hay cuentas por cobrar con los filtros actuales.</p>
           </div>
         ) : (
-          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>
-                <th style={{ padding: '12px 16px' }}>Venta / Fecha</th>
-                <th style={{ padding: '12px 16px' }}>Cliente</th>
-                <th style={{ padding: '12px 16px' }}>Vencimiento</th>
-                <th style={{ padding: '12px 16px' }}>Antigüedad</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Total Venta</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Abonado</th>
-                <th style={{ padding: '12px 16px', textAlign: 'right' }}>Saldo Pendiente</th>
-                <th style={{ padding: '12px 16px', textAlign: 'center' }}>Estado</th>
-                <th style={{ padding: '12px 16px', textAlign: 'center' }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row) => (
-                <tr key={row.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: 13 }}>
-                  <td style={{ padding: '14px 16px' }}>
-                    <strong style={{ color: 'var(--navy)', display: 'block' }}>{row.saleNumber}</strong>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(row.issueDate)}</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <strong style={{ display: 'block', color: 'var(--navy)' }}>{row.customerName}</strong>
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>{row.customerDoc}</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    <span style={{ fontWeight: 600 }}>{formatDate(row.dueDate)}</span>
-                    <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)' }}>{row.creditDays} días plazo</span>
-                  </td>
-                  <td style={{ padding: '14px 16px' }}>
-                    {getAgingBadge(row.agingBucket)}
-                    {row.isOverdue && (
-                      <span style={{ display: 'block', fontSize: 10, color: 'var(--red)' }}>
-                        {Math.abs(row.daysRemainingOrOverdue)} días vencido
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: 600 }}>
-                    {formatCOP(row.originalAmount)}
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'right', color: '#0369a1' }}>
-                    {formatCOP(row.paidAmount)}
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'right' }}>
-                    <strong style={{ color: row.pendingBalance > 0 ? '#b45309' : '#15803d', fontSize: 14 }}>
-                      {formatCOP(row.pendingBalance)}
-                    </strong>
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                    {getStatusBadge(row.status)}
-                  </td>
-                  <td style={{ padding: '14px 16px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                      {row.pendingBalance > 0 && row.status !== 'ANULADA' && (
-                        <button
-                          type="button"
-                          className="primary-button"
-                          style={{ padding: '6px 10px', fontSize: 11 }}
-                          onClick={() => handleOpenPayment(row)}
-                        >
-                          <AppIcon name="plus" size={13} color="#fff" />
-                          <span>Abonar</span>
-                        </button>
-                      )}
-                      {row.paymentsCount > 0 && (
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          style={{ padding: '6px 10px', fontSize: 11 }}
-                          onClick={() => handleViewHistory(row)}
-                          title="Ver recibos de pago"
-                        >
-                          <AppIcon name="receipt" size={13} />
-                          <span>{row.paymentsCount}</span>
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          <div className="table-scroll" tabIndex={0} aria-label="Tabla de cuentas por cobrar">
+            <table className="products-table">
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 150 }}>Venta</th>
+                  <th style={{ minWidth: 200 }}>Cliente</th>
+                  <th style={{ minWidth: 140 }}>Vencimiento</th>
+                  <th style={{ minWidth: 120 }}>Antigüedad</th>
+                  <th style={{ minWidth: 120, textAlign: 'right' }}>Total venta</th>
+                  <th style={{ minWidth: 120, textAlign: 'right' }}>Abonado</th>
+                  <th style={{ minWidth: 130, textAlign: 'right' }}>Saldo</th>
+                  <th style={{ minWidth: 110 }}>Estado</th>
+                  <th className="sticky-right-col" style={{ minWidth: 130, textAlign: 'center' }}>Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {items.map((row) => (
+                  <tr key={row.id} className="table-row-hover">
+                    <td className="product-code-col">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span className="sku-badge" style={{ fontWeight: 700 }}>{row.saleNumber}</span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{formatDate(row.issueDate)}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="product-info-cell">
+                        <strong className="product-name-text" style={{ fontSize: 13 }}>{row.customerName}</strong>
+                        <span className="sku-meta-text">{row.customerDoc}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, fontSize: 12 }}>{formatDate(row.dueDate)}</span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)' }}>{row.creditDays} días de plazo</span>
+                    </td>
+                    <td>
+                      {getAgingBadge(row.agingBucket)}
+                      {row.isOverdue && (
+                        <span style={{ display: 'block', fontSize: 10, color: 'var(--red)' }}>
+                          {Math.abs(row.daysRemainingOrOverdue)} días vencido
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCOP(row.originalAmount)}</td>
+                    <td style={{ textAlign: 'right', color: '#0369a1' }}>{formatCOP(row.paidAmount)}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <strong style={{ color: row.pendingBalance > 0 ? '#b45309' : '#15803d', fontSize: 14 }}>
+                        {formatCOP(row.pendingBalance)}
+                      </strong>
+                    </td>
+                    <td>{getStatusBadge(row.status)}</td>
+                    <td className="sticky-right-col" style={{ textAlign: 'center' }}>
+                      <div className="action-buttons-group" style={{ justifyContent: 'center' }}>
+                        {row.pendingBalance > 0 && row.status !== 'ANULADA' && (
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => handleOpenPayment(row)}
+                            title="Registrar abono"
+                            aria-label={`Registrar abono a ${row.saleNumber}`}
+                            style={{ color: '#7c3aed' }}
+                          >
+                            <AppIcon name="wallet" size={15} />
+                          </button>
+                        )}
+                        {row.paymentsCount > 0 && (
+                          <button
+                            type="button"
+                            className="icon-button"
+                            onClick={() => handleViewHistory(row)}
+                            title={`Ver ${row.paymentsCount} recibos de abono`}
+                            aria-label={`Ver recibos de abono de ${row.saleNumber}`}
+                            style={{ color: 'var(--navy)' }}
+                          >
+                            <AppIcon name="receipt" size={15} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 18px', borderTop: '1px solid #e2e8f0' }}>
-            <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-              Total: {total} obligaciones (Página {filters.page} de {totalPages})
-            </span>
-            <div style={{ display: 'flex', gap: 6 }}>
+        {!loading && !error && total > 0 && (
+          <div className="table-pagination-footer">
+            <div className="pagination-info">
+              <span>
+                Mostrando <strong>{(page - 1) * pageSize + 1}</strong> - <strong>{Math.min(page * pageSize, total)}</strong> de{' '}
+                <strong>{total}</strong> obligaciones
+              </span>
+            </div>
+            <div className="pagination-controls">
               <button
                 type="button"
-                className="secondary-button"
-                style={{ padding: '4px 10px', fontSize: 12 }}
-                disabled={filters.page === 1}
-                onClick={() => setFilters((p) => ({ ...p, page: Math.max(1, (p.page || 1) - 1) }))}
+                className="pagination-btn"
+                disabled={page <= 1}
+                onClick={() => setFilters((p) => ({ ...p, page: Math.max(1, page - 1) }))}
               >
-                Anterior
+                ‹ Anterior
               </button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--navy)', padding: '0 8px' }}>
+                Página {page} de {totalPages}
+              </span>
               <button
                 type="button"
-                className="secondary-button"
-                style={{ padding: '4px 10px', fontSize: 12 }}
-                disabled={filters.page === totalPages}
-                onClick={() => setFilters((p) => ({ ...p, page: Math.min(totalPages, (p.page || 1) + 1) }))}
+                className="pagination-btn"
+                disabled={page >= totalPages}
+                onClick={() => setFilters((p) => ({ ...p, page: Math.min(totalPages, page + 1) }))}
               >
-                Siguiente
+                Siguiente ›
               </button>
             </div>
           </div>
@@ -548,8 +542,8 @@ export function AccountsReceivablePage() {
               <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, color: 'var(--navy)' }}>
                 Recibos de Abono: {historySaleNumber}
               </h2>
-              <button type="button" className="close-button" onClick={() => setIsHistoryOpen(false)}>
-                ×
+              <button type="button" className="drawer-close-btn" onClick={() => setIsHistoryOpen(false)} aria-label="Cerrar recibos">
+                <AppIcon name="close" size={16} />
               </button>
             </div>
 

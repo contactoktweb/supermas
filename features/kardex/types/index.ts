@@ -11,6 +11,7 @@ export type MovementType =
 
 export type SourceDocumentType =
   | 'PURCHASE_INVOICE'
+  | 'PURCHASE_RECEIPT'
   | 'POS_SALE'
   | 'ELECTRONIC_INVOICE'
   | 'WAREHOUSE_TRANSFER'

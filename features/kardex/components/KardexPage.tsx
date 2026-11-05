@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   InventoryMovement,
   KardexFilterParams,
@@ -25,6 +26,7 @@ import { KardexSkeleton } from './KardexSkeleton'
 import { KardexEmptyState } from './KardexEmptyState'
 import { KardexErrorState } from './KardexErrorState'
 import { KardexToastContainer, KardexToastMessage } from './KardexToast'
+import { sourceDocumentHref } from '../utils/source-document-link'
 
 const DEFAULT_COLUMN_VISIBILITY: KardexColumnVisibility = {
   createdAt: true,
@@ -45,14 +47,12 @@ const DEFAULT_COLUMN_VISIBILITY: KardexColumnVisibility = {
 }
 
 interface KardexPageProps {
-  onNavigate?: (view: string) => void
   initialProductId?: string
   initialLocationId?: string
   userContext?: UserPermissionContext
 }
 
 export function KardexPage({
-  onNavigate,
   initialProductId,
   initialLocationId,
   userContext,
@@ -227,20 +227,12 @@ export function KardexPage({
     }
   }
 
-  // Document navigation callback
-  const handleNavigateDocument = (docType: string, docNumber: string) => {
-    if (docType === 'PURCHASE_INVOICE') {
-      if (onNavigate) onNavigate('Compras')
-      else showToast('Compras', `Navegando a factura de compra ${docNumber}...`, 'info')
-    } else if (docType === 'POS_SALE' || docType === 'ELECTRONIC_INVOICE') {
-      if (onNavigate) onNavigate('Ventas')
-      else showToast('Ventas', `Navegando a comprobante de venta ${docNumber}...`, 'info')
-    } else if (docType === 'WAREHOUSE_TRANSFER') {
-      if (onNavigate) onNavigate('Transferencias')
-      else showToast('Transferencias', `Navegando a transferencia ${docNumber}...`, 'info')
-    } else {
-      showToast('Documento Origen', `Consultando soporte ${docNumber}...`, 'info')
-    }
+  // Abre el módulo del documento origen ya filtrado por su número; los ajustes muestran su propio detalle.
+  const router = useRouter()
+  const handleViewDocument = (m: InventoryMovement) => {
+    const href = sourceDocumentHref(m.sourceDocumentType, m.sourceDocumentNumber)
+    if (href) router.push(href)
+    else setSelectedMovement(m)
   }
 
   const activeFilterCount = [
@@ -325,9 +317,7 @@ export function KardexPage({
           onPageChange={(p) => handleFilterChange('page', p)}
           onPageSizeChange={(sz) => handleFilterChange('pageSize', sz)}
           onSelectMovement={(m) => setSelectedMovement(m)}
-          onViewDocument={(m) =>
-            handleNavigateDocument(m.sourceDocumentType, m.sourceDocumentNumber)
-          }
+          onViewDocument={handleViewDocument}
         />
       ) : movements.length === 0 ? (
         <KardexEmptyState
@@ -349,7 +339,6 @@ export function KardexPage({
         isCostRedacted={isCostRedacted}
         userContext={userContext}
         onClose={() => setSelectedMovement(null)}
-        onNavigateDocument={handleNavigateDocument}
         onOpenRevertModal={(m) => setRevertModal({ isOpen: true, movement: m })}
       />
 

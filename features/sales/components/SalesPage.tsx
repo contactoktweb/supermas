@@ -17,6 +17,7 @@ import { useSaleDetail } from '../hooks/useSaleDetail'
 import { Sale, CreateSaleDTO, CreateSaleResult, SaleReturnDTO } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { getAuthenticatedCompany } from '@/lib/supabase/tenant'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface SalesPageProps {
   onNavigate?: (view: string) => void
@@ -42,6 +43,7 @@ export function SalesPage({ onNavigate }: SalesPageProps) {
     generateRemission,
     processReturn,
   } = useSales()
+  useDocumentSearchParam((query) => setFilter('query', query))
 
   // Modal / Drawer UI states
   const [isNewSaleOpen, setIsNewSaleOpen] = useState(false)

@@ -12,6 +12,7 @@ import { DamagedGoodsPanel } from './DamagedGoodsPanel'
 import { SelectField } from '@/components/ui/SelectField'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { KpiCard } from '@/components/ui/KpiCard'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface ReturnsPageProps {
   onNavigate?: (view: string) => void
@@ -50,6 +51,7 @@ export function ReturnsPage(_props: ReturnsPageProps) {
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
+  useDocumentSearchParam(setSearchQuery)
   const [selectedType, setSelectedType] = useState<ReturnType | 'ALL'>('ALL')
   const [page] = useState(1)
 

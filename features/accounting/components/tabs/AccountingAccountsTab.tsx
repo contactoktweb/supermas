@@ -1,10 +1,16 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { AccountingAccount, AccountClass, AccountingFilters, AccountNature } from '../../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { ClassificationChangeModal, ClassificationOption } from '../modals/ClassificationChangeModal'
 import { ACCOUNT_LEVEL_LABEL } from '../../utils/account-tree'
+
+const NATURE_OPTIONS: ClassificationOption<AccountNature>[] = [
+  { value: 'DEBIT', label: 'Débito', description: 'El saldo aumenta con débitos (activos, costos y gastos).' },
+  { value: 'CREDIT', label: 'Crédito', description: 'El saldo aumenta con créditos (pasivos, patrimonio e ingresos).' },
+]
 
 interface AccountingAccountsTabProps {
   accounts: AccountingAccount[]
@@ -35,16 +41,13 @@ export function AccountingAccountsTab({
   onUpdateNature,
   canManageAccounts,
 }: AccountingAccountsTabProps) {
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [natureTarget, setNatureTarget] = useState<AccountingAccount | null>(null)
+  const closeNatureDialog = useCallback(() => setNatureTarget(null), [])
 
-  const handleNatureChange = async (accountId: string, newNature: AccountNature) => {
-    if (!onUpdateNature || updatingId) return
-    try {
-      setUpdatingId(accountId)
-      await onUpdateNature(accountId, newNature)
-    } finally {
-      setUpdatingId(null)
-    }
+  const handleNatureConfirm = async (nature: AccountNature) => {
+    if (!onUpdateNature || !natureTarget) return
+    await onUpdateNature(natureTarget.id, nature)
+    setNatureTarget(null)
   }
   return (
     <div className="space-y-4 page-enter">
@@ -118,7 +121,7 @@ export function AccountingAccountsTab({
           {canManageAccounts && (
             <button
               type="button"
-              className="primary-button text-xs py-1.5"
+              className="primary-button text-xs py-1.5 whitespace-nowrap shrink-0"
               onClick={onOpenNewAccount}
             >
               <AppIcon name="plus" size={14} />
@@ -142,7 +145,7 @@ export function AccountingAccountsTab({
                 <th style={{ width: 110 }}>Uso Operativo</th>
                 <th style={{ width: 140, textAlign: 'right' }}>Saldo Actual</th>
                 <th style={{ width: 85 }}>Estado</th>
-                <th style={{ width: 80, textAlign: 'right' }}>Acciones</th>
+                <th style={{ width: 96, textAlign: 'right' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -217,30 +220,13 @@ export function AccountingAccountsTab({
                         </span>
                       </td>
                       <td>
-                        {canManageAccounts && onUpdateNature ? (
-                          <div className="relative inline-flex items-center">
-                            <SelectField
-                              value={acc.nature}
-                              disabled={updatingId === acc.id}
-                              size="sm"
-                              onChange={(value) => handleNatureChange(acc.id, value as AccountNature)}
-                            >
-                              <option value="DEBIT">Débito</option>
-                              <option value="CREDIT">Crédito</option>
-                            </SelectField>
-                            <span className="pointer-events-none absolute right-1.5 text-slate-400" aria-hidden="true">
-                              <AppIcon name="chevronDown" size={10} />
-                            </span>
-                          </div>
-                        ) : (
-                          <span
-                            className={`badge text-[11px] font-semibold ${
-                              acc.nature === 'DEBIT' ? 'badge-blue' : 'badge-amber'
-                            }`}
-                          >
-                            {acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}
-                          </span>
-                        )}
+                        <span
+                          className={`badge text-[11px] font-semibold ${
+                            acc.nature === 'DEBIT' ? 'badge-blue' : 'badge-amber'
+                          }`}
+                        >
+                          {acc.nature === 'DEBIT' ? 'Débito' : 'Crédito'}
+                        </span>
                       </td>
                       <td>
                         {isAuxiliary ? (
@@ -300,14 +286,28 @@ export function AccountingAccountsTab({
                         </span>
                       </td>
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          title="Consultar movimientos en el Libro Mayor"
-                          onClick={() => onInspectAccount(acc.id)}
-                        >
-                          <AppIcon name="eye" size={15} />
-                        </button>
+                        <div className="action-buttons-group" style={{ display: 'inline-flex', flexWrap: 'nowrap', gap: 4, justifyContent: 'flex-end' }}>
+                          {canManageAccounts && onUpdateNature && (
+                            <button
+                              type="button"
+                              className="icon-button"
+                              title={`Cambiar naturaleza de ${acc.code}`}
+                              aria-label={`Cambiar naturaleza de ${acc.code}`}
+                              onClick={() => setNatureTarget(acc)}
+                            >
+                              <AppIcon name="arrowLeftRight" size={15} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="icon-button"
+                            title="Consultar movimientos en el Libro Mayor"
+                            aria-label={`Consultar movimientos de ${acc.code}`}
+                            onClick={() => onInspectAccount(acc.id)}
+                          >
+                            <AppIcon name="eye" size={15} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -317,6 +317,17 @@ export function AccountingAccountsTab({
           </table>
         </div>
       </div>
+
+      <ClassificationChangeModal
+        isOpen={natureTarget !== null}
+        title={natureTarget ? `Naturaleza de la cuenta ${natureTarget.code}` : ''}
+        subtitle={natureTarget?.name}
+        legend="Naturaleza contable"
+        options={NATURE_OPTIONS}
+        currentValue={natureTarget?.nature ?? 'DEBIT'}
+        onCancel={closeNatureDialog}
+        onConfirm={handleNatureConfirm}
+      />
     </div>
   )
 }

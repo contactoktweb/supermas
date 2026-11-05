@@ -212,7 +212,8 @@ export interface CreatePurchaseItemInput {
 
 export interface CreatePurchaseInput {
   supplierId: string
-  supplierInvoiceNumber: string
+  /** Vacío mientras el proveedor no envíe su factura. */
+  supplierInvoiceNumber?: string
   destinationLocationId: string
   date: string
   paymentType: PurchasePaymentType
@@ -231,7 +232,8 @@ export interface CreatePurchaseInput {
 
 export interface UpdatePurchaseInput {
   supplierId: string
-  supplierInvoiceNumber: string
+  /** Vacío mientras el proveedor no envíe su factura. */
+  supplierInvoiceNumber?: string
   destinationLocationId: string
   date: string
   paymentType: PurchasePaymentType
@@ -246,6 +248,12 @@ export interface UpdatePurchaseInput {
     fileType: string
     fileSize: number
   }
+}
+
+export interface RegisterSupplierInvoiceInput {
+  purchaseId: string
+  supplierInvoiceNumber: string
+  file?: File
 }
 
 export interface RegisterPaymentInput {

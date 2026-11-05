@@ -16,10 +16,7 @@ export const purchaseItemInputSchema = z.object({
 
 export const createPurchaseSchema = z.object({
   supplierId: z.string().min(1, 'Debe seleccionar un proveedor'),
-  supplierInvoiceNumber: z
-    .string()
-    .min(2, 'El número de factura del proveedor debe tener al menos 2 caracteres')
-    .trim(),
+  supplierInvoiceNumber: z.string().trim().max(60, 'El número de factura no puede superar 60 caracteres').optional(),
   destinationLocationId: z.string().min(1, 'Debe seleccionar una bodega de destino'),
   date: z.string().min(1, 'La fecha de compra es obligatoria'),
   paymentType: z.enum(['CONTADO', 'CREDITO']),
@@ -85,3 +82,12 @@ export type UpdatePurchaseFormData = z.infer<typeof updatePurchaseSchema>
 export type RegisterPaymentFormData = z.infer<typeof registerPaymentSchema>
 export type ReceivePurchaseFormData = z.infer<typeof receivePurchaseSchema>
 export type CancelPurchaseFormData = z.infer<typeof cancelPurchaseSchema>
+
+export const registerSupplierInvoiceSchema = z.object({
+  purchaseId: z.string().min(1),
+  supplierInvoiceNumber: z
+    .string()
+    .trim()
+    .min(2, 'El número de factura del proveedor debe tener al menos 2 caracteres')
+    .max(60, 'El número de factura no puede superar 60 caracteres'),
+})

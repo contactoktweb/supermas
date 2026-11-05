@@ -18,9 +18,6 @@ import { productService } from '@/features/products/services/product.service'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
 
-const INVOICE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
-const INVOICE_MAX_BYTES = 10 * 1024 * 1024
-
 interface PurchaseNewDrawerProps {
   isOpen: boolean
   suppliers: SupplierOption[]
@@ -79,15 +76,6 @@ export function PurchaseNewDrawer({
 
   // Taxes
   const taxConfigs = purchaseCalculationService.getTaxConfigs()
-
-  // Paso 3: factura del proveedor; se sube al guardar la compra.
-  const [attachment, setAttachment] = useState<{
-    file: File
-    fileName: string
-    fileType: string
-    fileSize: number
-  } | null>(null)
-  const [attachmentError, setAttachmentError] = useState<string | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -258,22 +246,6 @@ export function PurchaseNewDrawer({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    if (!INVOICE_MIME_TYPES.includes(file.type)) {
-      setAttachmentError('La factura debe ser PDF, JPG o PNG.')
-      return
-    }
-    if (file.size > INVOICE_MAX_BYTES) {
-      setAttachmentError('La factura debe pesar como máximo 10 MB.')
-      return
-    }
-    setAttachmentError(null)
-    setAttachment({ file, fileName: file.name, fileType: file.type, fileSize: file.size })
-  }
-
   // Calculated totals
   const totals = purchaseCalculationService.calculateTotals(items)
 
@@ -289,10 +261,6 @@ export function PurchaseNewDrawer({
     }
     if (!date) {
       setError('La fecha de compra es obligatoria.')
-      return false
-    }
-    if (!supplierInvoiceNumber.trim()) {
-      setError('Ingrese el número de factura o remisión del proveedor.')
       return false
     }
     if (paymentType === 'CREDITO' && !dueDate) {
@@ -330,6 +298,7 @@ export function PurchaseNewDrawer({
     try {
       const payload: CreatePurchaseInput = {
         supplierId,
+        // La orden se emite sin factura; un borrador antiguo conserva la que ya tenía.
         supplierInvoiceNumber: supplierInvoiceNumber.trim(),
         destinationLocationId,
         date,
@@ -350,7 +319,6 @@ export function PurchaseNewDrawer({
           taxCode: it.taxCode,
           taxRatePercent: it.taxRatePercent,
         })),
-        attachment: attachment || undefined,
       }
 
       if (initialPurchase && onUpdate) {
@@ -631,27 +599,14 @@ export function PurchaseNewDrawer({
                   />
                 </div>
 
-                {/* Número Factura Proveedor */}
-                <div>
-                  <label
-                    style={{
-                      display: 'block',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      marginBottom: 6,
-                    }}
-                  >
-                    N° Factura / Remisión Proveedor{' '}
-                    <span style={{ color: '#dc2626' }}>*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="filter-date-input"
-                    style={{ width: '100%' }}
-                    placeholder="Ej. FAC-89214 o REM-0012"
-                    value={supplierInvoiceNumber}
-                    onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
-                  />
+                {/* La factura aún no existe: el proveedor la envía después y se registra en el detalle de la orden */}
+                <div className="purchase-invoice-pending-note">
+                  <AppIcon name="invoices" size={16} />
+                  <p>
+                    <strong>Factura del proveedor</strong>
+                    La orden queda pendiente por factura. Se registra cuando el
+                    proveedor la envíe, desde el detalle de la orden.
+                  </p>
                 </div>
               </div>
 
@@ -791,22 +746,20 @@ export function PurchaseNewDrawer({
                   )}
                 </div>
 
-                {/* Dropdown de resultados */}
+                {/* Resultados en el flujo del paso: si flotaran, el cuerpo con scroll del modal los recortaría */}
                 {searchResults.length > 0 && (
                   <div
+                    role="listbox"
+                    aria-label="Resultados de la búsqueda de productos"
                     style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
                       background: '#fff',
                       borderRadius: 8,
                       border: '1px solid var(--border)',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-                      maxHeight: 260,
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+                      maxHeight: 'min(320px, 45vh)',
                       overflowY: 'auto',
-                      zIndex: 50,
-                      marginTop: 4,
+                      overscrollBehavior: 'contain',
+                      marginTop: 6,
                     }}
                   >
                     {searchResults.map((prod) => (
@@ -1053,7 +1006,7 @@ export function PurchaseNewDrawer({
                   color: 'var(--navy)',
                 }}
               >
-                Paso 3: Impuestos Liquidados y Documento Soporte
+                Paso 3: Liquidación de impuestos
               </h3>
               <p
                 style={{
@@ -1062,14 +1015,13 @@ export function PurchaseNewDrawer({
                   color: 'var(--muted)',
                 }}
               >
-                Revise la liquidación tributaria consolidada y adjunte el archivo
-                PDF o imagen de la factura electrónica del proveedor.
+                Revise los impuestos y el total de la orden antes de emitirla.
               </p>
 
               <div
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '1.2fr 1fr',
+                  gridTemplateColumns: 'minmax(0, 560px)',
                   gap: 20,
                   marginBottom: 16,
                 }}
@@ -1196,134 +1148,6 @@ export function PurchaseNewDrawer({
                   </div>
                 </div>
 
-                {/* Adjuntar Factura / PDF (Supabase Storage preview) */}
-                <div
-                  style={{
-                    background: '#f8fafc',
-                    border: '1px solid var(--border)',
-                    borderRadius: 8,
-                    padding: 16,
-                  }}
-                >
-                  <h4
-                    style={{
-                      margin: '0 0 8px',
-                      fontSize: 13,
-                      color: 'var(--navy)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    Factura / Soporte Proveedor
-                  </h4>
-                  <p
-                    style={{
-                      margin: '0 0 12px',
-                      fontSize: 12,
-                      color: 'var(--muted)',
-                    }}
-                  >
-                    Adjunte la factura electrónica (PDF o imagen) para auditoría
-                    y cuentas por pagar.
-                  </p>
-
-                  <div
-                    style={{
-                      border: '2px dashed var(--border)',
-                      borderRadius: 8,
-                      padding: '16px 12px',
-                      textAlign: 'center',
-                      background: '#fff',
-                    }}
-                  >
-                    <input
-                      type="file"
-                      id="purchase-file-upload"
-                      accept={INVOICE_MIME_TYPES.join(',')}
-                      onChange={handleFileUpload}
-                      style={{ display: 'none' }}
-                    />
-                    <label
-                      htmlFor="purchase-file-upload"
-                      style={{
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        gap: 6,
-                      }}
-                    >
-                      <AppIcon name="upload" size={24} />
-                      <span
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: 'var(--navy)',
-                        }}
-                      >
-                        {attachment
-                          ? 'Cambiar archivo adjunto'
-                          : 'Cargar factura digital'}
-                      </span>
-                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                        PDF, PNG o JPG hasta 10MB
-                      </span>
-                    </label>
-                  </div>
-
-                  {attachmentError && (
-                    <p className="field-error-text" role="alert" style={{ marginTop: 8 }}>
-                      {attachmentError}
-                    </p>
-                  )}
-                  {attachment && (
-                    <div
-                      style={{
-                        marginTop: 12,
-                        padding: 10,
-                        background: '#eff6ff',
-                        borderRadius: 6,
-                        border: '1px solid #bfdbfe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                        }}
-                      >
-                        <AppIcon name="invoices" size={18} />
-                        <div>
-                          <strong
-                            style={{
-                              fontSize: 12,
-                              color: 'var(--navy)',
-                              display: 'block',
-                            }}
-                          >
-                            {attachment.fileName}
-                          </strong>
-                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                            {(attachment.fileSize / 1024).toFixed(1)} KB •{' '}
-                            {attachment.fileType}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setAttachment(null)}
-                        className="icon-button-sm"
-                        style={{ color: '#dc2626' }}
-                        title="Quitar archivo"
-                      >
-                        <AppIcon name="close" size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
@@ -1413,7 +1237,7 @@ export function PurchaseNewDrawer({
                     Factura Proveedor / Fecha
                   </div>
                   <strong style={{ fontSize: 13, color: 'var(--text-main)' }}>
-                    {supplierInvoiceNumber}
+                    {supplierInvoiceNumber.trim() || 'Pendiente por factura'}
                   </strong>
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     Fecha: {date}

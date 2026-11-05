@@ -94,6 +94,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
   const [receiveModalPurchase, setReceiveModalPurchase] = useState<Purchase | null>(null)
   const [isReceiveSelectOpen, setIsReceiveSelectOpen] = useState(false)
   const [shortageModalPurchase, setShortageModalPurchase] = useState<Purchase | null>(null)
+  const [shortageInitialReason, setShortageInitialReason] = useState('')
   const [paymentModalPurchase, setPaymentModalPurchase] = useState<Purchase | null>(null)
   const [cancelModalPurchase, setCancelModalPurchase] = useState<Purchase | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
@@ -232,7 +233,8 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     purchaseId: string,
     notes?: string,
     remission?: string,
-    items?: { itemId: string; quantityReceived: number }[]
+    items?: { itemId: string; quantityReceived: number }[],
+    shortageReason?: string
   ) => {
     const received = await purchaseService.receivePurchase(
       {
@@ -265,6 +267,11 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     if (selectedPurchase?.id === purchaseId) {
       setSelectedPurchase(received)
     }
+    // Entrega incompleta: se abre de una vez el cierre por faltante con el motivo ya escrito.
+    if (shortageReason) {
+      setShortageInitialReason(shortageReason)
+      setShortageModalPurchase(received)
+    }
     loadData()
   }
 
@@ -293,6 +300,12 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     if (selectedPurchase?.id === purchaseId) {
       setSelectedPurchase(cancelled)
     }
+    loadData()
+  }
+
+  const handleSupplierInvoiceRegistered = (updated: Purchase) => {
+    addToast('Factura registrada', `La factura ${updated.supplierInvoiceNumber} quedó asociada a la orden ${updated.purchaseNumber}.`, 'success')
+    setSelectedPurchase(updated)
     loadData()
   }
 
@@ -449,6 +462,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
           setIsNewDrawerOpen(true)
         }}
         onConfirm={handleConfirmOrder}
+        onSupplierInvoiceRegistered={handleSupplierInvoiceRegistered}
         onReceive={(p) => {
           setSelectedPurchase(null)
           setReceiveModalPurchase(p)
@@ -461,7 +475,10 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
           setSelectedPurchase(null)
           setCancelModalPurchase(p)
         }}
-        onCloseShortage={(p) => setShortageModalPurchase(p)}
+        onCloseShortage={(p) => {
+          setShortageInitialReason('')
+          setShortageModalPurchase(p)
+        }}
         onViewKardex={handleViewKardex}
       />
 
@@ -480,6 +497,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
         purchase={shortageModalPurchase}
         isOpen={Boolean(shortageModalPurchase)}
         isCostRedacted={isCostRedacted}
+        initialReason={shortageInitialReason}
         onClose={() => setShortageModalPurchase(null)}
         onConfirm={handleConfirmShortageClose}
       />

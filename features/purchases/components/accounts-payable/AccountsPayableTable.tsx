@@ -235,7 +235,7 @@ export function AccountsPayableTable({
                     <span style={{ fontSize: 11, color: 'var(--muted)' }}>
                       Factura:{' '}
                       <strong style={{ color: 'var(--navy)' }}>
-                        {item.supplierInvoiceNumber || 'Sin número'}
+                        {item.supplierInvoiceNumber || 'Pendiente por factura'}
                       </strong>
                     </span>
                   </div>

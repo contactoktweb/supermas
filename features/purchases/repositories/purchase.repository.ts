@@ -170,6 +170,11 @@ export function parsePurchaseDatabaseError(error: any): Error {
   const msg = error.message || String(error)
   const code = error.code || ''
 
+  // PGRST202: la función no existe en la base de datos (migración pendiente).
+  if (code === 'PGRST202' || msg.includes('Could not find the function')) {
+    return new Error('Esta operación aún no está disponible. Comuníquese con el administrador del sistema.')
+  }
+
   if (msg.includes('proveedor no existe o pertenece a otra empresa')) {
     return new Error('El proveedor seleccionado no existe o pertenece a otra empresa.')
   }
@@ -297,6 +302,15 @@ export class PurchaseRepository {
       await storage.remove([path])
       throw new Error('No se pudo enlazar la factura a la compra.')
     }
+  }
+
+  /** Registra el número de la factura que el proveedor envió después de emitir la orden. */
+  async updateSupplierInvoiceNumber(purchaseId: string, supplierInvoiceNumber: string): Promise<void> {
+    const { error } = await this.client
+      .from('purchases')
+      .update({ supplier_invoice_number: supplierInvoiceNumber })
+      .eq('id', purchaseId)
+    if (error) throw new Error('No se pudo registrar la factura del proveedor.')
   }
 
   /** URL firmada de corta duración para ver la factura adjunta. */
@@ -717,7 +731,7 @@ export class PurchaseRepository {
       p_purchase_id: purchaseId,
       p_supplier_id: input.supplierId,
       p_location_id: input.destinationLocationId,
-      p_supplier_invoice_number: input.supplierInvoiceNumber.trim(),
+      p_supplier_invoice_number: (input.supplierInvoiceNumber || '').trim(),
       p_issue_date: input.date ? input.date.split('T')[0] : null,
       p_due_date: input.dueDate ? input.dueDate.split('T')[0] : null,
       p_payment_terms: input.paymentType,

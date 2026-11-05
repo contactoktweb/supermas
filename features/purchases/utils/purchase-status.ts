@@ -58,3 +58,7 @@ export function pendingPurchaseBalance(row: {
 export function todayBogota(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date())
 }
+
+/** La orden se emite sin factura: el proveedor la envía después y queda pendiente hasta registrarla. */
+export const isSupplierInvoicePending = (purchase: { supplierInvoiceNumber?: string | null; status?: string | null }) =>
+  !isCancelledPurchase(purchase.status) && !(purchase.supplierInvoiceNumber || '').trim()

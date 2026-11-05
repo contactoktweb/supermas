@@ -15,7 +15,8 @@ interface PurchaseReceiveModalProps {
     purchaseId: string,
     notes?: string,
     remission?: string,
-    items?: { itemId: string; quantityReceived: number }[]
+    items?: { itemId: string; quantityReceived: number }[],
+    shortageReason?: string
   ) => Promise<void>
 }
 
@@ -28,6 +29,7 @@ export function PurchaseReceiveModal({
   const [mounted, setMounted] = useState(false)
   const [notes, setNotes] = useState('')
   const [remission, setRemission] = useState('')
+  const [shortageReason, setShortageReason] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [quantitiesToReceive, setQuantitiesToReceive] = useState<Record<string, number>>({})
@@ -46,6 +48,7 @@ export function PurchaseReceiveModal({
       setQuantitiesToReceive(initial)
       setNotes('')
       setRemission('')
+      setShortageReason('')
       setError(null)
     }
   }, [purchase])
@@ -63,6 +66,12 @@ export function PurchaseReceiveModal({
     const safeNum = Math.min(Math.max(0, num), maxRemaining)
     setQuantitiesToReceive((prev) => ({ ...prev, [itemId]: safeNum }))
   }
+
+  // Hay faltante si alguna línea con saldo pendiente no llega completa en esta entrega.
+  const hasShortage = purchase.items.some((it) => {
+    const remaining = Math.max(0, it.quantity - (it.receivedQuantity || 0))
+    return remaining > 0 && (quantitiesToReceive[it.id] || 0) < remaining
+  })
 
   const handleConfirm = async () => {
     setError(null)
@@ -91,13 +100,22 @@ export function PurchaseReceiveModal({
       return
     }
 
+    if (hasShortage && shortageReason.trim().length < 5) {
+      setError('Escriba por qué no llegó completo (mínimo 5 caracteres).')
+      return
+    }
+
     setIsSubmitting(true)
     try {
+      const reason = hasShortage ? shortageReason.trim() : ''
+      // El motivo queda también en el acta de recepción, aunque la orden siga abierta esperando el resto.
+      const receptionNotes = [notes.trim(), reason && `Faltante: ${reason}`].filter(Boolean).join(' | ')
       await onConfirm(
         purchase.id,
-        notes.trim() || undefined,
+        receptionNotes || undefined,
         remission.trim() || undefined,
-        itemsToReceive
+        itemsToReceive,
+        reason || undefined
       )
       onClose()
     } catch (err: any) {
@@ -222,7 +240,7 @@ export function PurchaseReceiveModal({
             >
               <span style={{ color: 'var(--muted)' }}>Factura proveedor:</span>
               <span style={{ fontWeight: 600 }}>
-                {purchase.supplierInvoiceNumber}
+                {purchase.supplierInvoiceNumber || 'Pendiente por factura'}
               </span>
             </div>
             <div
@@ -397,6 +415,26 @@ export function PurchaseReceiveModal({
               />
             </div>
           </div>
+
+          {hasShortage && (
+            <div className="receive-shortage-reason page-enter">
+              <label htmlFor="receive-shortage-reason">
+                <AppIcon name="warning" size={14} />
+                <span>
+                  ¿Por qué no llegó completo? <span className="required-mark">*</span>
+                </span>
+              </label>
+              <textarea
+                id="receive-shortage-reason"
+                className="filter-date-input"
+                placeholder="Ej. El proveedor no tenía existencias; 4 unidades llegaron en mal estado."
+                value={shortageReason}
+                onChange={(e) => setShortageReason(e.target.value)}
+                maxLength={500}
+              />
+              <small>Al confirmar se abre el cierre por faltante para decidir si se espera el resto o se cierra la orden.</small>
+            </div>
+          )}
 
           <div
             style={{

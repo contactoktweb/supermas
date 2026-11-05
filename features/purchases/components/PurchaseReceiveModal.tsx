@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
+import { QuantityStepper } from '@/components/ui/QuantityStepper'
 import { Purchase } from '../types'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
 
@@ -312,13 +313,15 @@ export function PurchaseReceiveModal({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '8px 12px',
+                      flexWrap: 'wrap',
+                      gap: 10,
+                      padding: '10px 12px',
                       borderBottom: '1px solid #f1f5f9',
                       fontSize: 12,
                       background: remaining === 0 ? '#f8fafc' : '#fff',
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
+                    <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                       <strong style={{ display: 'block', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {it.productName}
                       </strong>
@@ -327,28 +330,23 @@ export function PurchaseReceiveModal({
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <label style={{ fontSize: 11, color: 'var(--muted)' }}>Recibir:</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={remaining}
-                        step="1"
-                        disabled={remaining === 0}
-                        value={currentReceiveVal}
-                        onChange={(e) => handleQtyChange(it.id, remaining, e.target.value)}
-                        style={{
-                          width: 70,
-                          padding: '4px 6px',
-                          border: '1px solid var(--border)',
-                          borderRadius: 6,
-                          textAlign: 'right',
-                          fontWeight: 700,
-                          color: '#16a34a',
-                          background: remaining === 0 ? '#e2e8f0' : '#fff',
-                        }}
-                      />
-                      <span style={{ fontSize: 11, color: 'var(--muted)', width: 30 }}>{it.unitOfMeasure}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700 }}>Recibir</span>
+                        <QuantityStepper
+                          value={currentReceiveVal}
+                          max={remaining}
+                          disabled={remaining === 0}
+                          label={`Cantidad a recibir de ${it.productName}`}
+                          onChange={(n) => handleQtyChange(it.id, remaining, String(n))}
+                        />
+                        <span style={{ fontSize: 11, color: 'var(--muted)', minWidth: 30 }}>{it.unitOfMeasure}</span>
+                      </div>
+                      {remaining > 0 && currentReceiveVal < remaining && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#b45309' }}>
+                          Quedan pendientes {remaining - currentReceiveVal} {it.unitOfMeasure}
+                        </span>
+                      )}
                     </div>
                   </div>
                 )

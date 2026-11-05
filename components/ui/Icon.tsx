@@ -47,6 +47,7 @@ export const LIGHT_ICON_MAP = {
   sliders: 'solar:tuning-square-2-linear',
   sort: 'solar:sort-vertical-linear',
   plus: 'solar:add-circle-linear',
+  minus: 'solar:minus-circle-linear',
   plusMinus: 'solar:calculator-minimalistic-linear',
   terminal: 'solar:code-square-linear',
   edit: 'solar:pen-linear',

@@ -1,5 +1,6 @@
 import {
   Purchase,
+  PurchaseCostTrace,
   PurchaseFilterParams,
   PaginatedPurchasesResponse,
   PurchaseStats,
@@ -144,6 +145,14 @@ export class PurchaseService {
         attachmentWarning: err instanceof Error ? err.message : 'No se pudo adjuntar la factura.',
       }
     }
+  }
+
+  /** Trazabilidad del costo unitario de la orden: solo para quien puede ver costos. */
+  async getCostTrace(purchaseId: string, userContext?: UserPermissionContext): Promise<PurchaseCostTrace> {
+    if (!this.hasPermission(userContext, 'cost.read')) {
+      throw new Error('No tienes permisos para ver los costos de compra.')
+    }
+    return this.repository.getCostTrace(purchaseId)
   }
 
   /** URL temporal para ver la factura adjunta de una compra. */

@@ -46,6 +46,27 @@ export interface PurchaseItem {
   total: number
 }
 
+export type PurchaseCostChangeSource = 'PRODUCT_COST' | 'ORDER_EDIT'
+
+/** Cambio del costo unitario de un producto dentro de una orden de compra. */
+export interface PurchaseCostChange {
+  id: string
+  productId: string
+  productName: string
+  sku: string
+  previousUnitCost: number
+  newUnitCost: number
+  source: PurchaseCostChangeSource
+  changedByUserName?: string
+  changedAt: string
+}
+
+export interface PurchaseCostTrace {
+  /** Costo del producto cuando se agregó cada línea (id de la línea → costo); null si no se registró. */
+  referenceCostByItemId: Record<string, number | null>
+  changes: PurchaseCostChange[]
+}
+
 export interface PurchasePayment {
   id: string
   purchaseId: string

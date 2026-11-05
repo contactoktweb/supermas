@@ -6,6 +6,7 @@ import {
   PurchaseFilterParams,
   PurchaseStats,
   PurchaseItem,
+  PurchaseCostTrace,
   PurchasePayment,
   PurchaseReceipt,
   PurchaseReceiptItem,
@@ -605,6 +606,43 @@ export class PurchaseRepository {
     if (error || !data) return null
 
     return mapDbRowToPurchase(data)
+  }
+
+  /** Costo de referencia de cada línea y cambios de costo registrados en la orden. */
+  async getCostTrace(purchaseId: string): Promise<PurchaseCostTrace> {
+    const [itemsResult, changesResult] = await Promise.all([
+      this.client.from('purchase_items').select('id, reference_unit_cost').eq('purchase_id', purchaseId),
+      this.client
+        .from('purchase_cost_changes')
+        .select(
+          'id, product_id, previous_unit_cost, new_unit_cost, source, changed_at, products (name, sku), changed_by_user:users!changed_by_user_id (full_name)'
+        )
+        .eq('purchase_id', purchaseId)
+        .order('changed_at', { ascending: true }),
+    ])
+    if (itemsResult.error || changesResult.error) {
+      throw new Error('No se pudo consultar la trazabilidad del costo de la orden.')
+    }
+
+    const referenceCostByItemId: Record<string, number | null> = {}
+    for (const row of itemsResult.data || []) {
+      referenceCostByItemId[row.id] = row.reference_unit_cost === null ? null : Number(row.reference_unit_cost)
+    }
+
+    return {
+      referenceCostByItemId,
+      changes: (changesResult.data || []).map((row: any) => ({
+        id: row.id,
+        productId: row.product_id,
+        productName: row.products?.name || 'Producto',
+        sku: row.products?.sku || '',
+        previousUnitCost: Number(row.previous_unit_cost || 0),
+        newUnitCost: Number(row.new_unit_cost || 0),
+        source: row.source,
+        changedByUserName: row.changed_by_user?.full_name || undefined,
+        changedAt: row.changed_at,
+      })),
+    }
   }
 
   /**

@@ -870,7 +870,11 @@ export class AccountingRepository {
     }
 
     if (filters?.accountId && filters.accountId !== ('ALL' as any)) {
-      query = query.eq('accounting_accounts.code', filters.accountId)
+      // El filtro llega como id (selector) o como código; la cuenta incluye sus subcuentas y auxiliares.
+      const catalog = await this.getCatalogRows()
+      const account = catalog.find((a: any) => a.id === filters.accountId) || catalog.find((a: any) => a.code === filters.accountId)
+      const code = String(account?.code ?? filters.accountId)
+      query = query.like('accounting_accounts.code', `${code}%`)
     }
 
     if (filters?.dateFrom) {

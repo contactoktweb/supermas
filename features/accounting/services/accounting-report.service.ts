@@ -34,7 +34,7 @@ import {
   roundCurrency,
   sumTotalsByCodePrefix,
 } from '../utils/account-tree'
-import { formatPucRangeLabel, isPucCodeInRange, normalizePucRange } from '../utils/puc-code-range'
+import { formatPucRangeLabel, isPucCodeInRange, isPucDescendantOrSelf, normalizePucRange } from '../utils/puc-code-range'
 import {
   currentBogotaMonthRange,
   formatDateRangeEs,
@@ -399,7 +399,8 @@ export class AccountingReportService {
     }
 
     let movements = await accountingRepository.getAllMovements()
-    movements = movements.filter((m) => m.accountId === account.id || m.accountCode === account.code)
+    // Una cuenta agrupa sus subcuentas y auxiliares: 1435 incluye 143505 y 143505.01.
+    movements = movements.filter((m) => m.accountId === account.id || isPucDescendantOrSelf(m.accountCode, account.code))
 
     if (locationId && locationId !== 'ALL') {
       movements = movements.filter((m) => m.locationId === locationId)
@@ -489,15 +490,16 @@ export class AccountingReportService {
 
     const q = filters?.query ? filters.query.toLowerCase().trim() : ''
 
-    const isMatchAccount = (m: any, accIdOrCode: string) =>
-      m.accountId === accIdOrCode || m.accountCode === accIdOrCode
+    // La cuenta seleccionada incluye sus subcuentas y auxiliares (1435 → 143505 → 143505.01).
+    const isMatchAccount = (m: any, account: { id: string; code: string }) =>
+      m.accountId === account.id || isPucDescendantOrSelf(m.accountCode, account.code)
 
     // 3. Saldo inicial: movimientos históricos anteriores a dateFrom
     let initialBalance = 0
     if (selectedAccount) {
       const isDebitNature = selectedAccount.nature === 'DEBIT'
       const priorMovements = allMovements.filter(
-        (m) => isMatchAccount(m, selectedAccount.id) && m.date < dateFrom
+        (m) => isMatchAccount(m, selectedAccount) && m.date < dateFrom
       )
       const priorDebits = priorMovements.reduce((acc, m) => acc + (Number(m.debit) || 0), 0)
       const priorCredits = priorMovements.reduce((acc, m) => acc + (Number(m.credit) || 0), 0)
@@ -514,7 +516,7 @@ export class AccountingReportService {
       if (m.date < dateFrom || m.date > `${dateTo}T23:59:59Z`) return false
 
       // Cuenta específica
-      if (selectedAccount && !isMatchAccount(m, selectedAccount.id)) return false
+      if (selectedAccount && !isMatchAccount(m, selectedAccount)) return false
 
       // Tercero
       if (filters?.thirdPartyId && filters.thirdPartyId !== 'ALL') {
@@ -575,11 +577,13 @@ export class AccountingReportService {
         : initialBalance + totalCredit - totalDebit
       : totalDebit - totalCredit
 
-    // 5. Resumen agrupado por cuenta para consulta consolidada
+    // 5. Resumen agrupado por cuenta para consulta consolidada: cada fila es solo su cuenta exacta,
+    //    para que el resumen no sume dos veces lo de las subcuentas.
+    const isExactAccount = (m: any, accountId: string) => m.accountId === accountId
     const accountSummaries: AuxiliaryLedgerAccountSummary[] = accounts
       .map((acc) => {
         const accMovements = allMovements.filter((m) => {
-          if (!isMatchAccount(m, acc.id)) return false
+          if (!isExactAccount(m, acc.id)) return false
           if (m.date < dateFrom || m.date > `${dateTo}T23:59:59Z`) return false
           if (filters?.thirdPartyId && filters.thirdPartyId !== 'ALL') {
             const tId = filters.thirdPartyId!.toLowerCase()
@@ -598,7 +602,7 @@ export class AccountingReportService {
         const dSum = accMovements.reduce((sum, m) => sum + (Number(m.debit) || 0), 0)
         const cSum = accMovements.reduce((sum, m) => sum + (Number(m.credit) || 0), 0)
         const isAccDebit = acc.nature === 'DEBIT'
-        const priorAccMovements = allMovements.filter((m) => isMatchAccount(m, acc.id) && m.date < dateFrom)
+        const priorAccMovements = allMovements.filter((m) => isExactAccount(m, acc.id) && m.date < dateFrom)
         const priorD = priorAccMovements.reduce((s, m) => s + (Number(m.debit) || 0), 0)
         const priorC = priorAccMovements.reduce((s, m) => s + (Number(m.credit) || 0), 0)
         const accInitial = isAccDebit ? priorD - priorC : priorC - priorD

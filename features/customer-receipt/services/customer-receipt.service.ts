@@ -1,3 +1,4 @@
+import { taxRegimeLabel } from '@/features/accounting/utils/report-format'
 import { resolutionLegend, TRANSMISSION_LABELS } from '@/features/invoices/components/DianFiscalPanel'
 import { DIAN_FINAL_CONSUMER_DOC } from '@/features/invoices/services/dian/dian-document'
 import { Invoice } from '@/features/invoices/types'
@@ -217,6 +218,7 @@ export function buildCustomerReceipt(raw: RawCustomerReceipt, options: CustomerR
       department: company?.department || undefined,
       phone: company?.phone || undefined,
       logoUrl: company?.logo_url || undefined,
+      taxRegime: taxRegimeLabel(company?.tax_regime) || undefined,
     },
     customer: {
       name: customerName,

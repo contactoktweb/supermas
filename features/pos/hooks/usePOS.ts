@@ -201,32 +201,32 @@ export function usePOS() {
     loadDefaultCustomer()
   }, [])
 
-  // 4. Load products for selected location
-  const fetchProducts = useCallback(async () => {
-    if (!userContext.locationId) {
+  // 4. Catálogo de la sede: se carga una vez por sede (y en segundo plano tras cada venta para
+  //    actualizar existencias). La búsqueda y la categoría se filtran en memoria, sin volver a consultar.
+  const userContextRef = useRef(userContext)
+  userContextRef.current = userContext
+  const locationId = userContext.locationId
+
+  const fetchProducts = useCallback(async (options: { silent?: boolean } = {}) => {
+    if (!locationId) {
       setCatalogLoading(false)
       return
     }
 
     try {
-      setCatalogLoading(true)
-      const data = await posService.getProducts(
-        userContext.locationId,
-        searchQuery,
-        selectedCategory,
-        userContext
-      )
+      if (!options.silent) setCatalogLoading(true)
+      const data = await posService.getProducts(locationId, undefined, undefined, userContextRef.current)
       if (isMountedRef.current) {
         setProducts(data)
       }
     } catch (err) {
       console.error('Error al cargar productos POS:', err)
     } finally {
-      if (isMountedRef.current) {
+      if (isMountedRef.current && !options.silent) {
         setCatalogLoading(false)
       }
     }
-  }, [userContext, searchQuery, selectedCategory])
+  }, [locationId])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -235,6 +235,20 @@ export function usePOS() {
       isMountedRef.current = false
     }
   }, [fetchProducts])
+
+  const visibleProducts = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    const category = selectedCategory.toLowerCase()
+    return products.filter((p) => {
+      if (selectedCategory !== 'ALL' && p.category.toLowerCase() !== category) return false
+      if (!q) return true
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode ? p.barcode.toLowerCase().includes(q) : false)
+      )
+    })
+  }, [products, searchQuery, selectedCategory])
 
   // 3. Customer search
   const handleSearchCustomers = useCallback(async (query: string) => {
@@ -472,7 +486,7 @@ export function usePOS() {
       setIsReceiptModalOpen(true)
       clearCart()
       setMixedCashAmount(0)
-      await fetchProducts() // Refresh stocks
+      void fetchProducts({ silent: true }) // Actualiza existencias sin bloquear el catálogo
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error al procesar la venta POS'
       setPaymentError(msg)
@@ -510,7 +524,9 @@ export function usePOS() {
       const session = await posService.getOpenCashSession(userContext.locationId, userContext.userId)
       if (!isMountedRef.current) return
       setCashSession(session)
-      setUserContext((prev) => ({ ...prev, cashRegisterNumber: session?.registerCode || undefined }))
+      const registerCode = session?.registerCode || undefined
+      // Solo se actualiza si la caja cambió: un objeto nuevo en cada foco disparaba recargas en cascada.
+      setUserContext((prev) => (prev.cashRegisterNumber === registerCode ? prev : { ...prev, cashRegisterNumber: registerCode }))
     } catch {
       if (isMountedRef.current) setCashSession(null)
     } finally {
@@ -550,7 +566,7 @@ export function usePOS() {
     cashSessionLoading,
     refreshCashSession,
     // Catalog
-    products,
+    products: visibleProducts,
     catalogLoading,
     searchQuery,
     setSearchQuery,
@@ -558,7 +574,7 @@ export function usePOS() {
     setSelectedCategory,
     categories,
     handleScanBarcode,
-    refreshProducts: fetchProducts,
+    refreshProducts: () => fetchProducts(),
     // Customer
     currentCustomer,
     setCurrentCustomer,

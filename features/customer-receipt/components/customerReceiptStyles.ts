@@ -61,8 +61,6 @@ export const customerReceiptCss = `
   .cr-qr svg { width: 100%; height: 100%; display: block; }
   .cr-foot { margin-top: auto; padding-top: 6px; border-top: 1px solid #000; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .cr-thanks { font-size: 11.5px; font-weight: 800; }
-  .cr-kyt { display: inline-flex; align-items: center; gap: 3px; font-size: 8.5px; font-weight: 700; color: #000; text-decoration: none; }
-  .cr-kyt:hover, .cr-kyt:focus-visible { text-decoration: underline; }
   .cr-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
   @keyframes cr-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -81,6 +79,5 @@ export const customerReceiptCss = `
     .cr-stage { display: block; }
     .cr-zoom { zoom: 1 !important; }
     .cr-sheet { width: auto; min-height: calc(${SHEET_HEIGHT_MM}mm - ${SHEET_MARGIN_MM * 2}mm); padding: 0; box-shadow: none; animation: none; }
-    .cr-kyt { text-decoration: none; }
   }
 `

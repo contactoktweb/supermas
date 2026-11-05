@@ -33,6 +33,7 @@ import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
 import { PurchaseToastContainer, usePurchaseToasts } from './PurchaseToast'
 import { canReceivePurchase } from '../utils/purchase-status'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface PurchasesPageProps {
   onNavigate?: (view: string) => void
@@ -83,6 +84,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     sortField: 'date',
     sortDirection: 'desc',
   })
+  useDocumentSearchParam((query) => setFilters((prev) => ({ ...prev, query })))
 
   // 3. Modals & Drawers
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)

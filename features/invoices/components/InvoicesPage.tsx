@@ -12,6 +12,7 @@ import { InvoiceCancelModal } from './InvoiceCancelModal'
 import { DIANXmlModal } from './DIANXmlModal'
 import { useInvoices } from '../hooks/useInvoices'
 import { Invoice } from '../types'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface InvoicesPageProps {
   onNavigate?: (view: string) => void
@@ -81,6 +82,7 @@ export function InvoicesPage({ onNavigate }: InvoicesPageProps) {
     handleSendToDIAN,
     handleCheckDianStatus,
   } = useInvoices()
+  useDocumentSearchParam(setSearchQuery)
 
   const handleResetFilters = () => {
     setSearchQuery('')

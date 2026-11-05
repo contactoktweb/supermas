@@ -23,6 +23,7 @@ import { TransferSkeleton } from './TransferSkeleton'
 import { TransferEmptyState } from './TransferEmptyState'
 import { TransferErrorState } from './TransferErrorState'
 import { TransferToastContainer, TransferToastMessage } from './TransferToast'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface TransferPageProps {
   onNavigate?: (view: string) => void
@@ -60,6 +61,7 @@ export function TransferPage({
     sortField: 'createdAt',
     sortDirection: 'desc',
   })
+  useDocumentSearchParam((query) => setFilters((prev) => ({ ...prev, query })))
 
   // Data states
   const [transfers, setTransfers] = useState<Transfer[]>([])

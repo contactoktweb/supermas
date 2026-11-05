@@ -9,6 +9,7 @@ import { supplierService } from '../services/supplier.service'
 import { purchaseService } from '../services/purchase.service'
 import { SelectField } from '@/components/ui/SelectField'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface ReceiptsPageProps {
   onNavigate?: (view: string) => void
@@ -122,6 +123,7 @@ export function ReceiptsPage({ onNavigate, userContext }: ReceiptsPageProps) {
 
   // 2. Filters & Pagination
   const [searchQuery, setSearchQuery] = useState('')
+  useDocumentSearchParam(setSearchQuery)
   const [selectedLocationId, setSelectedLocationId] = useState('ALL')
   const [selectedSupplierId, setSelectedSupplierId] = useState('ALL')
   const [page, setPage] = useState(1)

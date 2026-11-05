@@ -70,6 +70,8 @@ function mapDbDocumentTypeToDomain(docType: string): SourceDocumentType {
   switch (docType) {
     case 'PURCHASE_INVOICE':
       return 'PURCHASE_INVOICE'
+    case 'PURCHASE_RECEIPT':
+      return 'PURCHASE_RECEIPT'
     case 'SALE':
     case 'POS_SALE':
       return 'POS_SALE'

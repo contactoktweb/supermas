@@ -127,6 +127,7 @@ export const SOURCE_DOCUMENT_LABELS: LabelMap = {
   PURCHASE: 'Compra',
   PURCHASE_INVOICE: 'Factura de compra',
   PURCHASE_ORDER: 'Orden de compra',
+  PURCHASE_RECEIPT: 'Recepción de compra',
   WAREHOUSE_TRANSFER: 'Traslado',
   TRANSFER: 'Traslado',
   STOCK_ADJUSTMENT: 'Ajuste de inventario',

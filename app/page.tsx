@@ -405,7 +405,7 @@ function App(){
   ) : view === 'Inventario' ? (
     <InventoryPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Kardex' ? (
-    <KardexPage onNavigate={(targetView) => handleSetView(targetView)} />
+    <KardexPage />
   ) : view === 'Transferencias' ? (
     <TransferPage onNavigate={(targetView) => handleSetView(targetView)} />
   ) : view === 'Compras' ? (

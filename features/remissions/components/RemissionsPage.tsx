@@ -13,6 +13,7 @@ import { DeliverModal } from './DeliverModal'
 import { RemissionCancelModal } from './RemissionCancelModal'
 import { useRemissions } from '../hooks/useRemissions'
 import { Remission } from '../types'
+import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface RemissionsPageProps {
   onNavigate?: (view: string) => void
@@ -81,6 +82,7 @@ export function RemissionsPage({ onNavigate }: RemissionsPageProps) {
     closeCancelModal,
     handleConfirmCancel,
   } = useRemissions()
+  useDocumentSearchParam(setSearchQuery)
 
   const handleResetFilters = () => {
     setSearchQuery('')

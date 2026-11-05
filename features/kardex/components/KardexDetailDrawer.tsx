@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import Link from 'next/link'
+import { sourceDocumentHref } from '../utils/source-document-link'
 import { AppIcon } from '@/components/ui/Icon'
 import { InventoryMovement, UserPermissionContext } from '../types'
 import { getMovementTypeBadge } from './KardexTable'
@@ -18,7 +20,6 @@ interface KardexDetailDrawerProps {
   isCostRedacted: boolean
   userContext?: UserPermissionContext
   onClose: () => void
-  onNavigateDocument?: (docType: string, docNumber: string) => void
   onOpenRevertModal?: (movement: InventoryMovement) => void
 }
 
@@ -28,7 +29,6 @@ export function KardexDetailDrawer({
   isCostRedacted,
   userContext,
   onClose,
-  onNavigateDocument,
   onOpenRevertModal,
 }: KardexDetailDrawerProps) {
   const [mounted, setMounted] = useState(false)
@@ -40,6 +40,8 @@ export function KardexDetailDrawer({
   useEscapeKey(isOpen, onClose)
 
   if (!isOpen || !movement || !mounted) return null
+
+  const documentHref = sourceDocumentHref(movement.sourceDocumentType, movement.sourceDocumentNumber)
 
   const isEntry = movement.quantityIn > 0
   const deltaQty = isEntry ? movement.quantityIn : movement.quantityOut
@@ -306,20 +308,11 @@ export function KardexDetailDrawer({
                   </span>
                 </div>
 
-                {onNavigateDocument && (
-                  <button
-                    type="button"
-                    className="outline-button browse-doc-btn"
-                    onClick={() =>
-                      onNavigateDocument(
-                        movement.sourceDocumentType,
-                        movement.sourceDocumentNumber
-                      )
-                    }
-                  >
+                {documentHref && (
+                  <Link href={documentHref} className="outline-button browse-doc-btn">
                     <span>Ver documento origen</span>
                     <AppIcon name="chevronRight" size={13} />
-                  </button>
+                  </Link>
                 )}
               </div>
 

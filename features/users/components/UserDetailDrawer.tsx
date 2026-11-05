@@ -81,7 +81,7 @@ export function UserDetailDrawer({
       ['warehouses.read', 'warehouses.write', 'inventory.read', 'inventory.adjust', 'inventory.transfer', 'kardex.read'].includes(p)
     ),
     'Ventas, POS & Facturación': roleDef.permissions.filter((p) =>
-      ['sales.read', 'sales.create', 'sales.cancel', 'pos.access', 'pos.cash_register', 'invoices.read', 'invoices.create', 'invoices.cancel', 'remissions.read', 'remissions.create'].includes(p)
+      ['sales.read', 'sales.create', 'sales.cancel', 'pos.access', 'pos.cash_register', 'pos.opening_key', 'invoices.read', 'invoices.create', 'invoices.cancel', 'remissions.read', 'remissions.create'].includes(p)
     ),
     'Clientes & Proveedores': roleDef.permissions.filter((p) =>
       ['customers.read', 'customers.write', 'suppliers.read', 'suppliers.write', 'purchases.read', 'purchases.create'].includes(p)

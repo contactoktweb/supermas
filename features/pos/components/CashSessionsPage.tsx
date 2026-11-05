@@ -10,6 +10,7 @@ import { isAdminRole } from '@/features/users/services/role-assignment'
 import type { CashRegister, CashSession, CashSessionSummary } from '../types'
 import { CashFeedbackBanner } from './cash/CashFeedbackBanner'
 import { CashKpiGrid } from './cash/CashKpiGrid'
+import { CashOpeningKeyCard } from './cash/CashOpeningKeyCard'
 import { CashRegistersPanel } from './cash/CashRegistersPanel'
 import { CashSessionsHistoryTable } from './cash/CashSessionsHistoryTable'
 import { OpenCashSessionModal, OpenCashSessionValues } from './cash/OpenCashSessionModal'
@@ -39,9 +40,11 @@ const TAB_PANEL_ID: Record<CashTab, string> = {
 }
 
 export function CashSessionsPage() {
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const currentUserId = user?.id
   const isAdminUser = isAdminRole(user?.roleCode)
+  // Mismo criterio que fn_get_cash_opening_key (093).
+  const canViewOpeningKey = isAdminUser || hasPermission('pos.opening_key')
   // Mismo criterio que las RPC de caja (077): dueño del turno o administrador.
   const canOperateSession = useCallback(
     (session: CashSession) => isAdminUser || session.userId === currentUserId,
@@ -101,9 +104,9 @@ export function CashSessionsPage() {
     setSuccessToast(message)
   }
 
-  const handleOpenSession = async ({ openingFloat, notes }: OpenCashSessionValues) => {
+  const handleOpenSession = async ({ openingFloat, notes, openingKey }: OpenCashSessionValues) => {
     if (!registerToOpen) return
-    await cashSessionService.openSession({ cashRegisterId: registerToOpen.id, openingFloat, notes })
+    await cashSessionService.openSession({ cashRegisterId: registerToOpen.id, openingFloat, notes, openingKey })
     notifySuccess(`Caja ${registerToOpen.name} abierta con éxito.`)
     setRegisterToOpen(null)
     await loadData()
@@ -227,6 +230,8 @@ export function CashSessionsPage() {
         closedRegisters={registers.length - openRegistersCount}
         sessionsCount={sessions.length}
       />
+
+      {canViewOpeningKey && <CashOpeningKeyCard />}
 
       <ScrollableTabs>
         {TABS.map((tab) => {

@@ -45,6 +45,7 @@ const PERMISSION_ACTION_LABELS: LabelMap = {
   manage: 'Administrar',
   access: 'Acceso',
   cash_register: 'Manejar caja',
+  opening_key: 'Ver clave diaria de apertura de caja',
   petty_cash: 'Caja menor',
   activate: 'Activar',
   documents: 'Documentos',

@@ -10,7 +10,10 @@ import { REDUCED_MOTION_CLASS, formatCOP, getErrorMessage } from './cashUi'
 export interface OpenCashSessionValues {
   openingFloat: number
   notes?: string
+  openingKey: string
 }
+
+const OPENING_KEY_LENGTH = 6
 
 interface OpenCashSessionModalProps {
   register: CashRegister
@@ -24,10 +27,13 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
   const [openingFloat, setOpeningFloat] = useState<number>(recommendedInitialFloat)
   const [touched, setTouched] = useState(false)
   const [notes, setNotes] = useState('')
+  const [openingKey, setOpeningKey] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const floatId = useId()
   const notesId = useId()
+  const keyId = useId()
+  const keyHintId = useId()
 
   // La base sugerida de Configuración llega después del primer render; no pisa lo que el cajero escribió.
   useEffect(() => {
@@ -36,6 +42,10 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (openingKey.length !== OPENING_KEY_LENGTH) {
+      setError(`Escriba la clave de apertura del día (${OPENING_KEY_LENGTH} dígitos).`)
+      return
+    }
     if (maxAllowedInitialFloat > 0 && openingFloat > maxAllowedInitialFloat) {
       setError(`La base inicial no puede superar ${formatCOP(maxAllowedInitialFloat)}.`)
       return
@@ -43,7 +53,7 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
     try {
       setSubmitting(true)
       setError(null)
-      await onSubmit({ openingFloat: Number(openingFloat) || 0, notes: notes || undefined })
+      await onSubmit({ openingFloat: Number(openingFloat) || 0, notes: notes || undefined, openingKey })
     } catch (err) {
       setError(getErrorMessage(err, 'No fue posible abrir la caja.'))
     } finally {
@@ -87,6 +97,33 @@ export function OpenCashSessionModal({ register, onClose, onSubmit }: OpenCashSe
           <span className="field-hint">
             Efectivo físico entregado al cajero para dar cambio.
             {maxAllowedInitialFloat > 0 && ` Máximo permitido: ${formatCOP(maxAllowedInitialFloat)}.`}
+          </span>
+        </div>
+
+        <div className="form-field">
+          <label htmlFor={keyId}>
+            Clave de apertura del día<em>*</em>
+          </label>
+          <div className="input-wrap">
+            <span className="input-prefix" aria-hidden="true">
+              <AppIcon name="key" size={14} />
+            </span>
+            <input
+              id={keyId}
+              type="text"
+              inputMode="numeric"
+              maxLength={OPENING_KEY_LENGTH}
+              autoComplete="off"
+              spellCheck={false}
+              value={openingKey}
+              onChange={(e) => setOpeningKey(e.target.value.replace(/\D/g, '').slice(0, OPENING_KEY_LENGTH))}
+              required
+              aria-describedby={keyHintId}
+              className="font-mono font-bold tracking-[0.3em]"
+            />
+          </div>
+          <span id={keyHintId} className="field-hint">
+            Clave de {OPENING_KEY_LENGTH} dígitos que entrega el administrador. Cambia cada día.
           </span>
         </div>
 

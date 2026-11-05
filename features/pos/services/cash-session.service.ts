@@ -8,6 +8,7 @@ import {
   CashSession,
   CashMovement,
   CashSessionSummary,
+  CashOpeningKey,
   OpenSessionPayload,
   RecordCashMovementPayload,
   CloseSessionPayload,
@@ -17,6 +18,7 @@ export const OpenSessionSchema = z.object({
   cashRegisterId: z.string().uuid('ID de caja registradora inválido'),
   openingFloat: z.number().min(0, 'La base inicial debe ser mayor o igual a 0'),
   notes: z.string().optional(),
+  openingKey: z.string().trim().regex(/^\d{6}$/, 'La clave de apertura debe tener 6 dígitos.'),
 })
 
 export const RecordCashMovementSchema = z.object({
@@ -57,6 +59,10 @@ export class CashSessionService {
   async openSession(input: OpenSessionPayload): Promise<any> {
     const validated = OpenSessionSchema.parse(input)
     return this.repository.openSession(validated)
+  }
+
+  async getOpeningKey(): Promise<CashOpeningKey> {
+    return this.repository.getOpeningKey()
   }
 
   async recordMovement(input: RecordCashMovementPayload): Promise<any> {

@@ -55,6 +55,8 @@ export const LIGHT_ICON_MAP = {
   trash: 'solar:trash-bin-trash-linear',
   eye: 'solar:eye-linear',
   eyeOff: 'solar:eye-closed-linear',
+  copy: 'solar:copy-linear',
+  key: 'solar:key-linear',
   download: 'solar:download-minimalistic-linear',
   upload: 'solar:upload-minimalistic-linear',
   save: 'solar:diskette-linear',

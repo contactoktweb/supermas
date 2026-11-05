@@ -5,6 +5,7 @@ import {
   CashSession,
   CashMovement,
   CashSessionSummary,
+  CashOpeningKey,
   OpenSessionPayload,
   RecordCashMovementPayload,
   CloseSessionPayload,
@@ -175,6 +176,7 @@ export class CashSessionRepository {
       p_cash_register_id: payload.cashRegisterId,
       p_opening_float: payload.openingFloat,
       p_notes: payload.notes || null,
+      p_opening_key: payload.openingKey,
     })
 
     if (error) {
@@ -182,7 +184,30 @@ export class CashSessionRepository {
       throw new Error(`Error al abrir sesión: ${error.message}`)
     }
 
+    // Clave errada o usuario bloqueado: la RPC responde success=false para dejar registrado el intento.
+    if (data && data.success === false) {
+      throw new Error(data.message || 'No fue posible validar la clave de apertura.')
+    }
+
     return data
+  }
+
+  /**
+   * Clave de apertura del día (solo para quien tenga pos.opening_key o sea administrador)
+   */
+  async getOpeningKey(): Promise<CashOpeningKey> {
+    const { data, error } = await supabaseClient.rpc('fn_get_cash_opening_key')
+
+    if (error) {
+      console.error('Error al consultar la clave de apertura:', error)
+      throw new Error(error.message || 'No fue posible consultar la clave de apertura.')
+    }
+
+    return {
+      key: data.key,
+      businessDate: data.business_date,
+      validUntil: data.valid_until,
+    }
   }
 
   /**

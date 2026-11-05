@@ -280,6 +280,15 @@ export interface OpenSessionPayload {
   cashRegisterId: string
   openingFloat: number
   notes?: string
+  /** Clave de apertura del día (6 dígitos). */
+  openingKey: string
+}
+
+/** Clave diaria de apertura de caja (se renueva a medianoche, hora de Bogotá). */
+export interface CashOpeningKey {
+  key: string
+  businessDate: string
+  validUntil: string
 }
 
 export interface RecordCashMovementPayload {

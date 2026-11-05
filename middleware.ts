@@ -6,6 +6,7 @@ import {
   PASSWORD_CHANGE_REQUIRED_MESSAGE,
   tokenRequiresPasswordChange,
 } from '@/lib/auth/password-change-flag'
+import { CUSTOMER_SELF_REGISTRATION_PATH } from '@/features/customer-self-registration/routes'
 
 /**
  * SUPER MÁS ERP/POS - Middleware de Seguridad y Protección de Rutas
@@ -29,6 +30,11 @@ export function middleware(request: NextRequest) {
   }
 
   const isPublicAuthPage = pathname === '/login' || pathname === '/recuperar-contrasena'
+
+  // Formulario público del QR del POS: el cliente registra sus datos de facturación sin sesión.
+  if (pathname === CUSTOMER_SELF_REGISTRATION_PATH) {
+    return NextResponse.next()
+  }
 
   // Contraseña inicial pendiente (bandera de app_metadata dentro del JWT). Aquí solo se decide la
   // navegación; requireServerUser vuelve a comprobarlo contra Supabase Auth en cada API.

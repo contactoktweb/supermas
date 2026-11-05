@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { POSCustomer } from '../types'
 import { AppIcon } from '@/components/ui/Icon'
 import { displayLabel, ID_DOCUMENT_LABELS } from '@/lib/labels/display-labels'
+import { CustomerRegistrationQr } from '@/features/customer-self-registration/components/CustomerRegistrationQr'
 
 interface POSCustomerModalProps {
   isOpen: boolean
@@ -23,6 +24,7 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
   searchResults,
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
+  const [showRegistrationQr, setShowRegistrationQr] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -30,6 +32,11 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
       onSearch('')
     }
   }, [isOpen, onSearch])
+
+  // Solo al abrir: onSearch cambia en cada render del POS y volvería a ocultar el QR.
+  useEffect(() => {
+    if (isOpen) setShowRegistrationQr(false)
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -135,6 +142,8 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
           />
         </div>
 
+        {showRegistrationQr && <CustomerRegistrationQr />}
+
         {/* Customer List */}
         <div
           style={{
@@ -222,6 +231,14 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
                             Mayorista
                           </span>
                         )}
+                        {customer.selfRegistered && (
+                          <span
+                            title="Se registró con el QR: confirma su documento antes de facturar"
+                            style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#fee2e2', color: '#b91c1c', whiteSpace: 'nowrap' }}
+                          >
+                            Verificar documento
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 11, color: '#64748b', marginTop: 2, display: 'flex', gap: 8 }}>
                         <span>{displayLabel(ID_DOCUMENT_LABELS, customer.documentType, '')}: {customer.documentNumber}</span>
@@ -254,6 +271,7 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: 12,
+            flexWrap: 'wrap',
             paddingTop: 12,
             borderTop: '1px solid var(--line)',
           }}
@@ -279,19 +297,31 @@ export const POSCustomerModal: React.FC<POSCustomerModalProps> = ({
             <span>Consumidor Final (Predeterminado)</span>
           </button>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="outline-button"
-            style={{
-              height: 32,
-              padding: '0 14px',
-              fontSize: 12,
-              fontWeight: 700,
-            }}
-          >
-            Cerrar
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setShowRegistrationQr((v) => !v)}
+              className="outline-button compact"
+              aria-pressed={showRegistrationQr}
+              style={{ height: 32, fontSize: 11, fontWeight: 700, gap: 6 }}
+            >
+              <AppIcon name="qrCode" size={14} color="var(--navy)" />
+              <span>{showRegistrationQr ? 'Ocultar QR' : 'QR de registro'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="outline-button"
+              style={{
+                height: 32,
+                padding: '0 14px',
+                fontSize: 12,
+                fontWeight: 700,
+              }}
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
       </div>
     </div>

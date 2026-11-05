@@ -9,6 +9,7 @@ import {
   POSExecuteSaleInput,
   POSExecuteSaleResult,
 } from '../types'
+import { SELF_REGISTERED_CUSTOMER_NOTE } from '@/features/customer-self-registration/routes'
 
 function mapPaymentMethodToDb(pm: POSPaymentMethod): 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'BANK_TRANSFER' | 'CREDIT' | 'MIXED' {
   switch (pm) {
@@ -46,7 +47,7 @@ function mapPaymentMethodFromDb(dbPm: string): POSPaymentMethod {
 }
 
 const CUSTOMER_COLUMNS =
-  'id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active'
+  'id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active, notes'
 
 function mapCustomerRow(c: any): POSCustomer {
   const displayName = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente'
@@ -63,6 +64,7 @@ function mapCustomerRow(c: any): POSCustomer {
     creditLimit: Number(c.credit_limit || 0),
     currentBalance: Number(c.current_balance || 0),
     isActive: c.is_active !== false,
+    selfRegistered: c.notes === SELF_REGISTERED_CUSTOMER_NOTE,
   }
 }
 

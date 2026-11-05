@@ -6746,3 +6746,46 @@ html, body {
 .cost-trace-event-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;color:var(--navy)}
 .cost-trace-event-detail{margin:2px 0 0;color:var(--text-main,#111827)}
 .cost-trace-event-meta{margin:2px 0 0;font-size:11px;color:var(--muted)}
+
+/* Registro de datos de facturación por QR (página pública y QR del POS) */
+.self-registration-page{min-height:100vh;display:flex;flex-direction:column;background:#f3f6fb}
+.self-registration-header{display:flex;justify-content:center;padding:18px 16px;background:var(--navy)}
+.self-registration-header img{height:44px;width:auto;object-fit:contain}
+.self-registration-main{flex:1;display:flex;justify-content:center;padding:24px 16px 40px}
+.self-registration-card{width:min(100%,640px);background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px 20px;box-shadow:0 16px 40px rgba(0,27,92,.08);animation:rise .6s ease both}
+.self-registration-card h1{margin:0 0 8px;color:var(--navy);font-size:clamp(22px,5vw,28px);line-height:1.15;letter-spacing:-.5px}
+.self-registration-intro{margin:0 0 20px;color:var(--muted);font-size:14px;line-height:1.55}
+.self-registration-form{display:flex;flex-direction:column;gap:14px}
+.self-registration-grid{display:grid;grid-template-columns:1fr;gap:14px}
+.self-registration-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.self-registration-field label{color:#34435d;font-size:12px;font-weight:700;margin:0}
+.self-registration-field input,.self-registration-field select{width:100%;height:46px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--foreground);font-size:16px;transition:border-color .2s ease,box-shadow .2s ease}
+.self-registration-field input:focus,.self-registration-field select:focus{outline:0;border-color:var(--navy);box-shadow:0 0 0 4px #001b5c14}
+.self-registration-field input[aria-invalid="true"]{border-color:#ef4444}
+.self-registration-document{display:flex;gap:8px}
+.self-registration-document input#sr-dv{flex:0 0 64px;text-align:center}
+.self-registration-error{color:#b91c1c;font-size:12px;font-weight:600}
+.self-registration-segment{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0;padding:0;border:0}
+.self-registration-segment legend{margin-bottom:6px;color:#34435d;font-size:12px;font-weight:700}
+.self-registration-segment label{display:flex;align-items:center;justify-content:center;min-height:44px;border:1.5px solid var(--line);border-radius:10px;color:#334155;font-size:13px;font-weight:700;cursor:pointer;transition:border-color .2s ease,background-color .2s ease}
+.self-registration-segment label.is-active{border-color:var(--navy);background:#edf2fa;color:var(--navy)}
+.self-registration-segment label:focus-within{box-shadow:0 0 0 4px #001b5c14}
+.self-registration-segment input{position:absolute;opacity:0;pointer-events:none}
+.self-registration-trap{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+.self-registration-consent{display:flex;gap:10px;align-items:flex-start;color:#334155;font-size:13px;line-height:1.45;cursor:pointer}
+.self-registration-consent input{width:18px;height:18px;margin-top:1px;flex-shrink:0;accent-color:var(--navy)}
+.self-registration-alert{display:flex;gap:8px;align-items:center;margin:0;padding:10px 12px;border:1px solid #fecaca;border-radius:10px;background:#fef2f2;color:#991b1b;font-size:13px;font-weight:600}
+.self-registration-submit{height:48px;width:100%;font-size:15px}
+.self-registration-submit:disabled{opacity:.6;cursor:not-allowed;transform:none}
+.self-registration-done{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:16px 0;animation:rise .5s ease both}
+.self-registration-done-icon{width:64px;height:64px;border-radius:50%;background:#ecfdf5;display:grid;place-items:center}
+.self-registration-done h2{margin:8px 0 0;color:var(--navy);font-size:22px}
+.self-registration-done p{margin:0;max-width:420px;color:var(--muted);font-size:14px;line-height:1.55}
+.customer-registration-qr{display:flex;align-items:center;gap:16px;margin:0;padding:14px;border:1.5px dashed #cbd5e1;border-radius:12px;background:#f8fafc;animation:rise .35s ease both}
+.customer-registration-qr-code{flex:0 0 136px;width:136px;height:136px}
+.customer-registration-qr-code svg{display:block;width:100%;height:100%}
+.customer-registration-qr figcaption{display:flex;flex-direction:column;gap:4px;color:#475569;font-size:12px;line-height:1.45}
+.customer-registration-qr figcaption strong{color:var(--navy);font-size:13px}
+@media (min-width:640px){.self-registration-grid{grid-template-columns:1fr 1fr}.self-registration-card{padding:32px}}
+@media (max-width:420px){.customer-registration-qr{flex-direction:column;text-align:center}}
+@media (prefers-reduced-motion:reduce){.self-registration-card,.self-registration-done,.customer-registration-qr{animation:none}.self-registration-field input,.self-registration-field select,.self-registration-segment label{transition:none}}

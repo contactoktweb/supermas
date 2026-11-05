@@ -152,7 +152,16 @@ export interface TaxReportSummary {
   totalBasePurchases: number
   recordsCount: number
   byLocation: Array<{ locationName: string; generated: number; deductible: number }>
-  byRate: Array<{ ratePercent: number; label: string; generated: number; deductible: number }>
+  /** Resumen por tipo de IVA (gravado 19 %, gravado 5 %, exento, excluido) con bases e impuesto. */
+  byRate: Array<{
+    key: string
+    ratePercent: number
+    label: string
+    baseSales: number
+    basePurchases: number
+    generated: number
+    deductible: number
+  }>
 }
 
 export interface TaxReportFilters {

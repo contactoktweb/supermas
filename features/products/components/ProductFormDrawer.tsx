@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect, SelectOption } from '@/components/ui/CustomSelect'
+import type { PostingAccountOption } from '@/features/accounting/utils/posting-accounts'
+import { inventoryAccountCodeForTax } from '../utils/inventory-account'
 import { FileUpload } from '@/components/ui/FileUpload'
 import { ScrollableTabs } from '@/components/ui/ScrollableTabs'
 import {
@@ -35,9 +37,6 @@ interface ProductFormDrawerProps {
   onClose: () => void
   onSubmit: (data: CreateProductInput | UpdateProductInput) => Promise<void>
 }
-
-// Línea general de mercancías no fabricadas (migración 088): cuenta sugerida para productos nuevos.
-const DEFAULT_INVENTORY_ACCOUNT_CODE = '143505.01'
 
 const UNIT_OPTIONS = [
   { value: 'UND', label: 'Unidad (UND)' },
@@ -73,9 +72,7 @@ export function ProductFormDrawer({
   const [brandId, setBrandId] = useState('')
   const [categoryOptions, setCategoryOptions] = useState<SelectOption[]>([])
   const [brandOptions, setBrandOptions] = useState<SelectOption[]>([])
-  const [accountingAccountId, setAccountingAccountId] = useState('')
-  const [pucAccountOptions, setPucAccountOptions] = useState<SelectOption[]>([])
-  const [defaultInventoryAccountId, setDefaultInventoryAccountId] = useState('')
+  const [inventoryAccounts, setInventoryAccounts] = useState<PostingAccountOption[]>([])
   const [pucLoadError, setPucLoadError] = useState<string | null>(null)
   const [taxRates, setTaxRates] = useState<TaxRateConfig[]>([])
   const [loadingCatalogs, setLoadingCatalogs] = useState(true)
@@ -160,18 +157,9 @@ export function ProductFormDrawer({
           label: b.name,
         }))
 
-        // Ordenadas por código: quedan agrupadas por su cuenta PUC (1405, 1435, ...).
-        const pucOptions: SelectOption[] = inventoryAccounts.map((acc) => ({
-          value: acc.id,
-          label: `${acc.code} — ${acc.name}`,
-          description: acc.groupName ? `${acc.groupCode} — ${acc.groupName}` : undefined,
-          badge: acc.groupCode,
-        }))
-
         setCategoryOptions(cats)
         setBrandOptions(brands)
-        setPucAccountOptions(pucOptions)
-        setDefaultInventoryAccountId(inventoryAccounts.find((acc) => acc.code === DEFAULT_INVENTORY_ACCOUNT_CODE)?.id || '')
+        setInventoryAccounts(inventoryAccounts)
         setTaxRates(taxesRes || [])
         if (locsRes?.data) {
           setActiveWarehouses(locsRes.data)
@@ -180,8 +168,6 @@ export function ProductFormDrawer({
         if (mode === 'create') {
           if (cats.length > 0) setCategoryId((prev) => prev || cats[0].value)
           if (brands.length > 0) setBrandId((prev) => prev || brands[0].value)
-          const defaultAccount = inventoryAccounts.find((acc) => acc.code === DEFAULT_INVENTORY_ACCOUNT_CODE)
-          if (defaultAccount) setAccountingAccountId((prev) => prev || defaultAccount.id)
         }
       })
       .catch((err) => {
@@ -249,8 +235,6 @@ export function ProductFormDrawer({
         setStatus(initialProduct.status === 'ACTIVE' ? 'ACTIVE' : 'INACTIVE')
         setMinStockThreshold(initialProduct.minStockThreshold)
         setCriticalStockThreshold(initialProduct.criticalStockThreshold)
-        // La cuenta real es la del vínculo (FK); los productos antiguos pueden no tenerla.
-        setAccountingAccountId(initialProduct.accountingAccount?.id || '')
         setAuditReason('')
         setPriceChangeReason('')
       } else {
@@ -280,11 +264,10 @@ export function ProductFormDrawer({
         setStatus('ACTIVE')
         setMinStockThreshold(stockDefaults.defaultMinStockThreshold)
         setCriticalStockThreshold(stockDefaults.criticalLowStockThreshold)
-        setAccountingAccountId(defaultInventoryAccountId)
         setAuditReason('')
       }
     }
-  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions, defaultInventoryAccountId])
+  }, [isOpen, mode, initialProduct, categoryOptions, brandOptions])
 
   // La configuración se carga en segundo plano: al llegar, ajusta solo los umbrales del producto nuevo.
   useEffect(() => {
@@ -313,28 +296,12 @@ export function ProductFormDrawer({
     }
   }
 
-  // Productos antiguos: con una cuenta de grupo (p. ej. '1435') se conserva hasta que elijan una
-  // auxiliar; sin cuenta se pueden guardar y la contabilidad usa la cuenta de inventario por defecto.
-  const legacyAccount =
-    mode === 'edit' &&
-    !loadingCatalogs &&
-    initialProduct?.accountingAccount &&
-    initialProduct.accountingAccount.id === accountingAccountId &&
-    !pucAccountOptions.some((opt) => opt.value === accountingAccountId)
-      ? initialProduct.accountingAccount
-      : null
-  const accountOptions: SelectOption[] = legacyAccount
-    ? [
-        {
-          value: legacyAccount.id,
-          label: `${legacyAccount.code} — ${legacyAccount.name}`,
-          description: 'Cuenta de grupo: selecciona una auxiliar',
-          badge: 'Revisar',
-        },
-        ...pucAccountOptions,
-      ]
-    : pucAccountOptions
-  const isLegacyWithoutAccount = mode === 'edit' && !loadingCatalogs && !accountingAccountId
+  // La cuenta de inventario sale del IVA del producto; la base la asigna igual (migración 094).
+  const inventoryAccountCode = inventoryAccountCodeForTax(taxProfile, vatRatePercent)
+  const inventoryAccount = inventoryAccountCode
+    ? inventoryAccounts.find((acc) => acc.code === inventoryAccountCode) || null
+    : null
+  const accountingAccountId = inventoryAccount?.id || ''
 
   // Live calculation of estimated profit margin
   const liveMargin = productService.calculateProfitMargin(
@@ -432,9 +399,11 @@ export function ProductFormDrawer({
     if (mode === 'create' && !accountingAccountId) {
       setErrors((prev) => ({
         ...prev,
-        accountingAccountId: 'Debes seleccionar la cuenta auxiliar de inventario (PUC) a la cual estará enlazado el producto',
+        accountingAccountId: inventoryAccountCode
+          ? `No se encontró la cuenta de inventario ${inventoryAccountCode} en el PUC.`
+          : 'Clasifica el IVA del producto (gravado, exento o excluido) para asignar su cuenta de inventario.',
       }))
-      setActiveTab('info')
+      setActiveTab(inventoryAccountCode ? 'info' : 'tax')
       return
     }
 
@@ -445,7 +414,6 @@ export function ProductFormDrawer({
       description: description.trim(),
       categoryId,
       brandId,
-      // Vacío solo en productos antiguos sin cuenta: no se envía para no tocar su vínculo actual.
       accountingAccountId: accountingAccountId || undefined,
       accountingCategoryId: accountingAccountId || undefined,
       unitOfMeasure,
@@ -757,43 +725,36 @@ export function ProductFormDrawer({
                     <AppIcon name="accounting" size={14} className="text-blue-900" />
                     <span>Cuenta Contable PUC {mode === 'create' && <em>*</em>}</span>
                   </label>
-                  <CustomSelect
-                    options={accountOptions}
-                    value={accountingAccountId}
-                    onChange={(val) => {
-                      setAccountingAccountId(val)
-                      setErrors((prev) => ({ ...prev, accountingAccountId: '' }))
+                  <div
+                    className="form-readonly-value"
+                    aria-live="polite"
+                    style={{
+                      padding: '9px 12px',
+                      border: '1px solid var(--line)',
+                      borderRadius: 8,
+                      background: '#f8fafc',
+                      fontSize: 13,
+                      color: 'var(--navy)',
+                      fontWeight: 600,
                     }}
-                    disabled={pucAccountOptions.length === 0}
-                    error={errors.accountingAccountId || undefined}
-                    placeholder={loadingCatalogs ? 'Cargando cuentas PUC...' : 'Selecciona la cuenta auxiliar de inventario'}
-                  />
+                  >
+                    {loadingCatalogs
+                      ? 'Cargando cuentas PUC...'
+                      : inventoryAccount
+                        ? `${inventoryAccount.code} — ${inventoryAccount.name}`
+                        : inventoryAccountCode
+                          ? `${inventoryAccountCode} — no encontrada en el PUC`
+                          : 'Pendiente: clasifica el IVA del producto'}
+                  </div>
                   {errors.accountingAccountId && (
                     <span className="field-error-text">{errors.accountingAccountId}</span>
                   )}
                   {pucLoadError && !loadingCatalogs && (
                     <small className="field-error-text">{pucLoadError}</small>
                   )}
-                  {!pucLoadError && pucAccountOptions.length === 0 && !loadingCatalogs && (
-                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
-                      * No hay cuentas auxiliares de inventario (grupo 14) activas en el PUC.
-                    </small>
-                  )}
-                  {legacyAccount && (
-                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
-                      * La cuenta actual ({legacyAccount.code}) es de grupo. Selecciona una cuenta auxiliar de inventario.
-                    </small>
-                  )}
-                  {isLegacyWithoutAccount && (
-                    <small className="field-hint" style={{ color: 'var(--amber)' }}>
-                      * Producto sin cuenta contable: sus ventas usan la cuenta de inventario por defecto. Selecciona su cuenta auxiliar.
-                    </small>
-                  )}
-                  {pucAccountOptions.length > 0 && !legacyAccount && !isLegacyWithoutAccount && (
-                    <small className="field-hint text-[10.5px] text-slate-500">
-                      Cuenta auxiliar de inventario: define el inventario, el costo y el ingreso de sus ventas.
-                    </small>
-                  )}
+                  <small className="field-hint text-[10.5px] text-slate-500">
+                    Se asigna sola según el IVA (pestaña Impuestos): gravado 19 %, gravado 5 %, exento o excluido.
+                  </small>
                 </div>
               </div>
 

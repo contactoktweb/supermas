@@ -342,24 +342,32 @@ export function TaxReportsDrawer({ isOpen, onClose }: TaxReportsDrawerProps) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid var(--line)' }}>
-                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Tarifa Tributaria</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>IVA Generado</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>IVA Descontable</th>
-                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Total Impuesto</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'left' }}>Tipo de IVA</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Base ventas</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>IVA generado</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Base compras</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>IVA descontable</th>
+                  <th style={{ padding: '10px 12px', textAlign: 'right' }}>Saldo</th>
                 </tr>
               </thead>
               <tbody>
                 {summary?.byRate.map((r) => (
-                  <tr key={r.ratePercent} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <tr key={r.key} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '10px 12px', fontWeight: 600 }}>{r.label}</td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {taxCalculationService.formatCOP(r.baseSales)}
+                    </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--red)' }}>
                       {taxCalculationService.formatCOP(r.generated)}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {taxCalculationService.formatCOP(r.basePurchases)}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', color: 'var(--green)' }}>
                       {taxCalculationService.formatCOP(r.deductible)}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800 }}>
-                      {taxCalculationService.formatCOP(r.generated + r.deductible)}
+                      {taxCalculationService.formatCOP(r.generated - r.deductible)}
                     </td>
                   </tr>
                 ))}

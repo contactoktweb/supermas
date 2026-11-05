@@ -1,9 +1,18 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useCallback, useState, useMemo } from 'react'
 import { AppIcon } from '@/components/ui/Icon'
 import { ThirdParty, LegalNature, ThirdPartyType } from '../../types'
 import { SelectField } from '@/components/ui/SelectField'
+import { ClassificationChangeModal, ClassificationOption } from '../modals/ClassificationChangeModal'
+
+const ROLE_OPTIONS: ClassificationOption<ThirdPartyType>[] = [
+  { value: 'CLIENTE', label: 'Cliente', iconName: 'purchases' },
+  { value: 'PROVEEDOR', label: 'Proveedor', iconName: 'package' },
+  { value: 'EMPLEADO', label: 'Empleado', iconName: 'users' },
+  { value: 'ACREEDOR', label: 'Acreedor', iconName: 'warehouse' },
+  { value: 'OTRO', label: 'Otro', iconName: 'layers' },
+]
 
 interface AccountingThirdPartiesTabProps {
   thirdParties: ThirdParty[]
@@ -23,7 +32,9 @@ export function AccountingThirdPartiesTab({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedNature, setSelectedNature] = useState<'ALL' | LegalNature>('ALL')
   const [selectedType, setSelectedType] = useState<'ALL' | ThirdPartyType>('ALL')
-  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [roleTarget, setRoleTarget] = useState<ThirdParty | null>(null)
+  const closeRoleDialog = useCallback(() => setRoleTarget(null), [])
+  const canChangeRole = canManageThirdParties && Boolean(onUpdateThirdPartyType)
 
   const countClientes = useMemo(() => thirdParties.filter((t) => t.thirdPartyType === 'CLIENTE').length, [thirdParties])
   const countProveedores = useMemo(() => thirdParties.filter((t) => t.thirdPartyType === 'PROVEEDOR').length, [thirdParties])
@@ -62,16 +73,10 @@ export function AccountingThirdPartiesTab({
     })
   }, [thirdParties, searchQuery, selectedNature, selectedType])
 
-  const handleTypeChange = async (thirdPartyId: string, newType: ThirdPartyType) => {
-    if (!onUpdateThirdPartyType) return
-    try {
-      setUpdatingId(thirdPartyId)
-      await onUpdateThirdPartyType(thirdPartyId, newType)
-    } catch (err) {
-      console.error('Error al actualizar rol del tercero:', err)
-    } finally {
-      setUpdatingId(null)
-    }
+  const handleRoleConfirm = async (newType: ThirdPartyType) => {
+    if (!onUpdateThirdPartyType || !roleTarget) return
+    await onUpdateThirdPartyType(roleTarget.id, newType)
+    setRoleTarget(null)
   }
 
   const getTypeBadgeStyle = (type: ThirdPartyType) => {
@@ -336,12 +341,13 @@ export function AccountingThirdPartiesTab({
                 <th style={{ width: 160 }}>Contacto</th>
                 <th style={{ width: 140 }}>Ubicación</th>
                 <th style={{ width: 90, textAlign: 'center' }}>Estado</th>
+                {canChangeRole && <th style={{ width: 80, textAlign: 'right' }}>Acciones</th>}
               </tr>
             </thead>
             <tbody>
               {filteredThirdParties.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-slate-500">
+                  <td colSpan={canChangeRole ? 8 : 7} className="text-center py-12 text-slate-500">
                     <div className="font-bold text-sm text-slate-700 mb-1">
                       No se encontraron terceros registrados con los filtros aplicados
                     </div>
@@ -396,41 +402,13 @@ export function AccountingThirdPartiesTab({
                       </div>
                     </td>
                     <td>
-                      {/* Selector interactivo de Rol / Tipo de Tercero */}
-                      {canManageThirdParties && onUpdateThirdPartyType ? (
-                        <div className="relative inline-flex items-center">
-                          <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 flex items-center">
-                            {tp.thirdPartyType === 'CLIENTE' && <AppIcon name="purchases" size={13} className="text-emerald-700" />}
-                            {tp.thirdPartyType === 'PROVEEDOR' && <AppIcon name="package" size={13} className="text-blue-700" />}
-                            {tp.thirdPartyType === 'EMPLEADO' && <AppIcon name="users" size={13} className="text-purple-700" />}
-                            {tp.thirdPartyType === 'ACREEDOR' && <AppIcon name="warehouse" size={13} className="text-amber-700" />}
-                            {tp.thirdPartyType === 'OTRO' && <AppIcon name="layers" size={13} className="text-slate-600" />}
-                          </span>
-                          <SelectField
-                            value={tp.thirdPartyType}
-                            disabled={updatingId === tp.id}
-                            size="sm"
-                            onChange={(value) => handleTypeChange(tp.id, value as ThirdPartyType)}
-                          >
-                            <option value="CLIENTE">Cliente</option>
-                            <option value="PROVEEDOR">Proveedor</option>
-                            <option value="EMPLEADO">Empleado</option>
-                            <option value="ACREEDOR">Acreedor</option>
-                            <option value="OTRO">Otro</option>
-                          </SelectField>
-                          <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 flex items-center">
-                            <AppIcon name="chevronDown" size={11} />
-                          </span>
-                        </div>
-                      ) : (
-                        <span className={`badge text-xs font-semibold inline-flex items-center gap-1.5 ${getTypeBadgeStyle(tp.thirdPartyType)}`}>
-                          {tp.thirdPartyType === 'CLIENTE' && <><AppIcon name="purchases" size={12} className="text-emerald-700" /> Cliente</>}
-                          {tp.thirdPartyType === 'PROVEEDOR' && <><AppIcon name="package" size={12} className="text-blue-700" /> Proveedor</>}
-                          {tp.thirdPartyType === 'EMPLEADO' && <><AppIcon name="users" size={12} className="text-purple-700" /> Empleado</>}
-                          {tp.thirdPartyType === 'ACREEDOR' && <><AppIcon name="warehouse" size={12} className="text-amber-700" /> Acreedor</>}
-                          {tp.thirdPartyType === 'OTRO' && <><AppIcon name="layers" size={12} className="text-slate-600" /> Otro</>}
-                        </span>
-                      )}
+                      <span className={`badge text-xs font-semibold inline-flex items-center gap-1.5 ${getTypeBadgeStyle(tp.thirdPartyType)}`}>
+                        {tp.thirdPartyType === 'CLIENTE' && <><AppIcon name="purchases" size={12} className="text-emerald-700" /> Cliente</>}
+                        {tp.thirdPartyType === 'PROVEEDOR' && <><AppIcon name="package" size={12} className="text-blue-700" /> Proveedor</>}
+                        {tp.thirdPartyType === 'EMPLEADO' && <><AppIcon name="users" size={12} className="text-purple-700" /> Empleado</>}
+                        {tp.thirdPartyType === 'ACREEDOR' && <><AppIcon name="warehouse" size={12} className="text-amber-700" /> Acreedor</>}
+                        {tp.thirdPartyType === 'OTRO' && <><AppIcon name="layers" size={12} className="text-slate-600" /> Otro</>}
+                      </span>
                     </td>
                     <td>
                       <div className="flex flex-col text-[11px] text-slate-600 gap-0.5">
@@ -451,7 +429,7 @@ export function AccountingThirdPartiesTab({
                     </td>
                     <td>
                       <span className="text-xs text-slate-600">
-                        {tp.city || 'Medellín'}{tp.department ? `, ${tp.department}` : ''}
+                        {[tp.city, tp.department].filter(Boolean).join(', ') || '—'}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
@@ -463,6 +441,19 @@ export function AccountingThirdPartiesTab({
                         {tp.isActive !== false ? 'Activo' : 'Inactivo'}
                       </span>
                     </td>
+                    {canChangeRole && (
+                      <td style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          title={`Cambiar rol de ${tp.companyName}`}
+                          aria-label={`Cambiar rol de ${tp.companyName}`}
+                          onClick={() => setRoleTarget(tp)}
+                        >
+                          <AppIcon name="arrowLeftRight" size={15} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -470,6 +461,17 @@ export function AccountingThirdPartiesTab({
           </table>
         </div>
       </div>
+
+      <ClassificationChangeModal
+        isOpen={roleTarget !== null}
+        title="Rol del tercero"
+        subtitle={roleTarget?.companyName}
+        legend="Clasificación"
+        options={ROLE_OPTIONS}
+        currentValue={roleTarget?.thirdPartyType ?? 'OTRO'}
+        onCancel={closeRoleDialog}
+        onConfirm={handleRoleConfirm}
+      />
     </div>
   )
 }

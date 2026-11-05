@@ -9,6 +9,7 @@ import { getRuntimeSettings } from '@/features/settings/services/runtime-setting
 import { POSThermalTicket } from './ticket/POSThermalTicket'
 import { posThermalTicketStyles } from './ticket/posThermalTicketStyles'
 import { printThermalTicket } from '../utils/print-thermal-ticket'
+import { dianApiClient } from '@/features/invoices/services/dian-api.client'
 
 interface POSTicketReceiptModalProps {
   isOpen: boolean
@@ -17,9 +18,10 @@ interface POSTicketReceiptModalProps {
 }
 
 type TicketState =
+  | { status: 'invoicing' }
   | { status: 'loading' }
   | { status: 'error'; message: string }
-  | { status: 'ready'; data: CustomerReceiptData }
+  | { status: 'ready'; data: CustomerReceiptData; invoiceError: string | null }
 
 export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
   isOpen,
@@ -31,24 +33,34 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
   const saleId = receipt?.saleId ?? null
   const cashReceived = receipt?.paymentMethod === 'EFECTIVO' ? receipt.amountPaid : undefined
 
-  // La tirilla se arma con los datos guardados de la venta (y su documento DIAN si existe), no con el carrito.
+  const [attempt, setAttempt] = useState(0)
+
+  // Cada venta del POS se factura electrónicamente; luego la tirilla se arma con los datos guardados
+  // de la venta y su documento DIAN (resolución, CUFE y QR). Si la factura falla, sale el tiquete normal.
   useEffect(() => {
     if (!isOpen || !saleId) return
     let alive = true
-    setState({ status: 'loading' })
-    customerReceiptService
-      .getBySaleId(saleId, { cashReceived })
-      .then((data) => {
-        if (!alive) return
-        setState(data ? { status: 'ready', data } : { status: 'error', message: 'No se encontró la venta para armar la tirilla.' })
-      })
-      .catch((e: unknown) => {
-        if (alive) setState({ status: 'error', message: e instanceof Error ? e.message : 'No se pudo cargar la tirilla.' })
-      })
+    const build = async () => {
+      setState({ status: 'invoicing' })
+      let invoiceError: string | null = null
+      try {
+        await dianApiClient.emitPosSale(saleId)
+      } catch (e: unknown) {
+        invoiceError = e instanceof Error ? e.message : 'No se pudo emitir la factura electrónica.'
+      }
+      if (!alive) return
+      setState({ status: 'loading' })
+      const data = await customerReceiptService.getBySaleId(saleId, { cashReceived })
+      if (!alive) return
+      setState(data ? { status: 'ready', data, invoiceError } : { status: 'error', message: 'No se encontró la venta para armar la tirilla.' })
+    }
+    build().catch((e: unknown) => {
+      if (alive) setState({ status: 'error', message: e instanceof Error ? e.message : 'No se pudo cargar la tirilla.' })
+    })
     return () => {
       alive = false
     }
-  }, [isOpen, saleId, cashReceived])
+  }, [isOpen, saleId, cashReceived, attempt])
 
   const handlePrint = () => {
     if (ticketRef.current) void printThermalTicket(ticketRef.current)
@@ -129,14 +141,26 @@ export const POSTicketReceiptModal: React.FC<POSTicketReceiptModalProps> = ({
 
         <div style={{ flex: 1, overflowY: 'auto', background: '#f8fafc', padding: 12, borderRadius: 12, border: '1px solid var(--line)' }}>
           <style>{posThermalTicketStyles}</style>
+          {state.status === 'ready' && state.invoiceError && (
+            <div
+              role="alert"
+              style={{ marginBottom: 10, padding: '10px 12px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}
+            >
+              <AppIcon name="alertTriangle" size={16} />
+              <span style={{ flex: 1 }}>No se emitió la factura electrónica: {state.invoiceError}</span>
+              <button type="button" className="outline-button" onClick={() => setAttempt((n) => n + 1)} style={{ height: 32, fontSize: 12, fontWeight: 700 }}>
+                Reintentar
+              </button>
+            </div>
+          )}
           {state.status === 'ready' && (
             <div style={{ background: '#ffffff', padding: '12px 8px', border: '1px dashed #cbd5e1', borderRadius: 8 }}>
               <POSThermalTicket ref={ticketRef} data={state.data} voucherNumber={receipt.invoiceNumber} cashierName={receipt.cashierName} />
             </div>
           )}
-          {state.status === 'loading' && (
+          {(state.status === 'invoicing' || state.status === 'loading') && (
             <p role="status" style={{ margin: 0, padding: 24, textAlign: 'center', fontSize: 13, color: '#64748b' }}>
-              Cargando tirilla...
+              {state.status === 'invoicing' ? 'Emitiendo factura electrónica...' : 'Cargando tirilla...'}
             </p>
           )}
           {state.status === 'error' && (

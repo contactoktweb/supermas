@@ -147,6 +147,9 @@ export function CustomerReceiptSheet({ data }: Props) {
                   <span className="cr-num">{money(p.amount)}</span>
                 </li>
               ))}
+              {data.creditDueDate && (
+                <li className="cr-strong"><span>Crédito: vence el</span><span className="cr-num">{data.creditDueDate}</span></li>
+              )}
               {data.cashReceived !== undefined && (
                 <li><span>Efectivo recibido</span><span className="cr-num">{money(data.cashReceived)}</span></li>
               )}

@@ -99,6 +99,7 @@ export const POSThermalTicket = forwardRef<HTMLDivElement, POSThermalTicketProps
           <span>{money(p.amount)}</span>
         </div>
       ))}
+      {data.creditDueDate && <div className="tk-row tk-strong"><span>Crédito: vence el</span><span>{data.creditDueDate}</span></div>}
       {data.cashReceived !== undefined && <div className="tk-row"><span>Efectivo recibido</span><span>{money(data.cashReceived)}</span></div>}
       {data.changeAmount !== undefined && (
         <div className="tk-row tk-strong"><span>Cambio</span><span>{money(data.changeAmount)}</span></div>

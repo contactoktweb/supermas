@@ -20,6 +20,8 @@ function mapPaymentMethodToDb(pm: POSPaymentMethod): 'CASH' | 'CREDIT_CARD' | 'D
       return 'BANK_TRANSFER'
     case 'MIXTO':
       return 'MIXED'
+    case 'CREDITO':
+      return 'CREDIT'
     default:
       return 'CASH'
   }
@@ -36,8 +38,31 @@ function mapPaymentMethodFromDb(dbPm: string): POSPaymentMethod {
       return 'TRANSFERENCIA'
     case 'MIXED':
       return 'MIXTO'
+    case 'CREDIT':
+      return 'CREDITO'
     default:
       return 'EFECTIVO'
+  }
+}
+
+const CUSTOMER_COLUMNS =
+  'id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active'
+
+function mapCustomerRow(c: any): POSCustomer {
+  const displayName = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente'
+  const priceList = c.customer_category === 'WHOLESALE' ? 'WHOLESALE' : c.customer_category === 'VIP' ? 'VIP' : 'DEFAULT'
+  return {
+    id: c.id,
+    displayName,
+    documentNumber: c.document_number,
+    documentType: c.document_type || 'CC',
+    phone: c.phone || '',
+    email: c.email || undefined,
+    address: c.address || undefined,
+    priceList,
+    creditLimit: Number(c.credit_limit || 0),
+    currentBalance: Number(c.current_balance || 0),
+    isActive: c.is_active !== false,
   }
 }
 
@@ -182,7 +207,7 @@ export class POSRepository {
   async searchCustomers(query?: string): Promise<POSCustomer[]> {
     let qBuilder = supabaseClient
       .from('customers')
-      .select('id, first_name, last_name, company_name, document_type, document_number, phone, email, address, customer_category, credit_limit, current_balance, is_active')
+      .select(CUSTOMER_COLUMNS)
       .eq('is_active', true)
       .limit(20)
 
@@ -198,22 +223,19 @@ export class POSRepository {
       return []
     }
 
-    return data.map((c: any) => {
-      const displayName = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Cliente'
-      const priceList = c.customer_category === 'WHOLESALE' ? 'WHOLESALE' : c.customer_category === 'VIP' ? 'VIP' : 'DEFAULT'
-      return {
-        id: c.id,
-        displayName,
-        documentNumber: c.document_number,
-        documentType: c.document_type || 'CC',
-        phone: c.phone || '',
-        email: c.email || undefined,
-        address: c.address || undefined,
-        priceList,
-        creditLimit: Number(c.credit_limit || 0),
-        currentBalance: Number(c.current_balance || 0),
-      }
-    })
+    return data.map(mapCustomerRow)
+  }
+
+  /** Cliente activo por id, con su cupo y saldo actuales (no depende del límite de la búsqueda). */
+  async getCustomerById(customerId: string): Promise<POSCustomer | null> {
+    const { data, error } = await supabaseClient
+      .from('customers')
+      .select(CUSTOMER_COLUMNS)
+      .eq('id', customerId)
+      .eq('is_active', true)
+      .maybeSingle()
+    if (error || !data) return null
+    return mapCustomerRow(data)
   }
 
   /**

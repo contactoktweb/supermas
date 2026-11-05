@@ -5,7 +5,7 @@
  * costos de adquisición, márgenes de utilidad, cuentas contables ni datos de proveedores.
  */
 
-export type POSPaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'MIXTO' | 'OTRO'
+export type POSPaymentMethod = 'EFECTIVO' | 'TARJETA' | 'TRANSFERENCIA' | 'MIXTO' | 'CREDITO' | 'OTRO'
 
 /** Cuenta bancaria destino visible al cajero: solo banco, tipo y últimos 4 dígitos (sin saldos ni números completos). */
 export interface POSBankAccountOption {
@@ -18,7 +18,7 @@ export interface POSBankAccountOption {
 
 /** Pago enviado al servidor. amount = null → el servidor asigna el saldo exacto del total calculado. */
 export interface POSPaymentLine {
-  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD'
+  method: 'CASH' | 'BANK_TRANSFER' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'CREDIT'
   amount: number | null
   bank_account_id?: string | null
 }

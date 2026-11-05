@@ -11,6 +11,9 @@
 
 import { supabaseClient } from '@/lib/supabase/client'
 
+/** Ventas que generan cartera: plazo a crédito o medio de pago crédito (POS y Ventas). */
+const CREDIT_SALE_FILTER = 'payment_terms.eq.CREDITO,payment_method.eq.CREDIT'
+
 export interface AccountReceivableItem {
   id: string
   saleId: string
@@ -195,6 +198,9 @@ export class AccountsReceivableService {
       { count: 'exact' }
     )
 
+    // La cartera solo incluye ventas a crédito: las de contado se pagan al momento de la venta.
+    query = query.or(CREDIT_SALE_FILTER)
+
     // Solo ventas no anuladas salvo que se consulte específicamente ANULADA
     if (params.status === 'ANULADA') {
       query = query.eq('status', 'CANCELLED')
@@ -341,6 +347,7 @@ export class AccountsReceivableService {
     const { data: sales, error } = await supabaseClient
       .from('sales')
       .select('id, customer_id, total_amount, paid_amount, payment_status, due_date, status')
+      .or(CREDIT_SALE_FILTER)
       .not('status', 'eq', 'CANCELLED')
 
     if (error || !sales) {
@@ -420,6 +427,7 @@ export class AccountsReceivableService {
     const { data: sales } = await supabaseClient
       .from('sales')
       .select('total_amount, paid_amount, due_date')
+      .or(CREDIT_SALE_FILTER)
       .not('status', 'eq', 'CANCELLED')
 
     const buckets: Record<AgingBucketSummary['bucket'], { count: number; amount: number }> = {
@@ -513,6 +521,7 @@ export class AccountsReceivableService {
       .from('sales')
       .select('id, sale_number, created_at, due_date, total_amount, paid_amount, payment_status, payment_terms, status, notes, locations(name, code)')
       .eq('customer_id', customerId)
+      .or(CREDIT_SALE_FILTER)
       .order('created_at', { ascending: false })
 
     const todayStr = new Date().toISOString().split('T')[0]

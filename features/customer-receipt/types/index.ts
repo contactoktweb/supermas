@@ -92,6 +92,8 @@ export interface CustomerReceiptData {
   taxTotal: number
   total: number
   payments: CustomerReceiptPayment[]
+  /** Venta a crédito: fecha de vencimiento (dd/mm/aaaa) del saldo cargado a la cuenta del cliente. */
+  creditDueDate?: string
   /** Efectivo entregado por el cliente (solo cuando el POS lo informa) y su cambio. */
   cashReceived?: number
   changeAmount?: number

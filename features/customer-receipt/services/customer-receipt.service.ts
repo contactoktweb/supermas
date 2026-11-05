@@ -97,6 +97,12 @@ function formatBogotaDate(iso: string): { date: string; time: string } {
   }
 }
 
+/** Fecha sin hora (aaaa-mm-dd) en formato dd/mm/aaaa, sin conversión de zona horaria. */
+function formatIsoDay(isoDay: string): string {
+  const [y, m, d] = isoDay.slice(0, 10).split('-')
+  return `${d}/${m}/${y}`
+}
+
 /** Fecha/hora de emisión de la factura tal como quedó en el XML (issue_date / issue_time, hora Colombia). */
 function invoiceIssueDate(invoice: Invoice): { date: string; time: string } | null {
   if (!invoice.issueDate) return null
@@ -235,6 +241,7 @@ export function buildCustomerReceipt(raw: RawCustomerReceipt, options: CustomerR
     taxTotal,
     total,
     payments,
+    creditDueDate: sale.payment_terms === 'CREDITO' && sale.due_date ? formatIsoDay(sale.due_date) : undefined,
     cashReceived: hasValidCash ? received : undefined,
     changeAmount: hasValidCash ? round2((received as number) - cashDue) : undefined,
     fiscal: invoice ? buildFiscal(invoice) : null,

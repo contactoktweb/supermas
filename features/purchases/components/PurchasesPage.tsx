@@ -247,12 +247,19 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
       effectiveUserContext
     )
     const recNum = received.receptionInfo?.receptionNumber
+    const entryNumber = received.receptionInfo?.accountingEntryNumber
+    const accountingError = received.receptionInfo?.accountingError
+    const accountingNote = entryNumber
+      ? ` La compra se causó en contabilidad (${entryNumber}).`
+      : accountingError
+        ? ` No se pudo causar en contabilidad: ${accountingError}`
+        : ''
     addToast(
       'Mercancía Recibida',
-      recNum
+      (recNum
         ? `Acta ${recNum} generada con éxito. Inventario ingresado a Kardex en ${received.destinationLocationName}.`
-        : `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`,
-      'success'
+        : `Inventario ingresado a Kardex en la bodega ${received.destinationLocationName}.`) + accountingNote,
+      accountingError ? 'warning' : 'success'
     )
     // Update active drawer if open
     if (selectedPurchase?.id === purchaseId) {

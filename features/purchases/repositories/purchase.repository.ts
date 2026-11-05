@@ -823,6 +823,8 @@ export class PurchaseRepository {
     if (!updated) throw new Error('Error recuperando compra tras recepción.')
     if (rpcResult?.reception_number && updated.receptionInfo) {
       updated.receptionInfo.receptionNumber = rpcResult.reception_number
+      updated.receptionInfo.accountingEntryNumber = rpcResult.accounting_entry_number ?? null
+      updated.receptionInfo.accountingError = rpcResult.accounting_error ?? null
     }
     return updated
   }

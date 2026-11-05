@@ -791,22 +791,20 @@ export function PurchaseNewDrawer({
                   )}
                 </div>
 
-                {/* Dropdown de resultados */}
+                {/* Resultados en el flujo del paso: si flotaran, el cuerpo con scroll del modal los recortaría */}
                 {searchResults.length > 0 && (
                   <div
+                    role="listbox"
+                    aria-label="Resultados de la búsqueda de productos"
                     style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
                       background: '#fff',
                       borderRadius: 8,
                       border: '1px solid var(--border)',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
-                      maxHeight: 260,
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.08)',
+                      maxHeight: 'min(320px, 45vh)',
                       overflowY: 'auto',
-                      zIndex: 50,
-                      marginTop: 4,
+                      overscrollBehavior: 'contain',
+                      marginTop: 6,
                     }}
                   >
                     {searchResults.map((prod) => (

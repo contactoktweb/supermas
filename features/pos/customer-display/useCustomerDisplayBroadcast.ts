@@ -39,6 +39,7 @@ export function useCustomerDisplayBroadcast({ cart, totals, customerName, locati
         unitOfMeasure: item.unitOfMeasure,
         unitPrice: item.unitPrice,
         discountAmount: item.discountAmount,
+        taxRatePercent: item.taxRatePercent,
         total: item.total,
       })),
       subtotal: totals.subtotal,

@@ -15,6 +15,8 @@ export interface CustomerDisplayItem {
   unitOfMeasure: string
   unitPrice: number
   discountAmount: number
+  /** Tarifa de IVA de la línea (0 si es exenta o excluida). */
+  taxRatePercent: number
   total: number
 }
 

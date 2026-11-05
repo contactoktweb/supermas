@@ -8,6 +8,7 @@ import {
   type CustomerDisplaySale,
   openCustomerDisplayChannel,
 } from './customerDisplayChannel'
+import { ivaLabel } from '../utils/iva-label'
 
 /** Tiempo que permanece el agradecimiento si no se empieza otra venta. */
 const THANK_YOU_MS = 12_000
@@ -138,7 +139,7 @@ export function CustomerDisplayView() {
                 </div>
               )}
               <div>
-                <dt>IVA</dt>
+                <dt>{ivaLabel(items)}</dt>
                 <dd>{formatCOP(cart?.taxTotal ?? 0)}</dd>
               </div>
             </dl>

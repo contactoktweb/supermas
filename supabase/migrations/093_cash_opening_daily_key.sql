@@ -7,8 +7,8 @@
 --   - Permiso nuevo pos.opening_key ("Ver la clave diaria de apertura de caja"),
 --     asignado a SUPERADMIN y ADMIN.
 --   - cash_opening_keys: una clave de 6 dígitos por empresa y día (fecha de Bogotá).
---     Se genera con gen_random_bytes (pgcrypto) la primera vez que alguien autorizado la
---     consulta ese día, así que se renueva sola al cambiar el día.
+--     Se genera con gen_random_bytes (pgcrypto) la primera vez que se consulta o se usa
+--     ese día, así que se renueva sola al cambiar el día.
 --   - cash_opening_key_attempts: intentos fallidos por usuario y día; con 5 fallos el
 --     usuario queda bloqueado para abrir caja hasta el día siguiente.
 --   - fn_get_cash_opening_key(): devuelve (o crea) la clave de hoy a quien tenga
@@ -233,9 +233,9 @@ BEGIN
         );
     END IF;
 
-    SELECT key_code INTO v_expected_key
-    FROM public.cash_opening_keys
-    WHERE company_id = v_company_id AND business_date = v_business_date;
+    -- La clave del día existe siempre (aunque nadie la haya consultado aún), así un intento
+    -- antes de que el administrador la mire falla como cualquier clave errada.
+    v_expected_key := public.fn_cash_opening_key_ensure_internal(v_company_id, NULL);
 
     v_given_key := NULLIF(btrim(COALESCE(p_opening_key, '')), '');
     -- Se comparan resúmenes SHA-256 de igual longitud para no filtrar por tiempo cuántos dígitos coinciden.

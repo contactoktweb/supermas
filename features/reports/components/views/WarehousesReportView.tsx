@@ -105,6 +105,10 @@ export function WarehousesReportView({
         </section>
       )}
 
+      {warehouses.some((wh) => wh.grossProfit !== null && wh.grossProfit !== undefined) && (
+        <WarehouseProfitabilityTable warehouses={warehouses} />
+      )}
+
       {/* Grid de Rendimiento de Todas las Bodegas */}
       <section>
         <div className="flex justify-between items-center mb-4">
@@ -176,7 +180,7 @@ export function WarehousesReportView({
                     </div>
                     {wh.grossProfit !== null && wh.grossProfit !== undefined && (
                       <div className="flex justify-between pt-1.5 border-t border-slate-100">
-                        <span className="text-slate-600 font-sans text-[11px] font-medium">Utilidad:</span>
+                        <span className="text-slate-600 font-sans text-[11px] font-medium">Utilidad sin IVA:</span>
                         <span className="text-emerald-700 font-bold">
                           ${wh.grossProfit.toLocaleString('es-CO')} ({wh.grossMarginPercent}%)
                         </span>
@@ -195,5 +199,78 @@ export function WarehousesReportView({
         </div>
       </section>
     </div>
+  )
+}
+
+const formatMoney = (value: number) => `$${Math.round(value).toLocaleString('es-CO')}`
+
+/** Utilidad sin impuestos y rentabilidad de cada punto, de mayor a menor utilidad. */
+function WarehouseProfitabilityTable({ warehouses }: { warehouses: WarehousePerformanceMetrics[] }) {
+  const rows = [...warehouses].sort((a, b) => (b.grossProfit || 0) - (a.grossProfit || 0))
+  const totals = rows.reduce(
+    (acc, wh) => ({
+      net: acc.net + wh.netSalesTotal,
+      tax: acc.tax + wh.taxTotal,
+      cost: acc.cost + (wh.costOfSales || 0),
+      profit: acc.profit + (wh.grossProfit || 0),
+    }),
+    { net: 0, tax: 0, cost: 0, profit: 0 }
+  )
+  const totalMargin = totals.net > 0 ? ((totals.profit / totals.net) * 100).toFixed(1) : '0.0'
+  const totalReturn = totals.cost > 0 ? ((totals.profit / totals.cost) * 100).toFixed(1) : '0.0'
+
+  return (
+    <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs" aria-labelledby="warehouse-profitability-title">
+      <h3 id="warehouse-profitability-title" className="text-sm font-bold text-slate-900 tracking-wide">
+        Rentabilidad por punto (utilidad sin impuestos)
+      </h3>
+      <p className="text-xs text-slate-500 mt-0.5 mb-4">
+        Ventas sin IVA menos el costo de lo vendido en cada bodega. Excluye ventas anuladas.
+      </p>
+      <div className="table-scroll">
+        <table className="products-table">
+          <thead>
+            <tr>
+              <th>Bodega</th>
+              <th className="text-right">Ventas sin IVA</th>
+              <th className="text-right">IVA</th>
+              <th className="text-right">Costo de ventas</th>
+              <th className="text-right">Utilidad</th>
+              <th className="text-right">Margen</th>
+              <th className="text-right">Rentab. s/costo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((wh) => (
+              <tr key={wh.locationId}>
+                <td>
+                  <strong className="text-slate-900">{wh.name}</strong>
+                  <span className="block text-[11px] text-slate-500 font-mono">{wh.code}</span>
+                </td>
+                <td className="text-right font-mono">{formatMoney(wh.netSalesTotal)}</td>
+                <td className="text-right font-mono text-slate-500">{formatMoney(wh.taxTotal)}</td>
+                <td className="text-right font-mono">{formatMoney(wh.costOfSales || 0)}</td>
+                <td className={`text-right font-mono font-bold ${(wh.grossProfit || 0) >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                  {formatMoney(wh.grossProfit || 0)}
+                </td>
+                <td className="text-right font-mono">{wh.grossMarginPercent ?? 0}%</td>
+                <td className="text-right font-mono">{wh.returnOnCostPercent ?? 0}%</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">Total</th>
+              <td className="text-right font-mono font-bold">{formatMoney(totals.net)}</td>
+              <td className="text-right font-mono text-slate-500">{formatMoney(totals.tax)}</td>
+              <td className="text-right font-mono font-bold">{formatMoney(totals.cost)}</td>
+              <td className="text-right font-mono font-bold text-emerald-700">{formatMoney(totals.profit)}</td>
+              <td className="text-right font-mono font-bold">{totalMargin}%</td>
+              <td className="text-right font-mono font-bold">{totalReturn}%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>
   )
 }

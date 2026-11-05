@@ -354,8 +354,15 @@ export interface WarehousePerformanceMetrics {
   inventoryUnits: number
   inventoryValueAtCost?: number | null
   inventoryValueAtSale: number
+  /** Ventas sin IVA (después de descuentos). */
+  netSalesTotal: number
+  taxTotal: number
+  costOfSales?: number | null
+  /** Utilidad sin impuestos: ventas sin IVA menos costo de lo vendido. */
   grossProfit?: number | null
   grossMarginPercent?: number | null
+  /** Rentabilidad sobre el costo: utilidad / costo de lo vendido. */
+  returnOnCostPercent?: number | null
   activeCustomersCount: number
   activeSuppliersCount: number
   movementsCount: number

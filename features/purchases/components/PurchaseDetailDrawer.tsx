@@ -369,7 +369,8 @@ export function PurchaseDetailDrawer({
           style={{
             display: 'flex',
             borderBottom: '1px solid var(--border)',
-            padding: '0 24px',
+            padding: 0,
+            overflowX: 'auto',
             background: '#fff',
           }}
         >

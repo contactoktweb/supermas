@@ -40,6 +40,7 @@ export const LIGHT_ICON_MAP = {
   settings: 'solar:settings-linear',
   layers: 'solar:layers-linear',
   wallet: 'solar:wallet-money-linear',
+  qrCode: 'solar:qr-code-linear',
 
   // Actions & Controls
   search: 'solar:magnifier-linear',

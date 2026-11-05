@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase } from '../types'
 import { useEscapeKey } from '@/hooks/useEscapeKey'
+import { PurchaseAccountingPendingNote } from './PurchaseAccountingPendingNote'
 
 interface PurchaseShortageCloseModalProps {
   purchase: Purchase | null
@@ -132,6 +133,8 @@ export function PurchaseShortageCloseModal({
               </>
             )}
           </p>
+
+          {initialReason && <PurchaseAccountingPendingNote />}
 
           <div style={{ border: '1px solid var(--line)', borderRadius: 10, overflowX: 'auto' }}>
             <table style={{ width: '100%', minWidth: 0, borderCollapse: 'collapse', fontSize: 12 }}>

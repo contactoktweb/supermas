@@ -33,7 +33,8 @@ import { PurchaseStatsSkeleton, PurchaseTableSkeleton } from './PurchaseSkeleton
 import { PurchaseEmptyState } from './PurchaseEmptyState'
 import { PurchaseErrorState } from './PurchaseErrorState'
 import { PurchaseToastContainer, usePurchaseToasts } from './PurchaseToast'
-import { canReceivePurchase } from '../utils/purchase-status'
+import { canReceivePurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
+import { PURCHASE_ACCOUNTING_PENDING_MESSAGE } from './PurchaseAccountingPendingNote'
 import { useDocumentSearchParam } from '@/hooks/useDocumentSearchParam'
 
 interface PurchasesPageProps {
@@ -255,7 +256,9 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
       ? ` La compra se causó en contabilidad (${entryNumber}).`
       : accountingError
         ? ` No se pudo causar en contabilidad: ${accountingError}`
-        : ''
+        : isPartiallyReceivedPurchase(received.status)
+          ? ` ${PURCHASE_ACCOUNTING_PENDING_MESSAGE}`
+          : ''
     addToast(
       'Mercancía Recibida',
       (recNum

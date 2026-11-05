@@ -6,6 +6,7 @@ import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
 import { getPurchaseStatusBadge, getPaymentTypeBadge, SupplierInvoicePendingBadge } from './PurchaseTable'
 import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase, isSupplierInvoicePending } from '../utils/purchase-status'
+import { PurchaseAccountingPendingNote } from './PurchaseAccountingPendingNote'
 import { purchaseService } from '../services/purchase.service'
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal'
 import { PurchaseCostTracePanel } from './PurchaseCostTracePanel'
@@ -310,6 +311,12 @@ export function PurchaseDetailDrawer({
             </button>
           )}
         </div>
+
+        {isPartiallyReceivedPurchase(purchase.status) && (
+          <div style={{ padding: '12px 24px 0' }}>
+            <PurchaseAccountingPendingNote />
+          </div>
+        )}
 
         {/* Executive Summary Cards */}
         <div

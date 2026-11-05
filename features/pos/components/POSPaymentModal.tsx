@@ -5,6 +5,7 @@ import { POSBankAccountOption, POSCustomer, POSPaymentMethod, POSTotals } from '
 import { AppIcon } from '@/components/ui/Icon'
 import { POS_CARD_PAYMENTS_ENABLED } from '../schemas/pos.schema'
 import { SelectField } from '@/components/ui/SelectField'
+import { getCustomerCreditStatus } from '../utils/customer-credit'
 
 interface POSPaymentModalProps {
   isOpen: boolean
@@ -29,11 +30,12 @@ interface POSPaymentModalProps {
   canReceiveCash?: boolean
 }
 
-const ALL_PAYMENT_METHODS: { id: POSPaymentMethod; label: string; iconName: 'sales' | 'creditCard' | 'webOrders' | 'transfers'; description: string }[] = [
+const ALL_PAYMENT_METHODS: { id: POSPaymentMethod; label: string; iconName: 'sales' | 'creditCard' | 'webOrders' | 'transfers' | 'wallet'; description: string }[] = [
   { id: 'EFECTIVO', label: 'Efectivo', iconName: 'sales', description: 'Pago en caja' },
   { id: 'TARJETA', label: 'Tarjeta Débito/Crédito', iconName: 'creditCard', description: 'Datáfono' },
   { id: 'TRANSFERENCIA', label: 'Transferencia QR', iconName: 'webOrders', description: 'Nequi / Bancolombia' },
   { id: 'MIXTO', label: 'Mixto', iconName: 'transfers', description: POS_CARD_PAYMENTS_ENABLED ? 'Efectivo + otro medio' : 'Efectivo + transferencia' },
+  { id: 'CREDITO', label: 'Crédito', iconName: 'wallet', description: 'Cargo a la cuenta del cliente' },
 ]
 // Por ahora el POS no recibe tarjeta (decisión de la empresa).
 const PAYMENT_METHODS = ALL_PAYMENT_METHODS.filter((m) => POS_CARD_PAYMENTS_ENABLED || m.id !== 'TARJETA')
@@ -82,6 +84,9 @@ export function POSPaymentModal({
   const usableAccounts = bankAccounts.filter((a) => a.hasLedger)
   const mixedInvalid = paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totalAmount)
   const bankMissing = needsBank && !bankAccountId
+  const isCredit = paymentMethod === 'CREDITO'
+  const creditStatus = getCustomerCreditStatus(customer, amountDue)
+  const creditBlocked = isCredit && !creditStatus.allowed
   const accountLabel = (a: POSBankAccountOption) =>
     `${a.bankName} · ${a.accountType === 'CORRIENTE' ? 'Corriente' : a.accountType === 'AHORROS' || a.accountType === 'AHORRO' ? 'Ahorros' : a.accountType} *${a.last4}`
 
@@ -211,17 +216,18 @@ export function POSPaymentModal({
           <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--navy)' }}>
             Método de Pago
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
             {PAYMENT_METHODS.map((method) => {
               const isSelected = paymentMethod === method.id
               const needsCash = method.id === 'EFECTIVO' || method.id === 'MIXTO'
-              const isUnavailable = needsCash && !canReceiveCash
+              const creditUnavailable = method.id === 'CREDITO' && !creditStatus.allowed
+              const isUnavailable = (needsCash && !canReceiveCash) || creditUnavailable
               return (
                 <button
                   key={method.id}
                   type="button"
                   disabled={isUnavailable}
-                  title={isUnavailable ? 'Requiere caja abierta en esta sede' : undefined}
+                  title={creditUnavailable ? creditStatus.reason : isUnavailable ? 'Requiere caja abierta en esta sede' : undefined}
                   onClick={() => {
                     setPaymentMethod(method.id)
                     if (method.id !== 'EFECTIVO') {
@@ -319,6 +325,29 @@ export function POSPaymentModal({
                 ))}
               </SelectField>
             )}
+          </div>
+        )}
+
+        {isCredit && (
+          <div
+            role="note"
+            style={{ background: '#f8fafc', border: '1.5px solid var(--line)', borderRadius: 14, padding: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}
+          >
+            <div>
+              <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', display: 'block' }}>Cupo disponible</span>
+              <strong style={{ fontSize: 18, fontWeight: 900, color: 'var(--navy)' }}>{formatCOP(creditStatus.available)}</strong>
+            </div>
+            <div>
+              <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', color: '#64748b', display: 'block' }}>Cupo después de la venta</span>
+              <strong style={{ fontSize: 18, fontWeight: 900, color: creditBlocked ? '#b91c1c' : '#15803d' }}>
+                {formatCOP(creditStatus.available - amountDue)}
+              </strong>
+            </div>
+            <p style={{ gridColumn: '1 / -1', margin: 0, fontSize: 12, color: creditBlocked ? '#991b1b' : '#334155', lineHeight: 1.45 }}>
+              {creditBlocked
+                ? creditStatus.reason
+                : 'La venta queda pendiente de pago en Cuentas por cobrar, con vencimiento según el plazo de crédito del cliente.'}
+            </p>
           </div>
         )}
 
@@ -520,7 +549,7 @@ export function POSPaymentModal({
           <button
             type="button"
             onClick={onConfirmPayment}
-            disabled={loading || isInsufficient || totalAmount <= 0 || bankMissing || mixedInvalid}
+            disabled={loading || isInsufficient || totalAmount <= 0 || bankMissing || mixedInvalid || creditBlocked}
             className="primary-button"
             style={{
               height: 42,

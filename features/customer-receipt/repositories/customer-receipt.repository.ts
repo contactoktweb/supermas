@@ -13,6 +13,8 @@ export interface RawReceiptSale {
   sale_number: string
   status: string
   payment_method: string
+  payment_terms: string | null
+  due_date: string | null
   subtotal_amount: number | string | null
   discount_amount: number | string | null
   tax_amount: number | string | null
@@ -81,7 +83,7 @@ export interface RawCustomerReceipt {
 }
 
 const SALE_SELECT = `
-  id, sale_number, status, payment_method, subtotal_amount, discount_amount, tax_amount, total_amount,
+  id, sale_number, status, payment_method, payment_terms, due_date, subtotal_amount, discount_amount, tax_amount, total_amount,
   cash_session_id, created_at,
   customers ( first_name, last_name, company_name, document_type, document_number, dian_tax_level_codes ),
   locations ( name ),

@@ -13,6 +13,7 @@ import {
   POSBankAccountOption,
   POSOpenCashSession,
 } from '../types'
+import { getCustomerCreditStatus } from '../utils/customer-credit'
 
 const DEFAULT_POS_USER: POSUserContext = {
   userId: '',
@@ -209,6 +210,9 @@ export class POSService {
           { method: bankMethod(validated.mixedRestMethod || 'TRANSFERENCIA'), amount: null, bank_account_id: validated.bankAccountId },
         ]
       }
+      case 'CREDITO':
+        // Sin dinero recibido: el servidor deja la venta pendiente y la carga a la cuenta del cliente.
+        return [{ method: 'CREDIT', amount: null }]
       default:
         throw new Error('Medio de pago no soportado en POS.')
     }
@@ -232,9 +236,11 @@ export class POSService {
     const validated = posSalePayloadSchema.parse(payload)
 
     // 2. Obtener cliente
-    const customers = await this.repo.searchCustomers()
-    let customer = customers.find((c) => c.id === validated.customerId)
+    let customer = await this.repo.getCustomerById(validated.customerId)
     if (!customer) {
+      if (validated.paymentMethod === 'CREDITO') {
+        throw new Error('No se encontró el cliente seleccionado o está inactivo.')
+      }
       customer = await this.repo.getGenericCustomer()
     }
 
@@ -336,7 +342,11 @@ export class POSService {
         `El valor recibido ($${amountPaid.toLocaleString('es-CO')}) no cubre el total de la venta ($${totalAmount.toLocaleString('es-CO')}).`
       )
     }
-    if (validated.paymentMethod !== 'EFECTIVO') {
+    if (validated.paymentMethod === 'CREDITO') {
+      const credit = getCustomerCreditStatus(customer, Math.round(totalAmount))
+      if (!credit.allowed) throw new Error(credit.reason)
+      amountPaid = 0
+    } else if (validated.paymentMethod !== 'EFECTIVO') {
       amountPaid = totalAmount // Tarjeta/Transferencia/Mixto se cobra exacto
     }
     const changeAmount = Math.max(0, amountPaid - totalAmount)

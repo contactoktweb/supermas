@@ -8,6 +8,7 @@ export const posPaymentMethodSchema = z.enum([
   'TARJETA',
   'TRANSFERENCIA',
   'MIXTO',
+  'CREDITO',
 ])
 
 export const posCartItemSchema = z.object({

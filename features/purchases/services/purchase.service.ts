@@ -9,6 +9,7 @@ import {
   UpdatePurchaseInput,
   ReceivePurchaseInput,
   RegisterPaymentInput,
+  RegisterSupplierInvoiceInput,
   UserPermissionContext,
 } from '../types'
 import { purchaseRepository, PurchaseRepository } from '../repositories/purchase.repository'
@@ -21,7 +22,9 @@ import {
   registerPaymentSchema,
   cancelPurchaseSchema,
   receivePurchaseSchema,
+  registerSupplierInvoiceSchema,
 } from '../schemas/purchase.schema'
+import { isCancelledPurchase } from '../utils/purchase-status'
 
 export class PurchaseService {
   private repository: PurchaseRepository
@@ -153,6 +156,31 @@ export class PurchaseService {
       throw new Error('No tienes permisos para ver los costos de compra.')
     }
     return this.repository.getCostTrace(purchaseId)
+  }
+
+  /**
+   * Registra la factura que el proveedor envía después de emitida la orden: su número y,
+   * si se tiene, el archivo. Con el número registrado la orden deja de estar pendiente por factura.
+   */
+  async registerSupplierInvoice(
+    input: RegisterSupplierInvoiceInput,
+    userContext?: UserPermissionContext
+  ): Promise<Purchase> {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para registrar facturas de proveedor.')
+    }
+    const { purchaseId, supplierInvoiceNumber } = registerSupplierInvoiceSchema.parse(input)
+
+    const existing = await this.repository.findById(purchaseId)
+    if (!existing) throw new Error('Orden de compra no encontrada.')
+    if (isCancelledPurchase(existing.status)) {
+      throw new Error('La orden está anulada y no admite factura.')
+    }
+
+    await this.repository.updateSupplierInvoiceNumber(purchaseId, supplierInvoiceNumber)
+    const updated = (await this.repository.findById(purchaseId)) ?? existing
+    const result = await this.attachInvoice(updated, input.file)
+    return this.sanitizePurchaseForUser(result, this.hasPermission(userContext, 'cost.read'))
   }
 
   /** URL temporal para ver la factura adjunta de una compra. */

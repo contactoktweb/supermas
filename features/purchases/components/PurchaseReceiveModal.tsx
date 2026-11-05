@@ -222,7 +222,7 @@ export function PurchaseReceiveModal({
             >
               <span style={{ color: 'var(--muted)' }}>Factura proveedor:</span>
               <span style={{ fontWeight: 600 }}>
-                {purchase.supplierInvoiceNumber}
+                {purchase.supplierInvoiceNumber || 'Pendiente por factura'}
               </span>
             </div>
             <div

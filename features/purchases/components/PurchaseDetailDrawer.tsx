@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
-import { getPurchaseStatusBadge, getPaymentTypeBadge } from './PurchaseTable'
-import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase } from '../utils/purchase-status'
+import { getPurchaseStatusBadge, getPaymentTypeBadge, SupplierInvoicePendingBadge } from './PurchaseTable'
+import { canReceivePurchase, isCancelledPurchase, isDraftPurchase, isPartiallyReceivedPurchase, isSupplierInvoicePending } from '../utils/purchase-status'
 import { purchaseService } from '../services/purchase.service'
 import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal'
 import { PurchaseCostTracePanel } from './PurchaseCostTracePanel'
+import { PurchaseSupplierInvoiceForm } from './PurchaseSupplierInvoiceForm'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
 
 interface PurchaseDetailDrawerProps {
@@ -25,6 +26,8 @@ interface PurchaseDetailDrawerProps {
   /** Cierra una orden recibida parcialmente cuando el proveedor no enviará lo que falta. */
   onCloseShortage?: (purchase: Purchase) => void
   onViewKardex?: (purchaseNumber: string, locationId: string) => void
+  /** La factura del proveedor llega después de emitida la orden. */
+  onSupplierInvoiceRegistered?: (purchase: Purchase) => void
 }
 
 export function PurchaseDetailDrawer({
@@ -40,6 +43,7 @@ export function PurchaseDetailDrawer({
   onCancel,
   onCloseShortage,
   onViewKardex,
+  onSupplierInvoiceRegistered,
 }: PurchaseDetailDrawerProps) {
   const [mounted, setMounted] = useState(false)
   const [activeTab, setActiveTab] = useState<'items' | 'payments' | 'documents'>('items')
@@ -99,6 +103,10 @@ export function PurchaseDetailDrawer({
       setAttachmentError(err instanceof Error ? err.message : 'No se pudo abrir la factura.')
     }
   }
+  const canRegisterInvoice =
+    Boolean(onSupplierInvoiceRegistered) &&
+    !isCancelledPurchase(purchase.status) &&
+    (isSupplierInvoicePending(purchase) || !purchase.attachments?.length)
   const canCancel =
     purchase.status !== 'RECEIVED' &&
     purchase.status !== 'RECIBIDA' &&
@@ -152,9 +160,13 @@ export function PurchaseDetailDrawer({
               >
                 {getPurchaseStatusBadge(purchase.status)}
                 {getPaymentTypeBadge(purchase.paymentType)}
-                <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  Factura: <strong>{purchase.supplierInvoiceNumber}</strong>
-                </span>
+                {isSupplierInvoicePending(purchase) ? (
+                  <SupplierInvoicePendingBadge />
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    Factura: <strong>{purchase.supplierInvoiceNumber}</strong>
+                  </span>
+                )}
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>
                   • {formatDate(purchase.date)}
                 </span>
@@ -760,6 +772,14 @@ export function PurchaseDetailDrawer({
           {/* TAB 3: DOCUMENTOS */}
           {activeTab === 'documents' && (
             <div className="page-enter">
+              {canRegisterInvoice && onSupplierInvoiceRegistered && (
+                <PurchaseSupplierInvoiceForm
+                  key={purchase.id}
+                  purchase={purchase}
+                  userContext={userContext}
+                  onRegistered={onSupplierInvoiceRegistered}
+                />
+              )}
               {!purchase.attachments || purchase.attachments.length === 0 ? (
                 <div
                   style={{
@@ -774,7 +794,7 @@ export function PurchaseDetailDrawer({
                 >
                   <AppIcon name="invoices" size={24} />
                   <p style={{ margin: '8px 0 0' }}>
-                    No se adjuntaron facturas ni documentos digitales a esta orden.
+                    Aún no hay facturas ni documentos adjuntos a esta orden.
                   </p>
                 </div>
               ) : (

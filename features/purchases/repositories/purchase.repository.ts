@@ -299,6 +299,15 @@ export class PurchaseRepository {
     }
   }
 
+  /** Registra el número de la factura que el proveedor envió después de emitir la orden. */
+  async updateSupplierInvoiceNumber(purchaseId: string, supplierInvoiceNumber: string): Promise<void> {
+    const { error } = await this.client
+      .from('purchases')
+      .update({ supplier_invoice_number: supplierInvoiceNumber })
+      .eq('id', purchaseId)
+    if (error) throw new Error('No se pudo registrar la factura del proveedor.')
+  }
+
   /** URL firmada de corta duración para ver la factura adjunta. */
   async getInvoiceAttachmentUrl(path: string): Promise<string> {
     if (/^https?:\/\//.test(path)) return path
@@ -717,7 +726,7 @@ export class PurchaseRepository {
       p_purchase_id: purchaseId,
       p_supplier_id: input.supplierId,
       p_location_id: input.destinationLocationId,
-      p_supplier_invoice_number: input.supplierInvoiceNumber.trim(),
+      p_supplier_invoice_number: (input.supplierInvoiceNumber || '').trim(),
       p_issue_date: input.date ? input.date.split('T')[0] : null,
       p_due_date: input.dueDate ? input.dueDate.split('T')[0] : null,
       p_payment_terms: input.paymentType,

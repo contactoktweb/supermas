@@ -489,8 +489,9 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
       <ProductImportModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onSuccess={(count) => {
-          showToast('Importación completada', `Se importaron ${count} productos correctamente.`, 'success')
+        onSuccess={(result) => {
+          const pending = result.pricePendingCount > 0 ? ` ${result.pricePendingCount} con precio pendiente de aprobación.` : ''
+          showToast('Importación completada', `${result.createdCount} creados y ${result.updatedCount} actualizados.${pending}`, 'success')
           loadData()
         }}
       />

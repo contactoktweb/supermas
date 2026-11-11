@@ -176,3 +176,37 @@ export function parseCleanBoolean(val: unknown, defaultValue: boolean = false): 
 
   return defaultValue
 }
+
+export type ColombianNumberResult =
+  | { ok: true; value: number; ambiguous: boolean }
+  | { ok: false }
+
+/**
+ * Lee un número con el formato colombiano: coma decimal y punto de miles. No adivina: lo que no
+ * encaje en el formato se rechaza en lugar de convertirse en 0 o en otra cifra.
+ * Ejemplos: "3200,50" -> 3200.5, "1.500" -> 1500, "15.000,50" -> 15000.5, "25.5" -> 25.5.
+ * ambiguous: una coma con tres decimales ("1,250") se lee como decimal, pero pudo escribirse como miles.
+ */
+export function parseColombianNumber(val: unknown): ColombianNumberResult {
+  if (typeof val === 'number') return Number.isFinite(val) ? { ok: true, value: val, ambiguous: false } : { ok: false }
+  const str = String(val ?? '').replace(/\$|\bCOP\b|\s/gi, '')
+
+  if (/^-?\d+$/.test(str)) return { ok: true, value: Number(str), ambiguous: false }
+  if (/^-?\d+,\d+$/.test(str)) {
+    return { ok: true, value: Number(str.replace(',', '.')), ambiguous: /^-?\d{1,3},\d{3}$/.test(str) }
+  }
+  if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(str)) {
+    return { ok: true, value: Number(str.replace(/\./g, '').replace(',', '.')), ambiguous: false }
+  }
+  if (/^-?\d+\.\d+$/.test(str)) return { ok: true, value: Number(str), ambiguous: false }
+  return { ok: false }
+}
+
+/** Decodifica un archivo CSV: UTF-8 si es válido; si no, Windows-1252 (el "CSV delimitado" de Excel en español). */
+export function decodeCsvBytes(bytes: ArrayBuffer): string {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch {
+    return new TextDecoder('windows-1252').decode(bytes)
+  }
+}

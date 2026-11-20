@@ -31,6 +31,13 @@ export interface Supplier {
   creditLimit: number
   notes?: string
 
+  // Perfil tributario para retenciones (la empresa le retiene al proveedor)
+  isSelfWithholder: boolean
+  isSimpleRegime: boolean
+  isZeseBeneficiary: boolean
+  zeseStartDate: string | null
+  defaultWithholdingConceptIds: string[]
+
   // Métricas agregadas y retrocompatibilidad
   deliveriesCount: number
   totalPurchased: number
@@ -102,6 +109,11 @@ export interface CreateSupplierInput {
   creditDays?: number
   creditLimit?: number
   notes?: string
+  isSelfWithholder?: boolean
+  isSimpleRegime?: boolean
+  isZeseBeneficiary?: boolean
+  zeseStartDate?: string | null
+  defaultWithholdingConceptIds?: string[]
 }
 
 export interface UpdateSupplierInput extends Partial<CreateSupplierInput> {

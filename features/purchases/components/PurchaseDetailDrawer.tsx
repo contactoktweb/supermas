@@ -12,6 +12,7 @@ import { PurchaseOrderPdfModal } from './PurchaseOrderPdfModal'
 import { PurchaseCostTracePanel } from './PurchaseCostTracePanel'
 import { PurchaseSupplierInvoiceForm } from './PurchaseSupplierInvoiceForm'
 import { displayLabel, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
+import { DocumentWithholdingSummary } from '@/features/withholdings/components/DocumentWithholdingSummary'
 
 interface PurchaseDetailDrawerProps {
   purchase: Purchase | null
@@ -632,6 +633,13 @@ export function PurchaseDetailDrawer({
                       {formatCurrency(purchase.total)}
                     </span>
                   </div>
+                  <DocumentWithholdingSummary
+                    documentType="PURCHASE"
+                    documentId={purchase.id}
+                    total={purchase.total}
+                    withholdingTotal={purchase.withholdingTotal}
+                    netLabel="Neto a pagar:"
+                  />
                 </div>
               </div>
 
@@ -688,7 +696,7 @@ export function PurchaseDetailDrawer({
                     Pagado:{' '}
                     <strong>{formatCurrency(purchase.paidAmount)}</strong> (
                     {(
-                      (purchase.paidAmount / (purchase.total || 1)) *
+                      (purchase.paidAmount / (purchase.netPayable || 1)) *
                       100
                     ).toFixed(0)}
                     %)
@@ -715,7 +723,7 @@ export function PurchaseDetailDrawer({
                         purchase.pendingBalance === 0 ? '#16a34a' : '#7c3aed',
                       width: `${Math.min(
                         100,
-                        (purchase.paidAmount / (purchase.total || 1)) * 100
+                        (purchase.paidAmount / (purchase.netPayable || 1)) * 100
                       )}%`,
                       transition: 'width 0.3s ease',
                     }}

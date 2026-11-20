@@ -17,6 +17,7 @@ import { purchaseCalculationService } from '../services/purchase-calculation.ser
 import { productService } from '@/features/products/services/product.service'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
+import { WithholdingSelector } from '@/features/withholdings/components/WithholdingSelector'
 
 interface PurchaseNewDrawerProps {
   isOpen: boolean
@@ -67,6 +68,8 @@ export function PurchaseNewDrawer({
   const [paymentType, setPaymentType] = useState<PurchasePaymentType>('CONTADO')
   const [dueDate, setDueDate] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
+  const [withholdingConceptIds, setWithholdingConceptIds] = useState<string[]>([])
+  const [withholdingTotal, setWithholdingTotal] = useState(0)
 
   // Step 2: Products
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,6 +95,7 @@ export function PurchaseNewDrawer({
       setDueDate(initialPurchase.dueDate ? initialPurchase.dueDate.split("T")[0] : "")
       setNotes(initialPurchase.notes || "")
       setItems(initialPurchase.items || [])
+      setWithholdingConceptIds(initialPurchase.withholdingConceptIds || [])
       setStep(1)
     } else {
       setSupplierId(suppliers[0]?.id || "")
@@ -102,6 +106,7 @@ export function PurchaseNewDrawer({
       setDueDate("")
       setNotes("")
       setItems([])
+      setWithholdingConceptIds(suppliers[0]?.defaultWithholdingConceptIds || [])
       setStep(1)
     }
   }, [initialPurchase, suppliers, locations, isOpen])
@@ -306,6 +311,7 @@ export function PurchaseNewDrawer({
         dueDate: paymentType === 'CREDITO' ? dueDate : undefined,
         notes: notes.trim() || undefined,
         saveAsDraft,
+        withholdingConceptIds,
         items: items.map((it) => ({
           productId: it.productId,
           productName: it.productName,
@@ -512,7 +518,11 @@ export function PurchaseNewDrawer({
                   </label>
                   <CustomSelect
                     value={supplierId}
-                    onChange={(val) => setSupplierId(val)}
+                    onChange={(val) => {
+                      setSupplierId(val)
+                      // Al cambiar de proveedor se proponen sus retenciones habituales.
+                      setWithholdingConceptIds(suppliers.find((s) => s.id === val)?.defaultWithholdingConceptIds || [])
+                    }}
                     options={suppliers.map((s) => ({
                       value: s.id,
                       label: s.name,
@@ -1141,11 +1151,42 @@ export function PurchaseNewDrawer({
                       marginTop: 12,
                     }}
                   >
-                    <span>Total a Pagar:</span>
+                    <span>Total factura:</span>
                     <span className="font-tabular" style={{ color: '#16a34a' }}>
                       {formatCurrency(totals.total)}
                     </span>
                   </div>
+
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    <WithholdingSelector
+                      side="PURCHASES"
+                      thirdPartyId={supplierId || null}
+                      base={Math.max(0, totals.total - totals.taxTotal)}
+                      tax={totals.taxTotal}
+                      date={date}
+                      selectedIds={withholdingConceptIds}
+                      onSelectedChange={setWithholdingConceptIds}
+                      onTotalChange={setWithholdingTotal}
+                    />
+                  </div>
+
+                  {withholdingTotal > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: 'var(--navy)',
+                        marginTop: 12,
+                      }}
+                    >
+                      <span>Neto a pagar:</span>
+                      <span className="font-tabular" style={{ color: '#16a34a' }}>
+                        {formatCurrency(Math.max(0, totals.total - withholdingTotal))}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1263,6 +1304,7 @@ export function PurchaseNewDrawer({
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {items.length} {items.length === 1 ? 'producto' : 'productos'}{' '}
                     • Total: {formatCurrency(totals.total)}
+                    {withholdingTotal > 0 && ` • Neto a pagar: ${formatCurrency(Math.max(0, totals.total - withholdingTotal))}`}
                   </div>
                 </div>
               </div>

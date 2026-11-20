@@ -10,6 +10,7 @@ import { CreateSaleDTO, CreateSaleItemDTO, PaymentMethod } from '../types'
 import { supabaseClient } from '@/lib/supabase/client'
 import { SelectField } from '@/components/ui/SelectField'
 import { displayLabel, ID_DOCUMENT_LABELS, PAYMENT_METHOD_LABELS } from '@/lib/labels/display-labels'
+import { WithholdingSelector } from '@/features/withholdings/components/WithholdingSelector'
 
 interface NewSaleDrawerProps {
   isOpen: boolean
@@ -66,6 +67,9 @@ export function NewSaleDrawer({
   const [bankAccountId, setBankAccountId] = useState<string>('')
   const [mixedCashAmount, setMixedCashAmount] = useState<number>(0)
   const [mixedRestMethod, setMixedRestMethod] = useState<'TARJETA' | 'TRANSFERENCIA'>('TRANSFERENCIA')
+  // Retenciones que practica el cliente agente retenedor; el servidor las recalcula al grabar.
+  const [withholdingConceptIds, setWithholdingConceptIds] = useState<string[]>([])
+  const [withholdingTotal, setWithholdingTotal] = useState<number>(0)
 
   useEffect(() => {
     if (!isOpen) return
@@ -116,7 +120,7 @@ export function NewSaleDrawer({
     Promise.all([
       supabaseClient
         .from('customers')
-        .select('id, first_name, last_name, company_name, document_type, document_number, city, phone, email, is_active, credit_limit, current_balance')
+        .select('id, first_name, last_name, company_name, document_type, document_number, city, phone, email, is_active, credit_limit, current_balance, is_withholding_agent, default_withholding_concept_ids')
         .eq('is_active', true)
         .order('first_name', { ascending: true }),
       supabaseClient
@@ -137,6 +141,8 @@ export function NewSaleDrawer({
             email: c.email || '',
             creditLimit: Number(c.credit_limit || 0),
             currentBalance: Number(c.current_balance || 0),
+            isWithholdingAgent: Boolean(c.is_withholding_agent),
+            defaultWithholdingConceptIds: Array.isArray(c.default_withholding_concept_ids) ? (c.default_withholding_concept_ids as string[]) : [],
             priceList: 'DEFAULT',
             status: 'ACTIVE',
           }))
@@ -229,12 +235,20 @@ export function NewSaleDrawer({
 
   useEffect(() => {
     setIdempotencyKey(crypto.randomUUID())
-  }, [isOpen, selectedCustomerId, selectedLocationId, cart, paymentMethod, bankAccountId, mixedCashAmount, mixedRestMethod])
+  }, [isOpen, selectedCustomerId, selectedLocationId, cart, paymentMethod, bankAccountId, mixedCashAmount, mixedRestMethod, withholdingConceptIds])
 
   // Selected customer object
   const selectedCustomer = useMemo(() => {
     return allCustomers.find((c) => c.id === selectedCustomerId) || null
   }, [allCustomers, selectedCustomerId])
+
+  const customerIsWithholdingAgent = Boolean(selectedCustomer?.isWithholdingAgent)
+
+  // Al cambiar de cliente se precargan sus retenciones habituales (solo si es agente retenedor).
+  useEffect(() => {
+    setWithholdingConceptIds(customerIsWithholdingAgent ? (selectedCustomer?.defaultWithholdingConceptIds ?? []) : [])
+    setWithholdingTotal(0)
+  }, [selectedCustomer, customerIsWithholdingAgent])
 
   // Filtered customers for search
   const filteredCustomers = useMemo(() => {
@@ -309,6 +323,8 @@ export function NewSaleDrawer({
   const totals = useMemo(() => {
     return salesCalculationService.calculateSaleTotals(recalculatedCart as any)
   }, [recalculatedCart])
+
+  const netAmount = Math.max(0, totals.totalAmount - withholdingTotal)
 
   // Add product to cart
   const handleAddProduct = (prod: any) => {
@@ -411,8 +427,8 @@ export function NewSaleDrawer({
       setIsSubmitting(true)
       setErrorMessage(null)
 
-      if (paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= totals.totalAmount)) {
-        setErrorMessage('En pago mixto, la parte en efectivo debe ser mayor a cero y menor que el total.')
+      if (paymentMethod === 'MIXTO' && (mixedCashAmount <= 0 || mixedCashAmount >= netAmount)) {
+        setErrorMessage('En pago mixto, la parte en efectivo debe ser mayor a cero y menor que el neto a cobrar.')
         setStep(3)
         return
       }
@@ -427,6 +443,7 @@ export function NewSaleDrawer({
         mixedRestMethod: paymentMethod === 'MIXTO' ? mixedRestMethod : undefined,
         documentTypeToGenerate: documentType,
         notes: notes.trim() || undefined,
+        withholdingConceptIds: customerIsWithholdingAgent ? withholdingConceptIds : [],
         items: cart.map((i) => ({
           productId: i.productId,
           quantity: i.quantity,
@@ -1036,7 +1053,7 @@ export function NewSaleDrawer({
                         style={{ height: 38, borderRadius: 8, border: '1.5px solid #cbd5e1', padding: '0 10px', fontSize: 14, fontWeight: 700 }}
                       />
                       <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, flexWrap: 'wrap' }}>
-                        <span>Resto ({formatCOP(Math.max(0, totals.totalAmount - mixedCashAmount))}) con:</span>
+                        <span>Resto ({formatCOP(Math.max(0, netAmount - mixedCashAmount))}) con:</span>
                         {(['TRANSFERENCIA', 'TARJETA'] as const).map((m) => (
                           <button key={m} type="button" onClick={() => setMixedRestMethod(m)} className={mixedRestMethod === m ? 'primary-button compact' : 'outline-button compact'} style={{ height: 28, fontSize: 11 }}>
                             {m === 'TRANSFERENCIA' ? 'Transferencia' : 'Tarjeta'}
@@ -1109,6 +1126,27 @@ export function NewSaleDrawer({
                   <strong style={{ fontSize: 16, color: 'var(--navy)' }}>Total a Pagar:</strong>
                   <strong style={{ fontSize: 20, color: 'var(--navy)' }}>{formatCOP(totals.totalAmount)}</strong>
                 </div>
+
+                {customerIsWithholdingAgent && (
+                  <>
+                    <WithholdingSelector
+                      side="SALES"
+                      thirdPartyId={selectedCustomerId || null}
+                      base={totals.subtotal}
+                      tax={totals.taxTotal}
+                      selectedIds={withholdingConceptIds}
+                      onSelectedChange={setWithholdingConceptIds}
+                      onTotalChange={setWithholdingTotal}
+                      disabled={isSubmitting}
+                    />
+                    {withholdingTotal > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: 15, color: 'var(--navy)' }}>Neto a cobrar:</strong>
+                        <strong style={{ fontSize: 18, color: 'var(--navy)' }}>{formatCOP(netAmount)}</strong>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Notes */}
@@ -1198,6 +1236,18 @@ export function NewSaleDrawer({
                   <span style={{ color: 'var(--muted)' }}>Total Venta: </span>
                   <strong style={{ fontSize: 15, color: 'var(--navy)' }}>{formatCOP(totals.totalAmount)}</strong>
                 </div>
+                {withholdingTotal > 0 && (
+                  <>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Retenciones: </span>
+                      <strong>-{formatCOP(withholdingTotal)}</strong>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted)' }}>Neto a cobrar: </span>
+                      <strong style={{ fontSize: 15, color: 'var(--navy)' }}>{formatCOP(netAmount)}</strong>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}

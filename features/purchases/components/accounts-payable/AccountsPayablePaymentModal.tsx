@@ -214,6 +214,14 @@ export function AccountsPayablePaymentModal({
                 {formatCurrency(item.originalAmount)}
               </div>
             </div>
+            {item.withholdingAmount > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>RETENCIONES (−)</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>
+                  {formatCurrency(item.withholdingAmount)}
+                </div>
+              </div>
+            )}
             <div>
               <div style={{ fontSize: 11, color: '#dc2626', fontWeight: 600 }}>SALDO PENDIENTE</div>
               <div style={{ fontSize: 15, fontWeight: 800, color: '#dc2626' }}>

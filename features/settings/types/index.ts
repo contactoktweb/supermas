@@ -13,6 +13,7 @@ export type SettingsCategory =
   | 'ECOMMERCE'
   | 'BILLING'
   | 'TAX'
+  | 'WITHHOLDINGS'
   | 'ACCOUNTING'
   | 'EXOGENA'
   | 'SECURITY'

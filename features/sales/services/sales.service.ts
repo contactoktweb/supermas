@@ -137,6 +137,7 @@ export class SalesService {
       })),
       payments: buildSalePayments(validated),
       notes: validated.notes,
+      withholdingConceptIds: validated.withholdingConceptIds,
     })
 
     const sale = await this.repo.findById(result.sale_id)

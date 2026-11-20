@@ -159,6 +159,8 @@ export class CustomerService {
       preferredLocationId: validated.preferredLocationId,
       status: 'ACTIVE',
       notes: validated.notes,
+      isWithholdingAgent: validated.isWithholdingAgent ?? false,
+      defaultWithholdingConceptIds: validated.isWithholdingAgent ? validated.defaultWithholdingConceptIds ?? [] : [],
     }
 
     return this.repo.create(newCustomer)

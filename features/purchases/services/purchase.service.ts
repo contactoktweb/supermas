@@ -10,6 +10,8 @@ import {
   ReceivePurchaseInput,
   RegisterPaymentInput,
   RegisterSupplierInvoiceInput,
+  RegisterDirectInvoiceInput,
+  DirectInvoiceResult,
   UserPermissionContext,
 } from '../types'
 import { purchaseRepository, PurchaseRepository } from '../repositories/purchase.repository'
@@ -23,8 +25,10 @@ import {
   cancelPurchaseSchema,
   receivePurchaseSchema,
   registerSupplierInvoiceSchema,
+  directInvoiceSchema,
+  buildNoOrderNotes,
 } from '../schemas/purchase.schema'
-import { isCancelledPurchase } from '../utils/purchase-status'
+import { hasReceivedGoods, isCancelledPurchase } from '../utils/purchase-status'
 
 export class PurchaseService {
   private repository: PurchaseRepository
@@ -230,6 +234,57 @@ export class PurchaseService {
 
   async createPurchase(input: CreatePurchaseInput, userContext?: UserPermissionContext): Promise<Purchase> {
     return this.create(input, userContext)
+  }
+
+  /**
+   * Registra una factura del proveedor que llegó sin orden de compra: crea la compra confirmada con el
+   * número de factura y el motivo, y recibe toda la mercancía (inventario, kardex y causación contable).
+   * Si la recepción falla, no se lanza error (la compra ya existe y reintentar la duplicaría): se devuelve
+   * receptionError y la compra queda confirmada para recibirla desde "Registrar recepción".
+   */
+  async registerDirectInvoice(
+    input: RegisterDirectInvoiceInput,
+    userContext?: UserPermissionContext
+  ): Promise<DirectInvoiceResult> {
+    if (!this.hasPermission(userContext, 'purchases.create', 'purchase.create')) {
+      throw new Error('No tienes permisos para registrar facturas de proveedor.')
+    }
+    const { supplierInvoiceNumber, noOrderReason } = directInvoiceSchema.parse(input)
+    const created = await this.create(
+      {
+        supplierId: input.supplierId,
+        destinationLocationId: input.destinationLocationId,
+        date: input.date,
+        paymentType: input.paymentType,
+        dueDate: input.dueDate,
+        items: input.items,
+        withholdingConceptIds: input.withholdingConceptIds,
+        supplierInvoiceNumber,
+        notes: buildNoOrderNotes(noOrderReason, input.notes),
+        saveAsDraft: false,
+      },
+      userContext
+    )
+    // El archivo se adjunta aparte: el esquema de creación solo acepta adjuntos ya subidos (con url).
+    const withAttachment = await this.attachInvoice(created, input.attachment?.file)
+
+    try {
+      const received = await this.receivePurchase(
+        { purchaseId: created.id, notes: `Recepción de la factura ${supplierInvoiceNumber} sin orden de compra.` },
+        userContext
+      )
+      return { purchase: { ...received, attachmentWarning: withAttachment.attachmentWarning }, receptionError: null }
+    } catch (err) {
+      // La recepción pudo quedar grabada aunque fallara la lectura posterior: se confirma el estado real.
+      const current = await this.repository.findById(created.id).catch(() => null)
+      if (current && hasReceivedGoods(current.status)) {
+        return { purchase: { ...current, attachmentWarning: withAttachment.attachmentWarning }, receptionError: null }
+      }
+      return {
+        purchase: current ?? withAttachment,
+        receptionError: err instanceof Error ? err.message : 'No se pudo recibir la mercancía.',
+      }
+    }
   }
 
   /**

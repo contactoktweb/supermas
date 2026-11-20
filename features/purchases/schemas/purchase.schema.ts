@@ -47,6 +47,33 @@ export const createPurchaseSchema = z.object({
 
 export const updatePurchaseSchema = createPurchaseSchema
 
+/** purchases.supplier_invoice_number es VARCHAR(50). */
+export const SUPPLIER_INVOICE_NUMBER_MAX_LENGTH = 50
+export const NO_ORDER_REASON_MIN_LENGTH = 10
+export const NO_ORDER_REASON_MAX_LENGTH = 200
+/** Encabezado con el que queda marcada en observaciones una compra registrada sin orden. */
+export const NO_ORDER_NOTES_PREFIX = 'Factura sin orden de compra. Motivo:'
+
+export const directInvoiceSchema = z.object({
+  supplierInvoiceNumber: z
+    .string()
+    .trim()
+    .min(2, 'Escriba el número de la factura del proveedor.')
+    .max(SUPPLIER_INVOICE_NUMBER_MAX_LENGTH, `El número de factura no puede superar ${SUPPLIER_INVOICE_NUMBER_MAX_LENGTH} caracteres`),
+  noOrderReason: z
+    .string()
+    .trim()
+    .min(NO_ORDER_REASON_MIN_LENGTH, `Explique por qué la factura llegó sin orden de compra (mínimo ${NO_ORDER_REASON_MIN_LENGTH} caracteres).`)
+    .max(NO_ORDER_REASON_MAX_LENGTH, `El motivo no puede superar ${NO_ORDER_REASON_MAX_LENGTH} caracteres.`),
+})
+
+/** Observaciones de la compra sin orden: el motivo primero y luego las notas del usuario. */
+export function buildNoOrderNotes(reason: string, notes?: string): string {
+  const header = `${NO_ORDER_NOTES_PREFIX} ${reason.trim()}`
+  const extra = (notes || '').trim()
+  return extra ? `${header}\n${extra}` : header
+}
+
 export const registerPaymentSchema = z.object({
   purchaseId: z.string().min(1, 'El ID de compra es obligatorio'),
   amount: z.number().positive('El monto del abono debe ser mayor a 0'),

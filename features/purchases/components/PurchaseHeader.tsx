@@ -6,11 +6,12 @@ import { PageHeader } from '@/components/ui/PageHeader'
 
 interface PurchaseHeaderProps {
   onNewPurchase: () => void
+  onDirectInvoice: () => void
   onQuickReceive: () => void
   onExport: () => void
 }
 
-export function PurchaseHeader({ onNewPurchase, onQuickReceive, onExport }: PurchaseHeaderProps) {
+export function PurchaseHeader({ onNewPurchase, onDirectInvoice, onQuickReceive, onExport }: PurchaseHeaderProps) {
   return (
     <PageHeader
       eyebrow="Compras"
@@ -25,6 +26,10 @@ export function PurchaseHeader({ onNewPurchase, onQuickReceive, onExport }: Purc
           <button type="button" className="outline-button" onClick={onQuickReceive}>
             <AppIcon name="warehouse" size={16} />
             <span>Registrar recepción</span>
+          </button>
+          <button type="button" className="outline-button" onClick={onDirectInvoice}>
+            <AppIcon name="receipt" size={16} />
+            <span>Factura sin orden</span>
           </button>
           <button type="button" className="primary-button" onClick={onNewPurchase}>
             <AppIcon name="plus" size={16} />

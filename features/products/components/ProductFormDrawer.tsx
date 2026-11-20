@@ -100,6 +100,8 @@ export function ProductFormDrawer({
   const [newTierEndDate, setNewTierEndDate] = useState<string>('')
 
   const [estimatedCost, setEstimatedCost] = useState<number>(0)
+  // Costo con el que se abrió el formulario: en edición solo se envía el costo si el usuario lo cambió.
+  const [loadedCost, setLoadedCost] = useState<number>(0)
 
   // Tax Profile State
   const [taxProfile, setTaxProfile] = useState<TaxProfile>('IVA_19')
@@ -228,6 +230,7 @@ export function ProductFormDrawer({
         setIsAddingCustomTier(false)
 
         setEstimatedCost(initialProduct.averageCost || 0)
+        setLoadedCost(initialProduct.averageCost || 0)
         setTaxProfile(initialProduct.taxProfile)
         setVatRatePercent(initialProduct.vatRatePercent)
         setWebSuperMas(initialProduct.webSuperMas)
@@ -257,6 +260,7 @@ export function ProductFormDrawer({
         setCustomPriceTiers([])
         setIsAddingCustomTier(false)
         setEstimatedCost(0)
+        setLoadedCost(0)
         setTaxProfile('IVA_19')
         setVatRatePercent(19)
         setWebSuperMas(true)
@@ -422,7 +426,10 @@ export function ProductFormDrawer({
       taxProfile,
       vatRatePercent: Number(vatRatePercent),
       prices: pricesPayload,
-      costPrice: Number(estimatedCost || 0),
+      costPrice:
+        mode === 'create' || Number(estimatedCost || 0) !== Number(loadedCost || 0)
+          ? Number(estimatedCost || 0)
+          : undefined,
       minStockThreshold: Number(minStockThreshold),
       criticalStockThreshold: Number(criticalStockThreshold),
       webSuperMas,
@@ -1173,9 +1180,8 @@ export function ProductFormDrawer({
                 )}
               </div>
 
-              {/* Costo estimado para simulación */}
               <div className="form-field">
-                <label>{mode === 'create' ? 'Costo unitario de compra *' : 'Costo promedio de referencia (Simulación)'}</label>
+                <label>{mode === 'create' ? 'Costo unitario de compra *' : 'Costo del producto'}</label>
                 <div className={`input-wrap ${errors.costPrice ? 'is-invalid' : ''}`}>
                   <span className="input-prefix">$</span>
                   <input

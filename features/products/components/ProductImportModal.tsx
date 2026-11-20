@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { productImportService } from '../services/product-import.service'
 import { ProductImportExecutionResult, ProductImportPreview, ProductImportRow } from '../types/import.types'
+import type { UserPermissionContext } from '../types'
 import { decodeCsvBytes } from '@/lib/csv-parser'
 import { ProductImportFormatGuide } from './ProductImportFormatGuide'
 import { ProductImportPreviewTable } from './ProductImportPreviewTable'
@@ -13,12 +14,14 @@ interface ProductImportModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: (result: ProductImportExecutionResult) => void
+  userContext?: UserPermissionContext
 }
 
 export function ProductImportModal({
   isOpen,
   onClose,
   onSuccess,
+  userContext,
 }: ProductImportModalProps) {
   const [mounted, setMounted] = useState(false)
   const [file, setFile] = useState<File | null>(null)
@@ -63,7 +66,7 @@ export function ProductImportModal({
     setIsProcessing(true)
     try {
       const text = decodeCsvBytes(await selectedFile.arrayBuffer())
-      const previewResult = await productImportService.previewCsv(text)
+      const previewResult = await productImportService.previewCsv(text, undefined, userContext)
       setPreview(previewResult)
     } catch (err: any) {
       setErrorMessage(`Error al leer el archivo: ${err.message || 'Formato no válido'}`)
@@ -83,7 +86,7 @@ export function ProductImportModal({
         .filter((r) => r.isValid)
         .map((r) => r.parsed)
 
-      const result = await productImportService.executeImport(validRows)
+      const result = await productImportService.executeImport(validRows, userContext)
 
       if (result.importedCount > 0) onSuccess(result)
       if (result.errors.length === 0) {

@@ -24,7 +24,7 @@ import {
   ProductImportIvaTreatment,
   RawProductCsvRow,
 } from '../types/import.types'
-import type { PriceChangeInput, PriceChangeSubmissionResult } from '../types'
+import type { PriceChangeInput, PriceChangeSubmissionResult, UserPermissionContext } from '../types'
 import { productRepository } from '../repositories/product.repository'
 import { formatImportIva, formatImportNumber } from '../utils/import-format'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
@@ -52,6 +52,18 @@ function getDbClient() {
     return supabaseAdmin
   }
   return supabaseClient
+}
+
+/** Contexto de quien importa; sin permisos explícitos se asume acceso completo, como en ProductService. */
+type ImportUserContext = Partial<Pick<UserPermissionContext, 'userId' | 'userName' | 'userRole' | 'permissions'>>
+
+/** Qué puede ver y cambiar del costo quien importa (cost.read y costs.manage). */
+function resolveCostAccess(ctx?: ImportUserContext): { canReadCost: boolean; canManageCosts: boolean } {
+  const permissions = ctx?.permissions
+  if (!permissions || ctx?.userRole === 'ADMIN' || permissions.includes('*')) {
+    return { canReadCost: true, canManageCosts: true }
+  }
+  return { canReadCost: permissions.includes('cost.read'), canManageCosts: permissions.includes('costs.manage') }
 }
 
 export class ProductImportService {
@@ -198,7 +210,7 @@ export class ProductImportService {
     }
 
     const sku = pick(['sku', 'codigo', 'codigoproducto', 'referencia'])
-    const name = pick(['nombre', 'nombreproducto', 'descripcion', 'producto', 'item'])
+    const explicitName = pick(['nombre', 'nombreproducto', 'producto', 'item'])
     const barcode = pick(['codigodebarras', 'barcode', 'ean'])
     if (/e\+?\d+$/i.test(barcode)) {
       errors.push(`Código de barras: "${barcode}" quedó en notación científica. En Excel, dé formato de texto o número sin decimales a esa columna.`)
@@ -208,10 +220,15 @@ export class ProductImportService {
     const unitOfMeasure = pick(['unidaddemedida', 'unidad', 'medida', 'uom']).toUpperCase()
     const locationCodeOrName = pick(['codigobodega', 'bodega', 'ubicacion', 'location'])
     const description = pick(['descripcion', 'detalles'])
+    // Sin columna de nombre, un producto nuevo usa la descripción; en una actualización no renombra.
+    const name = explicitName || description
 
     const publicSalePrice = readNumber('Precio de venta', ['precioventanormal', 'precionormal', 'precioventa', 'precio', 'pvp'])
     const wholesalePrice = readNumber('Precio mayorista', ['preciomayorista', 'mayorista', 'preciopormayor'])
     const minWholesaleQuantity = readNumber('Cantidad mínima mayorista', ['cantidadminimamayorista', 'minmayorista', 'cantminmayorista'], { integer: true })
+    if (minWholesaleQuantity !== undefined && minWholesaleQuantity < 1) {
+      errors.push('Cantidad mínima mayorista: debe ser 1 o más.')
+    }
     const costPrice = readNumber('Costo unitario', ['costounitario', 'costo', 'costopromedio', 'preciocosto'])
     const initialStock = readNumber('Stock inicial', ['stockinicial', 'stock', 'cantidadinicial', 'cantidad'])
     const minStock = readNumber('Stock mínimo', ['stockminimo', 'minstock'], { integer: true })
@@ -251,7 +268,7 @@ export class ProductImportService {
         webDistribuidora: parseCleanBoolean(distributorCell || undefined, true),
         description: description || undefined,
         provided: {
-          name: Boolean(name),
+          name: Boolean(explicitName),
           barcode: Boolean(barcode),
           categoryName: Boolean(categoryName),
           brandName: Boolean(brandName),
@@ -323,7 +340,7 @@ export class ProductImportService {
   }
 
   /** Lista legible de lo que cambiaría en un producto existente. */
-  private describeChanges(row: ProductImportRow, existing: any): string[] {
+  private describeChanges(row: ProductImportRow, existing: any, canReadCost: boolean): string[] {
     const changes: string[] = []
     const provided = row.provided || {}
     const add = (label: string, isProvided: boolean | undefined, from: string | number | boolean | null, to: string | number | boolean | undefined) => {
@@ -340,7 +357,11 @@ export class ProductImportService {
     add('Categoría', provided.categoryName, existing.categories?.name ?? null, row.categoryName)
     add('Marca', provided.brandName, existing.brands?.name ?? null, row.brandName)
     add('Unidad', provided.unitOfMeasure, existing.unit_of_measure, row.unitOfMeasure)
-    add('Costo', provided.costPrice, Number(existing.cost_price), row.costPrice)
+    if (canReadCost) {
+      add('Costo', provided.costPrice, Number(existing.cost_price), row.costPrice)
+    } else if (provided.costPrice) {
+      changes.push(`Costo: se actualiza a ${formatImportNumber(Number(row.costPrice))}`)
+    }
     add('Precio de venta', provided.publicSalePrice, Number(existing.public_sale_price), row.publicSalePrice)
     add('Precio mayorista', provided.wholesalePrice, Number(existing.wholesale_price), row.wholesalePrice)
     add('Cantidad mayorista', provided.minWholesaleQuantity, Number(existing.min_wholesale_quantity), row.minWholesaleQuantity)
@@ -357,7 +378,12 @@ export class ProductImportService {
    * Parsea un texto CSV y genera la vista previa: qué filas se crean, cuáles actualizan y cuáles tienen error.
    * No escribe nada en la base de datos.
    */
-  async previewCsv(csvContent: string, preferredCompanyId?: string): Promise<ProductImportPreview> {
+  async previewCsv(
+    csvContent: string,
+    preferredCompanyId?: string,
+    userContext?: ImportUserContext
+  ): Promise<ProductImportPreview> {
+    const { canReadCost, canManageCosts } = resolveCostAccess(userContext)
     const client = getDbClient()
     const companyId = await this.getCompanyId(preferredCompanyId)
     const { headers, rows: rawRows } = parseCsvContent<RawProductCsvRow>(csvContent)
@@ -404,6 +430,10 @@ export class ProductImportService {
       if (!existing) {
         if (!parsed.name) errors.push('El nombre del producto es obligatorio.')
         if ((parsed.costPrice ?? 0) <= 0) errors.push('El costo unitario debe ser mayor a $0.')
+      } else if (provided.costPrice && !canManageCosts) {
+        // Sin costs.manage el costo de un producto existente no se toca: el resto de la fila sí se aplica.
+        provided.costPrice = false
+        warnings.push('No tiene permiso para modificar costos: el costo de este producto no se cambia.')
       } else if (provided.costPrice && (parsed.costPrice ?? 0) <= 0) {
         errors.push('El costo unitario debe ser mayor a $0.')
       }
@@ -435,7 +465,7 @@ export class ProductImportService {
         warnings.push(`Se creará la marca "${parsed.brandName}".`)
       }
 
-      const changes = existing && errors.length === 0 ? this.describeChanges(parsed, existing) : []
+      const changes = existing && errors.length === 0 ? this.describeChanges(parsed, existing, canReadCost) : []
       const action: ProductImportAction = errors.length > 0 ? 'ERROR' : !existing ? 'CREATE' : changes.length > 0 ? 'UPDATE' : 'UNCHANGED'
       counts[action]++
 
@@ -528,9 +558,10 @@ export class ProductImportService {
    */
   async executeImport(
     rows: ProductImportRow[],
-    userContext?: { userId?: string; userName?: string },
+    userContext?: ImportUserContext,
     preferredCompanyId?: string
   ): Promise<ProductImportExecutionResult> {
+    const { canManageCosts } = resolveCostAccess(userContext)
     const client = getDbClient()
     const companyId = await this.getCompanyId(preferredCompanyId)
     const userId = userContext?.userId || (await getSessionUserId(client))
@@ -577,6 +608,10 @@ export class ProductImportService {
       const row = rows[i]
       const rowNumber = row.rowNumber ?? i + 2
       const isUpdate = Boolean(row.existingProductId)
+      // Se vuelve a aplicar aquí: la vista previa no es una garantía para quien llama directo al servicio.
+      if (isUpdate && !canManageCosts && row.provided?.costPrice) {
+        row.provided = { ...row.provided, costPrice: false }
+      }
 
       try {
         const sku = row.sku?.trim().toUpperCase()

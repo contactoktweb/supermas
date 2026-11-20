@@ -19,7 +19,7 @@ export class SupplierService {
   async list(): Promise<SupplierOption[]> {
     const { data, error } = await this.client
       .from('suppliers')
-      .select('id, name, legal_name, tax_id, phone, email, is_active')
+      .select('id, name, legal_name, tax_id, phone, email, is_active, default_withholding_concept_ids')
       .eq('is_active', true)
       .order('name', { ascending: true })
 
@@ -35,6 +35,7 @@ export class SupplierService {
       phone: s.phone || '',
       email: s.email || '',
       currentBalance: 0,
+      defaultWithholdingConceptIds: (s.default_withholding_concept_ids as string[] | null) ?? [],
     }))
   }
 

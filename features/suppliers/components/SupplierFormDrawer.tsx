@@ -12,6 +12,8 @@ import {
   SupplierStatus,
 } from '../types'
 import { createSupplierSchema, updateSupplierSchema } from '../schemas/supplier.schema'
+import { ThirdPartyWithholdingFields } from '@/features/withholdings/components/ThirdPartyWithholdingFields'
+import { EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE, type ThirdPartyWithholdingProfile } from '@/features/withholdings/types'
 import { extractErrorMessage } from '@/lib/utils'
 
 interface SupplierFormDrawerProps {
@@ -68,6 +70,7 @@ export function SupplierFormDrawer({
   const [creditDays, setCreditDays] = useState<number>(0)
   const [creditLimit, setCreditLimit] = useState<number>(0)
   const [notes, setNotes] = useState('')
+  const [withholding, setWithholding] = useState<ThirdPartyWithholdingProfile>(EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE)
 
   useEffect(() => {
     setMounted(true)
@@ -94,6 +97,14 @@ export function SupplierFormDrawer({
       setCreditDays(supplier.creditDays || 0)
       setCreditLimit(supplier.creditLimit || 0)
       setNotes(supplier.notes || '')
+      setWithholding({
+        ...EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE,
+        isSelfWithholder: supplier.isSelfWithholder,
+        isSimpleRegime: supplier.isSimpleRegime,
+        isZeseBeneficiary: supplier.isZeseBeneficiary,
+        zeseStartDate: supplier.zeseStartDate,
+        defaultWithholdingConceptIds: supplier.defaultWithholdingConceptIds,
+      })
       setError(null)
     } else if (mode === 'create') {
       setDocumentType('NIT')
@@ -114,6 +125,7 @@ export function SupplierFormDrawer({
       setCreditDays(0)
       setCreditLimit(0)
       setNotes('')
+      setWithholding(EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE)
       setError(null)
     }
     setActiveTab('general')
@@ -144,6 +156,11 @@ export function SupplierFormDrawer({
       creditDays: Number(creditDays) || 0,
       creditLimit: Number(creditLimit) || 0,
       notes: notes.trim() || undefined,
+      isSelfWithholder: withholding.isSelfWithholder,
+      isSimpleRegime: withholding.isSimpleRegime,
+      isZeseBeneficiary: withholding.isZeseBeneficiary,
+      zeseStartDate: withholding.isZeseBeneficiary ? withholding.zeseStartDate : null,
+      defaultWithholdingConceptIds: withholding.defaultWithholdingConceptIds,
     }
 
     try {
@@ -807,6 +824,8 @@ export function SupplierFormDrawer({
                     onChange={(e) => setNotes(e.target.value)}
                   />
                 </div>
+
+                <ThirdPartyWithholdingFields side="PURCHASES" value={withholding} onChange={setWithholding} />
               </div>
             )}
           </div>

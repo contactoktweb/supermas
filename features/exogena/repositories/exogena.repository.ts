@@ -200,7 +200,7 @@ class ExogenaRepository {
             countryCode: third.countryCode,
             baseAmount,
             vatAmount,
-            withholdingAmount: 0,
+            withholdingAmount: Number(pur.withholding_amount || 0),
             sourceType: 'PURCHASE',
             sourceId: pur.id,
             documentReference: pur.purchaseNumber || pur.invoiceNumber || 'COM',

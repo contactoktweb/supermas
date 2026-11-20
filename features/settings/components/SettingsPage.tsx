@@ -71,6 +71,14 @@ const CATEGORIES_DEFINITIONS: CategoryCardInfo[] = [
     isReadOnly: true,
   },
   {
+    id: 'WITHHOLDINGS',
+    title: 'Retenciones',
+    description: 'Retención en la fuente, ReteIVA y ReteICA para compras y ventas, UVT y perfil ZESE.',
+    iconName: 'receipt',
+    badgeText: 'Tributario',
+    badgeTone: 'red',
+  },
+  {
     id: 'ACCOUNTING',
     title: 'Contabilidad',
     description: 'Periodos abiertos y cuentas PUC de enlace de la causación automática.',

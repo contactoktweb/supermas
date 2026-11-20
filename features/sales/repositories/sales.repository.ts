@@ -173,10 +173,11 @@ export class SalesRepository {
       paymentMethod: mapDbPaymentMethodToDomain(s.payment_method),
       paymentStatus: s.payment_status === 'PENDING' || (s.payment_method === 'CREDIT' && Number(s.paid_amount || 0) <= 0)
         ? 'PENDING'
-        : (s.payment_status === 'PARTIAL' || (Number(s.paid_amount || 0) > 0 && Number(s.paid_amount || 0) < totalAmount - 0.01))
+        : (s.payment_status === 'PARTIAL' || (Number(s.paid_amount || 0) > 0 && Number(s.paid_amount || 0) < totalAmount - Number(s.withholding_amount || 0) - 0.01))
         ? 'PARTIALLY_PAID'
         : 'PAID',
       paidAmount: Number(s.paid_amount !== undefined && s.paid_amount !== null ? s.paid_amount : (s.payment_method === 'CREDIT' ? 0 : totalAmount)),
+      withholdingTotal: Number(s.withholding_amount || 0),
       dueDate: s.due_date || s.created_at,
       paymentTerms: s.payment_terms || (s.payment_method === 'CREDIT' ? 'CREDITO' : 'CONTADO'),
       status: mapDbStatusToDomain(s.status),
@@ -214,6 +215,7 @@ export class SalesRepository {
         payment_method,
         payment_status,
         paid_amount,
+        withholding_amount,
         payment_terms,
         due_date,
         status,
@@ -412,6 +414,7 @@ export class SalesRepository {
         payment_method,
         payment_status,
         paid_amount,
+        withholding_amount,
         payment_terms,
         due_date,
         status,
@@ -603,6 +606,7 @@ export class SalesRepository {
     items: Array<{ productId: string; quantity: number; discountPercent: number }>
     payments: SalePaymentInput[]
     notes?: string
+    withholdingConceptIds?: string[]
   }): Promise<CreateSaleRpcResult> {
     const { data, error } = await supabaseClient.rpc('fn_create_sale_with_payments', {
       p_location_id: input.locationId,
@@ -615,6 +619,7 @@ export class SalesRepository {
       })),
       p_payments: input.payments,
       p_notes: input.notes ?? null,
+      p_withholding_concept_ids: input.withholdingConceptIds ?? [],
     })
     if (error) throw new Error(error.message)
     const res = data as CreateSaleRpcResult | null

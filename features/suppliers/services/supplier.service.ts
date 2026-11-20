@@ -119,6 +119,11 @@ export class SupplierService {
       creditDays: input.creditDays || 0,
       creditLimit: input.creditLimit || 0,
       notes: input.notes?.trim() || undefined,
+      isSelfWithholder: input.isSelfWithholder ?? false,
+      isSimpleRegime: input.isSimpleRegime ?? false,
+      isZeseBeneficiary: input.isZeseBeneficiary ?? false,
+      zeseStartDate: input.isZeseBeneficiary ? input.zeseStartDate ?? null : null,
+      defaultWithholdingConceptIds: input.defaultWithholdingConceptIds ?? [],
 
       deliveriesCount: 0,
       totalPurchased: 0,

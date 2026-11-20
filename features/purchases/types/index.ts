@@ -137,7 +137,10 @@ export interface Purchase {
   subtotal: number                   // Suma antes de descuentos e impuestos
   discountTotal: number              // Descuento total aplicado
   taxTotal: number                   // Impuestos totales liquidados
-  total: number                      // Valor final a pagar
+  total: number                      // Valor de la factura (base + IVA)
+  withholdingTotal: number           // Retenciones practicadas al proveedor
+  withholdingConceptIds: string[]    // Conceptos de retención aplicados
+  netPayable: number                 // Neto a pagar = total - retenciones
 
   paidAmount: number                 // Valor pagado acumulado
   pendingBalance: number             // Saldo pendiente de pago
@@ -221,6 +224,8 @@ export interface CreatePurchaseInput {
   notes?: string
   items: CreatePurchaseItemInput[]
   saveAsDraft?: boolean
+  /** Conceptos de retención; el servidor calcula los valores. */
+  withholdingConceptIds?: string[]
   /** Factura del proveedor (PDF, JPG o PNG) que se guarda en el repositorio privado de facturas. */
   attachment?: {
     file: File
@@ -256,6 +261,7 @@ export interface UpdatePurchaseInput {
   notes?: string
   items: CreatePurchaseItemInput[]
   saveAsDraft?: boolean
+  withholdingConceptIds?: string[]
   /** Factura del proveedor (PDF, JPG o PNG) que se guarda en el repositorio privado de facturas. */
   attachment?: {
     file: File
@@ -348,6 +354,8 @@ export interface SupplierOption {
   phone?: string
   email?: string
   currentBalance: number
+  /** Retenciones habituales del proveedor, preseleccionadas en cada compra. */
+  defaultWithholdingConceptIds?: string[]
 }
 
 export interface UserPermissionContext {

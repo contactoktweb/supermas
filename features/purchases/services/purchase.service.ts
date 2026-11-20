@@ -258,6 +258,7 @@ export class PurchaseService {
         paymentType: input.paymentType,
         dueDate: input.dueDate,
         items: input.items,
+        withholdingConceptIds: input.withholdingConceptIds,
         supplierInvoiceNumber,
         notes: buildNoOrderNotes(noOrderReason, input.notes),
         saveAsDraft: false,

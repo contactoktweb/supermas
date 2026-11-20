@@ -28,6 +28,7 @@ export interface AccountPayableItem {
   daysRemainingOrOverdue: number
   isOverdue: boolean
   originalAmount: number
+  withholdingAmount: number
   paidAmount: number
   pendingBalance: number
   status: 'PENDIENTE' | 'PARCIAL' | 'PAGADA' | 'VENCIDA' | 'ANULADA'
@@ -89,6 +90,7 @@ export class AccountsPayableService {
         tax_amount,
         total_amount,
         paid_amount,
+        withholding_amount,
         payment_terms,
         payment_status,
         inventory_status,
@@ -198,8 +200,9 @@ export class AccountsPayableService {
       const payments = (row.supplier_payments as any[]) || []
 
       const originalAmount = Number(row.total_amount || 0)
+      const withholdingAmount = Number(row.withholding_amount || 0)
       const paidAmount = Number(row.paid_amount || 0)
-      const pendingBalance = Math.max(0, originalAmount - paidAmount)
+      const pendingBalance = Math.max(0, originalAmount - withholdingAmount - paidAmount)
 
       const issueDate = row.issue_date || row.created_at.split('T')[0]
       const dueDate = row.due_date || issueDate
@@ -245,6 +248,7 @@ export class AccountsPayableService {
         daysRemainingOrOverdue: diffDays,
         isOverdue,
         originalAmount,
+        withholdingAmount,
         paidAmount,
         pendingBalance,
         status,
@@ -265,6 +269,7 @@ export class AccountsPayableService {
       items = items.map((it) => ({
         ...it,
         originalAmount: 0,
+        withholdingAmount: 0,
         paidAmount: 0,
         pendingBalance: 0,
       }))
@@ -289,7 +294,7 @@ export class AccountsPayableService {
   async getStats(userContext?: UserPermissionContext): Promise<AccountsPayableStats> {
     const { data, error } = await supabaseClient
       .from('purchases')
-      .select('id, total_amount, paid_amount, payment_status, due_date, inventory_status')
+      .select('id, total_amount, paid_amount, withholding_amount, payment_status, due_date, inventory_status')
       .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
 
     if (error || !data) {

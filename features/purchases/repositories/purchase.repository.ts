@@ -78,8 +78,9 @@ function mapDbRowToPurchase(row: any): Purchase {
   const discountTotal = Number(row.discount_amount || 0)
   const taxTotal = Number(row.tax_amount || 0)
   const total = Number(row.total_amount || 0)
+  const withholdingTotal = Number(row.withholding_amount || 0)
   const paidAmount = Number(row.paid_amount || 0)
-  const pendingBalance = Math.max(0, total - paidAmount)
+  const pendingBalance = Math.max(0, total - withholdingTotal - paidAmount)
 
   let status: Purchase['status'] = 'CONFIRMADA'
   const invStatus = (row.inventory_status || '').toUpperCase()
@@ -124,6 +125,9 @@ function mapDbRowToPurchase(row: any): Purchase {
     discountTotal,
     taxTotal,
     total,
+    withholdingTotal,
+    withholdingConceptIds: (row.withholding_concept_ids as string[] | null) ?? [],
+    netPayable: Math.max(0, total - withholdingTotal),
     paidAmount,
     pendingBalance,
     totalCost: total,
@@ -360,6 +364,8 @@ export class PurchaseRepository {
         tax_amount,
         total_amount,
         paid_amount,
+        withholding_amount,
+        withholding_concept_ids,
         payment_terms,
         payment_status,
         inventory_status,
@@ -543,6 +549,8 @@ export class PurchaseRepository {
         tax_amount,
         total_amount,
         paid_amount,
+        withholding_amount,
+        withholding_concept_ids,
         payment_terms,
         payment_status,
         inventory_status,
@@ -690,7 +698,7 @@ export class PurchaseRepository {
       tax_rate_percent: Number(it.taxRatePercent !== undefined ? it.taxRatePercent : 19),
     }))
 
-    const { data: createdId, error } = await this.client.rpc('fn_create_purchase_order', {
+    const { data: createdId, error } = await this.client.rpc('fn_create_purchase_order_with_withholdings', {
       p_supplier_id: supplierId,
       p_location_id: destinationLocationId,
       p_supplier_invoice_number: (supplierInvoiceNumber || '').trim(),
@@ -700,10 +708,11 @@ export class PurchaseRepository {
       p_notes: notes || null,
       p_save_as_draft: Boolean(saveAsDraft),
       p_items: itemsPayload,
+      p_withholding_concept_ids: ('withholdingConceptIds' in input && input.withholdingConceptIds) || [],
     })
 
     if (error || !createdId) {
-      console.error('Error ejecutando fn_create_purchase_order:', error)
+      console.error('Error ejecutando fn_create_purchase_order_with_withholdings:', error)
       throw parsePurchaseDatabaseError(error)
     }
 
@@ -727,7 +736,7 @@ export class PurchaseRepository {
       tax_rate_percent: Number(it.taxRatePercent !== undefined ? it.taxRatePercent : 19),
     }))
 
-    const { data: updatedId, error } = await this.client.rpc('fn_update_purchase_order', {
+    const { data: updatedId, error } = await this.client.rpc('fn_update_purchase_order_with_withholdings', {
       p_purchase_id: purchaseId,
       p_supplier_id: input.supplierId,
       p_location_id: input.destinationLocationId,
@@ -738,10 +747,11 @@ export class PurchaseRepository {
       p_notes: input.notes || null,
       p_save_as_draft: Boolean(input.saveAsDraft),
       p_items: itemsPayload,
+      p_withholding_concept_ids: input.withholdingConceptIds ?? [],
     })
 
     if (error || !updatedId) {
-      console.error('Error ejecutando fn_update_purchase_order:', error)
+      console.error('Error ejecutando fn_update_purchase_order_with_withholdings:', error)
       throw parsePurchaseDatabaseError(error)
     }
 
@@ -980,7 +990,7 @@ export class PurchaseRepository {
   async getPurchaseStats(_userContext?: any): Promise<PurchaseStats> {
     const { data, error } = await this.client
       .from('purchases')
-      .select('id, total_amount, paid_amount, payment_status, payment_terms, inventory_status, due_date, issue_date')
+      .select('id, total_amount, paid_amount, withholding_amount, payment_status, payment_terms, inventory_status, due_date, issue_date')
       .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
 
     if (error || !data) {

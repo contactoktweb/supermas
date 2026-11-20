@@ -29,7 +29,7 @@ interface TextInputProps {
   value: string
   onChange: (value: string) => void
   placeholder?: string
-  type?: 'text' | 'email' | 'tel'
+  type?: 'text' | 'email' | 'tel' | 'date'
   maxLength?: number
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
   mono?: boolean

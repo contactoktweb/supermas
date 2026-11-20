@@ -59,6 +59,8 @@ export interface Sale {
   status: SaleStatus
   documentType: SaleDocumentType
   paidAmount?: number
+  /** Retenciones que practicó el cliente; el neto a cobrar es totalAmount - withholdingTotal */
+  withholdingTotal?: number
   dueDate?: string
   paymentTerms?: string
   invoiceId?: string
@@ -123,6 +125,8 @@ export interface CreateSaleDTO {
   mixedCashAmount?: number
   /** Pago mixto: medio del valor restante */
   mixedRestMethod?: 'TARJETA' | 'TRANSFERENCIA'
+  /** Retenciones que practica el cliente (solo agentes retenedores); el servidor las calcula */
+  withholdingConceptIds?: string[]
 }
 
 /** Resultado de crear una venta: la venta grabada y su comprobante contable (FV-000123). */

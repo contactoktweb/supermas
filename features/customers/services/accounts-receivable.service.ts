@@ -32,6 +32,8 @@ export interface AccountReceivableItem {
   daysRemainingOrOverdue: number
   isOverdue: boolean
   originalAmount: number
+  /** Retenciones que practicó el cliente: el saldo es originalAmount - withholdingAmount - paidAmount */
+  withholdingAmount: number
   paidAmount: number
   pendingBalance: number
   status: 'PENDIENTE' | 'PAGO_PARCIAL' | 'PAGADA' | 'VENCIDA' | 'ANULADA'
@@ -164,6 +166,7 @@ export class AccountsReceivableService {
         tax_amount,
         total_amount,
         paid_amount,
+        withholding_amount,
         payment_method,
         payment_status,
         payment_terms,
@@ -245,8 +248,9 @@ export class AccountsReceivableService {
       const payments = (row.customer_payments as any[]) || []
 
       const originalAmount = Number(row.total_amount || 0)
+      const withholdingAmount = Number(row.withholding_amount || 0)
       const paidAmount = Number(row.paid_amount || 0)
-      const pendingBalance = Math.max(0, originalAmount - paidAmount)
+      const pendingBalance = Math.max(0, originalAmount - withholdingAmount - paidAmount)
 
       const issueDate = row.created_at ? row.created_at.split('T')[0] : todayStr
       const dueDate = row.due_date || issueDate
@@ -296,6 +300,7 @@ export class AccountsReceivableService {
         daysRemainingOrOverdue: diffDays,
         isOverdue,
         originalAmount,
+        withholdingAmount,
         paidAmount,
         pendingBalance,
         status,
@@ -346,7 +351,7 @@ export class AccountsReceivableService {
   async getStats(): Promise<AccountsReceivableStats> {
     const { data: sales, error } = await supabaseClient
       .from('sales')
-      .select('id, customer_id, total_amount, paid_amount, payment_status, due_date, status')
+      .select('id, customer_id, total_amount, paid_amount, withholding_amount, payment_status, due_date, status')
       .or(CREDIT_SALE_FILTER)
       .not('status', 'eq', 'CANCELLED')
 
@@ -374,7 +379,7 @@ export class AccountsReceivableService {
     const customersOverdueSet = new Set<string>()
 
     for (const s of sales) {
-      const tot = Number(s.total_amount || 0)
+      const tot = Number(s.total_amount || 0) - Number(s.withholding_amount || 0)
       const paid = Number(s.paid_amount || 0)
       const pending = Math.max(0, tot - paid)
 
@@ -426,7 +431,7 @@ export class AccountsReceivableService {
   async getAgingSummary(): Promise<AgingBucketSummary[]> {
     const { data: sales } = await supabaseClient
       .from('sales')
-      .select('total_amount, paid_amount, due_date')
+      .select('total_amount, paid_amount, withholding_amount, due_date')
       .or(CREDIT_SALE_FILTER)
       .not('status', 'eq', 'CANCELLED')
 
@@ -439,7 +444,7 @@ export class AccountsReceivableService {
     }
 
     for (const s of sales || []) {
-      const tot = Number(s.total_amount || 0)
+      const tot = Number(s.total_amount || 0) - Number(s.withholding_amount || 0)
       const paid = Number(s.paid_amount || 0)
       const pending = Math.max(0, tot - paid)
 
@@ -519,7 +524,7 @@ export class AccountsReceivableService {
     // Consultar todas las ventas del cliente
     const { data: salesRows } = await supabaseClient
       .from('sales')
-      .select('id, sale_number, created_at, due_date, total_amount, paid_amount, payment_status, payment_terms, status, notes, locations(name, code)')
+      .select('id, sale_number, created_at, due_date, total_amount, paid_amount, withholding_amount, payment_status, payment_terms, status, notes, locations(name, code)')
       .eq('customer_id', customerId)
       .or(CREDIT_SALE_FILTER)
       .order('created_at', { ascending: false })
@@ -529,8 +534,9 @@ export class AccountsReceivableService {
 
     const receivables: AccountReceivableItem[] = (salesRows || []).map((s: any) => {
       const orig = Number(s.total_amount || 0)
+      const withheld = Number(s.withholding_amount || 0)
       const paid = Number(s.paid_amount || 0)
-      const pending = Math.max(0, orig - paid)
+      const pending = Math.max(0, orig - withheld - paid)
       const issueDate = s.created_at ? s.created_at.split('T')[0] : todayStr
       const dueDate = s.due_date || issueDate
       const dueTime = new Date(dueDate).getTime()
@@ -561,6 +567,7 @@ export class AccountsReceivableService {
         daysRemainingOrOverdue: diffDays,
         isOverdue,
         originalAmount: orig,
+        withholdingAmount: withheld,
         paidAmount: paid,
         pendingBalance: pending,
         status,

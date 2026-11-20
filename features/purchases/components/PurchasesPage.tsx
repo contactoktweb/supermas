@@ -8,6 +8,7 @@ import {
   SupplierOption,
   CreatePurchaseInput,
   UpdatePurchaseInput,
+  RegisterDirectInvoiceInput,
   ReceivePurchaseInput,
   RegisterPaymentInput,
   UserPermissionContext,
@@ -91,6 +92,7 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
   // 3. Modals & Drawers
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
   const [isNewDrawerOpen, setIsNewDrawerOpen] = useState(false)
+  const [newDrawerMode, setNewDrawerMode] = useState<'ORDER' | 'DIRECT_INVOICE'>('ORDER')
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null)
   const [receiveModalPurchase, setReceiveModalPurchase] = useState<Purchase | null>(null)
   const [isReceiveSelectOpen, setIsReceiveSelectOpen] = useState(false)
@@ -193,6 +195,35 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
     )
     if (created.attachmentWarning) {
       addToast('Factura sin adjuntar', `${created.attachmentWarning} Puede adjuntarla al editar el borrador.`, 'warning')
+    }
+    loadData()
+  }
+
+  // Action: Factura del proveedor sin orden de compra (se registra y se recibe de una vez)
+  const handleRegisterDirectInvoice = async (input: RegisterDirectInvoiceInput) => {
+    const { purchase, receptionError } = await purchaseService.registerDirectInvoice(input, effectiveUserContext)
+    if (receptionError) {
+      addToast(
+        'Mercancía sin recibir',
+        `La factura ${input.supplierInvoiceNumber} quedó en la compra ${purchase.purchaseNumber}, pero no se pudo recibir la mercancía: ${receptionError} Recíbala desde "Registrar recepción".`,
+        'warning'
+      )
+    } else {
+      const accountingError = purchase.receptionInfo?.accountingError
+      const entryNumber = purchase.receptionInfo?.accountingEntryNumber
+      addToast(
+        'Factura registrada',
+        `La factura ${input.supplierInvoiceNumber} quedó en la compra ${purchase.purchaseNumber} y la mercancía fue recibida.` +
+          (entryNumber
+            ? ` Se causó en contabilidad (${entryNumber}).`
+            : accountingError
+              ? ` No se pudo causar en contabilidad: ${accountingError}`
+              : ''),
+        accountingError ? 'warning' : 'success'
+      )
+    }
+    if (purchase.attachmentWarning) {
+      addToast('Factura sin adjuntar', `${purchase.attachmentWarning} Puede adjuntarla desde el detalle de la compra.`, 'warning')
     }
     loadData()
   }
@@ -377,6 +408,10 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
       {/* 1. Header with primary actions */}
       <PurchaseHeader
         onNewPurchase={() => setIsNewDrawerOpen(true)}
+        onDirectInvoice={() => {
+          setNewDrawerMode('DIRECT_INVOICE')
+          setIsNewDrawerOpen(true)
+        }}
         onQuickReceive={handleQuickReceive}
         onExport={() => setIsExportModalOpen(true)}
       />
@@ -444,12 +479,15 @@ export function PurchasesPage({ onNavigate, userContext, openReceiveSelector = f
         suppliers={suppliers}
         locations={locations.filter((loc) => loc.allowPurchases)}
         initialPurchase={editingPurchase}
+        mode={newDrawerMode}
         onClose={() => {
           setIsNewDrawerOpen(false)
           setEditingPurchase(null)
+          setNewDrawerMode('ORDER')
         }}
         onSubmit={handleCreatePurchase}
         onUpdate={handleUpdatePurchase}
+        onRegisterDirectInvoice={handleRegisterDirectInvoice}
       />
 
       {/* Detalle de Compra */}

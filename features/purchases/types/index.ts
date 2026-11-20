@@ -230,6 +230,21 @@ export interface CreatePurchaseInput {
   }
 }
 
+/**
+ * Factura del proveedor que llega sin orden de compra previa: se registra la compra, se recibe la
+ * mercancía completa y se causa en un solo paso. El motivo queda en las observaciones de la compra.
+ */
+export interface RegisterDirectInvoiceInput extends Omit<CreatePurchaseInput, 'saveAsDraft' | 'supplierInvoiceNumber'> {
+  supplierInvoiceNumber: string
+  noOrderReason: string
+}
+
+/** Resultado de la factura sin orden: receptionError indica que la compra quedó creada pero sin recibir. */
+export interface DirectInvoiceResult {
+  purchase: Purchase
+  receptionError: string | null
+}
+
 export interface UpdatePurchaseInput {
   supplierId: string
   /** Vacío mientras el proveedor no envíe su factura. */

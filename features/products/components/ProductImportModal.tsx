@@ -4,12 +4,16 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { productImportService } from '../services/product-import.service'
-import { ProductImportPreview, ProductImportRow } from '../types/import.types'
+import { ProductImportExecutionResult, ProductImportPreview, ProductImportRow } from '../types/import.types'
+import { useAuth } from '@/features/auth'
+import { decodeCsvBytes } from '@/lib/csv-parser'
+import { ProductImportFormatGuide } from './ProductImportFormatGuide'
+import { ProductImportPreviewTable } from './ProductImportPreviewTable'
 
 interface ProductImportModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess: (count: number) => void
+  onSuccess: (result: ProductImportExecutionResult) => void
 }
 
 export function ProductImportModal({
@@ -17,12 +21,24 @@ export function ProductImportModal({
   onClose,
   onSuccess,
 }: ProductImportModalProps) {
+  const { user } = useAuth()
+  // Permisos de quien importa: definen si ve el costo actual y si puede cambiarlo (cost.read / costs.manage).
+  const importContext = user
+    ? {
+        userId: user.id,
+        userName: user.fullName,
+        userRole: user.roleCode === 'SUPERADMIN' ? 'ADMIN' : user.roleCode,
+        permissions: user.permissions,
+      }
+    : { permissions: [] as string[] }
   const [mounted, setMounted] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [preview, setPreview] = useState<ProductImportPreview | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [templateDownloaded, setTemplateDownloaded] = useState(false)
+  const [rowErrors, setRowErrors] = useState<ProductImportExecutionResult['errors']>([])
 
   useEffect(() => {
     setMounted(true)
@@ -40,17 +56,25 @@ export function ProductImportModal({
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    setTemplateDownloaded(true)
   }
 
   const handleFileChange = async (selectedFile: File) => {
     setFile(selectedFile)
     setErrorMessage(null)
     setPreview(null)
-    setIsProcessing(true)
+    setRowErrors([])
 
+    if (!/\.(csv|txt)$/i.test(selectedFile.name)) {
+      setErrorMessage('Ese archivo no es CSV. En Excel use Guardar como > CSV y vuelva a cargarlo.')
+      return
+    }
+
+    setIsProcessing(true)
     try {
-      const text = await selectedFile.text()
-      const previewResult = await productImportService.previewCsv(text)
+      const text = decodeCsvBytes(await selectedFile.arrayBuffer())
+      const previewResult = await productImportService.previewCsv(text, undefined, importContext)
       setPreview(previewResult)
     } catch (err: any) {
       setErrorMessage(`Error al leer el archivo: ${err.message || 'Formato no válido'}`)
@@ -63,19 +87,24 @@ export function ProductImportModal({
     if (!preview || preview.validCount === 0) return
     setIsProcessing(true)
     setErrorMessage(null)
+    setRowErrors([])
 
     try {
       const validRows: ProductImportRow[] = preview.rows
         .filter((r) => r.isValid)
         .map((r) => r.parsed)
 
-      const result = await productImportService.executeImport(validRows)
+      const result = await productImportService.executeImport(validRows, importContext)
 
-      if (result.importedCount > 0) {
-        onSuccess(result.importedCount)
+      if (result.importedCount > 0) onSuccess(result)
+      if (result.errors.length === 0) {
         onClose()
-      } else if (result.errors.length > 0) {
-        setErrorMessage(`No se pudo importar ningún producto: ${result.errors[0].message}`)
+      } else {
+        // Lo aplicado ya quedó guardado: se bloquea un segundo envío del mismo archivo.
+        setPreview(null)
+        setFile(null)
+        setRowErrors(result.errors)
+        setErrorMessage(`Se aplicaron ${result.importedCount} productos y ${result.errors.length} no se pudieron guardar.`)
       }
     } catch (err: any) {
       setErrorMessage(`Error durante la importación: ${err.message || 'Falla del servidor'}`)
@@ -93,7 +122,7 @@ export function ProductImportModal({
     >
       <div
         className="deactivate-dialog-card page-enter"
-        style={{ maxWidth: 640 }}
+        style={{ width: 'min(94vw, 980px)', maxWidth: 980, maxHeight: '92vh', overflowY: 'auto' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="dialog-header-standard">
@@ -117,9 +146,9 @@ export function ProductImportModal({
         </div>
 
         <div className="dialog-body">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <p className="dialog-text-main" style={{ margin: 0 }}>
-              Carga tu archivo CSV estructurado con columnas SKU, Nombre, Precios e IVA.
+              Sube la plantilla en CSV. Antes de guardar verás qué productos se crean y cuáles se actualizan.
             </p>
             <button
               type="button"
@@ -131,6 +160,8 @@ export function ProductImportModal({
               <span>Descargar Plantilla CSV</span>
             </button>
           </div>
+
+          {!preview && <ProductImportFormatGuide justDownloaded={templateDownloaded} />}
 
           <div
             className={`file-dropzone ${dragOver ? 'is-dragover' : ''} ${
@@ -158,6 +189,7 @@ export function ProductImportModal({
                 if (e.target.files?.[0]) {
                   handleFileChange(e.target.files[0])
                 }
+                e.target.value = ''
               }}
             />
             <label htmlFor="csv-file-input" className="dropzone-label">
@@ -177,39 +209,13 @@ export function ProductImportModal({
           </div>
 
           {preview && (
-            <div style={{ marginTop: 14 }}>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
-                <span className="badge badge-success">
-                  {preview.validCount} {preview.validCount === 1 ? 'fila válida' : 'filas válidas'}
-                </span>
-                {preview.invalidCount > 0 && (
-                  <span className="badge badge-error">
-                    {preview.invalidCount} {preview.invalidCount === 1 ? 'fila con error' : 'filas con error'}
-                  </span>
-                )}
-              </div>
-
-              {preview.invalidCount > 0 && (
-                <div
-                  style={{
-                    maxHeight: 120,
-                    overflowY: 'auto',
-                    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                    borderRadius: 6,
-                    padding: '8px 12px',
-                    fontSize: 12,
-                    color: '#ef4444',
-                  }}
-                >
-                  {preview.rows
-                    .filter((r) => !r.isValid)
-                    .map((r, i) => (
-                      <div key={i} style={{ marginBottom: 4 }}>
-                        <strong>Fila {r.rowNumber} (SKU: {r.parsed.sku || 'N/A'}):</strong> {r.errors.join(' | ')}
-                      </div>
-                    ))}
-                </div>
-              )}
+            <div className="page-enter" style={{ marginTop: 14 }}>
+              <h4 style={{ margin: '0 0 4px', fontSize: 14 }}>Vista previa: todavía no se ha guardado nada</h4>
+              <p style={{ margin: '0 0 8px', fontSize: 12 }}>
+                Compare las cifras con su archivo; los decimales se leen con coma. {preview.createCount} nuevos, {preview.updateCount} por
+                actualizar, {preview.unchangedCount} sin cambios y {preview.invalidCount} con error (estos no se importan).
+              </p>
+              <ProductImportPreviewTable rows={preview.rows} />
             </div>
           )}
 
@@ -220,10 +226,21 @@ export function ProductImportModal({
             </div>
           )}
 
+          {rowErrors.length > 0 && (
+            <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 12, color: '#dc2626', maxHeight: 120, overflowY: 'auto' }}>
+              {rowErrors.map((e, i) => (
+                <li key={i}>
+                  Fila {e.rowNumber} ({e.sku || 'sin SKU'}): {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+
           <div className="info-banner-compact" style={{ marginTop: 14 }}>
             <AppIcon name="warning" size={14} />
             <span>
-              Si algo falla, no se guarda nada. Todo producto con stock inicial creará movimientos auditables en el Kardex.
+              Cada producto se guarda por separado: si una fila falla, las demás sí quedan. El stock inicial crea su movimiento en el
+              Kardex y los cambios de precio siguen la aprobación de precios.
             </span>
           </div>
         </div>
@@ -247,10 +264,10 @@ export function ProductImportModal({
             <AppIcon name="check" size={16} />
             <span>
               {isProcessing
-                ? 'Validando e importando...'
+                ? 'Procesando...'
                 : preview
-                ? `Importar ${preview.validCount} productos`
-                : 'Iniciar importación'}
+                ? `Confirmar: ${preview.createCount} nuevos, ${preview.updateCount} actualizados`
+                : 'Cargue un archivo'}
             </span>
           </button>
         </div>

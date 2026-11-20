@@ -120,7 +120,7 @@ export const INVENTARIO: Capitulo = {
           pasos: [
             { texto: 'En Productos pulse [[Importar]] y luego [[Descargar Plantilla CSV]].', captura: c('02-productos-17-importar', 'Ventana de importación masiva.') },
             {
-              texto: 'Abra la plantilla en Excel y llene una fila por producto con las columnas: SKU, Nombre, Código de Barras, Categoría, Marca, Unidad de Medida, Precio Venta Normal, Precio Mayorista, Cantidad Mínima Mayorista, **Costo Unitario**, Tarifa IVA (%), Exento de IVA, Stock Inicial, Código Bodega, Stock Mínimo, Stock Crítico, Catálogo Super Más, Catálogo Distribuidora y Descripción.',
+              texto: 'Abra la plantilla en Excel y llene una fila por producto con las columnas: SKU, Nombre, Código de Barras, Categoría, Marca, Unidad de Medida, Precio Venta Normal, Precio Mayorista, Cantidad Mínima Mayorista, **Costo Unitario**, Tarifa IVA (%), Tipo de IVA, Stock Inicial, Código Bodega, Stock Mínimo, Stock Crítico, Catálogo Super Más, Catálogo Distribuidora y Descripción. Los decimales van con coma (3200,50). Si el SKU ya existe, el producto se actualiza; antes de guardar, la ventana muestra una vista previa.',
               advertencia: 'Cada fila debe tener costo unitario mayor a $0; las filas sin costo se rechazan.',
             },
             { texto: 'Guarde el archivo como **CSV** (separado por comas o punto y coma), arrástrelo a la ventana y pulse [[Iniciar importación]].' },

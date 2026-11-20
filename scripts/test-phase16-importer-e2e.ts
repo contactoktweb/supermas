@@ -273,19 +273,16 @@ NUEVO-SKU-99;Producto Realmente Nuevo;30000`
     const t05Pass =
       previewExisting.totalRows === 2 &&
       previewExisting.rows.some(
-        (r) =>
-          !r.isValid &&
-          r.parsed.sku === existingProdSku &&
-          r.errors.some((e) => e.includes('ya existe en el sistema'))
+        (r) => r.isValid && r.action === 'UPDATE' && r.parsed.sku === existingProdSku && r.parsed.existingProductId
       )
 
     recordResult(
       'T05',
-      'Dry-Run Preview: Detección de SKU Preexistente en PostgreSQL',
+      'Dry-Run Preview: SKU preexistente se clasifica como actualización',
       t05Pass,
       t05Pass
-        ? `El SKU preexistente '${existingProdSku}' fue bloqueado correctamente en la vista previa.`
-        : `Falla: Se permitió un SKU preexistente sin advertencia de conflicto.`
+        ? `El SKU preexistente '${existingProdSku}' se reconoce y se propone como actualización.`
+        : `Falla: El SKU preexistente no se clasificó como actualización.`
     )
 
     // ========================================================================

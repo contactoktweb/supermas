@@ -5,10 +5,8 @@ import { AppIcon } from '@/components/ui/Icon'
 import { Purchase, UserPermissionContext } from '../types'
 import { purchaseService } from '../services/purchase.service'
 import { isSupplierInvoicePending } from '../utils/purchase-status'
+import { INVOICE_MIME_TYPES, validateInvoiceFile } from '../utils/invoice-file'
 import { SupplierInvoicePendingBadge } from './PurchaseTable'
-
-const INVOICE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
-const INVOICE_MAX_BYTES = 10 * 1024 * 1024
 
 interface PurchaseSupplierInvoiceFormProps {
   purchase: Purchase
@@ -28,12 +26,9 @@ export function PurchaseSupplierInvoiceForm({ purchase, userContext, onRegistere
     const selected = e.target.files?.[0]
     e.target.value = ''
     if (!selected) return
-    if (!INVOICE_MIME_TYPES.includes(selected.type)) {
-      setError('La factura debe ser PDF, JPG o PNG.')
-      return
-    }
-    if (selected.size > INVOICE_MAX_BYTES) {
-      setError('La factura debe pesar como máximo 10 MB.')
+    const fileError = validateInvoiceFile(selected)
+    if (fileError) {
+      setError(fileError)
       return
     }
     setError(null)

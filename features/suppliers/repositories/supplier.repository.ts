@@ -66,6 +66,11 @@ function mapDbRowToSupplier(row: any): Supplier {
     creditDays: Number(row.payment_terms_days || 0),
     creditLimit: Number(row.credit_limit || 0),
     notes: row.notes || undefined,
+    isSelfWithholder: Boolean(row.is_self_withholder),
+    isSimpleRegime: Boolean(row.is_simple_regime),
+    isZeseBeneficiary: Boolean(row.is_zese_beneficiary),
+    zeseStartDate: row.zese_start_date ?? null,
+    defaultWithholdingConceptIds: (row.default_withholding_concept_ids as string[] | null) ?? [],
     deliveriesCount,
     totalPurchased,
     currentBalance,
@@ -104,6 +109,11 @@ export class SupplierRepository {
         legal_name,
         commercial_name,
         person_type,
+        is_self_withholder,
+        is_simple_regime,
+        is_zese_beneficiary,
+        zese_start_date,
+        default_withholding_concept_ids,
         contact_name,
         email,
         phone,
@@ -121,6 +131,7 @@ export class SupplierRepository {
           id,
           total_amount,
           paid_amount,
+          withholding_amount,
           payment_status,
           inventory_status,
           issue_date
@@ -158,7 +169,7 @@ export class SupplierRepository {
     if (needsBodega || params.hasPendingBalance !== undefined) {
       let purchasesQuery = supabaseClient
         .from('purchases')
-        .select('supplier_id, total_amount, paid_amount, payment_status, inventory_status')
+        .select('supplier_id, total_amount, paid_amount, withholding_amount, payment_status, inventory_status')
         .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
       if (needsBodega) purchasesQuery = purchasesQuery.eq('location_id', params.locationId!)
       const { data: related, error: relatedError } = await purchasesQuery
@@ -237,6 +248,11 @@ export class SupplierRepository {
         legal_name,
         commercial_name,
         person_type,
+        is_self_withholder,
+        is_simple_regime,
+        is_zese_beneficiary,
+        zese_start_date,
+        default_withholding_concept_ids,
         contact_name,
         email,
         phone,
@@ -254,6 +270,7 @@ export class SupplierRepository {
           id,
           total_amount,
           paid_amount,
+          withholding_amount,
           payment_status,
           inventory_status,
           issue_date
@@ -301,6 +318,11 @@ export class SupplierRepository {
       status: 'ACTIVE',
       creditDays: 30,
       creditLimit: 0,
+      isSelfWithholder: false,
+      isSimpleRegime: false,
+      isZeseBeneficiary: false,
+      zeseStartDate: null,
+      defaultWithholdingConceptIds: [],
       deliveriesCount: 0,
       totalPurchased: 0,
       currentBalance: 0,
@@ -335,6 +357,11 @@ export class SupplierRepository {
       credit_limit: supplier.creditLimit || 0,
       notes: supplier.notes?.trim() || null,
       is_active: supplier.status === 'INACTIVE' ? false : true,
+      is_self_withholder: supplier.isSelfWithholder,
+      is_simple_regime: supplier.isSimpleRegime,
+      is_zese_beneficiary: supplier.isZeseBeneficiary,
+      zese_start_date: supplier.isZeseBeneficiary ? supplier.zeseStartDate : null,
+      default_withholding_concept_ids: supplier.defaultWithholdingConceptIds,
     }
 
     const { data, error } = await supabaseClient
@@ -414,6 +441,15 @@ export class SupplierRepository {
     if (data.status !== undefined) {
       updatePayload.is_active = data.status === 'ACTIVE'
     }
+    if (data.isSelfWithholder !== undefined) updatePayload.is_self_withholder = data.isSelfWithholder
+    if (data.isSimpleRegime !== undefined) updatePayload.is_simple_regime = data.isSimpleRegime
+    if (data.isZeseBeneficiary !== undefined) {
+      updatePayload.is_zese_beneficiary = data.isZeseBeneficiary
+      updatePayload.zese_start_date = data.isZeseBeneficiary ? data.zeseStartDate ?? null : null
+    }
+    if (data.defaultWithholdingConceptIds !== undefined) {
+      updatePayload.default_withholding_concept_ids = data.defaultWithholdingConceptIds
+    }
 
     const { data: updated, error } = await supabaseClient
       .from('suppliers')
@@ -429,6 +465,11 @@ export class SupplierRepository {
         legal_name,
         commercial_name,
         person_type,
+        is_self_withholder,
+        is_simple_regime,
+        is_zese_beneficiary,
+        zese_start_date,
+        default_withholding_concept_ids,
         contact_name,
         email,
         phone,
@@ -446,6 +487,7 @@ export class SupplierRepository {
           id,
           total_amount,
           paid_amount,
+          withholding_amount,
           payment_status,
           inventory_status,
           issue_date
@@ -514,7 +556,7 @@ export class SupplierRepository {
       supabaseClient.from('suppliers').select('id, is_active'),
       supabaseClient
         .from('purchases')
-        .select('id, supplier_id, total_amount, paid_amount, payment_status, due_date, inventory_status, issue_date')
+        .select('id, supplier_id, total_amount, paid_amount, withholding_amount, payment_status, due_date, inventory_status, issue_date')
         .in('inventory_status', PAYABLE_INVENTORY_STATUSES),
     ])
     if (suppliersRes.error || purchasesRes.error) {
@@ -640,7 +682,7 @@ export class SupplierRepository {
   async getSupplierInvoices(supplierId: string): Promise<SupplierInvoiceSummary[]> {
     const { data, error } = await supabaseClient
       .from('purchases')
-      .select('id, purchase_number, supplier_invoice_number, issue_date, due_date, total_amount, paid_amount, payment_status, invoice_attachment_url')
+      .select('id, purchase_number, supplier_invoice_number, issue_date, due_date, total_amount, paid_amount, withholding_amount, payment_status, invoice_attachment_url')
       .eq('supplier_id', supplierId)
       .in('inventory_status', PAYABLE_INVENTORY_STATUSES)
       .order('issue_date', { ascending: false })
@@ -652,7 +694,7 @@ export class SupplierRepository {
     return data.map((p) => {
       const total = Number(p.total_amount || 0)
       const paid = Number(p.paid_amount || 0)
-      const pending = total - paid
+      const pending = total - Number(p.withholding_amount || 0) - paid
 
       let status: 'PENDIENTE' | 'PAGADA' | 'VENCIDA' = 'PENDIENTE'
       if (p.payment_status === 'PAID' || pending <= 0) {

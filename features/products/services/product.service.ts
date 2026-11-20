@@ -208,8 +208,21 @@ export class ProductService {
           desiredTiers: validated.prices,
         })
       : { priceChanges: [], metadataTiers: [] }
-    if ((validated as any).estimatedCost !== undefined) {
-      updatePayload.costPrice = (validated as any).estimatedCost
+    // El formulario envía el costo como costPrice (estimatedCost en llamadas antiguas). Se mira el input
+    // original porque el esquema rellena costPrice con 0 cuando no viene y borraría el costo en ediciones parciales.
+    const requestedCost =
+      input.costPrice !== undefined ? validated.costPrice : (validated as any).estimatedCost
+    // Solo se escribe si cambió: así una edición de otro campo no pisa un costo actualizado mientras
+    // el formulario estaba abierto, y quien no ve costos (el formulario le muestra 0) no lo borra.
+    if (
+      requestedCost !== undefined &&
+      this.hasPermission(userContext, 'cost.read') &&
+      Number(requestedCost) !== Number(existing.costPrice)
+    ) {
+      if (!this.canManageCosts(userContext)) {
+        throw new Error('No tiene permiso para modificar el costo del producto.')
+      }
+      updatePayload.costPrice = Number(requestedCost)
     }
     if ((validated as any).accountingAccountId !== undefined || (input as any).accountingAccountId !== undefined) {
       updatePayload.accountingAccountId = (validated as any).accountingAccountId ?? (input as any).accountingAccountId
@@ -460,6 +473,10 @@ export class ProductService {
   /**
    * Verifica permisos del usuario.
    */
+  private canManageCosts(userContext?: UserPermissionContext): boolean {
+    return this.hasPermission(userContext, 'costs.manage') || Boolean(userContext?.permissions.includes('*'))
+  }
+
   private hasPermission(
     userContext?: UserPermissionContext,
     permission?: string

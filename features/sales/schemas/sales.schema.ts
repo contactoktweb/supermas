@@ -56,6 +56,7 @@ export const createSaleSchema = z.object({
   bankAccountId: z.string().uuid().optional(),
   mixedCashAmount: z.number().nonnegative().optional(),
   mixedRestMethod: z.enum(['TARJETA', 'TRANSFERENCIA']).optional(),
+  withholdingConceptIds: z.array(z.string().uuid('Retención no válida')).optional(),
 })
 
 export const cancelSaleSchema = z.object({

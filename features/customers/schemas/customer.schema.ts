@@ -65,6 +65,8 @@ export const createCustomerSchema = z
     creditDays: z.number().min(0, 'Los días de crédito no pueden ser negativos').max(180, 'El plazo máximo de crédito es 180 días').default(0),
     preferredLocationId: z.string().optional(),
     notes: z.string().optional(),
+    isWithholdingAgent: z.boolean().optional(),
+    defaultWithholdingConceptIds: z.array(z.string().uuid()).optional(),
   })
   .refine(
     (data) => {
@@ -103,6 +105,8 @@ export const updateCustomerSchema = z.object({
   preferredLocationId: z.string().optional(),
   status: customerStatusSchema.optional(),
   notes: z.string().optional(),
+  isWithholdingAgent: z.boolean().optional(),
+  defaultWithholdingConceptIds: z.array(z.string().uuid()).optional(),
 })
 
 export const customerPaymentSchema = z.object({

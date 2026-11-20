@@ -342,7 +342,14 @@ export function CustomerStatementPage() {
                             <span style={{ fontSize: 13 }}>{formatDate(r.dueDate)}</span>
                             {r.isOverdue && <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'var(--red)' }}>Vencida</span>}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCOP(r.originalAmount)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {formatCOP(r.originalAmount)}
+                      {r.withholdingAmount > 0 && (
+                        <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>
+                          Retenciones −{formatCOP(r.withholdingAmount)}
+                        </span>
+                      )}
+                    </td>
                           <td style={{ textAlign: 'right', color: '#0369a1' }}>{formatCOP(r.paidAmount)}</td>
                           <td style={{ textAlign: 'right' }}>
                             <strong style={{ color: r.pendingBalance > 0 ? '#b45309' : '#15803d' }}>{formatCOP(r.pendingBalance)}</strong>

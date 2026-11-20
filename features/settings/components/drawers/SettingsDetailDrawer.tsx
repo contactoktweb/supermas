@@ -23,6 +23,7 @@ import {
   POSSettingsPanel,
   SecuritySettingsPanel,
 } from '../panels/OperationalSettingsPanels'
+import { WithholdingSettingsPanel } from '@/features/withholdings/components/WithholdingSettingsPanel'
 import { AccountingSettingsPanel, BillingSettingsPanel, TaxSettingsPanel } from '../panels/ReadOnlySettingsPanels'
 
 const CATEGORY_HEADERS: Record<SettingsCategory, { title: string; subtitle: string; icon: LightIconName }> = {
@@ -33,6 +34,7 @@ const CATEGORY_HEADERS: Record<SettingsCategory, { title: string; subtitle: stri
   ECOMMERCE: { title: 'Canales web', subtitle: 'Bodega de despacho, catálogos y WhatsApp', icon: 'webOrders' },
   BILLING: { title: 'Facturación electrónica', subtitle: 'Resolución vigente y estado ante la DIAN', icon: 'invoices' },
   TAX: { title: 'Impuestos', subtitle: 'Perfil tributario de la empresa', icon: 'taxes' },
+  WITHHOLDINGS: { title: 'Retenciones', subtitle: 'Conceptos, UVT y perfil tributario de la empresa', icon: 'receipt' },
   ACCOUNTING: { title: 'Contabilidad', subtitle: 'Periodos abiertos y cuentas de enlace PUC', icon: 'accounting' },
   EXOGENA: { title: 'Información exógena', subtitle: 'Año gravable predeterminado', icon: 'exogena' },
   SECURITY: { title: 'Seguridad', subtitle: 'Sesiones y acceso', icon: 'lock' },
@@ -87,6 +89,7 @@ export function SettingsDetailDrawer({
     ECOMMERCE: <EcommerceSettingsPanel value={data.ecommerce} locations={data.locations} isSaving={isSaving} onSave={onSaveEcommerce} />,
     BILLING: <BillingSettingsPanel fiscal={data.fiscal} />,
     TAX: <TaxSettingsPanel company={data.company} />,
+    WITHHOLDINGS: <WithholdingSettingsPanel />,
     ACCOUNTING: <AccountingSettingsPanel accounting={data.accounting} />,
     EXOGENA: <ExogenaSettingsPanel value={data.general} isSaving={isSaving} onSave={onSaveGeneral} />,
     SECURITY: <SecuritySettingsPanel value={data.general} isSaving={isSaving} onSave={onSaveGeneral} />,

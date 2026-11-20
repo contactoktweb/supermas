@@ -85,6 +85,8 @@ function mapDbRowToCustomer(row: any): Customer {
     firstPurchaseDate,
     status: (row.is_active ? 'ACTIVE' : 'INACTIVE') as CustomerStatus,
     notes: row.notes || undefined,
+    isWithholdingAgent: Boolean(row.is_withholding_agent),
+    defaultWithholdingConceptIds: (row.default_withholding_concept_ids as string[] | null) ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at || row.created_at,
   }
@@ -138,6 +140,8 @@ export class CustomerRepository {
         current_balance,
         is_active,
         notes,
+        is_withholding_agent,
+        default_withholding_concept_ids,
         created_at,
         updated_at,
         sales (
@@ -463,6 +467,8 @@ export class CustomerRepository {
         current_balance: customerData.currentBalance || 0,
         is_active: customerData.status !== 'INACTIVE',
         notes: customerData.notes?.trim() || null,
+        is_withholding_agent: customerData.isWithholdingAgent ?? false,
+        default_withholding_concept_ids: customerData.isWithholdingAgent ? customerData.defaultWithholdingConceptIds ?? [] : [],
       })
       .select('*, sales(id, total_amount, status, created_at)')
       .single()
@@ -502,6 +508,13 @@ export class CustomerRepository {
     if (updates.currentBalance !== undefined) payload.current_balance = updates.currentBalance
     if (updates.status !== undefined) payload.is_active = updates.status === 'ACTIVE'
     if (updates.notes !== undefined) payload.notes = updates.notes
+    if (updates.isWithholdingAgent !== undefined) {
+      payload.is_withholding_agent = updates.isWithholdingAgent
+      if (!updates.isWithholdingAgent) payload.default_withholding_concept_ids = []
+    }
+    if (updates.isWithholdingAgent !== false && updates.defaultWithholdingConceptIds !== undefined) {
+      payload.default_withholding_concept_ids = updates.defaultWithholdingConceptIds
+    }
 
     if (updates.customerType) {
       payload.person_type = updates.customerType === 'COMPANY' ? 'COMPANY' : 'NATURAL'

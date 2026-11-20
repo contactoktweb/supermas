@@ -245,6 +245,12 @@ export function PurchasePaymentModal({
               <span style={{ color: 'var(--muted)' }}>Total factura:</span>
               <span className="font-tabular">{formatCurrency(purchase.total)}</span>
             </div>
+            {purchase.withholdingTotal > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
+                <span style={{ color: 'var(--muted)' }}>Retenciones (−):</span>
+                <span className="font-tabular">{formatCurrency(purchase.withholdingTotal)}</span>
+              </div>
+            )}
             <div
               style={{
                 display: 'flex',

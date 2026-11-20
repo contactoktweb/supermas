@@ -424,7 +424,14 @@ export function AccountsReceivablePage() {
                         </span>
                       )}
                     </td>
-                    <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatCOP(row.originalAmount)}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {formatCOP(row.originalAmount)}
+                      {row.withholdingAmount > 0 && (
+                        <span style={{ display: 'block', fontSize: 11, fontWeight: 500, color: 'var(--muted)' }}>
+                          Retenciones −{formatCOP(row.withholdingAmount)}
+                        </span>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right', color: '#0369a1' }}>{formatCOP(row.paidAmount)}</td>
                     <td style={{ textAlign: 'right' }}>
                       <strong style={{ color: row.pendingBalance > 0 ? '#b45309' : '#15803d', fontSize: 14 }}>

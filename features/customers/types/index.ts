@@ -47,6 +47,9 @@ export interface Customer {
   preferredLocationId?: string
   status: CustomerStatus
   notes?: string
+  /** Le practica retenciones a la empresa en las ventas. */
+  isWithholdingAgent: boolean
+  defaultWithholdingConceptIds: string[]
   createdAt: string
   updatedAt: string
 }
@@ -255,6 +258,8 @@ export interface CreateCustomerDTO {
   creditDays?: number
   preferredLocationId?: string
   notes?: string
+  isWithholdingAgent?: boolean
+  defaultWithholdingConceptIds?: string[]
 }
 
 export interface UpdateCustomerDTO {
@@ -281,6 +286,8 @@ export interface UpdateCustomerDTO {
   preferredLocationId?: string
   status?: CustomerStatus
   notes?: string
+  isWithholdingAgent?: boolean
+  defaultWithholdingConceptIds?: string[]
 }
 
 export interface CustomerPaymentDTO {

@@ -80,6 +80,7 @@ export function TaxSettingsPanel({ company }: { company: CompanySettings | null 
           ]}
         />
         <SettingsNotice>El perfil se edita en Empresa → Datos fiscales para la DIAN.</SettingsNotice>
+        <SettingsNotice>Las retenciones de compras y ventas se configuran en Configuración → Retenciones.</SettingsNotice>
       </SettingsSection>
       <SettingsModuleLink href="/impuestos" icon="taxes" label="Ir a Impuestos y tarifas" />
     </div>

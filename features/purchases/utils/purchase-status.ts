@@ -43,15 +43,22 @@ export const isPayablePurchase = (status?: string | null) => has(PAYABLE_INVENTO
 /** Se puede registrar recepción de mercancía. */
 export const canReceivePurchase = (status?: string | null) => has(PENDING_RECEPTION_STATUSES, status)
 
+/** Neto a pagar al proveedor: total de la compra menos las retenciones practicadas. */
+export const purchaseNetPayable = (row: {
+  total_amount?: number | string | null
+  withholding_amount?: number | string | null
+}): number => Math.max(0, Number(row.total_amount || 0) - Number(row.withholding_amount || 0))
+
 /** Saldo pendiente de pago de una compra que genera deuda (0 si es borrador, anulada o pagada). */
 export function pendingPurchaseBalance(row: {
   inventory_status?: string | null
   payment_status?: string | null
   total_amount?: number | string | null
   paid_amount?: number | string | null
+  withholding_amount?: number | string | null
 }): number {
   if (!isPayablePurchase(row.inventory_status) || row.payment_status === 'PAID') return 0
-  return Math.max(0, Number(row.total_amount || 0) - Number(row.paid_amount || 0))
+  return Math.max(0, purchaseNetPayable(row) - Number(row.paid_amount || 0))
 }
 
 /** Fecha de hoy en Bogotá (YYYY-MM-DD); toISOString usa UTC y cambia de día a las 7 p. m. */

@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/Icon'
 import { CustomSelect } from '@/components/ui/CustomSelect'
 import { useCompanyLocation } from '@/hooks/useCompanyLocation'
+import { ThirdPartyWithholdingFields } from '@/features/withholdings/components/ThirdPartyWithholdingFields'
+import { EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE, type ThirdPartyWithholdingProfile } from '@/features/withholdings/types'
 import {
   Customer,
   CustomerType,
@@ -78,6 +80,7 @@ export function CustomerFormDrawer({
   const [creditDays, setCreditDays] = useState<number>(0)
   const [preferredLocationId, setPreferredLocationId] = useState('')
   const [notes, setNotes] = useState('')
+  const [withholding, setWithholding] = useState<ThirdPartyWithholdingProfile>(EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -107,6 +110,11 @@ export function CustomerFormDrawer({
       setCreditDays(customerToEdit.creditDays || 0)
       setPreferredLocationId(customerToEdit.preferredLocationId || '')
       setNotes(customerToEdit.notes || '')
+      setWithholding({
+        ...EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE,
+        isWithholdingAgent: customerToEdit.isWithholdingAgent,
+        defaultWithholdingConceptIds: customerToEdit.defaultWithholdingConceptIds,
+      })
     } else {
       setCustomerType('NATURAL')
       setDocumentType('CC')
@@ -129,6 +137,7 @@ export function CustomerFormDrawer({
       setCreditDays(0)
       setPreferredLocationId('')
       setNotes('')
+      setWithholding(EMPTY_THIRD_PARTY_WITHHOLDING_PROFILE)
     }
     setActiveTab('basic')
     setError(null)
@@ -207,6 +216,8 @@ export function CustomerFormDrawer({
         creditDays: Number(creditDays) || 0,
         preferredLocationId,
         notes: notes.trim() || undefined,
+        isWithholdingAgent: withholding.isWithholdingAgent,
+        defaultWithholdingConceptIds: withholding.isWithholdingAgent ? withholding.defaultWithholdingConceptIds : [],
       }
 
       await onSubmit(payload)
@@ -679,6 +690,8 @@ export function CustomerFormDrawer({
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
+
+              <ThirdPartyWithholdingFields side="SALES" value={withholding} onChange={setWithholding} />
             </div>
           )}
 

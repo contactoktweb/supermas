@@ -8,7 +8,7 @@ export const supplierStatusSchema = z.enum(['ACTIVE', 'INACTIVE'], {
   message: 'Estado del proveedor no válido',
 })
 
-export const createSupplierSchema = z.object({
+const supplierBaseSchema = z.object({
   documentType: documentTypeSchema,
   documentNumber: z
     .string({ message: 'El número de documento es obligatorio' })
@@ -58,11 +58,29 @@ export const createSupplierSchema = z.object({
     .min(0, { message: 'El cupo de crédito no puede ser negativo' })
     .default(0),
   notes: z.string().optional(),
+  isSelfWithholder: z.boolean().optional(),
+  isSimpleRegime: z.boolean().optional(),
+  isZeseBeneficiary: z.boolean().optional(),
+  zeseStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha de inicio ZESE inválida' })
+    .nullable()
+    .optional(),
+  defaultWithholdingConceptIds: z.array(z.string().uuid()).optional(),
 })
 
-export const updateSupplierSchema = createSupplierSchema.partial().extend({
-  id: z.string().min(1, { message: 'ID de proveedor obligatorio' }),
-})
+const zeseStartRequired = (value: { isZeseBeneficiary?: boolean; zeseStartDate?: string | null }) =>
+  !value.isZeseBeneficiary || !!value.zeseStartDate
+const ZESE_START_MESSAGE = { message: 'Indique la fecha de inicio del beneficio ZESE del proveedor', path: ['zeseStartDate'] }
+
+export const createSupplierSchema = supplierBaseSchema.refine(zeseStartRequired, ZESE_START_MESSAGE)
+
+export const updateSupplierSchema = supplierBaseSchema
+  .partial()
+  .extend({
+    id: z.string().min(1, { message: 'ID de proveedor obligatorio' }),
+  })
+  .refine(zeseStartRequired, ZESE_START_MESSAGE)
 
 export const registerSupplierPaymentSchema = z.object({
   supplierId: z.string().min(1, { message: 'ID de proveedor requerido' }),

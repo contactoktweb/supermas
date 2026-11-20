@@ -10,13 +10,22 @@ import {
   PurchasePaymentType,
   CreatePurchaseInput,
   UpdatePurchaseInput,
+  RegisterDirectInvoiceInput,
   Purchase,
 } from '../types'
+import {
+  buildNoOrderNotes,
+  directInvoiceSchema,
+  NO_ORDER_REASON_MAX_LENGTH,
+  SUPPLIER_INVOICE_NUMBER_MAX_LENGTH,
+} from '../schemas/purchase.schema'
+import { INVOICE_MIME_TYPES, validateInvoiceFile } from '../utils/invoice-file'
 import { LocationOption } from '../services/location.service'
 import { purchaseCalculationService } from '../services/purchase-calculation.service'
 import { productService } from '@/features/products/services/product.service'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
+import { WithholdingSelector } from '@/features/withholdings/components/WithholdingSelector'
 
 interface PurchaseNewDrawerProps {
   isOpen: boolean
@@ -25,8 +34,13 @@ interface PurchaseNewDrawerProps {
   onClose: () => void
   onSubmit: (input: CreatePurchaseInput) => Promise<void>
   onUpdate?: (purchaseId: string, input: UpdatePurchaseInput) => Promise<void>
+  /** DIRECT_INVOICE: factura del proveedor que llegó sin orden de compra (se registra y recibe de una vez). */
+  mode?: 'ORDER' | 'DIRECT_INVOICE'
+  onRegisterDirectInvoice?: (input: RegisterDirectInvoiceInput) => Promise<void>
   initialPurchase?: Purchase | null
 }
+
+const PURCHASE_NOTES_MAX_LENGTH = 500
 
 interface ProductSearchResult {
   id: string
@@ -48,8 +62,11 @@ export function PurchaseNewDrawer({
   onClose,
   onSubmit,
   onUpdate,
+  mode = 'ORDER',
+  onRegisterDirectInvoice,
   initialPurchase,
 }: PurchaseNewDrawerProps) {
+  const isDirectInvoice = mode === 'DIRECT_INVOICE' && !initialPurchase
   const [mounted, setMounted] = useState(false)
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -67,6 +84,11 @@ export function PurchaseNewDrawer({
   const [paymentType, setPaymentType] = useState<PurchasePaymentType>('CONTADO')
   const [dueDate, setDueDate] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
+  const [withholdingConceptIds, setWithholdingConceptIds] = useState<string[]>([])
+  const [withholdingTotal, setWithholdingTotal] = useState(0)
+  // Factura sin orden de compra
+  const [noOrderReason, setNoOrderReason] = useState<string>('')
+  const [invoiceFile, setInvoiceFile] = useState<File | null>(null)
 
   // Step 2: Products
   const [searchQuery, setSearchQuery] = useState('')
@@ -92,6 +114,7 @@ export function PurchaseNewDrawer({
       setDueDate(initialPurchase.dueDate ? initialPurchase.dueDate.split("T")[0] : "")
       setNotes(initialPurchase.notes || "")
       setItems(initialPurchase.items || [])
+      setWithholdingConceptIds(initialPurchase.withholdingConceptIds || [])
       setStep(1)
     } else {
       setSupplierId(suppliers[0]?.id || "")
@@ -102,8 +125,11 @@ export function PurchaseNewDrawer({
       setDueDate("")
       setNotes("")
       setItems([])
+      setWithholdingConceptIds(suppliers[0]?.defaultWithholdingConceptIds || [])
       setStep(1)
     }
+    setNoOrderReason("")
+    setInvoiceFile(null)
   }, [initialPurchase, suppliers, locations, isOpen])
 
   // Reactive product search
@@ -267,8 +293,32 @@ export function PurchaseNewDrawer({
       setError('Para compras a crédito es obligatorio definir la fecha de vencimiento.')
       return false
     }
+    if (isDirectInvoice) {
+      const parsed = directInvoiceSchema.safeParse({ supplierInvoiceNumber, noOrderReason })
+      if (!parsed.success) {
+        setError(parsed.error.issues[0]?.message || 'Revise los datos de la factura.')
+        return false
+      }
+      if (buildNoOrderNotes(noOrderReason, notes).length > PURCHASE_NOTES_MAX_LENGTH) {
+        setError(`El motivo y las observaciones juntos no pueden superar ${PURCHASE_NOTES_MAX_LENGTH} caracteres.`)
+        return false
+      }
+    }
     setError(null)
     return true
+  }
+
+  const handleInvoiceFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0]
+    e.target.value = ''
+    if (!selected) return
+    const fileError = validateInvoiceFile(selected)
+    if (fileError) {
+      setError(fileError)
+      return
+    }
+    setError(null)
+    setInvoiceFile(selected)
   }
 
   const validateStep2 = () => {
@@ -306,6 +356,7 @@ export function PurchaseNewDrawer({
         dueDate: paymentType === 'CREDITO' ? dueDate : undefined,
         notes: notes.trim() || undefined,
         saveAsDraft,
+        withholdingConceptIds,
         items: items.map((it) => ({
           productId: it.productId,
           productName: it.productName,
@@ -321,7 +372,16 @@ export function PurchaseNewDrawer({
         })),
       }
 
-      if (initialPurchase && onUpdate) {
+      if (isDirectInvoice && onRegisterDirectInvoice) {
+        await onRegisterDirectInvoice({
+          ...payload,
+          supplierInvoiceNumber: supplierInvoiceNumber.trim(),
+          noOrderReason: noOrderReason.trim(),
+          attachment: invoiceFile
+            ? { file: invoiceFile, fileName: invoiceFile.name, fileType: invoiceFile.type, fileSize: invoiceFile.size }
+            : undefined,
+        })
+      } else if (initialPurchase && onUpdate) {
         await onUpdate(initialPurchase.id, payload)
       } else {
         await onSubmit(payload)
@@ -372,7 +432,11 @@ export function PurchaseNewDrawer({
                   color: 'var(--navy)',
                 }}
               >
-                {initialPurchase ? `Editar Borrador • ${initialPurchase.purchaseNumber}` : "Nueva Compra a Proveedor"}
+                {initialPurchase
+                  ? `Editar Borrador • ${initialPurchase.purchaseNumber}`
+                  : isDirectInvoice
+                    ? 'Factura sin orden de compra'
+                    : 'Nueva Compra a Proveedor'}
               </h2>
             </div>
           </div>
@@ -512,7 +576,11 @@ export function PurchaseNewDrawer({
                   </label>
                   <CustomSelect
                     value={supplierId}
-                    onChange={(val) => setSupplierId(val)}
+                    onChange={(val) => {
+                      setSupplierId(val)
+                      // Al cambiar de proveedor se proponen sus retenciones habituales.
+                      setWithholdingConceptIds(suppliers.find((s) => s.id === val)?.defaultWithholdingConceptIds || [])
+                    }}
                     options={suppliers.map((s) => ({
                       value: s.id,
                       label: s.name,
@@ -599,15 +667,17 @@ export function PurchaseNewDrawer({
                   />
                 </div>
 
-                {/* La factura aún no existe: el proveedor la envía después y se registra en el detalle de la orden */}
-                <div className="purchase-invoice-pending-note">
-                  <AppIcon name="invoices" size={16} />
-                  <p>
-                    <strong>Factura del proveedor</strong>
-                    La orden queda pendiente por factura. Se registra cuando el
-                    proveedor la envíe, desde el detalle de la orden.
-                  </p>
-                </div>
+                {/* En una orden normal la factura aún no existe: se registra después en el detalle de la orden */}
+                {!isDirectInvoice && (
+                  <div className="purchase-invoice-pending-note">
+                    <AppIcon name="invoices" size={16} />
+                    <p>
+                      <strong>Factura del proveedor</strong>
+                      La orden queda pendiente por factura. Se registra cuando el
+                      proveedor la envíe, desde el detalle de la orden.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div
@@ -673,6 +743,82 @@ export function PurchaseNewDrawer({
                   />
                 </div>
               </div>
+
+              {isDirectInvoice && (
+                <section
+                  aria-labelledby="direct-invoice-title"
+                  style={{
+                    marginBottom: 16,
+                    padding: 14,
+                    borderRadius: 12,
+                    border: '1.5px solid #fcd34d',
+                    background: '#fffbeb',
+                    display: 'grid',
+                    gap: 12,
+                  }}
+                >
+                  <div>
+                    <h4 id="direct-invoice-title" style={{ margin: 0, fontSize: 13, fontWeight: 800, color: 'var(--navy)' }}>
+                      Factura recibida sin orden de compra
+                    </h4>
+                    <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                      Al registrarla, la mercancía entra completa a la bodega y la compra queda causada. El motivo queda guardado en la compra.
+                    </p>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+                    <div>
+                      <label htmlFor="direct-invoice-number" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                        N° de factura del proveedor <span style={{ color: '#dc2626' }}>*</span>
+                      </label>
+                      <input
+                        id="direct-invoice-number"
+                        type="text"
+                        className="filter-date-input"
+                        style={{ width: '100%' }}
+                        placeholder="Ej. FE-89214"
+                        maxLength={SUPPLIER_INVOICE_NUMBER_MAX_LENGTH}
+                        value={supplierInvoiceNumber}
+                        onChange={(e) => setSupplierInvoiceNumber(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>Archivo de la factura</span>
+                      <input
+                        type="file"
+                        id="direct-invoice-file"
+                        accept={INVOICE_MIME_TYPES.join(',')}
+                        onChange={handleInvoiceFileChange}
+                        className="visually-hidden"
+                      />
+                      <label htmlFor="direct-invoice-file" className="supplier-invoice-drop">
+                        <AppIcon name="upload" size={18} />
+                        <span>{invoiceFile ? invoiceFile.name : 'Cargar PDF, JPG o PNG (máx. 10 MB)'}</span>
+                      </label>
+                      {invoiceFile && (
+                        <button type="button" className="outline-button compact" style={{ marginTop: 6 }} onClick={() => setInvoiceFile(null)}>
+                          Quitar archivo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="direct-invoice-reason" style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                      Motivo por el que no hay orden de compra <span style={{ color: '#dc2626' }}>*</span>
+                    </label>
+                    <textarea
+                      id="direct-invoice-reason"
+                      className="filter-date-input"
+                      style={{ width: '100%', minHeight: 64, resize: 'vertical', fontFamily: 'inherit' }}
+                      placeholder="Ej. Compra urgente autorizada por gerencia; el proveedor entregó y facturó el mismo día."
+                      maxLength={NO_ORDER_REASON_MAX_LENGTH}
+                      value={noOrderReason}
+                      onChange={(e) => setNoOrderReason(e.target.value)}
+                      required
+                    />
+                  </div>
+                </section>
+              )}
 
               {/* Observaciones */}
               <div style={{ marginBottom: 16 }}>
@@ -1141,11 +1287,42 @@ export function PurchaseNewDrawer({
                       marginTop: 12,
                     }}
                   >
-                    <span>Total a Pagar:</span>
+                    <span>Total factura:</span>
                     <span className="font-tabular" style={{ color: '#16a34a' }}>
                       {formatCurrency(totals.total)}
                     </span>
                   </div>
+
+                  <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+                    <WithholdingSelector
+                      side="PURCHASES"
+                      thirdPartyId={supplierId || null}
+                      base={Math.max(0, totals.total - totals.taxTotal)}
+                      tax={totals.taxTotal}
+                      date={date}
+                      selectedIds={withholdingConceptIds}
+                      onSelectedChange={setWithholdingConceptIds}
+                      onTotalChange={setWithholdingTotal}
+                    />
+                  </div>
+
+                  {withholdingTotal > 0 && (
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: 16,
+                        fontWeight: 800,
+                        color: 'var(--navy)',
+                        marginTop: 12,
+                      }}
+                    >
+                      <span>Neto a pagar:</span>
+                      <span className="font-tabular" style={{ color: '#16a34a' }}>
+                        {formatCurrency(Math.max(0, totals.total - withholdingTotal))}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -1263,6 +1440,7 @@ export function PurchaseNewDrawer({
                   <div style={{ fontSize: 11, color: 'var(--muted)' }}>
                     {items.length} {items.length === 1 ? 'producto' : 'productos'}{' '}
                     • Total: {formatCurrency(totals.total)}
+                    {withholdingTotal > 0 && ` • Neto a pagar: ${formatCurrency(Math.max(0, totals.total - withholdingTotal))}`}
                   </div>
                 </div>
               </div>
@@ -1346,6 +1524,18 @@ export function PurchaseNewDrawer({
                 }}
               >
                 <span>Siguiente →</span>
+              </button>
+            ) : isDirectInvoice ? (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={() => {
+                  if (validateStep1() && validateStep2()) void handleFinalSubmit(false)
+                }}
+                disabled={isSubmitting}
+              >
+                <AppIcon name="check" size={14} />
+                <span>{isSubmitting ? 'Registrando...' : 'Registrar factura y recibir'}</span>
               </button>
             ) : (
               <>

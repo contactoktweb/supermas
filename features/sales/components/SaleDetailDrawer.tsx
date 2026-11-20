@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, LightIconName } from '@/components/ui/Icon'
 import { SaleDetail, SaleStatus } from '../types'
+import { DocumentWithholdingSummary } from '@/features/withholdings/components/DocumentWithholdingSummary'
 import { displayLabel, PAYMENT_METHOD_LABELS, SALE_DOCUMENT_LABELS, REMISSION_STATUS_LABELS, MOVEMENT_TYPE_LABELS, ACTION_LABELS, SALE_STATUS_LABELS } from '@/lib/labels/display-labels'
 
 interface SaleDetailDrawerProps {
@@ -464,6 +465,13 @@ export function SaleDetailDrawer({
                         <span>Total:</span>
                         <span>{formatCOP(sale.totalAmount)}</span>
                       </div>
+                      <DocumentWithholdingSummary
+                        documentType="SALE"
+                        documentId={sale.id}
+                        total={sale.totalAmount}
+                        withholdingTotal={sale.withholdingTotal ?? 0}
+                        netLabel="Neto a cobrar:"
+                      />
                     </div>
                   </div>
                 </div>

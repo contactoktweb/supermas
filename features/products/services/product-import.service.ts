@@ -187,7 +187,7 @@ export class ProductImportService {
       return ''
     }
 
-    const readNumber = (label: string, keys: string[], options: { integer?: boolean } = {}): number | undefined => {
+    const readNumber = (label: string, keys: string[], options: { integer?: boolean; money?: boolean } = {}): number | undefined => {
       const cell = pick(keys)
       if (!cell) return undefined
       const parsed = parseColombianNumber(cell)
@@ -197,6 +197,10 @@ export class ProductImportService {
       }
       if (parsed.value < 0) {
         errors.push(`${label}: no puede ser negativo.`)
+        return undefined
+      }
+      if (options.money && Math.round(parsed.value * 100) / 100 !== parsed.value) {
+        errors.push(`${label}: "${cell}" tiene más de 2 decimales.`)
         return undefined
       }
       if (options.integer && !Number.isInteger(parsed.value)) {
@@ -223,13 +227,13 @@ export class ProductImportService {
     // Sin columna de nombre, un producto nuevo usa la descripción; en una actualización no renombra.
     const name = explicitName || description
 
-    const publicSalePrice = readNumber('Precio de venta', ['precioventanormal', 'precionormal', 'precioventa', 'precio', 'pvp'])
-    const wholesalePrice = readNumber('Precio mayorista', ['preciomayorista', 'mayorista', 'preciopormayor'])
+    const publicSalePrice = readNumber('Precio de venta', ['precioventanormal', 'precionormal', 'precioventa', 'precio', 'pvp'], { money: true })
+    const wholesalePrice = readNumber('Precio mayorista', ['preciomayorista', 'mayorista', 'preciopormayor'], { money: true })
     const minWholesaleQuantity = readNumber('Cantidad mínima mayorista', ['cantidadminimamayorista', 'minmayorista', 'cantminmayorista'], { integer: true })
     if (minWholesaleQuantity !== undefined && minWholesaleQuantity < 1) {
       errors.push('Cantidad mínima mayorista: debe ser 1 o más.')
     }
-    const costPrice = readNumber('Costo unitario', ['costounitario', 'costo', 'costopromedio', 'preciocosto'])
+    const costPrice = readNumber('Costo unitario', ['costounitario', 'costo', 'costopromedio', 'preciocosto'], { money: true })
     const initialStock = readNumber('Stock inicial', ['stockinicial', 'stock', 'cantidadinicial', 'cantidad'])
     const minStock = readNumber('Stock mínimo', ['stockminimo', 'minstock'], { integer: true })
     const criticalStock = readNumber('Stock crítico', ['stockcritico', 'criticalstock'], { integer: true })
@@ -427,6 +431,11 @@ export class ProductImportService {
       }
 
       const provided = parsed.provided || {}
+      if (existing) {
+        // Un precio igual al actual no se envía: evita pedir aprobación o permisos de precio sin cambio.
+        if (provided.publicSalePrice && Number(existing.public_sale_price) === parsed.publicSalePrice) provided.publicSalePrice = false
+        if (provided.wholesalePrice && Number(existing.wholesale_price) === parsed.wholesalePrice) provided.wholesalePrice = false
+      }
       if (!existing) {
         if (!parsed.name) errors.push('El nombre del producto es obligatorio.')
         if ((parsed.costPrice ?? 0) <= 0) errors.push('El costo unitario debe ser mayor a $0.')
@@ -509,9 +518,6 @@ export class ProductImportService {
     if (provided.wholesalePrice) {
       priceChanges.push({ priceListCode: WHOLESALE_PRICE_LIST.code, priceListName: WHOLESALE_PRICE_LIST.name, proposedPrice: Number(row.wholesalePrice), minQuantity: Number(row.minWholesaleQuantity) })
     }
-    const priceMode = priceChanges.length
-      ? (await productRepository.submitPriceChanges(productId, priceChanges, IMPORT_PRICE_REASON)).mode
-      : 'NO_CHANGES'
 
     const patch: Record<string, unknown> = {}
     if (provided.name) patch.name = row.name.trim()
@@ -548,7 +554,10 @@ export class ProductImportService {
         .eq('price_list_code', WHOLESALE_PRICE_LIST.code)
       if (error) throw new Error(`No se pudo actualizar la cantidad mayorista: ${error.message}`)
     }
-    return priceMode
+    // Los precios van al final: si la ficha falla (código de barras repetido, permisos), no se envían.
+    return priceChanges.length
+      ? (await productRepository.submitPriceChanges(productId, priceChanges, IMPORT_PRICE_REASON)).mode
+      : 'NO_CHANGES'
   }
 
   /**

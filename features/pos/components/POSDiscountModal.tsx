@@ -232,7 +232,7 @@ export const POSDiscountModal: React.FC<POSDiscountModalProps> = ({
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Precio Original ({item.quantity} un.):</span>
+              <span>Precio original con IVA ({item.quantity} un.):</span>
               <strong style={{ color: 'var(--navy)' }}>{formatCOP(grossTotal)}</strong>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#15803d', fontWeight: 700 }}>
@@ -240,7 +240,7 @@ export const POSDiscountModal: React.FC<POSDiscountModalProps> = ({
               <span>-{formatCOP(discountAmount)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--line)', paddingTop: 6, fontSize: 13, fontWeight: 900, color: 'var(--navy)' }}>
-              <span>Nuevo Subtotal:</span>
+              <span>Nuevo total (IVA incluido):</span>
               <span>{formatCOP(newSubtotal)}</span>
             </div>
           </div>

@@ -200,7 +200,7 @@ export function POSCart({
         {/* Breakdown */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--muted)' }}>
-            <span>Subtotal ({totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'})</span>
+            <span>Subtotal sin IVA ({totalUnits} {totalUnits === 1 ? 'unidad' : 'unidades'})</span>
             <strong style={{ color: 'var(--navy)' }}>{formatCOP(subtotal)}</strong>
           </div>
 

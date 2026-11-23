@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { posService } from '../services/pos.service'
+import { computePOSLineAmounts } from '../utils/line-amounts'
 import {
   POSProduct,
   POSCustomer,
@@ -288,19 +289,11 @@ export function usePOS() {
           return prevCart
         }
 
-        const gross = updatedQty * unitPrice
-        const discountAmount = Math.round(gross * (existing.discountPercent / 100))
-        const subtotal = gross - discountAmount
-        const taxAmount = Math.round(subtotal * (taxRatePercent / 100))
-        const total = subtotal + taxAmount
-
         const updated = [...prevCart]
         updated[existingIndex] = {
           ...existing,
           quantity: updatedQty,
-          subtotal,
-          taxAmount,
-          total,
+          ...computePOSLineAmounts(updatedQty, unitPrice, existing.discountPercent, taxRatePercent),
         }
         return updated
       } else {
@@ -309,10 +302,7 @@ export function usePOS() {
           return prevCart
         }
 
-        const gross = customQuantity * unitPrice
-        const subtotal = gross
-        const taxAmount = Math.round(subtotal * (taxRatePercent / 100))
-        const total = subtotal + taxAmount
+        const { subtotal, taxAmount, total } = computePOSLineAmounts(customQuantity, unitPrice, 0, taxRatePercent)
 
         return [
           ...prevCart,
@@ -352,19 +342,10 @@ export function usePOS() {
             alert(`No puedes agregar más de ${item.availableStock} unidades disponibles.`)
             return item
           }
-          const gross = newQty * item.unitPrice
-          const discountAmount = Math.round(gross * (item.discountPercent / 100))
-          const subtotal = gross - discountAmount
-          const taxAmount = Math.round(subtotal * (item.taxRatePercent / 100))
-          const total = subtotal + taxAmount
-
           return {
             ...item,
             quantity: newQty,
-            discountAmount,
-            subtotal,
-            taxAmount,
-            total,
+            ...computePOSLineAmounts(newQty, item.unitPrice, item.discountPercent, item.taxRatePercent),
           }
         }
         return item
@@ -377,19 +358,10 @@ export function usePOS() {
     setCart((prev) =>
       prev.map((item) => {
         if (item.productId === productId) {
-          const gross = item.quantity * item.unitPrice
-          const discountAmount = Math.round(gross * (clamped / 100))
-          const subtotal = gross - discountAmount
-          const taxAmount = Math.round(subtotal * (item.taxRatePercent / 100))
-          const total = subtotal + taxAmount
-
           return {
             ...item,
             discountPercent: clamped,
-            discountAmount,
-            subtotal,
-            taxAmount,
-            total,
+            ...computePOSLineAmounts(item.quantity, item.unitPrice, clamped, item.taxRatePercent),
             discountReason: reason,
           }
         }

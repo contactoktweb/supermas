@@ -14,6 +14,7 @@ import {
   POSOpenCashSession,
 } from '../types'
 import { getCustomerCreditStatus } from '../utils/customer-credit'
+import { computePOSLineAmounts } from '../utils/line-amounts'
 
 const DEFAULT_POS_USER: POSUserContext = {
   userId: '',
@@ -291,13 +292,14 @@ export class POSService {
 
       // Precios e Impuestos
       const unitPrice = this.resolveUnitPrice(product, customer, rawItem.quantity)
-      const grossSubtotal = rawItem.quantity * unitPrice
-      const discountAmount = Math.round(grossSubtotal * (discountPercent / 100))
-      const netSubtotal = grossSubtotal - discountAmount
-
       const taxRatePercent = product.isExempt ? 0 : product.vatRatePercent
-      const taxAmount = Math.round(netSubtotal * (taxRatePercent / 100))
-      const total = netSubtotal + taxAmount
+      // El precio incluye IVA: el total es cantidad x precio (menos descuento) y de ahí sale la base.
+      const { subtotal: lineSubtotal, discountAmount, taxAmount, total } = computePOSLineAmounts(
+        rawItem.quantity,
+        unitPrice,
+        discountPercent,
+        taxRatePercent
+      )
 
       processedLines.push({
         productId: product.id,
@@ -313,7 +315,7 @@ export class POSService {
         discountAmount,
         taxRatePercent,
         taxAmount,
-        subtotal: netSubtotal,
+        subtotal: lineSubtotal,
         total,
         notes: rawItem.discountReason,
       })
@@ -336,7 +338,7 @@ export class POSService {
 
     // 5. Validar monto entregado, calcular cambio y armar los pagos con su cuenta destino
     let amountPaid = validated.amountPaid
-    // El efectivo se recibe en pesos enteros; el total puede traer centavos porque los precios se guardan sin IVA.
+    // El efectivo se recibe en pesos enteros; el total puede traer centavos con cantidades fraccionadas o descuentos.
     if (validated.paymentMethod === 'EFECTIVO' && amountPaid < Math.round(totalAmount)) {
       throw new Error(
         `El valor recibido ($${amountPaid.toLocaleString('es-CO')}) no cubre el total de la venta ($${totalAmount.toLocaleString('es-CO')}).`

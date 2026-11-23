@@ -76,7 +76,7 @@ export function POSPaymentModal({
 
   const isCash = paymentMethod === 'EFECTIVO'
   const totalAmount = totals.totalAmount || 0
-  // Los precios se guardan sin IVA, así que el total puede traer centavos (9.000,03): el efectivo se cuenta en pesos.
+  // Con cantidades fraccionadas o descuentos el total puede traer centavos: el efectivo se cuenta en pesos.
   const amountDue = Math.round(totalAmount)
   const change = Math.max(0, amountPaid - amountDue)
   const isInsufficient = isCash && amountPaid < amountDue
@@ -109,7 +109,6 @@ export function POSPaymentModal({
   }
 
   const totalUnits = totals.totalUnits || totals.itemCount || 0
-  const subtotal = totals.subtotal || 0
   const taxTotal = totals.taxTotal || totals.taxAmount || 0
 
   return (
@@ -192,7 +191,7 @@ export function POSPaymentModal({
               {formatCOP(totalAmount)}
             </div>
             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#cbd5e1' }}>
-              {totalUnits} {totalUnits === 1 ? 'producto' : 'productos'} · Subtotal: {formatCOP(subtotal)} · IVA: {formatCOP(taxTotal)}
+              {totalUnits} {totalUnits === 1 ? 'producto' : 'productos'} · Sin IVA: {formatCOP(totalAmount - taxTotal)} · IVA: {formatCOP(taxTotal)}
             </p>
           </div>
 

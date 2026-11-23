@@ -129,7 +129,7 @@ export function CustomerDisplayView() {
                 <dd>{cart?.totalUnits ?? 0}</dd>
               </div>
               <div>
-                <dt>Subtotal</dt>
+                <dt>Subtotal sin IVA</dt>
                 <dd>{formatCOP(cart?.subtotal ?? 0)}</dd>
               </div>
               {(cart?.discountTotal ?? 0) > 0 && (

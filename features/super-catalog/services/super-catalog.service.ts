@@ -6,6 +6,7 @@
  * las operaciones del catálogo de venta web directa.
  */
 
+import { computeVatInclusiveLine } from '@/lib/tax/vat-inclusive'
 import { superCatalogRepository } from '../repositories/super-catalog.repository'
 import {
   SuperCatalogProduct,
@@ -426,10 +427,9 @@ export class SuperCatalogService {
     }
 
     const unitPrice = product.price
-    const subtotal = unitPrice * quantity
     const taxRate = product.vatRatePercent || 0
-    const taxAmount = Math.round(subtotal * (taxRate / 100))
-    const total = subtotal + taxAmount
+    // El precio incluye IVA: subtotal es la base y el total lo que paga el cliente.
+    const { taxableBase: subtotal, taxAmount, total } = computeVatInclusiveLine(quantity, unitPrice, 0, taxRate)
 
     return {
       success: true,

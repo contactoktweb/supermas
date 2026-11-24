@@ -6,7 +6,7 @@
  * REGLAS DE SEGURIDAD CRÍTICAS:
  * - Sanitiza y elimina costos, márgenes, compras, proveedores y existencias numéricas.
  * - Solo devuelve availability: AVAILABLE | LOW_STOCK | OUT_OF_STOCK.
- * - Los precios se publican CON IVA (el producto guarda el precio antes de IVA).
+ * - Los precios se publican CON IVA (el producto guarda el precio con IVA incluido).
  * - Resuelve el company_id activo sin requerir sesión administrativa del ERP.
  */
 
@@ -23,7 +23,7 @@ import {
 } from '../types'
 import { PUBLIC_CATALOG_DEFAULT_PAGE_SIZE, PUBLIC_CATALOG_MAX_PAGE_SIZE } from '../utils/request'
 import { getRuntimeSettings } from '@/features/settings/services/runtime-settings'
-import { effectiveVatRatePercent, priceWithVat, ProductTaxRow } from '../utils/tax'
+import { effectiveVatRatePercent, priceBeforeVat, ProductTaxRow } from '../utils/tax'
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -71,7 +71,7 @@ export class PublicCatalogService {
   /**
    * IVA efectivo por producto (misma regla que la venta). Lee iva_treatment, que los
    * repositorios de catálogo no cargan. Si falla se lanza el error: publicar precios
-   * sin IVA haría que la tienda muestre menos de lo que se cobra.
+   * mal desglosados haría que la tienda muestre un IVA distinto al que se factura.
    */
   private async loadVatRates(productIds: string[]): Promise<Map<string, number>> {
     const rates = new Map<string, number>()
@@ -115,8 +115,8 @@ export class PublicCatalogService {
       unitOfMeasure: prod.unitOfMeasure,
       imageUrl: prod.imageUrl,
       images: prod.images || [],
-      price: priceWithVat(prod.price, vatRatePercent),
-      priceBeforeTax: prod.price,
+      price: prod.price,
+      priceBeforeTax: priceBeforeVat(prod.price, vatRatePercent),
       showPrice: prod.showPrice,
       vatRatePercent,
       isExempt: vatRatePercent === 0,
@@ -146,9 +146,9 @@ export class PublicCatalogService {
       unitOfMeasure: prod.unitOfMeasure,
       imageUrl: prod.imageUrl,
       images: prod.images || [],
-      distributorPrice: priceWithVat(prod.distributorPrice, vatRatePercent),
-      distributorPriceBeforeTax: prod.distributorPrice,
-      normalPrice: priceWithVat(prod.normalPrice, vatRatePercent),
+      distributorPrice: prod.distributorPrice,
+      distributorPriceBeforeTax: priceBeforeVat(prod.distributorPrice, vatRatePercent),
+      normalPrice: prod.normalPrice,
       vatRatePercent,
       availability: prod.availability,
       availabilityLabel: prod.availabilityLabel,

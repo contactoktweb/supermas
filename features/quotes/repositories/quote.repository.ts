@@ -6,6 +6,7 @@
  * Aislamiento multi-tenant estricto mediante company_id. Cero mocks, cero db.ts.
  */
 
+import { computeVatInclusiveLine } from '@/lib/tax/vat-inclusive'
 import { supabaseClient } from '@/lib/supabase/client'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { resolveUserCompanyId } from '@/lib/supabase/tenant'
@@ -183,11 +184,12 @@ export class QuoteRepository {
       const discountPercent = it.discountPercent || 0
       const taxRatePercent = it.taxRatePercent !== undefined ? it.taxRatePercent : Number(prod?.tax_rate_percent) || 0
 
-      const lineGross = it.quantity * unitPrice
-      const lineDiscount = Math.round(lineGross * (discountPercent / 100))
-      const lineBase = lineGross - lineDiscount
-      const lineTax = Math.round(lineBase * (taxRatePercent / 100))
-      const lineTotal = lineBase + lineTax
+      // El precio incluye IVA: el total es cantidad x precio (menos descuento) y de ahí salen base e IVA.
+      const line = computeVatInclusiveLine(it.quantity, unitPrice, discountPercent, taxRatePercent)
+      const lineGross = line.grossBase
+      const lineDiscount = line.discountAmount
+      const lineTax = line.taxAmount
+      const lineTotal = line.total
 
       totalSubtotal += lineGross
       totalDiscount += lineDiscount

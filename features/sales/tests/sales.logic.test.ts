@@ -64,7 +64,8 @@ async function runSalesTests() {
     { id: 'prod-002', name: 'Atún', sku: 'ATU-001', normalPrice: 10000, vatRatePercent: 19 },
     { productId: 'prod-002', quantity: 1, discountPercent: 10 }
   )
-  assert(taxedLine.subtotal === 9000 && taxedLine.taxAmount === 1710 && taxedLine.total === 10710, 'Gravado 19 % con descuento 10 % = 10.710')
+  // Precio con IVA incluido: $10.000 con 10 % de descuento se paga $9.000 (base 7.563,03 + IVA 1.436,97).
+  assert(taxedLine.subtotal === 7563.03 && taxedLine.taxAmount === 1436.97 && taxedLine.total === 9000, 'Gravado 19 % IVA incluido con descuento 10 % = 9.000')
 
   // 2. Formulario: clave de idempotencia y tope de descuento
   console.log('\n2. Validación del formulario')

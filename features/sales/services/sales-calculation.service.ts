@@ -1,10 +1,8 @@
 import { SaleItem, CreateSaleItemDTO } from '../types'
+import { computeVatInclusiveLine } from '@/lib/tax/vat-inclusive'
 
 /** Línea para la vista previa: admite un precio ya resuelto (p. ej. el del catálogo cargado). */
 export type SaleLinePreviewInput = CreateSaleItemDTO & { unitPrice?: number; taxRatePercent?: number }
-
-/** Redondeo a centavos, igual que el servidor (NUMERIC(15,2)). */
-const roundMoney = (value: number): number => Math.round(value * 100) / 100
 
 export interface ProductSource {
   id: string
@@ -95,13 +93,13 @@ export class SalesCalculationService {
       : this.resolveUnitPrice(product, priceList, quantity)
 
     const discountPercent = Math.min(100, Math.max(0, dto.discountPercent || 0))
-    const grossSubtotal = roundMoney(quantity * unitPrice)
-    const discountAmount = roundMoney(grossSubtotal * (discountPercent / 100))
-    const netSubtotal = roundMoney(grossSubtotal - discountAmount)
-
     const taxRatePercent = this.resolveTaxRate(product, dto.taxRatePercent)
-    const taxAmount = roundMoney(netSubtotal * (taxRatePercent / 100))
-    const total = roundMoney(netSubtotal + taxAmount)
+    // El precio incluye IVA: el total es cantidad x precio (menos descuento) y de ahí salen base e IVA.
+    const line = computeVatInclusiveLine(quantity, unitPrice, discountPercent, taxRatePercent)
+    const discountAmount = line.discountAmount
+    const netSubtotal = line.taxableBase
+    const taxAmount = line.taxAmount
+    const total = line.total
 
     const unitCost = product.averageCost || 0
 

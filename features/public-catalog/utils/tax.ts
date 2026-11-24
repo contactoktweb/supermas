@@ -1,8 +1,8 @@
 /**
  * SUPER MÁS ERP/POS - IVA de los precios publicados en los catálogos públicos
  *
- * Los precios del producto se guardan ANTES de IVA; la venta suma el IVA con la misma regla
- * que fn_create_sale_with_payments_internal (079) y fn_create_public_web_order (086):
+ * Los precios del producto se guardan CON IVA incluido; la venta desglosa el IVA con la misma regla
+ * que fn_create_sale_with_payments_internal y fn_create_public_web_order (097):
  * exento (is_tax_exempt) o tratamiento EXENTO / EXCLUIDO → 0 %, si no tax_rate_percent.
  */
 
@@ -20,7 +20,4 @@ export function effectiveVatRatePercent(row: ProductTaxRow): number {
   return Number.isFinite(rate) && rate > 0 ? rate : 0
 }
 
-/** Precio con IVA redondeado a centavos, como lo calcula la venta. */
-export function priceWithVat(priceBeforeTax: number, vatRatePercent: number): number {
-  return Math.round(priceBeforeTax * (100 + vatRatePercent)) / 100
-}
+export { priceBeforeVat } from '@/lib/tax/vat-inclusive'

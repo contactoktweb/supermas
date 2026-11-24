@@ -902,7 +902,7 @@ export function NewSaleDrawer({
                             {item.productName}
                           </strong>
                           <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                            {formatCOP(item.unitPrice)} c/u • IVA {item.taxRatePercent}%
+                            {formatCOP(item.unitPrice)} c/u • {item.taxRatePercent > 0 ? `IVA ${item.taxRatePercent}% incluido` : 'Sin IVA'}
                           </span>
                         </div>
 
@@ -1093,7 +1093,7 @@ export function NewSaleDrawer({
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>Subtotal bruto ({totals.totalUnits} unidades):</span>
+                  <span>Subtotal sin IVA ({totals.totalUnits} unidades):</span>
                   <strong>{formatCOP(totals.subtotal + totals.discountTotal)}</strong>
                 </div>
 
@@ -1105,12 +1105,12 @@ export function NewSaleDrawer({
                 )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>Base gravable:</span>
+                  <span>Base sin IVA después de descuentos:</span>
                   <span>{formatCOP(totals.subtotal)}</span>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                  <span>Impuestos (IVA discriminado):</span>
+                  <span>IVA incluido en los precios:</span>
                   <span>+{formatCOP(totals.taxTotal)}</span>
                 </div>
 

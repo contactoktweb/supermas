@@ -26,6 +26,7 @@ import { productService } from '@/features/products/services/product.service'
 import { DatePicker } from '@/components/ui/DatePicker'
 import { SelectField } from '@/components/ui/SelectField'
 import { WithholdingSelector } from '@/features/withholdings/components/WithholdingSelector'
+import { priceBeforeVat, roundMoney } from '@/lib/tax/vat-inclusive'
 
 interface PurchaseNewDrawerProps {
   isOpen: boolean
@@ -95,6 +96,19 @@ export function PurchaseNewDrawer({
   const [searchResults, setSearchResults] = useState<ProductSearchResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [items, setItems] = useState<PurchaseItem[]>([])
+  // Costo digitado con IVA incluido (como viene en la factura del proveedor): el sistema guarda la
+  // base sin IVA en unitCost y aquí conserva lo que el usuario escribió, por línea.
+  const [costIncludesVat, setCostIncludesVat] = useState<boolean>(isDirectInvoice)
+  const [grossCostInput, setGrossCostInput] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    setCostIncludesVat(isDirectInvoice)
+    setGrossCostInput({})
+  }, [isDirectInvoice])
+
+  /** Costo con IVA de la línea: lo digitado o, si no hay, la base + IVA. */
+  const grossCostOf = (item: PurchaseItem): string =>
+    grossCostInput[item.id] ?? String(roundMoney((item.unitCost * (100 + (item.taxRatePercent || 0))) / 100))
 
   // Taxes
   const taxConfigs = purchaseCalculationService.getTaxConfigs()
@@ -246,6 +260,12 @@ export function PurchaseNewDrawer({
       taxCode = value
       const conf = taxConfigs.find((t) => t.code === value)
       taxRate = conf ? conf.ratePercent : 19
+    }
+    // Con IVA incluido, la base se desglosa del costo digitado (también al cambiar la tarifa).
+    if (costIncludesVat && (field === 'unitCost' || field === 'taxCode')) {
+      const grossText = field === 'unitCost' ? String(value) : grossCostOf(item)
+      cost = priceBeforeVat(Number(grossText) || 0, taxRate)
+      setGrossCostInput((prev) => ({ ...prev, [item.id]: grossText }))
     }
 
     updated[index] = purchaseCalculationService.calculateLineItem(
@@ -1017,6 +1037,33 @@ export function PurchaseNewDrawer({
                   </p>
                 </div>
               ) : (
+                <>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: 'var(--text-main)',
+                    marginBottom: 8,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={costIncludesVat}
+                    onChange={(e) => {
+                      setCostIncludesVat(e.target.checked)
+                      setGrossCostInput({})
+                    }}
+                  />
+                  <span>
+                    <strong>Costos con IVA incluido</strong>
+                    <span style={{ color: 'var(--muted)' }}>
+                      {' '}— escriba el costo como viene en la factura; el sistema separa la base y el IVA.
+                    </span>
+                  </span>
+                </label>
                 <div
                   className="table-responsive"
                   style={{
@@ -1029,7 +1076,7 @@ export function PurchaseNewDrawer({
                       <tr>
                         <th>Producto</th>
                         <th style={{ width: 90 }}>Cant.</th>
-                        <th style={{ width: 115 }}>Costo Unit.</th>
+                        <th style={{ width: 130 }}>{costIncludesVat ? 'Costo Unit. con IVA' : 'Costo Unit. sin IVA'}</th>
                         <th style={{ width: 110 }}>IVA</th>
                         <th style={{ width: 75 }}>Desc %</th>
                         <th className="numeric">Subtotal</th>
@@ -1073,13 +1120,20 @@ export function PurchaseNewDrawer({
                             <input
                               type="number"
                               min="0"
-                              value={item.unitCost}
+                              step="any"
+                              value={costIncludesVat ? grossCostOf(item) : item.unitCost}
                               onChange={(e) =>
                                 handleUpdateItem(idx, 'unitCost', e.target.value)
                               }
                               className="filter-date-input"
                               style={{ width: '100%', padding: '4px 6px' }}
+                              aria-label={costIncludesVat ? 'Costo unitario con IVA incluido' : 'Costo unitario sin IVA'}
                             />
+                            {costIncludesVat && item.taxRatePercent > 0 && (
+                              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>
+                                Sin IVA: {formatCurrency(item.unitCost)}
+                              </div>
+                            )}
                           </td>
                           <td>
                             <SelectField
@@ -1135,6 +1189,7 @@ export function PurchaseNewDrawer({
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
           )}

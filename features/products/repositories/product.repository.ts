@@ -25,6 +25,7 @@ import {
   PriceChangeStatus,
   PriceChangeInput,
   PriceChangeSubmissionResult,
+  CreatedProduct,
 } from '../types'
 import {
   PostingAccountOption,
@@ -480,7 +481,7 @@ export class ProductRepository {
   async create(
     data: CreateProductInput | (Partial<Product> & { name: string; sku: string; categoryId: string; brandId: string }),
     companyId?: string
-  ): Promise<Product> {
+  ): Promise<CreatedProduct> {
     const resolvedCompanyId = await this.resolveCompanyId(companyId)
 
     const normalPrice =
@@ -615,51 +616,57 @@ export class ProductRepository {
       }
     }
 
-    // Registrar inventario inicial en public.inventory_movements (Kardex inmutable)
-    if (Array.isArray((data as any).initialStock) && (data as any).initialStock.length > 0) {
+    // Inventario inicial en el Kardex: todas las bodegas en un solo insert (o entran todas o ninguna).
+    // El trigger trg_after_inventory_movement actualiza stock_levels.
+    let initialStockError: string | undefined
+    const stockItems: Array<{ locationId?: string; quantity?: number; unitCost?: number }> =
+      Array.isArray((data as any).initialStock) ? (data as any).initialStock : []
+    // Una sola entrada por bodega (costo promedio ponderado) para que el saldo del Kardex cuadre.
+    const byLocation = new Map<string, { qty: number; value: number }>()
+    for (const item of stockItems) {
+      const qty = Number(item.quantity || 0)
+      if (qty <= 0 || !item.locationId) continue
+      const unitCost = Number(item.unitCost && item.unitCost > 0 ? item.unitCost : costPrice)
+      const acc = byLocation.get(item.locationId) || { qty: 0, value: 0 }
+      byLocation.set(item.locationId, { qty: acc.qty + qty, value: acc.value + qty * unitCost })
+    }
+    const movements = Array.from(byLocation, ([locationId, { qty, value }]) => ({ locationId, qty, value }))
+      .map(({ locationId, qty, value }) => {
+        const itemCost = Math.round((value / qty) * 100) / 100
+        return {
+          company_id: resolvedCompanyId,
+          product_id: createdRow.id,
+          location_id: locationId,
+          movement_type: 'POSITIVE_ADJUSTMENT',
+          quantity_in: qty,
+          quantity_out: 0,
+          previous_stock: 0,
+          new_stock: qty,
+          unit_cost: itemCost,
+          total_cost: qty * itemCost,
+          document_type: 'INVENTARIO_INICIAL',
+          document_reference: `INV-INI-${createdRow.sku}`,
+          reason: 'Inventario inicial al registrar el producto',
+        }
+      })
+
+    if (movements.length > 0) {
       const { data: authUser } = await supabaseClient.auth.getUser()
       const currentUserId = authUser?.user?.id || null
-
-      for (const stockItem of (data as any).initialStock) {
-        const qty = Number(stockItem.quantity || 0)
-        if (qty > 0 && stockItem.locationId) {
-          const itemCost = Number(
-            stockItem.unitCost !== undefined && stockItem.unitCost !== null && stockItem.unitCost > 0
-              ? stockItem.unitCost
-              : costPrice
-          )
-          const totalCost = qty * itemCost
-
-          const movementPayload = {
-            company_id: resolvedCompanyId,
-            product_id: createdRow.id,
-            location_id: stockItem.locationId,
-            movement_type: 'POSITIVE_ADJUSTMENT',
-            quantity_in: qty,
-            quantity_out: 0,
-            previous_stock: 0,
-            new_stock: qty,
-            unit_cost: itemCost,
-            total_cost: totalCost,
-            document_type: 'INVENTARIO_INICIAL',
-            document_reference: `INV-INI-${createdRow.sku}`,
-            reason: 'Inventario inicial al registrar el producto',
-            user_id: currentUserId,
-          }
-
-          const { error: movErr } = await supabaseClient
-            .from('inventory_movements')
-            .insert(movementPayload)
-
-          if (movErr) {
-            console.error('Error al registrar inventario inicial en public.inventory_movements:', movErr)
-          }
-        }
+      const { error: movErr } = await supabaseClient
+        .from('inventory_movements')
+        .insert(movements.map((m) => ({ ...m, user_id: currentUserId })))
+      if (movErr) {
+        const denied = movErr.code === '42501' || (movErr.message || '').includes('row-level security')
+        initialStockError = denied
+          ? 'No tiene permiso para ajustar inventario en una de las bodegas elegidas.'
+          : this.translateDbError(movErr)
       }
     }
 
-    const createdProduct = await this.findById(createdRow.id)
-    return createdProduct || mapDbToDomain({ ...createdRow, product_prices: pricesToPersist })
+    const createdProduct =
+      (await this.findById(createdRow.id)) || mapDbToDomain({ ...createdRow, product_prices: pricesToPersist })
+    return initialStockError ? { ...createdProduct, initialStockError } : createdProduct
   }
 
   async resetMocks(): Promise<void> {

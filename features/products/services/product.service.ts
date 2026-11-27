@@ -1,5 +1,6 @@
 import {
   Product,
+  CreatedProduct,
   ProductFilterParams,
   PaginatedProductsResponse,
   GlobalProductsStats,
@@ -82,7 +83,7 @@ export class ProductService {
   async createProduct(
     input: CreateProductInput,
     userContext?: UserPermissionContext
-  ): Promise<Product> {
+  ): Promise<CreatedProduct> {
     // 1. Validar esquema con Zod
     const validated = productFormSchema.parse(input)
 
@@ -136,6 +137,7 @@ export class ProductService {
       isPublishedDistributor: validated.webDistribuidora,
       inventoryType: 'MERCHANDISE',
       prices: validated.prices,
+      initialStock: validated.initialStock,
       accountingAccountId: (validated as any).accountingAccountId || (input as any).accountingAccountId || undefined,
       accountingCategoryId: (validated as any).accountingCategoryId || (input as any).accountingCategoryId || undefined,
     })

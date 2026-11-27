@@ -88,7 +88,7 @@ export class ProductImportService {
       'Precio Venta Normal',
       'Precio Mayorista',
       'Cantidad Mínima Mayorista',
-      'Costo Unitario',
+      'Costo Unitario con IVA',
       'Tarifa IVA (%)',
       'Tipo de IVA',
       'Stock Inicial',
@@ -233,7 +233,7 @@ export class ProductImportService {
     if (minWholesaleQuantity !== undefined && minWholesaleQuantity < 1) {
       errors.push('Cantidad mínima mayorista: debe ser 1 o más.')
     }
-    const costPrice = readNumber('Costo unitario', ['costounitario', 'costo', 'costopromedio', 'preciocosto'], { money: true })
+    const costPrice = readNumber('Costo unitario con IVA', ['costounitarioconiva', 'costoconiva', 'costounitario', 'costo', 'costopromedio', 'preciocosto'], { money: true })
     const initialStock = readNumber('Stock inicial', ['stockinicial', 'stock', 'cantidadinicial', 'cantidad'])
     const minStock = readNumber('Stock mínimo', ['stockminimo', 'minstock'], { integer: true })
     const criticalStock = readNumber('Stock crítico', ['stockcritico', 'criticalstock'], { integer: true })
@@ -362,9 +362,9 @@ export class ProductImportService {
     add('Marca', provided.brandName, existing.brands?.name ?? null, row.brandName)
     add('Unidad', provided.unitOfMeasure, existing.unit_of_measure, row.unitOfMeasure)
     if (canReadCost) {
-      add('Costo', provided.costPrice, Number(existing.cost_price), row.costPrice)
+      add('Costo con IVA', provided.costPrice, Number(existing.cost_price), row.costPrice)
     } else if (provided.costPrice) {
-      changes.push(`Costo: se actualiza a ${formatImportNumber(Number(row.costPrice))}`)
+      changes.push(`Costo con IVA: se actualiza a ${formatImportNumber(Number(row.costPrice))}`)
     }
     add('Precio de venta', provided.publicSalePrice, Number(existing.public_sale_price), row.publicSalePrice)
     add('Precio mayorista', provided.wholesalePrice, Number(existing.wholesale_price), row.wholesalePrice)
@@ -438,13 +438,13 @@ export class ProductImportService {
       }
       if (!existing) {
         if (!parsed.name) errors.push('El nombre del producto es obligatorio.')
-        if ((parsed.costPrice ?? 0) <= 0) errors.push('El costo unitario debe ser mayor a $0.')
+        if ((parsed.costPrice ?? 0) <= 0) errors.push('El costo unitario con IVA debe ser mayor a $0.')
       } else if (provided.costPrice && !canManageCosts) {
         // Sin costs.manage el costo de un producto existente no se toca: el resto de la fila sí se aplica.
         provided.costPrice = false
         warnings.push('No tiene permiso para modificar costos: el costo de este producto no se cambia.')
       } else if (provided.costPrice && (parsed.costPrice ?? 0) <= 0) {
-        errors.push('El costo unitario debe ser mayor a $0.')
+        errors.push('El costo unitario con IVA debe ser mayor a $0.')
       }
       if ((provided.publicSalePrice || !existing) && (parsed.publicSalePrice ?? 0) === 0) {
         warnings.push('El precio de venta normal es $0.')

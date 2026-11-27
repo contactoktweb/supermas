@@ -248,7 +248,7 @@ export function ProductDetailDrawer({
                     {productService.formatCurrency(product.profitMarginAmount)})
                   </strong>
                 )}
-                <small className="field-hint">Antes de IVA</small>
+                <small className="field-hint">Precio menos costo, con IVA</small>
               </div>
             </div>
 

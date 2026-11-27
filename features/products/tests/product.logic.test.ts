@@ -8,13 +8,13 @@ async function runTests() {
 
   // Test 1: Profit Margin and VAT Calculation
   console.log('Test 1: Profit Margin and VAT Calculation')
-  const marginExempt = productService.calculateProfitMargin(21500, 0, 15400)
+  const marginExempt = productService.calculateProfitMargin(21500, 15400)
   assert.strictEqual(marginExempt.amount, 6100)
   assert.strictEqual(marginExempt.percentage, 28.37)
 
-  const margin19 = productService.calculateProfitMargin(29800, 19, 19800)
-  assert.strictEqual(Math.round(margin19.amount), 5242)
-  assert.strictEqual(margin19.percentage, 20.93)
+  const margin19 = productService.calculateProfitMargin(20000, 16800)
+  assert.strictEqual(margin19.amount, 3200)
+  assert.strictEqual(margin19.percentage, 16)
   console.log('✓ Profit Margin and VAT Calculation passed')
 
   // Test 2: Dynamic Web Availability Derivation

@@ -318,11 +318,7 @@ export function ProductFormDrawer({
   const accountingAccountId = inventoryAccount?.id || ''
 
   // Live calculation of estimated profit margin
-  const liveMargin = productService.calculateProfitMargin(
-    normalPrice,
-    vatRatePercent,
-    estimatedCost
-  )
+  const liveMargin = productService.calculateProfitMargin(normalPrice, estimatedCost)
 
   const buildPricesPayload = (): PriceTier[] => {
     const pricesPayload: PriceTier[] = [
@@ -1191,7 +1187,7 @@ export function ProductFormDrawer({
               </div>
 
               <div className="form-field">
-                <label>{mode === 'create' ? 'Costo unitario de compra *' : 'Costo del producto'}</label>
+                <label>{mode === 'create' ? 'Costo unitario de compra con IVA *' : 'Costo del producto con IVA'}</label>
                 <div className={`input-wrap ${errors.costPrice ? 'is-invalid' : ''}`}>
                   <span className="input-prefix">$</span>
                   <input
@@ -1217,12 +1213,8 @@ export function ProductFormDrawer({
                 </div>
                 <div className="margin-metrics-grid">
                   <div>
-                    <span>Precio antes de IVA:</span>
-                    <b>
-                      {productService.formatCurrency(
-                        normalPrice / (1 + vatRatePercent / 100)
-                      )}
-                    </b>
+                    <span>Precio de venta con IVA:</span>
+                    <b>{productService.formatCurrency(normalPrice)}</b>
                   </div>
                   <div>
                     <span>Utilidad bruta por unidad:</span>
@@ -1271,7 +1263,7 @@ export function ProductFormDrawer({
                     Bodegas Físicas Activas ({stockWarehouses.length})
                   </h4>
                   <span className="time-muted" style={{ fontSize: 12 }}>
-                    Costo base de referencia: ${Number(estimatedCost || 0).toLocaleString('es-CO')}
+                    Costo base de referencia con IVA: ${Number(estimatedCost || 0).toLocaleString('es-CO')}
                   </span>
                 </div>
 
@@ -1371,7 +1363,7 @@ export function ProductFormDrawer({
 
                             <div className="form-field">
                               <label style={{ fontSize: 12, fontWeight: 600 }}>
-                                Costo unitario de entrada ($)
+                                Costo unitario de entrada con IVA ($)
                               </label>
                               <div className="input-wrap">
                                 <span className="input-prefix">$</span>

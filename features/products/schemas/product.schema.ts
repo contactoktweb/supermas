@@ -164,7 +164,7 @@ export const productFormSchema = productBusinessRulesSchema
     path: ['accountingAccountId'],
   })
   .refine((data) => Number(data.costPrice) > 0, {
-    message: 'Ingrese el costo unitario de compra del producto (debe ser mayor a $0)',
+    message: 'Ingrese el costo unitario de compra con IVA (debe ser mayor a $0)',
     path: ['costPrice'],
   })
 

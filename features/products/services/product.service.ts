@@ -370,22 +370,18 @@ export class ProductService {
   }
 
   /**
-   * Centraliza la fórmula de margen de utilidad: (Precio Sin IVA - Costo Promedio).
+   * Centraliza la fórmula de margen de utilidad: precio de venta menos costo, ambos con IVA incluido.
    */
   calculateProfitMargin(
     normalSalePrice: number,
-    vatRatePercent: number,
     averageCost: number
   ): { amount: number; percentage: number } {
     if (normalSalePrice <= 0) {
       return { amount: 0, percentage: 0 }
     }
 
-    const divisor = 1 + (vatRatePercent || 0) / 100
-    const priceWithoutVat = normalSalePrice / divisor
-    const amount = Number((priceWithoutVat - (averageCost || 0)).toFixed(2))
-    const percentage =
-      priceWithoutVat > 0 ? Number(((amount / priceWithoutVat) * 100).toFixed(2)) : 0
+    const amount = Number((normalSalePrice - (averageCost || 0)).toFixed(2))
+    const percentage = Number(((amount / normalSalePrice) * 100).toFixed(2))
 
     return { amount, percentage }
   }

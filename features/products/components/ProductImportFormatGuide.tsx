@@ -6,6 +6,9 @@ const FORMAT_RULES = [
     como mil quinientos.
   </>,
   <>
+    <strong>Costo Unitario con IVA:</strong> escriba el costo como viene en la factura del proveedor, con el IVA incluido.
+  </>,
+  <>
     <strong>Tipo de IVA:</strong> GRAVADO (tarifa 5 o 19), EXENTO o EXCLUIDO (tarifa 0).
   </>,
   <>

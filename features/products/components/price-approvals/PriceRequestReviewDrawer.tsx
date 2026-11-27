@@ -19,8 +19,8 @@ interface PriceRequestReviewDrawerProps {
 
 type PendingAction = 'APPROVE' | 'REJECT' | null
 
-function MarginLine({ label, price, cost, taxRate }: { label: string; price: number; cost: number; taxRate: number }) {
-  const margin = productService.calculateProfitMargin(price, taxRate, cost)
+function MarginLine({ label, price, cost }: { label: string; price: number; cost: number }) {
+  const margin = productService.calculateProfitMargin(price, cost)
   return (
     <div className="price-review-margin">
       <span>{label}</span>
@@ -134,10 +134,10 @@ export function PriceRequestReviewDrawer({
           <h3>Margen sobre costo</h3>
           {hasCost ? (
             <div className="price-review-margins">
-              <MarginLine label="Con el precio actual" price={request.previousPrice} cost={cost as number} taxRate={request.taxRatePercent} />
-              <MarginLine label="Con el precio propuesto" price={request.proposedPrice} cost={cost as number} taxRate={request.taxRatePercent} />
+              <MarginLine label="Con el precio actual" price={request.previousPrice} cost={cost as number} />
+              <MarginLine label="Con el precio propuesto" price={request.proposedPrice} cost={cost as number} />
               <small className="field-hint">
-                Costo de referencia {productService.formatCurrency(cost as number)} · IVA {request.taxRatePercent} %
+                Costo de referencia con IVA {productService.formatCurrency(cost as number)} · IVA {request.taxRatePercent} %
               </small>
             </div>
           ) : (

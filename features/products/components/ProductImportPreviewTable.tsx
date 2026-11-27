@@ -30,7 +30,7 @@ export function ProductImportPreviewTable({ rows }: { rows: ProductImportRowVali
             <th scope="col" style={HEAD}>Acción</th>
             <th scope="col" style={HEAD}>SKU</th>
             <th scope="col" style={HEAD}>Producto</th>
-            <th scope="col" style={{ ...HEAD, textAlign: 'right' }}>Costo</th>
+            <th scope="col" style={{ ...HEAD, textAlign: 'right' }}>Costo con IVA</th>
             <th scope="col" style={{ ...HEAD, textAlign: 'right' }}>Precio</th>
             <th scope="col" style={{ ...HEAD, textAlign: 'right' }}>Mayorista</th>
             <th scope="col" style={HEAD}>IVA</th>

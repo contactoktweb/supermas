@@ -75,10 +75,9 @@ function mapDbToDomain(row: any): Product {
       ? 0
       : Number(row.tax_rate_percent ?? 19)
 
-  // Margen de utilidad sobre precio antes de impuestos
-  const basePrice = taxRatePercent > 0 ? publicSalePrice / (1 + taxRatePercent / 100) : publicSalePrice
-  const profitMarginAmount = basePrice - costPrice
-  const profitMarginPercent = basePrice > 0 ? (profitMarginAmount / basePrice) * 100 : 0
+  // Margen de utilidad: precio de venta menos costo, ambos con IVA incluido
+  const profitMarginAmount = publicSalePrice - costPrice
+  const profitMarginPercent = publicSalePrice > 0 ? (profitMarginAmount / publicSalePrice) * 100 : 0
 
   // Existencias calculadas si existen stock_levels unidos
   const minStock = Number(row.min_stock_threshold ?? 10)

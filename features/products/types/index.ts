@@ -229,6 +229,9 @@ export interface GlobalProductsStats {
   isCostRedacted: boolean
 }
 
+/** Producto recién creado; initialStockError indica que el inventario inicial no se pudo cargar. */
+export type CreatedProduct = Product & { initialStockError?: string }
+
 export interface UserPermissionContext {
   userId: string
   userName: string

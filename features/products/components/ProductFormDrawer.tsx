@@ -123,6 +123,15 @@ export function ProductFormDrawer({
 
   const { user } = useAuth()
   const userCanApprovePrices = canApprovePrices(user)
+  // Misma regla que la política de inventory_movements: el administrador carga en cualquier bodega;
+  // los demás necesitan inventory.adjust y solo ven las bodegas que tienen asignadas.
+  const isInventoryAdmin = user?.roleCode === 'ADMIN' || user?.roleCode === 'SUPERADMIN'
+  const canLoadInitialStock = isInventoryAdmin || Boolean(user?.permissions.includes('inventory.adjust'))
+  const stockWarehouses = !canLoadInitialStock
+    ? []
+    : isInventoryAdmin
+      ? activeWarehouses
+      : activeWarehouses.filter((w) => user?.locationIds.includes(w.id))
 
   useEffect(() => {
     setMounted(true)
@@ -261,6 +270,7 @@ export function ProductFormDrawer({
         setIsAddingCustomTier(false)
         setEstimatedCost(0)
         setLoadedCost(0)
+        setInitialStockMap({})
         setTaxProfile('IVA_19')
         setVatRatePercent(19)
         setWebSuperMas(true)
@@ -387,7 +397,7 @@ export function ProductFormDrawer({
       return
     }
 
-    const initialStockPayload = activeWarehouses
+    const initialStockPayload = stockWarehouses
       .map((w) => {
         const item = initialStockMap[w.id] || { quantity: 0, unitCost: estimatedCost }
         return {
@@ -1258,25 +1268,29 @@ export function ProductFormDrawer({
                   }}
                 >
                   <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--navy)' }}>
-                    Bodegas Físicas Activas ({activeWarehouses.length})
+                    Bodegas Físicas Activas ({stockWarehouses.length})
                   </h4>
                   <span className="time-muted" style={{ fontSize: 12 }}>
                     Costo base de referencia: ${Number(estimatedCost || 0).toLocaleString('es-CO')}
                   </span>
                 </div>
 
-                {activeWarehouses.length === 0 ? (
+                {stockWarehouses.length === 0 ? (
                   <div
                     className="empty-state-card"
                     style={{ padding: 24, textAlign: 'center', background: '#f8fafc', borderRadius: 8 }}
                   >
                     <p style={{ margin: 0, color: '#64748b', fontSize: 13 }}>
-                      No se encontraron bodegas activas en la empresa.
+                      {!canLoadInitialStock
+                        ? 'Su usuario no tiene permiso para cargar inventario. El producto se crea sin existencias.'
+                        : activeWarehouses.length === 0
+                          ? 'No se encontraron bodegas activas en la empresa.'
+                          : 'No tiene bodegas asignadas para cargar inventario. El producto se crea sin existencias.'}
                     </p>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {activeWarehouses.map((w) => {
+                    {stockWarehouses.map((w) => {
                       const currentItem = initialStockMap[w.id] || {
                         quantity: 0,
                         unitCost: estimatedCost || 0,

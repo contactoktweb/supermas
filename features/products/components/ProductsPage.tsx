@@ -217,11 +217,19 @@ export function ProductsPage({ onNavigate, userContext }: ProductsPageProps) {
         data as CreateProductInput,
         userContext
       )
-      showToast(
-        'Producto creado con éxito',
-        `Se registró "${created.name}" (SKU: ${created.sku}) correctamente.`,
-        'success'
-      )
+      if (created.initialStockError) {
+        showToast(
+          'Producto creado sin inventario inicial',
+          `Se registró "${created.name}" (SKU: ${created.sku}), pero el inventario no se cargó: ${created.initialStockError} Cárguelo con un ajuste de inventario.`,
+          'error'
+        )
+      } else {
+        showToast(
+          'Producto creado con éxito',
+          `Se registró "${created.name}" (SKU: ${created.sku}) correctamente.`,
+          'success'
+        )
+      }
       loadData()
     } catch (err: any) {
       showToast('Error al crear producto', err.message || 'No se pudo crear el producto', 'error')
